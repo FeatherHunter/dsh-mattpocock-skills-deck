@@ -92,6 +92,9 @@ export const vcRealClickIntentOf = function (el: any): any {
       const btn: any = vcRealClosestOf(el, 'data-vc-branch-action')
       return { kind: 'branchBtn', action: vcRealAttrOf(btn, 'data-vc-branch-action'), op: vcRealAttrOf(btn, 'data-vc-op'), name: vcRealAttrOf(hit, 'data-vc-branch-row'), form: vcRealAttrOf(btn, 'data-vc-branch-form') === '1', el: btn }
     }
+    // #1881 新增 A：标签行的「检出」是页面内的预填动作（起点进页尾表单），不是写动作；
+    //   它由组件自己的 onClick 接住，这里明确回 null，免得被当成 4.11 / 4.12 那样发一次预检电话。
+    if (vcRealClosestOf(el, 'data-vc-tag-action="checkout"')) return null
     hit = vcRealClosestOf(el, 'data-vc-tag-row')
     if (hit && vcRealClosestOf(el, 'data-vc-tag-action')) {
       const btn: any = vcRealClosestOf(el, 'data-vc-tag-action')
@@ -296,7 +299,13 @@ export const vcRealBranchFieldsOf = function (intent: any, current: any): any {
   if (kind === 'upstream') return parts.length > 1 ? { branch: parts[0], upstream: parts[1] } : { branch: parts[0] || String(current || '') }
   if (kind === 'describe') return { branch: parts[0] || String(current || ''), text: parts[1] || parts[0] || '' }
   if (kind === 'verify') return name !== '' ? { object: name, objectKind: 'tag' } : { object: raw, objectKind: 'commit' }
-  if (kind === 'create') return parts.length > 1 ? { name: parts[0], from: parts[1] } : { name: parts[0] || '' }
+  if (kind === 'create') {
+    // #1881 新增 A：标签行「检出」预填过起点时，这一行带 data-vc-branch-from，输入框第一段就是那个标签；
+    //   读者在后面写新分支名。这时把起点当 from、剩下的当 name，不按默认的「名字在前」拆。
+    const pinned: string = row && typeof row.getAttribute === 'function' ? String(row.getAttribute('data-vc-branch-from') || '') : ''
+    if (pinned !== '' && parts[0] === pinned) return { name: parts.slice(1).join(' '), from: pinned }
+    return parts.length > 1 ? { name: parts[0], from: parts[1] } : { name: parts[0] || '' }
+  }
   if (kind === 'tag-create') return { name: raw }
   if (kind === 'tag-delete') return { name: name || raw }
   return {}

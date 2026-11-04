@@ -162,11 +162,16 @@ zh:
   vc.shell.branch2.tagCreate: '建标签'
   vc.shell.branch2.tagDelete: '删除标签'
   vc.shell.branch2.verify: '验签'
+  # #1881 新增 A：标签行的「检出」——把页尾「新建并切换分支」的起点预填成这个标签。
+  vc.shell.branch2.checkout: '检出'
+  vc.shell.branch2.checkoutHint: '起点已经填好；在后面写新分支名，再点执行。'
   vc.shell.branch2.describe: '写分支说明（只改本地配置，不推送）'
   vc.shell.branch2.moreActions: '更多动作'
   vc.shell.branch2.renameHint: '先写旧分支名，再写新分支名，中间留一个空格'
   vc.shell.branch2.listsTitle: '已并入与没并入的名单'
   vc.shell.branch2.formsTitle: '新建分支与建标签'
+  # #1881 新增 B：页尾收成两行之后，其余写动作的入口在行内「⋯」里；这句只在展开后出现。
+  vc.shell.branch2.formsRestHint: '其余写动作在每一行的「⋯」里。'
   vc.shell.page.changes: '改动'
   vc.shell.page.commits: '提交历史'
   vc.shell.page.worktrees: '工作区'
@@ -730,11 +735,16 @@ en:
   vc.shell.branch2.tagCreate: 'Create tag'
   vc.shell.branch2.tagDelete: 'Delete tag'
   vc.shell.branch2.verify: 'Verify signature'
+  # #1881 addition A: the tag row's "check out" prefills the start point of the create-branch form.
+  vc.shell.branch2.checkout: 'Check out'
+  vc.shell.branch2.checkoutHint: 'The start point is already filled in; add the new branch name after it, then run.'
   vc.shell.branch2.describe: 'Write branch description (local config only, never pushed)'
   vc.shell.branch2.moreActions: 'More actions'
   vc.shell.branch2.renameHint: 'Write the old branch name first, then the new name, separated by a space'
   vc.shell.branch2.listsTitle: 'Merged and not-merged lists'
   vc.shell.branch2.formsTitle: 'Create a branch or a tag'
+  # #1881 addition B: after the footer shrank to two rows, the rest live in each row's "⋯" menu.
+  vc.shell.branch2.formsRestHint: 'The remaining write actions live in each row''s "⋯" menu.'
   vc.shell.page.changes: 'Changes'
   vc.shell.page.commits: 'History'
   vc.shell.page.worktrees: 'Worktrees'

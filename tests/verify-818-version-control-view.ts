@@ -303,6 +303,8 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcNewBranchRead', 'vcBranchShapeOk', 'vcBranchCheckShapeOk', 'vcReadBranches', 'vcBranchReadOf', 'vcBranchBoardOf', 'vcBranchStateOf',
   'vcBranchCheckOf', 'vcBranchWriteResultOf', 'vcBranchTicketOf', 'vcBranchCheckDecisionOf',
   'vcBranchRequestOf', 'vcBranchCheck', 'vcBranchWrite', 'vcBranchCheckKindOf', 'vcBranchReplyKindOf', 'vcBranchReasonsOf', 'vcBranchConfirmOf', 'vcBranchResultOf', 'vcBranchBoardNode',
+  // #1881 新增 A：标签行「检出」预填起点后，执行时靠它把「起点 + 新分支名」拆成 from / name。
+  'vcRealBranchFieldsOf',
   // #1751 贮藏页十条：规则名单、版本门、数据层与页面本体。
   'STASH_OPS', 'STASH_WRITE_OPS', 'STASH_READ_OPS', 'stashNeedsTicketOf',
   'STASH_STAGED_MIN_VERSION', 'STASH_STAGED_ALTERNATIVE', 'STASH_UNKNOWN_OP_KEY',
@@ -1793,6 +1795,17 @@ async function main() {
   const noBranchAt = String(brNoBranches).indexOf('data-vc-branch-forms')
   const noBranchOps = noBranchAt < 0 ? '' : attrValuesOf(String(brNoBranches).slice(noBranchAt), 'data-vc-op').join(',')
   check(attrValuesOf(brNoBranches, 'data-vc-branch-forms')[0] === '3' && noBranchOps === '4.2,4.10,4.4', 'BR20j 一行本地分支都没有时，4.4「切到这个提交」回到页尾（行内菜单这时不存在；实得 ' + noBranchOps + '）')
+  // #1881 新增 A：标签行多一颗「检出」；带上起点渲染时，页尾折叠自动展开、新建分支那一格预填这个标签。
+  const brCheckout = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: brBoardOf(), prefillFrom: 'v1.1.0' }))
+  const checkoutCount = (String(brCheckout).match(/data-vc-tag-action="checkout"/g) || []).length
+  const formsOpen = /data-vc-branch-forms="[0-9]+"[^>]* open/.test(brCheckout)
+  const createInput = /data-vc-branch-input="create"[^>]*value="v1.1.0 "/.test(brCheckout)
+  const pinnedFrom = /data-vc-branch-from="v1.1.0"/.test(brCheckout)
+  check(checkoutCount === 2 && formsOpen && createInput && pinnedFrom && /data-vc-branch-prefill="v1.1.0"/.test(brCheckout), 'BR20k 每个标签行都有「检出」；带上起点渲染时页尾折叠自动展开、起点预填成这个标签（实得检出 ' + checkoutCount + ' 颗）')
+  // #1881 新增 A 的落点：预填过的起点在执行时进 from，用户补的分支名进 name（不按默认的「名字在前」拆）。
+  const pinnedRow = { getAttribute: function (k) { return k === 'data-vc-branch-from' ? 'v1.1.0' : null }, querySelector: function () { return { value: 'v1.1.0 release-from-tag' } } }
+  const pinnedFields = VIEW.vcRealBranchFieldsOf({ action: 'create', name: '', el: { closest: function () { return pinnedRow } } }, 'main')
+  check(pinnedFields.name === 'release-from-tag' && pinnedFields.from === 'v1.1.0', 'BR20l 预填起点时执行：起点进 from、用户写的新分支名进 name（实得 ' + JSON.stringify(pinnedFields) + '）')
   const brEmpty = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: null, onRetry: function () {} }))
   check(attrValuesOf(brEmpty, 'data-vc-branch2-empty')[0] === '1' && attrValuesOf(brEmpty, 'data-vc-branch-row').length === 0 && attrValuesOf(brEmpty, 'data-vc-branch2-retry').length === 1, 'BR21 没读数时画空态与重试，不画假分支（页尾两条新建入口仍在：' + attrValuesOf(brEmpty, 'data-vc-branch-forms')[0] + '）')
   const brConfirm = VIEW.vcBranchConfirmOf(brCheckReply)

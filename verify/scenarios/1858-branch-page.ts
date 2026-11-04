@@ -1442,6 +1442,28 @@ async function interactionAt(
     if (probe.ok && probe.value === false) { confirmGoneValue = true; break }
     await sleep(200)
   }
+  // #1881 新增 A/B：点第一条标签的「检出」——页尾折叠要自动展开、起点预填成这个标签；
+  //   展开之后才读得到「其余写动作在每一行的「⋯」里」那句说明。
+  const tagCheckout = await clickDataAttr(page, raw, 'data-vc-tag-action', 'checkout')
+  await sleep(600)
+  const checkoutProbe = await evaluateThrough<{ open: boolean; prefill: string; value: string; hint: string }>(page, scriptOf([
+    '(function () {',
+    '  var box = document.querySelector("[data-vc-branch-forms]")',
+    '  var input = document.querySelector("[data-vc-branch-input=create]")',
+    '  var note = box === null ? null : box.querySelector(".vcs-branch2-note")',
+    '  return {',
+    '    open: box !== null && box.hasAttribute("open"),',
+    '    prefill: box === null ? "" : String(box.getAttribute("data-vc-branch-prefill") || ""),',
+    '    value: input === null ? "" : String(input.value || ""),',
+    '    hint: note === null ? "" : String(note.textContent || "").trim(),',
+    '  }',
+    '})()',
+  ]))
+  const checkoutShot = await captureScreenshot(context, page, '1858-branch-tags-tag-checkout-460-dark')
+  if (checkoutShot.path !== null) paths.push(checkoutShot.path)
+  const checkoutOk = tagCheckout.ok && checkoutProbe.ok && checkoutProbe.value.open === true && checkoutProbe.value.prefill !== ''
+    && checkoutProbe.value.value === checkoutProbe.value.prefill + ' ' && checkoutProbe.value.hint.indexOf('其余写动作') >= 0
+  facts.tagCheckout = { click: tagCheckout, probe: checkoutProbe.ok ? checkoutProbe.value : null, ok: checkoutOk }
   const afterCancel = await evaluateThrough<BranchPageFacts>(page, inspectScript())
   const menuOps = menuProbe.ok && menuProbe.value !== null ? menuProbe.value.ops : []
   const menuLabels = menuProbe.ok && menuProbe.value !== null ? menuProbe.value.labels : []
@@ -1449,6 +1471,7 @@ async function interactionAt(
   const menuOk = openMenu.ok && menuOps.join(',') === '4.6,4.5,4.4,4.7,4.13'
   const verifyOk = tagVerify.ok && verifyProbe.ok && verifyProbe.value !== ''
   const cancelOk = tagDelete.ok && confirmShownValue && cancelDelete.ok && confirmGoneValue && tagCountKept
+  const checkoutPassed = checkoutOk === true
   facts.rowMenu = { open: openMenu, ops: menuOps, labels: menuLabels, closed: closeMenu }
   facts.tagVerify = { click: tagVerify, result: verifyProbe.ok ? verifyProbe.value : String(verifyProbe.ok ? '' : verifyProbe.error.message) }
   facts.tagDelete = { click: tagDelete, confirmShown: confirmShownValue, cancel: cancelDelete, confirmGone: confirmGoneValue, tagsKept: tagCountKept }
@@ -1470,13 +1493,14 @@ async function interactionAt(
     evidence: paths,
   }), observe({
     checkId: checkId + '-row-menu',
-    title: '行尾「⋯」菜单、标签验签与删除标签的确认卡在真机上都点得动',
-    ok: menuOk && verifyOk && cancelOk,
-    status: menuOk && verifyOk && cancelOk ? 'pass' : 'fail',
+    title: '行尾「⋯」菜单、标签的检出 / 验签 / 删除标签在真机上都点得动',
+    ok: menuOk && verifyOk && cancelOk && checkoutPassed,
+    status: menuOk && verifyOk && cancelOk && checkoutPassed ? 'pass' : 'fail',
     hard: false,
     detail: (menuOk ? '菜单打开后五项按序在（' + menuOps.join(' / ') + '）' : '菜单里读到的不是五项（实得 ' + (menuOps.join(',') || '没有') + '）')
       + '；' + (verifyOk ? '标签验签点完出了结果块（结果 ' + String(verifyProbe.ok ? verifyProbe.value : '') + '；夹具里的标签没有签名，fail 是如实结论）' : '标签验签发出去没有结果块')
-      + '；' + (cancelOk ? '删除标签先出确认卡、点取消后卡片收起且标签数不变' : '删除标签的确认卡或取消这一步没走通'),
+      + '；' + (cancelOk ? '删除标签先出确认卡、点取消后卡片收起且标签数不变' : '删除标签的确认卡或取消这一步没走通')
+      + '；' + (checkoutPassed ? '点标签「检出」后页尾折叠自动展开、起点预填成这个标签，展开后读得到「其余写动作…」那句' : '标签「检出」没把页尾折叠打开或没预填起点'),
     expected: '点行尾「⋯」能展开菜单并读到 4.6 / 4.5 / 4.4 / 4.7 / 4.13 五项；标签行的「验签」只读、点了有结果；'
       + '「删除标签」先出确认卡，点取消后卡片消失、标签一颗不少',
     actual: JSON.stringify({ rowMenu: facts.rowMenu, tagVerify: facts.tagVerify, tagDelete: facts.tagDelete }).slice(0, 900),

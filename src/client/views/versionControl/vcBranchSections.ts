@@ -60,7 +60,15 @@ export const vcBranchTagRowOf = function (h: any, t: any, o: any, tag: any) {
   if (subject !== '') subParts.push(subject)
   const main: any[] = [h('span', { key: 'title', className: 'obj-title' }, titleKids)]
   if (subParts.length > 0) main.push(h('span', { key: 'sub', className: 'obj-sub' }, subParts.join(' · ')))
+  // #1881 新增 A：标签行多一颗「检出」。它不是新的写通路——点下去只是把页尾「新建并切换分支」的
+  //   起点（from）预填成这个标签名。点击由页面组件自己的状态接住（见 vcBranchPageOf 的 prefill 状态），
+  //   静态树里没有 onClick；门禁靠 data-vc-tag-action="checkout" 认这颗粒，再看带 prefillFrom 渲染的预填。
   const side: any[] = [
+    h('button', {
+      key: 'checkout', type: 'button', className: 'vcs-branch2-act', 'data-vc-tag-action': 'checkout',
+      'data-press': 'button', 'data-log': 'vc.branch.page.tag.checkout',
+      onClick: typeof o.onCheckout === 'function' ? function () { o.onCheckout(name) } : undefined,
+    }, t('vc.shell.branch2.checkout')),
     h('button', { key: 'verify', type: 'button', className: 'vcs-branch2-act', 'data-vc-tag-action': 'verify', 'data-vc-op': '4.12', 'data-press': 'button', 'data-log': 'vc.branch.page.tag.verify' }, t('vc.shell.branch2.verify')),
     h('button', { key: 'delete', type: 'button', className: 'vcs-branch2-act vcs-branch2-danger', 'data-vc-tag-action': 'delete', 'data-vc-op': '4.11', 'data-press': 'button', 'data-log': 'vc.branch.page.tag.delete' }, t('vc.shell.branch2.tagDelete')),
   ]

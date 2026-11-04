@@ -119,7 +119,11 @@ const vcBranchOpRowOf = function (h: any, t: any, spec: any) {
   if (spec.form) kids.push(h('input', { key: 'input', type: 'text', className: 'vcs-branch2-input', 'data-vc-branch-input': spec.kind, placeholder: t(spec.hint || 'vc.shell.branch2.inputHint'), defaultValue: String(spec.value || '') }))
   const cls = 'vcs-branch2-act' + (spec.danger === true ? ' vcs-branch2-danger' : '')
   kids.push(h('button', { key: 'go', type: 'button', className: cls, 'data-vc-branch-action': spec.kind, 'data-vc-op': spec.op, 'data-vc-branch-form': spec.form ? '1' : '0', 'data-press': 'button', 'data-log': 'vc.branch.page.go.' + spec.kind }, t('vc.shell.branch2.go')))
-  return h('div', { key: spec.op, className: 'vcs-branch2-op', 'data-vc-op-row': spec.op }, kids)
+  const rowAttrs: any = { key: spec.op, className: 'vcs-branch2-op', 'data-vc-op-row': spec.op }
+  // #1881 新增 A：标签行「检出」预填过起点时，起点钉在这一行上（data-vc-branch-from）。输入框第一段
+  //   就是它，读者在后面写新分支名；vcRealBranchFieldsOf 据此把起点当 from、剩下的当 name。
+  if (typeof spec.from === 'string' && spec.from !== '') rowAttrs['data-vc-branch-from'] = spec.from
+  return h('div', rowAttrs, kids)
 }
 
 // 每个动作落在哪一处（#1881）：菜单五项与页尾两项都只登记「能力号 + 先后次序」这一件事，
@@ -347,16 +351,30 @@ const vcBranchFooterOpsOf = function (board: any) {
 
 // 页尾：两条写动作的入口，默认收起，DOM 与 data-vc-branch-forms 一直在（818 BR21 / D30 都读它）。
 //   需要输入的动作各带一个 [data-vc-branch-input]，vcRealBranchFieldsOf 按 kind 拆参数。
-const vcBranchFormsOf = function (h: any, t: any, ops: string[]) {
+const vcBranchFormsOf = function (h: any, t: any, ops: string[], prefillFrom: string) {
   const rows: any[] = []
   for (let i = 0; i < ops.length; i += 1) {
     const act = vcBranchActOf(ops[i])
     if (!act) continue
-    rows.push(vcBranchOpRowOf(h, t, { op: act.op, kind: act.kind, label: act.label, form: act.form === true }))
+    const spec: any = { op: act.op, kind: act.kind, label: act.label, form: act.form === true }
+    // #1881 新增 A：标签行的「检出」把起点预填进这一格（标签名后面留一个空格，读者接着写分支名）。
+    //   走的还是这一行的 4.2：用户在同一个表单里补名字、点执行，预检与凭票执行都不变。
+    if (prefillFrom !== '' && String(act.kind) === 'create') {
+      spec.value = prefillFrom + ' '
+      spec.from = prefillFrom
+      // 这一格平时写「新分支名 起点」，预填之后顺序只剩一个可见的起点，所以换一句提示把顺序说清。
+      spec.hint = 'vc.shell.branch2.checkoutHint'
+    }
+    rows.push(vcBranchOpRowOf(h, t, spec))
   }
-  return h('details', { key: 'forms', className: 'vcs-branch2-forms', 'data-vc-branch-forms': String(rows.length) }, [
+  const attrs: any = { key: 'forms', className: 'vcs-branch2-forms', 'data-vc-branch-forms': String(rows.length) }
+  // 有预填起点时把这一区直接展开，读者一眼看到起点那一格已经写好；没有预填就保持收起。
+  if (prefillFrom !== '') { attrs.open = true; attrs['data-vc-branch-prefill'] = prefillFrom }
+  return h('details', attrs, [
     h('summary', { key: 'sum', className: 'vcs-branch2-summary', 'data-press': 'button', 'data-log': 'vc.branch.page.forms' }, t('vc.shell.branch2.formsTitle')),
     h('div', { key: 'rows', className: 'vcs-branch2-form-rows' }, rows),
+    // #1881 新增 B：页尾从十行收成两行之后，其余写动作的入口在行内「⋯」里——这句只在展开后出现。
+    h('p', { key: 'rest', className: 'vcs-branch2-note' }, t('vc.shell.branch2.formsRestHint')),
   ])
 }
 
@@ -369,7 +387,10 @@ export const vcBranchTreeOf = function (h: any, t: any, o: any) {
   const nowMs: any = Number(opts.nowMs) > 0 ? Number(opts.nowMs) : 0
   const filter: string = ['all', 'current', 'unmerged'].indexOf(String(opts.filter || 'all')) >= 0 ? String(opts.filter || 'all') : 'all'
   const query: string = String(opts.query === null || opts.query === undefined ? '' : opts.query).trim()
-  const view: any = { nowMs: nowMs, filter: filter, query: query, onFilter: opts.onFilter, onQuery: opts.onQuery }
+  // prefillFrom：标签行「检出」选中的起点（#1881 新增 A）。它是这一页自己的状态，从组件传下来；
+  //   静态树（门禁）直接给值，就能看到「折叠展开 + 起点已写好」的那一版。
+  const prefillFrom: string = String(opts.prefillFrom === null || opts.prefillFrom === undefined ? '' : opts.prefillFrom)
+  const view: any = { nowMs: nowMs, filter: filter, query: query, onFilter: opts.onFilter, onQuery: opts.onQuery, onCheckout: opts.onCheckout }
   const kids: any[] = []
   const stale = vcBranchStaleNoticeOf(h, t, opts, board, state)
   if (stale) kids.push(stale)
@@ -380,7 +401,7 @@ export const vcBranchTreeOf = function (h: any, t: any, o: any) {
   } else {
     kids.push(vcBranchNoDataOf(h, t, opts, state))
   }
-  kids.push(vcBranchFormsOf(h, t, vcBranchFooterOpsOf(board)))
+  kids.push(vcBranchFormsOf(h, t, vcBranchFooterOpsOf(board), prefillFrom))
   if (opts.confirm) kids.push(Object.assign({}, vcShellConfirmCardNode(h, t, opts.confirm), { key: 'confirm' }))
   if (opts.result) kids.push(Object.assign({}, vcShellResultNode(h, t, opts.result), { key: 'result' }))
   return h('section', { className: 'vcs-branch2', 'data-vc-branch2': '1', 'data-vc-branch-ops': String(VC_BRANCH_OP_IDS.length), 'data-vc-branch-writes': String(VC_BRANCH_WRITE_OPS.length), 'data-vc-branch-checks': '1' }, kids)
@@ -392,7 +413,10 @@ export const vcBranchPageOf = function (props: any) {
   const h = React.createElement
   const filterState: any = React.useState('all')
   const queryState: any = React.useState('')
+  // #1881 新增 A：标签行「检出」写进来的起点。点一次就换一次状态，页尾折叠随之展开、起点预填。
+  const prefillState: any = React.useState('')
   const onQuery = function (e: any) { queryState[1](String(e && e.target ? e.target.value : '')) }
+  const onCheckout = function (name: any) { prefillState[1](String(name === null || name === undefined ? '' : name)) }
   return vcBranchTreeOf(h, props.t, {
     board: props.board,
     state: props.state,
@@ -405,5 +429,7 @@ export const vcBranchPageOf = function (props: any) {
     query: queryState[0],
     onFilter: filterState[1],
     onQuery: onQuery,
+    prefillFrom: prefillState[0],
+    onCheckout: onCheckout,
   })
 }

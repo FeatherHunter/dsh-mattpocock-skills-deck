@@ -227,6 +227,11 @@ function entryOf(closureSrc: string): string {
     "    branchResult: root.querySelectorAll('[data-vc-branch2] [data-vc-result]').length,",
     "    branchRetry: root.querySelectorAll('[data-vc-branch2-retry]').length,",
     "    branchEmpty: root.querySelectorAll('[data-vc-branch2-empty]').length,",
+    // #1881 新增 A/B：页尾折叠的展开状态、预填起点与那句「其余写动作」说明。
+    "    branchFormsOpen: (function () { const d = root.querySelector('[data-vc-branch-forms]'); return d === null ? null : d.hasAttribute('open'); })(),",
+    "    branchPrefill: (function () { const d = root.querySelector('[data-vc-branch-prefill]'); return d === null ? null : d.getAttribute('data-vc-branch-prefill'); })(),",
+    "    branchCreateValue: (function () { const i = root.querySelector('[data-vc-branch-input=\"create\"]'); return i === null ? null : String(i.value); })(),",
+    "    branchFormsHint: (function () { const d = root.querySelector('[data-vc-branch-forms]'); if (d === null) return null; const p = d.querySelector('.vcs-branch2-note'); return p === null ? null : String(p.textContent || '').trim(); })(),",
     // #1881：页头那枚「N 条能力」计数画没画（-1 = 这一页根本没有页头）。
     "    headCount: (function () { const h = root.querySelector('[data-vc-page-head]'); return h === null ? -1 : h.querySelectorAll('.vcs-page-count').length; })(),",
     "    branchOidsShown: (function () { const out = []; root.querySelectorAll('[data-vc-branch-row] .vcs-branch2-oid').forEach(function (el) { if (window.getComputedStyle(el).display !== 'none') out.push(String(el.textContent)); }); return out; })(),",
@@ -650,6 +655,14 @@ async function run(browser: any, env: any) {
           await page.waitForTimeout(150)
           const mq: any = await page.evaluate(() => window.__measure())
           check(!!mq && mq.branchRows.join(',') === 'release/2026-10' && !overflowOf(mq), tag + '：搜索框输入 release 后按分支名收窄到一行（搜索真的生效，实得 ' + (mq && mq.branchRows.join(',')) + '）')
+          // #1881 新增 A/B：点第一条标签的「检出」——页尾折叠自动展开、起点预填成这个标签，
+          //   展开后才读得到「其余写动作在每一行的「⋯」里」那句。
+          await page.click('[data-vc-tag-row] [data-vc-tag-action="checkout"]')
+          await page.waitForTimeout(250)
+          const mk: any = await page.evaluate(() => window.__measure())
+          const prefillOk = !!mk && mk.branchFormsOpen === true && mk.branchPrefill === 'v1.0.0' && mk.branchCreateValue === 'v1.0.0 '
+          check(!!mk && prefillOk && String(mk.branchFormsHint || '').indexOf('其余写动作') >= 0, tag + '：点标签行「检出」后页尾折叠自动展开、起点预填成该标签，展开后读得到「其余写动作在每一行的「⋯」里」（实得 ' + (mk && [mk.branchFormsOpen, mk.branchPrefill, JSON.stringify(mk.branchCreateValue)].join(' / ')) + '）')
+          await page.screenshot({ path: path.join(shotDir, 'branch-tags-checkout-' + skin + '-' + width + '.png') })
           await page.screenshot({ path: path.join(shotDir, 'branch-tags-filtered-dark-460.png') })
           await page.fill(qsel, '')
           await page.click('[data-vc-branch2] [data-vc-branch-filter="all"]')
