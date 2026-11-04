@@ -645,6 +645,23 @@ async function scenarioManage() {
   const delCheckLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitBranchCheck' })
   const delCheckArgs = (delCheckLog[delCheckLog.length - 1] || {}).args || {}
   check(countKin(host, 'wf.gitBranchCheck') === delCheckBefore + 1 && String(delCheckArgs.op || '') === 'delete' && String(delCheckArgs.name || '') === 'feat/x', 'T24h 点菜单里的「删除分支」：委托按行取到分支名 feat/x，先发预检电话（不直接执行）')
+  // #1881 新增 A：标签行的「检出」——页尾「新建并切换分支」自动展开、起点预填成这个标签；
+  //   补一个分支名再执行，宿主预检收到的 from 就是那个标签（走的仍是 4.2，没有新写通路）。
+  const checkoutBtn = m.q('[data-vc-tag-row="v1.0"] [data-vc-tag-action="checkout"]')
+  check(!!checkoutBtn, 'T24i 标签行画出「检出」入口（v1.0 行）')
+  if (checkoutBtn) await m.click(checkoutBtn)
+  const createInput = m.q('[data-vc-branch-input="create"]')
+  const prefillValue = createInput ? String((createInput as any).value) : ''
+  check(!!m.q('[data-vc-branch-forms][open]') && prefillValue === 'v1.0 ', 'T24j 点「检出」后页尾折叠自动展开、起点预填成 v1.0（实得 ' + JSON.stringify(prefillValue) + '）')
+  if (createInput) await m.type('[data-vc-branch-input="create"]', 'v1.0 from-tag')
+  const createCheckBefore = countKin(host, 'wf.gitBranchCheck')
+  const createGo = m.q('[data-vc-op-row="4.2"] [data-vc-branch-action="create"]')
+  if (createGo) await m.click(createGo)
+  const createCheckLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitBranchCheck' })
+  const createArgs = (createCheckLog[createCheckLog.length - 1] || {}).args || {}
+  check(countKin(host, 'wf.gitBranchCheck') === createCheckBefore + 1 && String(createArgs.op || '') === 'create' && String(createArgs.name || '') === 'from-tag' && String(createArgs.from || '') === 'v1.0', 'T24k 预填过的起点执行时进 from、用户写的新分支名进 name（宿主预检收到 create / from-tag / from=v1.0，实得 ' + JSON.stringify({ op: createArgs.op, name: createArgs.name, from: createArgs.from }) + '）')
+  // 预检回了确认卡，点取消收干净，后面几段从同一份状态开始。
+  if (m.q('[data-vc-branch2] [data-vc-confirm-cancel]')) await m.click('[data-vc-branch2] [data-vc-confirm-cancel]')
 
   // ---- 远端写三段式（#1776 M4b）：提交表单先发预检电话签票 → 确认卡 → 凭票发执行电话，成功后重读列表 ----
   await m.click('[data-vc-back]')

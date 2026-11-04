@@ -1459,6 +1459,9 @@ async function interactionAt(
     '  }',
     '})()',
   ]))
+  // 页尾折叠在面板底部：截图前把预填好的那一格滚进视野，证据里才看得到「起点已填好」的样子。
+  await evaluateThrough<boolean>(page, '(function () { var el = document.querySelector("[data-vc-branch-input=create]"); if (el === null) return false; if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center" }); return true })()')
+  await sleep(300)
   const checkoutShot = await captureScreenshot(context, page, '1858-branch-tags-tag-checkout-460-dark')
   if (checkoutShot.path !== null) paths.push(checkoutShot.path)
   const checkoutOk = tagCheckout.ok && checkoutProbe.ok && checkoutProbe.value.open === true && checkoutProbe.value.prefill !== ''
