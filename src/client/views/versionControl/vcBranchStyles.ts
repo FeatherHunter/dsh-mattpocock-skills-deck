@@ -83,8 +83,11 @@ export const VC_BRANCH_STYLE_TEXT: string[] = [
   '[data-vc-shell] .vcs-branch2-empty-next{color:var(--vcs-faint);font-size:10px}',
   '[data-vc-shell] .vcs-branch2-error-text{color:var(--vcs-danger);font-size:10.5px;line-height:1.55;overflow-wrap:anywhere}',
   '[data-vc-shell] .vcs-branch2-scope{margin:0;color:var(--vcs-faint);font-size:9.5px;font-family:var(--vcs-mono)}',
-  // 300 宽：行尾动作换到行下面占满一整行（原型 .obj-side 在半宽里本来就换行，这里给它更大的可点面积），
-  //   行内表单的说明也独占一行，避免挤成两三列窄条。
-  '[data-vc-shell][data-vc-width="300"] .vcs-branch2 .obj-side{flex:1 1 100%;justify-content:flex-start;max-width:100%}',
+  // 窄档（300 / 380）：原型在 440 以下把对象行从「左边正文、右边动作」改成「正文一行、动作一行」
+  //   （app.css 的 @container panel (max-width: 439px)：.obj-row 换列、.obj-side 放开宽度并左对齐）——
+  //   55% 的宽度放不下两颗按钮加一行字，硬并排会把分支名挤成三四列窄条。这里照同一条规则写。
+  '[data-vc-shell][data-vc-width="300"] .vcs-branch2 .obj-row,[data-vc-shell][data-vc-width="380"] .vcs-branch2 .obj-row{flex-direction:column;align-items:stretch}',
+  '[data-vc-shell][data-vc-width="300"] .vcs-branch2 .obj-side,[data-vc-shell][data-vc-width="380"] .vcs-branch2 .obj-side{max-width:100%;justify-content:flex-start}',
+  // 行内表单的说明在窄档独占一行，不再跟输入框挤成两三列。
   '[data-vc-shell][data-vc-width="300"] .vcs-branch2 .vcs-branch2-op-label{flex:1 1 100%}',
 ]
