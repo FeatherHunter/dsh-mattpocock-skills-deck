@@ -2,17 +2,16 @@
 //
 // 现场（#1242 正文）：面板上的「总数 / 未关闭 / 已关闭 / 可接 / 已认领 / 被阻塞」六格数字
 // 由宿主算好交给界面，但没有任何一道门禁从**原始 gh 回包**一路走到这六格。
-// 既有 tests/verify-1444-snapshot.ts 直接塞一份已归一的假会话结果，绕过了 GitHub 房间与
-// gh 出站，所以「房间把回包读歪了」「装配把子票塞错地图」这类故障它一条也抓不到。
 //
-// 这一扇补的正是这一段，覆盖两条真实路径：面板主路径 wf.mapTickets（点开一张地图时
-// 现取子票，界面顶栏的数字优先用它）与快照兜底路径（取不到子票时退回首屏快照里的地图统计）。
-// 两条路径的唯一替身都是 gh 可执行程序（按命令行分派的假函数），
-// 注册表、GitHub 房间、会话管线、快照装配、地图正文解析、分组与分层全部是仓库里的真件。
-// 链路上任何一格改了行为，这里的手写期望就会对不上。
+// #1870 之后这一扇只覆盖面板真正走的那条路：wf.mapTickets（点开一张地图时现取子票，
+// 界面顶栏与容器三态优先用它的数字）。原来的「快照兜底路径」那半段驱动的是旧快照组装
+// （snapshot-build），那个模块在生产里已经没有调用点、本票删掉了；列表与容器树的快照
+// 改从本地快照库的读投影出，由 verify-1863 / verify-1869 那几扇盯。
+//
+// 这条路的唯一替身是 gh 可执行程序（按命令行分派的假函数），注册表、GitHub 房间、会话管线、
+// 地图正文解析、分组与分层全部是仓库里的真件。链路上任何一格改了行为，这里的手写期望就会对不上。
 //
 // 门禁归属: src/host/mapTickets.ts
-// 门禁归属: src/refresh/rooms/host/snapshot-build.ts
 // 门禁归属: src/tracker/rooms/github
 // 门禁归属: src/host/ticketGrouping.ts
 // 门禁归属: src/host/mapBody.ts
@@ -24,7 +23,6 @@ import { fileURLToPath } from 'node:url'
 import { printGateResult } from './lib/gate-result.ts'
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 import { createSessionOpener } from '../src/refresh/rooms/host/session-opener.ts'
-import { createSnapshotBuilder } from '../src/refresh/rooms/host/snapshot-build.ts'
 import { createRegistry } from '../src/tracker/registry/core.ts'
 import { githubModule } from '../src/tracker/rooms/github/room/index.ts'
 import { createMapBody } from '../src/host/mapBody.ts'
@@ -211,50 +209,6 @@ function makeExec(world: World) {
  * 注册表 → GitHub 房间 → 会话管线 → 快照组装；只把 gh 换成 makeExec 那个假函数。
  * 返回快照与旁证（发了哪些命令、有没有走到快照不该直调的那条执行口）。
  */
-async function snapshotOf(world: World, over?: { groupTickets?: any }): Promise<{ snapshot: any; execProcCalls: number }> {
-  const mapBody = createMapBody()
-  const grouping = createTicketGrouping()
-  // 账本只提供读与记账两个口：读恒为「还没量过」，写记账空转（这一扇不判额度）。
-  const ledger = { view: function () { return null }, spend: function () { return null } }
-  let execProcCalls = 0
-  const hostCtx: any = {
-    cwd: CWD,
-    outbound: createOutboundControl(),
-    platform: { resolveExecutable: async function (name: string) { return name === 'gh' ? 'gh' : null } },
-    exec: makeExec(world),
-    isEnabled: function () { return false },
-    logEvent: function () {},
-  }
-  const registry = createRegistry(hostCtx, { matchesTimeout: 200 })
-  registry.register(githubModule)
-  const openSession = createSessionOpener({
-    getTrackerRegistry: async function () { return registry },
-    ledger: ledger,
-    backendCtx: function () { return hostCtx },
-    ensureBackend: function () {},
-  })
-  const builder = createSnapshotBuilder({
-    openSession: openSession,
-    getRepoKey: async function () { return { owner: 'acme', name: 'demo' } },
-    // 快照自己不许绕开会话直连进程：走到这里就说明装配被改坏了。
-    execProc: async function () { execProcCalls += 1; throw new Error('快照装配不该直调 execProc') },
-    mapTicket: mapBody.mapTicket,
-    parseMapBody: mapBody.parseMapBody,
-    computeLevels: grouping.computeLevels,
-    groupTickets: over && over.groupTickets ? over.groupTickets : grouping.groupTickets,
-    getTrackerRegistry: async function () { return registry },
-    getPlatform: async function () { return hostCtx.platform },
-    getRepoRoot: async function () { return CWD },
-    getGhPath: function () { return 'gh' },
-    getGhLastError: function () { return null },
-    ctx: { get: function () { return undefined } },
-    timer: { timeout: function () { return null } },
-    getDetectionService: async function () { return { detect: async function () { return { selection: SEL } } } },
-  })
-  const snapshot = await builder.buildSnapshot(CWD)
-  return { snapshot: snapshot, execProcCalls: execProcCalls }
-}
-
 /**
  * 搭一份面板真正用的取数电话（wf.mapTickets）：
  * 注册表 → GitHub 房间 → listSubIssues；只有 gh 是假的。
@@ -318,85 +272,9 @@ const HAND_DECISIONS = [
 ]
 
 async function main(): Promise<void> {
-  // ── 一、正常世界：快照信封与列表 ─────────────────────────────────────────
-  console.log('== 一、正常世界：面板快照的信封、列表与能力诊断 ==')
-  const normalWorld = makeWorld()
-  const normal = await snapshotOf(normalWorld)
-  const snap = normal.snapshot
-  check(snap && snap.ok === true, '一、正常世界快照 ok:true', snap && snap.ok)
-  check(snap.repo && snap.repo.owner === 'acme' && snap.repo.name === 'demo', '一、repo 是 acme/demo', show(snap.repo, { owner: 'acme', name: 'demo' }))
-  check(snap.repoRoot === CWD, '一、repoRoot 是工作区目录', snap.repoRoot)
-  check(snap.env && snap.env.ghPath === 'gh' && snap.env.ghError === null, '一、env 交代 gh 路径与上一次错误', show(snap.env, { ghPath: 'gh', ghError: null }))
-  check(snap.repository && same(snap.repository, { backend: 'github', refId: REPO_ID, name: REPO_ID, url: 'https://github.com/' + REPO_ID }), '一、仓库身份由后端 describe 产出', show(snap.repository, REPO_ID))
-  check(snap.selection && snap.selection.backendId === 'github', '一、selection 沿用显式选择', show(snap.selection, SEL))
-  check(Array.isArray(snap.backendModules) && snap.backendModules.length === 1 && snap.backendModules[0].id === 'github', '一、队列里只有一个 GitHub 后端', show(snap.backendModules && snap.backendModules.map(function (m: any) { return m && m.id }), ['github']))
-  check(snap.fallback === null && snap.fallbackAt === null, '一、主路成功时没有「切了 REST 通道」的标记', show({ fallback: snap.fallback, fallbackAt: snap.fallbackAt }, { fallback: null, fallbackAt: null }))
-  check(typeof snap.updatedAt === 'string' && snap.updatedAt.length > 0, '一、updatedAt 有值', snap.updatedAt)
-  check(snap.viewerLogin === 'octocat', '一、viewerLogin 是 octocat', snap.viewerLogin)
-  check(snap.viewer && same(snap.viewer, Object.assign({ kind: 'user' }, VIEWER)), '一、viewer 原样带回登录名与显示名', show(snap.viewer, VIEWER))
-  check(same(snap.labels, [{ name: 'ready-for-agent', color: '0e8a16' }, { name: 'bug', color: 'd73a4a' }]), '一、标签目录只留名字与颜色', show(snap.labels, LABEL_CATALOG))
-
-  const rows = snap.issues
-  check(Array.isArray(rows) && rows.length === 11, '一、列表行 11 条（拉取请求不算票）', rows && rows.length)
-  check(same(rows.map(function (r: any) { return r.number }), [100, 200, 300, 101, 102, 103, 104, 105, 110, 111, 112]), '一、列表按更新时间倒序', show(rows.map(function (r: any) { return r.number }), [100, 200, 300, 101, 102, 103, 104, 105, 110, 111, 112]))
-  check(same(rows.map(function (r: any) { return r.title }), ROOT_ROWS.map(function (r) { return r.title })), '一、列表标题与现场一致', show(rows.map(function (r: any) { return r.title }), ROOT_ROWS.map(function (r) { return r.title })))
-  check(same(rows.map(function (r: any) { return r.state }), ['OPEN', 'OPEN', 'CLOSED', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN']), '一、已关闭状态照实标 CLOSED', show(rows.map(function (r: any) { return r.state }), 'OPEN/CLOSED 序列'))
-  check(same(rows.map(function (r: any) { return r.assignees }), [[], [], [], [], ['alice'], [], [], [], [], [], ['bob']]), '一、认领人只留登录名', show(rows.map(function (r: any) { return r.assignees }), '[alice] 与 [bob] 各一条'))
-  check(same(rows.map(function (r: any) { return r.labels.map(function (l: any) { return l.name }) }), [['wayfinder:map'], ['wayfinder:map'], ['wayfinder:map'], ['wayfinder:task'], [], [], [], [], [], [], []]), '一、标签名照实带出（拉取请求没有标签不影响这里）', show(rows.map(function (r: any) { return r.labels }), '3 张地图 + 1 张任务票'))
-  check(rows.every(function (r: any) { return r.author && r.author.login === 'octocat' && r.author.name === '章鱼猫' }), '一、作者逐行都有，名字不丢')
-  check(same(snap.capabilities, { present: 17, empty: 16, missing: 66 }), '一、能力诊断九格 × 11 行 = 99 格，有值 17 / 空 16 / 缺 66', show(snap.capabilities, { present: 17, empty: 16, missing: 66 }))
-
-  // ── 二、地图 #100：五区块与子票逐张 ─────────────────────────────────────
-  console.log('== 二、地图 #100：正文五区块与子票逐张对齐 ==')
-  const maps = snap.maps
-  check(Array.isArray(maps) && maps.length === 2, '二、地图表只有两张打开的地图', maps && maps.length)
-  check(same(maps.map(function (m: any) { return m.number }), [100, 200]), '二、地图按列表顺序排列（#100 在前）', show(maps.map(function (m: any) { return m.number }), [100, 200]))
-  check(!maps.some(function (m: any) { return m.number === 300 }), '二、已关闭的地图不进地图表')
-  const map100 = maps[0]
-  check(map100 && map100.number === 100 && map100.title === '探索地图：面板数字', '二、地图 #100 的编号与标题', show(map100 && { number: map100.number, title: map100.title }, { number: 100, title: '探索地图：面板数字' }))
-  check(map100 && map100.state === 'OPEN' && map100.type === 'map' && map100.key === '100' && map100.effortId === '', '二、地图 #100 的容器身份（state/type/key/effortId）', show(map100 && { state: map100.state, type: map100.type, key: map100.key, effortId: map100.effortId }, { state: 'OPEN', type: 'map', key: '100', effortId: '' }))
-  check(map100 && map100.url === 'https://github.com/acme/demo/issues/100', '二、地图 #100 的地址', map100 && map100.url)
-  check(same(map100.labels, ['wayfinder:map']), '二、地图 #100 的标签名', show(map100.labels, ['wayfinder:map']))
-  check(map100.destination === '面板上的每一格统计数字都能和 GitHub 现场对上，对不上时门禁先红。', '二、Destination 区', map100.destination)
-  check(map100.notes === '本图只关心读路径；写路径由别的票管。', '二、Notes 区', map100.notes)
-  check(same(map100.decisions, HAND_DECISIONS), '二、Decisions so far 两条（链接写法与加粗写法各一条）', show(map100.decisions, HAND_DECISIONS))
-  check(same(map100.fog, ['- 增量刷新时数字会不会短暂对不上。']), '二、Not yet specified 区', show(map100.fog, ['- 增量刷新时数字会不会短暂对不上。']))
-  check(same(map100.outOfScope, ['- 写操作的回写。']), '二、Out of scope 区', show(map100.outOfScope, ['- 写操作的回写。']))
-  check(Array.isArray(map100.tickets) && map100.tickets.length === 5, '二、地图 #100 有 5 张子票', map100.tickets && map100.tickets.length)
-  check(same(map100.tickets, HAND_TICKETS), '二、5 张子票逐格：状态 / 认领 / 阻塞边 / 反向阻塞 / 标签 / 进度 / 层级', show(map100.tickets, HAND_TICKETS))
-  check(same(map100.stats, HAND_STATS), '二、stats 六格与两层分层和手数一致', show(map100.stats, HAND_STATS))
-
-  // ── 三、地图 #200：单张失败只降级这一张 ─────────────────────────────────
-  console.log('== 三、地图 #200：子票取数失败只降级这一张 ==')
-  const map200 = maps[1]
-  check(map200 && map200.number === 200 && map200.state === 'OPEN' && map200.type === 'map', '三、地图 #200 仍在地图表里（编号/状态/类型）', show(map200 && { number: map200.number, state: map200.state, type: map200.type }, { number: 200, state: 'OPEN', type: 'map' }))
-  check(map200 && map200.error && String(map200.error.error || '').indexOf('子票取数') >= 0, '三、地图 #200 带着取数失败的原因（不静默）', show(map200 && map200.error, '含「子票取数」'))
-  check(map200 && same(map200.tickets, []) && same(map200.stats, { total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0 }), '三、降级地图的票数为 0、六格全 0（不拿别的图冒充）', show(map200 && { tickets: map200.tickets, stats: map200.stats }, { tickets: [], stats: 0 }))
-
-  // ── 四、出站轨迹：六条命令、没有旁路 ───────────────────────────────────
-  console.log('== 四、出站轨迹：六条命令、没有旁路 ==')
-  const calls = normalWorld.calls
-  check(calls.length === 6, '四、整份快照只发六条 gh 命令（列表 2 + 标签 1 + 本人 1 + 子票 2）', calls.length)
-  check(calls.every(function (c) { return c.cmd === 'gh' }), '四、所有命令都走 gh 可执行程序（没有别的进程）')
-  const gqlCalls = calls.filter(function (c) { return c.args[0] === 'api' && c.args[1] === 'graphql' })
-  const issuePageCalls = gqlCalls.filter(function (c) { return String(c.args.join(' ')).indexOf('issues(first:') >= 0 })
-  const prPageCalls = gqlCalls.filter(function (c) { return String(c.args.join(' ')).indexOf('pullRequests(first:') >= 0 })
-  const subCalls = gqlCalls.filter(function (c) { return String(c.args.join(' ')).indexOf('subIssues') >= 0 })
-  check(issuePageCalls.length === 1, '四、工单列表走一次 GraphQL', issuePageCalls.length)
-  check(prPageCalls.length === 1, '四、拉取请求列表走一次 GraphQL', prPageCalls.length)
-  check(subCalls.length === 2, '四、两张地图各取一次子票', subCalls.length)
-  check(issuePageCalls.length === 1 && String(issuePageCalls[0].args.join(' ')).indexOf('owner=acme') >= 0 && String(issuePageCalls[0].args.join(' ')).indexOf('name=demo') >= 0 && String(issuePageCalls[0].args.join(' ')).indexOf('first=50') >= 0, '四、工单列表按仓库坐标与一页 50 条发出', issuePageCalls[0] && issuePageCalls[0].args.join(' '))
-  check(subCalls.some(function (c) { return String(c.args.join(' ')).indexOf('number=100') >= 0 }) && subCalls.some(function (c) { return String(c.args.join(' ')).indexOf('number=200') >= 0 }), '四、子票查询按地图号 100 / 200 发出', subCalls.map(function (c) { return c.args.join(' ') }))
-  const labelCalls = calls.filter(function (c) { return c.args[0] === 'label' && c.args[1] === 'list' })
-  const labelArgs = labelCalls[0] ? labelCalls[0].args.join(' ') : ''
-  check(labelCalls.length === 1 && labelArgs.indexOf('--repo acme/demo') >= 0 && labelArgs.indexOf('--json name,color,description') >= 0 && labelArgs.indexOf('--limit 1000') >= 0, '四、标签目录按仓库一次拉全', labelArgs)
-  const userCalls = calls.filter(function (c) { return c.args[0] === 'api' && c.args[1] === 'user' })
-  check(userCalls.length === 1 && userCalls[0].args.join(' ').indexOf('--jq') >= 0, '四、当前登录人走一次 api user', userCalls.length)
-  check(!calls.some(function (c) { return c.args.join(' ').indexOf('repo view') >= 0 }), '四、没有为了拿仓库身份额外发 repo view')
-  check(!calls.some(function (c) { return typeof c.args[1] === 'string' && c.args[1].indexOf('repos/') === 0 }), '四、主路成功时没有走 REST 降级')
-  check(worldUnhandled(normalWorld) === 0, '四、没有门禁没脚本化却被悄悄放过的命令', normalWorld.unhandled.join(' | '))
-  check(normal.execProcCalls === 0, '四、快照自己一次都没直调 execProc（所有出站都经房间）', normal.execProcCalls)
-
+  // #1870：这一段原来从「旧快照装配（snapshot-build）」一路走到信封与六格。那份装配在生产里
+  // 没有调用点了，面板的列表与容器树改由本地快照库的读投影出（首屏与断网回放由 1863 / 1869 那两扇盯），
+  // 所以这里只留「面板真正走的那条按需取数电话」——它才是顶栏六格数字的主来源。
   // ── 五、面板真正走的那条路：wf.mapTickets 从原始回包到六格 ─────────────
   //
   // 面板顶栏与容器三态优先用这条电话取回来的 stats（取不到才退回上面那份快照），
@@ -434,46 +312,6 @@ async function main(): Promise<void> {
   check(changed && changed.ok === true && changed.stats.blocked === 0 && changed.stats.open === 3 && changed.stats.closed === 2, '五、把 #104 改关之后 #103 解锁（open3 / closed2 / blocked0）', show(changed && changed.stats, { open: 3, closed: 2, blocked: 0 }))
   check(changed && !same(changed.stats, HAND_STATS), '五、现场一变，原来的手写 stats 期望就不成立')
 
-  // ── 六、失败面：列表取不回来时如实失败，不伪造 ─────────────────────────
-  console.log('== 六、失败面：列表取不回来时如实失败 ==')
-  const failedWorld = makeWorld({ failList: true })
-  const failedSnap = (await snapshotOf(failedWorld)).snapshot
-  check(failedSnap && failedSnap.ok === false, '六、列表 GraphQL 与 REST 都失败时快照 ok:false', failedSnap && failedSnap.ok)
-  check(failedSnap && failedSnap.error && typeof failedSnap.error.kind === 'string' && typeof failedSnap.error.error === 'string', '六、失败原因带 kind 与说明', show(failedSnap && failedSnap.error, '{kind,error}'))
-  check(failedSnap && failedSnap.maps === undefined && failedSnap.issues === undefined, '六、失败时没有伪造 maps / issues 两个空集合', show(failedSnap && Object.keys(failedSnap), '不含 maps/issues'))
-  check(failedWorld.calls.some(function (c) { return typeof c.args[1] === 'string' && c.args[1].indexOf('repos/') === 0 }), '六、主路失败后确实走到过 REST 降级')
-  check(failedSnap && failedSnap.maps === undefined && failedSnap.issues === undefined, '六、失败回包不带旧信封的默认字段（由上层决定要不要用缓存）')
-
-  // ── 七、敏感性：改坏分组 / 改现场，手写期望都会当场不成立 ───────────────
-  console.log('== 七、敏感性：分组算错或现场变了，手写期望都会当场不成立 ==')
-  const wrongWorld = makeWorld()
-  const realGroup = createTicketGrouping().groupTickets
-  const bumped = await snapshotOf(wrongWorld, { groupTickets: function (tickets: any) {
-    const stats = realGroup(tickets)
-    return Object.assign({}, stats, {
-      total: stats.total + 1, open: stats.open + 1, closed: stats.closed + 1,
-      frontier: stats.frontier + 1, claimed: stats.claimed + 1, blocked: stats.blocked + 1,
-    })
-  } })
-  const bumpedStats = bumped.snapshot.maps[0].stats
-  check(!same(bumpedStats, HAND_STATS), '七、分组六格任何一格算错，整块 stats 期望就不成立（六格各 +1）')
-  ;['total', 'open', 'closed', 'frontier', 'claimed', 'blocked'].forEach(function (key) {
-    check(bumpedStats[key] !== HAND_STATS[key], '七、六格逐格点名：' + key + ' 被改坏时手写期望能抓到', bumpedStats[key] + ' vs ' + HAND_STATS[key])
-  })
-  const wrongGroupWorld = makeWorld()
-  const wrongGroup = await snapshotOf(wrongGroupWorld, { groupTickets: function (tickets: any) {
-    const stats = realGroup(tickets)
-    return Object.assign({}, stats, { frontier: tickets.length })
-  } })
-  const wrongStats = wrongGroup.snapshot.maps[0].stats
-  check(wrongStats.frontier === 5 && !same(wrongStats, HAND_STATS), '七、把「可接」错算成票数时，手写期望不成立（5 对 2）', wrongStats.frontier)
-  const closed104World = makeWorld({ sub100: sub100Nodes() })
-  closed104World.sub100[3] = rowToNode({ number: 104, title: '子票 104', state: 'CLOSED', updatedAt: '2026-03-05T00:00:00Z', author: false })
-  const closed104 = await snapshotOf(closed104World)
-  const stats104 = closed104.snapshot.maps[0].stats
-  check(stats104.open === 3 && stats104.closed === 2 && stats104.frontier === 2 && stats104.blocked === 0, '七、把 #104 改关之后 #103 解锁（open3 / closed2 / frontier2 / blocked0）', show(stats104, { open: 3, closed: 2, frontier: 2, blocked: 0 }))
-  check(!same(stats104, HAND_STATS), '七、现场一变（#104 关闭），原来的手写 stats 期望就不成立')
-
   // ── 八、自检：门禁自己不联网、不偷跑别的进程 ───────────────────────────
   console.log('== 八、自检：门禁自身不联网、不另起进程 ==')
   const selfSource = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8')
@@ -487,7 +325,6 @@ async function main(): Promise<void> {
   forbidden.forEach(function (word) {
     check(selfSource.indexOf(word) < 0, '八、门禁源码不含 ' + word, selfSource.indexOf(word))
   })
-  check(selfSource.indexOf("from '../src/refresh/rooms/host/snapshot-build.ts'") >= 0, '八、门禁加载的是真快照装配（不是另抄一份口径）')
   check(selfSource.indexOf("from '../src/tracker/rooms/github/room/index.ts'") >= 0, '八、门禁加载的是真 GitHub 房间（不是假会话）')
   check(selfSource.indexOf("from '../src/host/mapTickets.ts'") >= 0, '八、门禁加载的是面板真正走的取数电话（不是另抄一份口径）')
   check(selfSource.indexOf("from '../src/refresh/rooms/host/session-opener.ts'") >= 0, '八、门禁加载的是真会话装配（出站都经会话管线）')

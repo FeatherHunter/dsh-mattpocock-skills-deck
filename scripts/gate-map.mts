@@ -313,10 +313,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-27 #1571：GitHub 房间调用点的 -F/-f 写法（20 处 owner/name 逐文件点名、整型字段仍走 -F）；
   // 15 条是单跑实测得出的。
   'verify-1571-gh-flag-writing': 15,
-  // 2026-10-28 #1242：面板统计数字与 GitHub 现场的端到端对账。两条真路径都从原始回包走到六格：
-  // 面板主路径 wf.mapTickets（点开地图现取子票）与快照兜底路径；唯一替身是 gh 可执行程序，
-  // 注册表、GitHub 房间、会话管线、快照装配都是真件；95 条是单跑实测得出的。
-  'verify-1242-panel-numbers': 95,
+  // 2026-11-04 #1870：快照兜底那半段驱动的是旧快照组装（snapshot-build），那个模块已删；这一扇只留
+  // 面板真正走的那条路 wf.mapTickets（点开地图现取子票，从原始回包走到六格），28 条是单跑实测得出的。
+  'verify-1242-panel-numbers': 28,
   // 2026-10-28 #1607：UNC 工作区里 gh 的当前目录不许绕道 shell 的守卫（静态扫四个起进程点，加生产 preflight
   // 走一趟 UNC / 盘符 / 失败三条路）；42 条是单跑实测得出的。
   'verify-1607-gh-unc-cwd': 42,

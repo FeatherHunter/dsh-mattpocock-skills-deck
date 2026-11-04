@@ -303,7 +303,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           if (first) first.decorate(snap)
           return adoptSnapLog(snap, cwd)
         }
-        // 统一契约：所有后端均走 composeSnapshot，不再硬走 buildSnapshot 直调 gh
+        // 统一契约：所有后端均走 composeSnapshot（旧的直连快照组装 buildSnapshot 已随 #1870 删除）
         if (!_sel || !_sel.backendId) {
           const repoRoot = await getRepoRoot(cwd)
           let backendModules: UiDescription[] | null = null
@@ -321,7 +321,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           })
           return adoptSnapLog(snap, cwd)
         }
-        // GitHub 同样走编排器（经 registry.get('github').list），不再直调 buildSnapshot 硬走 gh
+        // GitHub 同样走编排器（经 registry.get('github').list），不直连 gh
         const reg2 = await getTrackerRegistry()
         const backendId2 = _sel.backendId
         let repoRef2: RepoRef = null

@@ -323,8 +323,7 @@ async function main() {
     // #1445：标签颜色写改走会话后，本文件不再自己拼上下文、也不再碰计时器口。
     { file: 'src/host/workspaceCwd.ts', calls: 0 },
     // #1444：viewer 预取那一段随读路径搬进会话后整段删了，这里只剩选后端那一处计时器口。
-    { file: 'src/refresh/rooms/host/snapshot-build.ts', calls: 1 },
-    { file: 'src/refresh/registry/deck-tool-bridge.ts', calls: 1 },
+      { file: 'src/refresh/registry/deck-tool-bridge.ts', calls: 1 },
   ]
   for (const site of SITES) {
     const text = fs.readFileSync(path.join(ROOT, site.file), 'utf8')

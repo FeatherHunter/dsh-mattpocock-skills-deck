@@ -108,7 +108,6 @@ export default {
     let _issueListP: Promise<any> | null = null; function _issueList(): Promise<any> { if (!_issueListP) _issueListP = (async function(){ const mod = await import('../refresh/rooms/host/issue-list-fetch.js'); return mod.createIssueList({ getRepoKey: function(...args: any[]){ return getRepoKey.apply(null, args) }, setCache: setCache, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex, openSession: openSessionFor, onIssueRows: function (cwd: any, ref: any, rows: any[]) { return _snapLib().then(function (m: any) { return m.recordIssueRows({ workspaceRoot: cwd, backend: String((ref && ref.backend) || ''), repoIdentity: String((ref && ref.refId) || ''), rows: rows }) }) }, logCtx: logCtx, noteSnapshot: function (snap: any, cwd: any) { return (_notif().then(function (h: any) { return h.noteSnapshot(snap, cwd) }).catch(function () {})) } }) })(); return _issueListP }
     // #1870：旧的单票详情直取工厂（issue-detail-fetch）已退役；详情只走 comment-thread-fetch 那条宿主方法。
     // #599：快照组装在 snapshotBuild.js（单票详情仍在 issueDetail.js）；两边共享的东西由这里组合后传进去 —— 同层互引门禁不许两个干活的文件互相引用，组合点落在入口（既有 25 条同形先例）。
-    function _issueSnap(): Promise<any> { let p: Promise<any> | null = null; if (!p) p = (async function(){ const mod = await import('../refresh/rooms/host/snapshot-build.js'); const mb = await _mapBody(); const grp = await _group(); return mod.createSnapshotBuilder({ getRepoKey: function(...args: any[]){ return getRepoKey.apply(null, args) }, execProc: function(...args: any[]){ return execProc.apply(null, args) }, getTrackerRegistry: function(...args: any[]){ return getTrackerRegistry.apply(null, args) }, getPlatform: function(...args: any[]){ return getPlatform.apply(null, args) }, getRepoRoot: function(...args: any[]){ return getRepoRoot.apply(null, args) }, ctx: ctx, timer: timer, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, mapTicket: mb.mapTicket, parseMapBody: mb.parseMapBody, computeLevels: grp.computeLevels, groupTickets: grp.groupTickets, openSession: openSessionFor }) })(); return p }
     async function normalizeBody(...args: any[]): Promise<any> { const h = await _mapBody(); return h.normalizeBody.apply(h, args) }
     async function parseMapBody(...args: any[]): Promise<any> { const h = await _mapBody(); return h.parseMapBody.apply(h, args) }
     async function parseProgress(...args: any[]): Promise<any> { const h = await _mapBody(); return h.parseProgress.apply(h, args) }
@@ -119,7 +118,6 @@ export default {
     async function fetchIssueIndexWindowed(...args: any[]): Promise<any> { const h = await _issueList(); return h.fetchIssueIndexWindowed.apply(h, args) } async function commitIssueIndex(...args: any[]): Promise<any> { const h = await _issueList(); return h.commitIssueIndex.apply(h, args) } // #723（T19c）第 E 件：水印的唯一推进口（只在变化真的并进列表之后调它）
     async function cacheSnapshotIsCurrent(...args: any[]): Promise<any> { const h = await _issueList(); return h.cacheSnapshotIsCurrent.apply(h, args) }
     async function adoptSnapshot(...args: any[]): Promise<any> { const h = await _issueList(); return h.adoptSnapshot.apply(h, args) }
-    async function buildSnapshot(...args: any[]): Promise<any> { const h = await _issueSnap(); return h.buildSnapshot.apply(h, args) }
     // ---- H3 #447 接线：3 新文件动态 import 加载，新文件之间不互引用 ---- 留守：parseGithubRepo 留守（repoKeys 同步调用）；链表由本块持有（按工作区根+后端+语言，30秒有效，最多20条）；harness.handle 注册留守。 这一组的拆分缘由见账本 §4。
     const chainByKey = new Map()
     function touchChainLRU(k: any, v: any) { if (chainByKey.has(k)) chainByKey.delete(k); chainByKey.set(k, v); if (chainByKey.size > 20) chainByKey.delete(chainByKey.keys().next().value) }
@@ -230,7 +228,7 @@ export default {
     // #498 退役：wf.ping 删注册（全仓零调用点、零日志行；探活改走 wf.logGetSwitch）。handlePing 实现留守（他处未引用，删注册不断链）。
 
     // v13：按 sessionId 反查会话工作目录（client 切换对话时用；宿主 sessions.meta 是权威字段， 不再依赖 client 猜测 ConversationSnapshot 字段名）
-    // 错误对象 → 可读文本：fetchMaps/buildSnapshot 抛出的是 {kind, error} 对象，String() 会变 [object Object]
+    // 错误对象 → 可读文本：取数那几个宿主方法抛出的是 {kind, error} 对象，String() 会变 [object Object]
     const errText = function (e: any) {
       if (e === undefined || e === null) return '未知错误'
       if (typeof e === 'string') return e

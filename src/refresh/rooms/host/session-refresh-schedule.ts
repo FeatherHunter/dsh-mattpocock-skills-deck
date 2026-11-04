@@ -94,7 +94,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
   // #1796：partial 改成只报异常缺失（开放行数少于后端 open、列表触上限、REST 降级、计数冲突或缺失），
   //   并多记一个 missingOpen（后端 open 减数到的未关闭行数，负数截 0；-1 = 算不出）—— 界面橙点与这条日志共用同一个数。
   // #1295：再加一个 specs（这一轮认出几张「实施地图」= 规格容器；maps 是容器总数，maps 减 specs 即探索地图张数）。
-  //   老直连快照路（src/refresh/rooms/host/snapshot-build.ts）只认 wayfinder:map 标签、不产规格容器，那条路 specs 恒 0 属正常。
+  //   旧的直连快照组装（snapshot-build）只认 wayfinder:map 标签、不产规格容器，那条路 specs 恒 0 属正常；它已随 #1870 退役。
   //   这里与 src/host/snapshotEnvelope.ts 的 adoptSnapLog 是同一个事件的两份实现，字段必须一起改，否则
   //   「快照路」与「强制刷新路」记出来的字段不一样，拿日志对账时会被误导。
   async function adoptSnapLog(snap: SnapOut, c: string) { try { if (logCtx && snap && snap.fromCache !== true) { const _d: Deck = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}; const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null; logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, specs: ((snap.maps || []) as any[]).filter(function (m: any) { return !!m && m.type === 'spec' }).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, missingOpen: (typeof _d.missingOpen === 'number' && isFinite(_d.missingOpen)) ? _d.missingOpen : -1, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } } catch (e) {} return adoptSnapshot(snap, c) as SnapOut }

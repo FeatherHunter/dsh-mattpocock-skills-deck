@@ -15,7 +15,7 @@
  *   src/host/platformChannel.js 的 getTimers 与兜底二联的 ctx2、
  *   src/refresh/rooms/host/comment-thread-fetch.js 的 opCtx、
  *   src/host/workspaceCwd.js 的 opCtxFor、
- *   src/refresh/rooms/host/snapshot-build.ts 的 tmpCtx 与 ctxSel、
+ *   src/refresh/rooms/host/comment-thread-fetch.ts 的 ctxSel（旧快照组装 snapshot-build 已随 #1870 退役）、
  *   src/refresh/rooms/host/refresh-runtime.js 的 backendObj.timers。
  *
  * 依据（2026-10-14 从 DSH 自带的 @deepseek-ai/cordis-plugin-timer/src/index.ts 逐行核过）：

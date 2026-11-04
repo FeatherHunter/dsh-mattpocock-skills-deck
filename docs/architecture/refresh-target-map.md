@@ -77,7 +77,7 @@ src/refresh/
 | C1 | src/host/issueList.ts | src/refresh/rooms/host/issue-list-fetch.ts | 拥有列表取数执行，替“列表取回什么”做决定 |
 | C2 | src/host/issueDetail.ts | src/refresh/rooms/host/comment-thread-fetch.ts | 拥有正文取数执行（只在人点开时取），替正文首屏不进列表做决定；旧 issue-detail-fetch 已随 #1870 退役，正文与评论合并在这一条宿主方法里 |
 | C3 | src/host/commentThreads.ts | src/refresh/rooms/host/comment-thread-fetch.ts | 拥有评论线程取数，替“评论何时取”做决定；第四批从中拆出探测处理器部分 |
-| C4 | src/host/snapshotBuild.ts | src/refresh/rooms/host/snapshot-build.ts | 拥有快照组装，替“快照长什么样”做决定 |
+| C4 | src/host/snapshotBuild.ts | （已退役） | 旧快照组装，随 #1870 删除；面板快照改由本地快照库的读投影出（src/workspace-snapshot/projection） |
 | C5 | src/host/sessionRefresh.ts | src/refresh/rooms/host/session-refresh-schedule.ts | 拥有会话级刷新调度，替“这个会话何时刷”做决定 |
 | C6 | src/host/sessionSnapshot.ts | src/refresh/rooms/host/session-snapshot-cache.ts | 拥有会话快照缓存，替“快照存哪、谁可读”做决定 |
 | C7 | src/host/detectChain.ts | src/refresh/rooms/host/check-chain-evaluation.ts | 拥有检查链求值，替“链推进到哪一步”做决定；原名只说探测不说链 |
