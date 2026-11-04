@@ -126,10 +126,13 @@ export function openWorkspaceSnapshot(
       message: '快照库的写者租约被占用，已退回只读',
       detail: leaseDetail,
     })
+    // reason 是稳定的枚举（held = 别人拿着写权），持有者那一句人话放 detail；
+    // 把两者混在 reason 里会让按 reason 过滤的排查看不到「抢不到」这一类。
     logSnapshot(logEvent, 'warn', 'workspaceSnapshot.lease', {
       acquired: false,
       ownerHash: shortHash(owner),
-      reason: leaseDetail ?? 'held',
+      reason: 'held',
+      ...(leaseDetail ? { detail: leaseDetail } : null),
     })
     logSnapshot(logEvent, 'warn', 'workspaceSnapshot.open', {
       mode,

@@ -294,6 +294,21 @@ export const truthNoticeLines = function (st: any, nowMs: any) {
     const rpad = function (n: any) { return (n < 10 ? '0' : '') + n }
     push({ key: 'truth.replayLastKnown', params: { time: rpad(rd.getHours()) + ':' + rpad(rd.getMinutes()) }, tone: 'yellow', kind: 'replay' })
   }
+  // 六、本地快照库自己报的开库诊断（#1869 真机演练补）：损坏重建、身份/结构重建、退回只读。
+  //   这些是「本机数据出了什么事」的结论，必须由列表状态行说出来；失败时不说话会让界面静默变空白。
+  const snapshotDiags = Array.isArray(snap.snapshotDiagnostics) ? snap.snapshotDiagnostics : []
+  const diagKeyOf = function (code: any) {
+    if (code === 'corrupt-rebuilt') return 'truth.snapshotCorrupt'
+    if (code === 'identity-mismatch-rebuilt') return 'truth.snapshotIdentity'
+    if (code === 'schema-reset') return 'truth.snapshotSchema'
+    if (code === 'lease-held-readonly') return 'truth.snapshotReadonly'
+    if (code === 'lease-lost-readonly') return 'truth.snapshotLeaseLost'
+    return ''
+  }
+  for (let i = 0; i < snapshotDiags.length; i++) {
+    const key = diagKeyOf(snapshotDiags[i] && snapshotDiags[i].code)
+    if (key) { push({ key: key, params: {}, tone: 'yellow', kind: 'snapshot' }); break }
+  }
   // #1833：额度读数不再并进列表这一行 —— 它改由通知中心「当前状态」区的「额度」行表达
   //   （budgetTierViewOf 给档位，展开看原始数字）。列表这一行只说数据为什么旧。
   return lines

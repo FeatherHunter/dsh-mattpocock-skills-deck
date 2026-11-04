@@ -119,7 +119,7 @@ const ALLOWED = {
   //   与短散列（工作区根与仓库身份都是 hash，不记路径原文）；`detail` 只放一句话的失败说明。
   //   落点：src/workspace-snapshot/runtime/open.ts、open-schema.ts、lease.ts、ingest.ts。
   'workspaceSnapshot.open': ['backend', 'rootHash', 'repoHash', 'dbExisted', 'journalMode', 'mode', 'reason', 'mergeVersion'],
-  'workspaceSnapshot.lease': ['acquired', 'ownerHash', 'reason', 'nowMs'],
+  'workspaceSnapshot.lease': ['acquired', 'ownerHash', 'reason', 'detail', 'nowMs'],
   'workspaceSnapshot.ingest': ['committed', 'reason', 'writes', 'startMergeVersion', 'mergeVersion', 'elapsedMs', 'detail'],
   'workspaceSnapshot.corrupt': ['stage', 'action', 'backupSuffix', 'oldBackend', 'oldRepoHash', 'detail'],  // 2026-10-28（#1617）：删掉 `since`。逐版本核过发射行（从 #708 落地起直到今天）都只记三格，
   //   附录里写的「since 增量起点」是设计稿口径、从未发射；白名单要按真实发射维护。这条事件现在

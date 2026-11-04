@@ -21,6 +21,7 @@ import type {
   ListProjection,
   OpenWorkspaceSnapshotOptions,
   SnapshotBackend,
+  SnapshotDiagnostic,
   WorkspaceSnapshotHandle,
 } from '../../../workspace-snapshot/contract/types.js'
 import {
@@ -198,6 +199,22 @@ function lastKnownAtMsOf(projection: ListProjection): number {
     }
   }
   return latest || projection.generatedAtMs
+}
+
+/**
+ * 开库诊断：损坏后整库重建、身份或结构不符重建、退回只读。库开不出来就回空数组。
+ *
+ * 为什么单开一个读口而不是塞进 readSnapshotReplay：库为空（尤其刚重建完）时回放是 null，
+ * 但这正是最需要把人话提示交给界面的时刻；把诊断绑在「有回放」上会让损坏重建静默。
+ */
+export async function readSnapshotDiagnostics(input: SnapshotLibraryKey): Promise<SnapshotDiagnostic[]> {
+  const handle = await handleOf(input)
+  if (!handle) return []
+  try {
+    return handle.getDiagnostics()
+  } catch (e) {
+    return []
+  }
 }
 
 /** 库为空（或者开不出来）回 null；有行就回放成与在线组装同形的快照主体。 */

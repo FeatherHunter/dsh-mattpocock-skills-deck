@@ -147,5 +147,13 @@ export const LOG_EVENT_LIST: {
     //   同一次点按可能落两三行（进队 / 并进文档 / 写进文件），按 reason 读出停在哪一步；这是回答
     //   「点了没反应」的唯一常驻落点，所以定信息级常驻，而不是只落调试档。
     'settings.toggle': { level: 'info', kind: 'resident', fields: ['flag', 'value', 'listed', 'ok', 'reason', 'cwdHash'] },
+    // 2026-11-04 #1869：快照库三族信息级常驻事件（开库、抢租约、事务提交）。第四族
+    //   workspaceSnapshot.corrupt 是告警级，按本文件口径不登记（错误与告警级本来就永远落盘）。
+    //   字段与 tests/verify-log-fields.ts 的 ALLOWED 表一致；不登记时真机日志里一行都不会有。
+    //   为什么三族都要登记：开库说「库在不在、什么模式」；租约说「谁拿到了写权」；ingest 说
+    //   「这一批提交了还是被整批丢弃」。只看日志排查快照故障时，这三行就是全程的三个断点。
+    'workspaceSnapshot.open': { level: 'info', kind: 'resident', fields: ['backend', 'rootHash', 'repoHash', 'dbExisted', 'journalMode', 'mode', 'reason', 'mergeVersion'] },
+    'workspaceSnapshot.lease': { level: 'info', kind: 'resident', fields: ['acquired', 'ownerHash', 'reason', 'detail', 'nowMs'] },
+    'workspaceSnapshot.ingest': { level: 'info', kind: 'resident', fields: ['committed', 'reason', 'writes', 'startMergeVersion', 'mergeVersion', 'elapsedMs', 'detail'] },
   },
 }

@@ -12,6 +12,7 @@
  *  3. 写库失败只吞掉自己那一趟，不影响这次回包：下一轮刷新会把同一批再写一次。
  */
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
+import type { SnapshotDiagnostic } from '../../../workspace-snapshot/contract/types.js'
 
 /** 库门面里这一层真正用到的两件：读回放、按批写行。 */
 export interface FirstScreenLibrary {
@@ -27,6 +28,12 @@ export interface FirstScreenLibrary {
     repoIdentity: string
     rows: unknown[]
   }): Promise<unknown>
+  /** 开库诊断（损坏重建、只读等）；老门禁的假库没有这个口，缺席时当空数组。 */
+  readSnapshotDiagnostics?(input: {
+    workspaceRoot: string
+    backend: string
+    repoIdentity: string
+  }): Promise<SnapshotDiagnostic[]> | SnapshotDiagnostic[]
 }
 
 /** 造首屏要的输入：库门面（可能是异步取到的）、库身份三格、仓库引用、这一趟是不是强制重建。 */
@@ -49,7 +56,9 @@ export interface FirstScreen {
   replay: { snapshot: any; lastKnownAtMs: number } | null
   /** 这一趟要去后端取时，把取回的行按批写库；库不可用时是 undefined。 */
   writeRows: ((rows: unknown[]) => void) | undefined
-  /** 给回包盖上「来自库」的注记：fromCache 与 diskReplay（与在线重建区分开）。 */
+  /** 开库诊断：损坏重建、退回只读等；不论有没有回放都要随回包交给界面。 */
+  diagnostics: SnapshotDiagnostic[]
+  /** 给回包盖上「来自库」的注记：fromCache 与 diskReplay（与在线重建区分开），并带上开库诊断。 */
   decorate(snap: any): void
 }
 
@@ -82,6 +91,16 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
       replay = null
     }
   }
+  // 诊断要在回放读之前或之后拿：handleOf 会把句柄缓存住，先读回放再读诊断也不会重复开库；
+  // 但库为空、刚重建时回放是 null，诊断仍要拿到，所以这里不能绑在 replay 上。
+  let diagnostics: SnapshotDiagnostic[] = []
+  if (typeof lib.readSnapshotDiagnostics === 'function') {
+    try {
+      diagnostics = (await Promise.resolve(lib.readSnapshotDiagnostics(key))) || []
+    } catch (e) {
+      diagnostics = []
+    }
+  }
   const writeRows = function (rows: unknown[]): void {
     try {
       // 同步抛与异步拒绝都要吞掉：这一层只负责把行递过去，取数回包不能被写库的失败带崩。
@@ -93,7 +112,9 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
   return {
     replay: replay,
     writeRows: writeRows,
+    diagnostics: diagnostics,
     decorate: function (snap: any): void {
+      if (diagnostics.length) snap.snapshotDiagnostics = diagnostics
       if (!replay) return
       snap.fromCache = true
       snap.diskReplay = { schema: 'snapshot-sqlite-v1', source: 'sqlite', lastKnownAtMs: replay.lastKnownAtMs }

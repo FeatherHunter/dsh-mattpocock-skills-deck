@@ -267,6 +267,15 @@ function main(): void {
     check(flow.indexOf('detail.evictedAt') >= 0 && flow.indexOf('未取（曾在') >= 0, 'C8 词表两个语言都有「未取（曾在 {time}）」这一条')
     const pages = srcText('config/copy/pages.yaml')
     check(pages.indexOf('truth.replayLastKnown') >= 0 && pages.indexOf('上次已知（') >= 0, 'C9 词表两个语言都有「上次已知（{time}）」这一条')
+
+    // #1869 真机演练补：本地快照库自己报的开库诊断（损坏重建、只读）也要走这条状态行，
+    // 否则库坏了重建完，列表区只剩「加载中… 暂无」，谁也看不出本机数据被清掉。
+    const corruptDiag = truthNoticeLines({ snapshot: { snapshotDiagnostics: [{ code: 'corrupt-rebuilt', message: '本地快照已重建' }] } }, at)
+    check(corruptDiag.some(function (l: any) { return l.key === 'truth.snapshotCorrupt' }), 'C10 库损坏重建时状态行说「已整库重建」')
+    const readOnlyDiag = truthNoticeLines({ snapshot: { snapshotDiagnostics: [{ code: 'lease-held-readonly', message: '另一个窗口在写' }] } }, at)
+    check(readOnlyDiag.some(function (l: any) { return l.key === 'truth.snapshotReadonly' }), 'C11 只读租约时状态行说「以只读显示」')
+    check(!truthNoticeLines({ snapshot: { snapshotDiagnostics: [] } }, at).some(function (l: any) { return l.kind === 'snapshot' }), 'C12 负例：没有开库诊断时不说快照提示')
+    check(pages.indexOf('truth.snapshotCorrupt') >= 0 && pages.indexOf('本地快照已损坏') >= 0 && pages.indexOf('Local snapshot was corrupt') >= 0, 'C13 词表两个语言都有快照诊断这一组')
   }
 
   // ── D 接线与「没新增定时器」 ──
