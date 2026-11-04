@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T05:44:04.743Z",
+  "generatedAt": "2026-11-04T09:27:29.410Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 570,
-  "gateCount": 570,
-  "attributedGates": 514,
+  "chainLength": 572,
+  "gateCount": 572,
+  "attributedGates": 516,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 112,
+  "completionRecordedGates": 114,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
   "graphFileCount": 892,
@@ -6633,6 +6633,23 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-1869-ingest-crash.ts",
+      "file": "tests/verify-1869-ingest-crash.ts",
+      "guards": [
+        "src/refresh/rooms/host/snapshot-library.ts",
+        "src/workspace-snapshot/runtime/ingest.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/workspace-snapshot/runtime"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 13,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
       "step": "node tests/verify-1869-offline-first-screen.ts",
       "file": "tests/verify-1869-offline-first-screen.ts",
       "guards": [
@@ -6648,6 +6665,22 @@
       "completionRecord": true,
       "expectedAssertions": 39,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1869-refresh-write.ts",
+      "file": "tests/verify-1869-refresh-write.ts",
+      "guards": [
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 14,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-1869-snapshot-log.ts",
@@ -14701,7 +14734,9 @@
       "node tests/verify-1866-write-receipt.ts",
       "node tests/verify-1867-snapshot-gitlab.ts",
       "node tests/verify-1868-snapshot-markdown.ts",
+      "node tests/verify-1869-ingest-crash.ts",
       "node tests/verify-1869-offline-first-screen.ts",
+      "node tests/verify-1869-refresh-write.ts",
       "node tests/verify-1869-snapshot-log.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
@@ -15375,6 +15410,7 @@
       "node tests/verify-1866-write-receipt.ts"
     ],
     "src/workspace-snapshot/runtime": [
+      "node tests/verify-1869-ingest-crash.ts",
       "node tests/verify-time-config.ts"
     ],
     "tests": [
