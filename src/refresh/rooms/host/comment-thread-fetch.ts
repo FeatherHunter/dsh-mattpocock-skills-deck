@@ -17,7 +17,7 @@
 // 这一层只做接线，合并规则全在 kernel/snapshot-merge.ts；详情返回形状保持原样，只是多一个 snapshot 字段。
 // #1864：详情读结果按组写进本地快照库，并优先从库里读（详情本地优先、过期才取数）。
 // #1865：评论也从库里读（读方向的换算与「加载更多」那一页都在 snapshot-library-view.ts）。
-import { detailOfProjection, storedCommentPage } from './snapshot-library-view.js'
+import { detailOfProjection, reviewNodeOf, storedCommentPage } from './snapshot-library-view.js'
 // #1864：详情新鲜度的唯一来源是中央时间参数，不在本文件写数字。
 import { ISSUE_DETAIL_LOCAL_TTL_MS } from '../../../shared/time-config/src/values.js'
 
@@ -330,14 +330,12 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       // 以前这里逐字段挑，三格被丢掉了，界面只能回落到快照行：第一次点开一张拉取请求时，
       // 「这是 PR、只读、已合并」全靠那一行凑，详情回包自己说不出来。
       // 三态口径与契约一致：字段在就交（false / null / [] 都是「明确知道」），不在就整个省掉（不知道）。
-      // 评审只留界面认的三样（结论、评审人登录名、时间），与库里读回来的详情同形，两条来源画出来一样。
+      // 评审只留界面认的那三样，换算与库里读回来那条来源共用同一个函数（snapshot-library-view 的
+      // reviewNodeOf），两条来源画出来一样，改形状只改一处。
       if (typeof iss.isPullRequest === 'boolean') out.issue.isPullRequest = iss.isPullRequest
       if (iss.mergedAt !== undefined) out.issue.mergedAt = iss.mergedAt
       if (Array.isArray(iss.reviews)) out.issue.reviews = iss.reviews.map(function (rv: any): any {
-        const one: any = { state: String((rv && rv.state) || '') }
-        if (rv && rv.reviewer && rv.reviewer.login) one.reviewer = { login: String(rv.reviewer.login) }
-        if (rv && rv.submittedAt) one.submittedAt = rv.submittedAt
-        return one
+        return reviewNodeOf(rv && rv.state, rv && rv.reviewer && rv.reviewer.login, rv && rv.submittedAt)
       })
       return out
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }

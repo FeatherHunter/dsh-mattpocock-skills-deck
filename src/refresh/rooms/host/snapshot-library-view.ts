@@ -47,6 +47,10 @@ export function issueOfRow(item: ListIssue): Issue {
   const effortId = String(item.effortId || '')
   const issue: Issue = {
     key: String(item.key),
+    // #1870：数字编号一并补上（键是纯数字时）。界面按 number 找票，索引（kernel/index-window-rules.ts
+    // 的 indexFromSnapshot）也只认 number —— 少了它，回放出来的整棵树在增量索引里等于一条都没有，
+    // 「从库里的数据立扫描起点」就永远立不起来（真接线门禁 verify-1870 的 I 段守这一条）。
+    ...(/^\d+$/.test(String(item.key)) ? { number: Number(item.key) } : null),
     effortId,
     type: (row.type === 'map' || row.type === 'spec') ? row.type : 'issue',
     title: String(row.title || ''),
@@ -119,8 +123,6 @@ export function detailOfProjection(issue: IssueDetail): any {
     blockedBy: { nodes: nodesOf(issue.blockedBy) },
     blocking: { nodes: nodesOf(issue.blocking) },
     subIssues: { totalCount: issue.subIssues ? issue.subIssues.total : issue.children.length, nodes: nodesOf(issue.children) },
-    isPullRequest: issue.row.isPullRequest === true,
-    mergedAt: isoOf(issue.mergedAtMs),
     fromSnapshot: true,
     referenceSkeleton: issue.referenceSkeleton,
     lastKnownAtMs: issue.lastKnownAtMs,
@@ -137,6 +139,12 @@ export function detailOfProjection(issue: IssueDetail): any {
       review: groupInfoOf(issue.groups.review),
     },
   }
+  // 拉取请求那两格按三态写：库里没记 `is_pull_request` 就是「不知道这是不是 PR」，
+  // 合并信息组没取过就是「不知道合并没合并」。写成 false / null 等于替后端断言「它不是 PR」「没合并过」，
+  // 而同一个方法另一条来源（当场取数那一趟）在同样情况下是省掉这两格的——两条来源必须同形，见 #1870。
+  if (typeof issue.row.isPullRequest === 'boolean') out.isPullRequest = issue.row.isPullRequest
+  const mergeGroup = issue.groups.mergeInfo
+  if (mergeGroup && mergeGroup.completeness !== 'unknown') out.mergedAt = isoOf(issue.mergedAtMs)
   if (issue.body !== null) out.body = issue.body
   const comments = commentsConnectionOf(issue)
   if (comments) out.comments = comments
@@ -196,15 +204,28 @@ export function commentsConnectionOf(issue: IssueDetail): any | null {
   }
 }
 
+/**
+ * 一条评审 → 界面认的那三样（结论、评审人登录名、时间）。
+ *
+ * 为什么单独一个函数：详情有两条来源（当场取数与库里回放），两条都要交同一种形状，
+ * 各写一份迟早会漂成「一条有 submittedAt、一条没有」。没有的值就整个省掉，不写空串与 null。
+ */
+export function reviewNodeOf(state: unknown, reviewerLogin?: unknown, submittedAt?: unknown): any {
+  const out: any = { state: String(state || '') }
+  if (typeof reviewerLogin === 'string' && reviewerLogin) out.reviewer = { login: reviewerLogin }
+  if (typeof submittedAt === 'string' && submittedAt) out.submittedAt = submittedAt
+  return out
+}
+
 /** 库里的评审 → 界面认的形状；评审组不知道时回 null。 */
 export function reviewsOfDetail(issue: IssueDetail): any[] | null {
   const group = issue.groups.review
   if (!group || group.completeness === 'unknown') return null
-  return issue.reviews.map((review) => {
-    const out: any = { state: review.state, submittedAt: isoOf(review.submittedAtMs) }
-    if (review.reviewer && review.reviewer.login) out.reviewer = { login: review.reviewer.login }
-    return out
-  })
+  return issue.reviews.map((review) => reviewNodeOf(
+    review.state,
+    review.reviewer && review.reviewer.login,
+    isoOf(review.submittedAtMs) || '',
+  ))
 }
 
 /**

@@ -19,10 +19,10 @@ interface IssueIndexWindowDeps {
   // 只问窗口内的变化（回包带 repo/index/count）。#1689 起尾参可带一本本轮预算账本：
   // 带 since 的窗口扫描可以用探针同一轮的增量账本继续预扣，整仓枚举由取数入口自己开枚举账本。
   fetchIssueIndex?: (cwd: string, sinceIso: string, budget?: any) => Promise<any>
-  // #1870：重启后第一次扫描的起点。回「本地快照库回放出来的那份快照」与它的数据时刻
-  // （库里一条票都没有、库打不开都回 null）。为什么由调用方注入：本文件只持有窗口状态，
-  // 不碰数据库，也不该知道库在哪。
-  readLibrarySnapshot?: (cwd: string, repo: { owner: string; name: string }) => Promise<{ snapshot: any; lastKnownAtMs: number } | null>
+  // #1870：重启后第一次扫描的起点。回「本地快照库回放出来的那份快照」与它最老的一次取数时刻
+  // （库里一条票都没有、库打不开、后端认不出都回 null）。后端编号由这一层转手传下去，
+  // 装配方不必为了一个字符串再开一趟会话。
+  readLibrarySnapshot?: (cwd: string, repo: { owner: string; name: string }, backendId: string) => Promise<{ snapshot: any; oldestRowAtMs: number } | null>
   // 取时间（门禁注入假时钟）
   now?: () => number
 }
@@ -66,25 +66,28 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
    * 顶上去交给 seedFromSnapshot：太旧、没有票、时刻在将来，那三档判据与从前读旧磁盘快照
    * 那一版逐字相同，这里一条都不重写。
    */
-  async function seedFromLibrary(cwd: string, repo: { owner: string; name: string }, startedMs: number): Promise<void> {
+  async function seedFromLibrary(cwd: string, repo: { owner: string; name: string }, backendId: string, startedMs: number): Promise<void> {
     if (typeof d.readLibrarySnapshot !== 'function') return
-    let got: { snapshot: any; lastKnownAtMs: number } | null = null
-    try { got = await d.readLibrarySnapshot(cwd, repo) } catch (e) { got = null }
+    const rk: string = repo.owner + '/' + repo.name
+    let got: { snapshot: any; oldestRowAtMs: number } | null = null
+    try { got = await d.readLibrarySnapshot(cwd, repo, backendId) } catch (e) { got = null }
     if (!got || !got.snapshot) return
+    // 起点取「行组最老的那一次取数时刻」，不是最新的那一次：见 snapshot-library.ts 的
+    // SnapshotReplay.oldestRowAtMs（取最新会让旧行更早发生的改动永远落在窗口外）。
     const seed: any = (indexWindow as any).seedFromSnapshot(
-      Object.assign({}, got.snapshot, { generatedMs: Number(got.lastKnownAtMs) || 0 }),
+      Object.assign({}, got.snapshot, { generatedMs: Number(got.oldestRowAtMs) || 0 }),
       startedMs,
     )
     if (!seed) return
-    lastIndexBaselineByRepo[repo.owner + '/' + repo.name] = seed.baseline
-    lastIndexWatermarkByRepo[repo.owner + '/' + repo.name] = seed.watermarkMs
+    // 走唯一的推进口，不直接写两张表：起点也是「水印往前走一步」，同样要过 next>0 与单调性那两道检查。
+    commit(rk, seed.watermarkMs, seed.baseline)
   }
 
   // 扫一次窗口。opts.commit === true 时才把「基线 + 下一次的水印」记下来（默认不记）。
   // #1689：opts.budget 是调用方（降级探针）注入的本轮请求预算账本，原样转给 fetchIssueIndex 记在翻页那一层；
   // 不注入时取数入口按「带窗口=增量轮 / 不带窗口=枚举轮」自己开一本。
   // 回包里如实带着 nextWatermarkMs 与 watermarkCommitted，让调用方按「变化并进列表了没有」决定推不推。
-  async function scan(cwd: string, opts?: { commit?: boolean; budget?: any }): Promise<any> {
+  async function scan(cwd: string, opts?: { commit?: boolean; budget?: any; backendId?: string }): Promise<any> {
     const o = opts || {}
     const hit = await repoKeyOf(cwd)
     if (!hit) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
@@ -93,7 +96,7 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
     // 这一份工作区在本进程里还没扫过：先问库要起点（重启后就靠这一步不整仓枚举）。
     // 判据是「水印那一格有没有」而不是「基线在不在」：没有水印时 scanWindow 本来就要整扫，
     // 基线在不在都不影响结论，少问一次库也就少开一次句柄。
-    if (lastIndexWatermarkByRepo[rk] === undefined) await seedFromLibrary(cwd, hit.repo, startedMs)
+    if (lastIndexWatermarkByRepo[rk] === undefined) await seedFromLibrary(cwd, hit.repo, String(o.backendId || ''), startedMs)
     const w = (indexWindow as any).scanWindow(lastIndexWatermarkByRepo[rk], startedMs)
     const remote = await d.fetchIssueIndex!(cwd, w.sinceIso, o.budget)
     if (!remote || remote.ok !== true) return remote || { ok: false, error: { kind: 'env', error: '索引扫描没有回包' } }

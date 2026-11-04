@@ -199,7 +199,11 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       //   探针这一层不再自己预扣一条（否则一页只记一笔，多页就账实不符）。
       //   整仓枚举（重启后第一拍没有窗口）不拿这本增量账去卡：取数层见「无 since」会自己开「完整枚举 16 条」那本。
       const roundBudget: any = degraded ? createFallbackRoundBudget({ kind: 'increment', limits: FALLBACK_FETCH_LIMITS }) : null
-      const remote: any = await fetchIssueIndexWindowed(cwd, roundBudget ? { budget: roundBudget } : undefined)
+      // #1870：把这一轮的后端编号一并交下去——重启后第一次扫描要靠它去开对的那个快照库文件取起点，
+      // 在这一层点名比让取数层自己开会话去问便宜（开会话会走远端定位，可能花一条出站额度）。
+      const probeOpts: any = roundBudget ? { budget: roundBudget } : {}
+      probeOpts.backendId = String((_selProbe && _selProbe.backendId) || '')
+      const remote: any = await fetchIssueIndexWindowed(cwd, probeOpts)
       // 窗口探测被本轮预算拦住时，取数层回 truncated 并带账本读数；这里翻译成「这一拍先不探」，
       //   而不是当网络失败往上抛。出站请求一条都没多出去（预扣不到时取数层根本没发）。
       if (roundBudget && remote && remote.ok === false && remote.budget && remote.budget.refused > 0) {

@@ -177,9 +177,11 @@ export default {
     }
 
     // H2 #446 留守：索引小函数留入口（H6 探测同步取值与同刻写表；file2 经显式参数复用同一份）。
-    // #1870：拉取请求不进这份索引。远端索引的来源只翻 repository.issues，PR 从来不在里面；
-    // 把快照里的 PR 算进来，每一轮探测都会把它们判成「被删掉的票」，于是本该补几行的活整池重建。
-    // 与 kernel/index-window-rules.ts 的 indexFromSnapshot 同一条口径，两处一起改。
+    // #1870：拉取请求不进这份索引——远端索引的来源只翻 repository.issues，PR 从来不在里面。
+    // 与 kernel/index-window-rules.ts 的 indexFromSnapshot 的差别只有一处：这一份只遍历 issues 数组，
+    // 不看 maps 下面挂着的子票（它只服务「记住上次那份索引」与「缓存还算不算当前」这两处簿记，
+    // 行级增量的基线 #1870 起改用 kernel 那一份，那一份会把地图与子票都算进来）。
+    // 两份都要排除 PR，改一处记得看另一处。
     const issueIndexFromSnapshot = function (snap: any) {
       const index: Record<string, string> = {}
       const items = snap && Array.isArray(snap.issues) ? snap.issues : []

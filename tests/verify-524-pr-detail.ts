@@ -118,6 +118,47 @@ async function main() {
     check(r && r.ok === false && r.error && r.error.kind === 'env', '没注入会话时如实回失败（不许假装成功）')
     check(Object.keys(h).sort().join(',') === 'handleCommentIssue,handleIssueComments,handleIssueDetail', '详情这条宿主方法只交三件（没有第二条直取口，REST 降级只在房间内部）', Object.keys(h).sort().join(','))
   }
+  {
+    // 库来源那条路：同样按三态交，两条来源必须同形（#1870）。
+    // 库里没记 is_pull_request、合并信息组也没取过 → 两格都省掉（不知道），不写 false / null。
+    const projection = (over: any) => Object.assign({
+      key: '7', effortId: '', referenceSkeleton: false, lastKnownAtMs: Date.now(),
+      row: {
+        type: 'issue', title: '标题', state: 'open', url: '', createdAtMs: null, updatedAtMs: null, closedAtMs: null,
+        stateReason: null, isPullRequest: null, commentCount: null, milestoneJson: null, customFieldsJson: null,
+        status: null, statusVisible: null, statusSource: null, statusConflictJson: null,
+      },
+      labels: [], assignees: [], blockedBy: [], blocking: [], children: [], subIssues: null,
+      mergedAtMs: null, body: null, comments: [], reviews: [], commentsCursor: null,
+      groups: {
+        row: { completeness: 'complete', reason: null, lastQueriedMs: Date.now() },
+        body: null, labels: null, assignees: null, parents: null, blockedBy: null,
+        subIssues: null, mergeInfo: null, comments: null, review: null,
+      },
+    }, over)
+    const withLib = (issue: any) => mod.createCommentThreads({
+      normCwd: async (c: any) => c,
+      errText: (e: any) => String((e && e.message) || e),
+      execProc: async () => { throw new Error('库命中时不该发命令') },
+      setCache: () => {}, getCache: () => null,
+      openSession: async (cwd: string) => ({
+        ok: true, backendId: 'github', repoRef: { backend: 'github', refId: 'o/r', name: 'o/r', url: '' },
+        // 库命中就不该再问会话：走到这里说明本地优先白写了。
+        call: () => { throw new Error('库命中时不该再取数') },
+      }),
+      getSnapshotLibrary: async () => ({ readIssueDetail: async () => ({ issue: issue }) }),
+    })
+    const unknown = await withLib(projection({})).handleIssueDetail({ number: 7, cwd: 'cwd' })
+    check(unknown && unknown.ok === true && unknown.fromSnapshot === true, '库里命中时详情从库出（不发取数请求）')
+    check(unknown.issue.isPullRequest === undefined && unknown.issue.mergedAt === undefined,
+      '库里不知道时不写这两格（不知道 ≠ 不是 PR / 没合并过）')
+    const known = await withLib(projection({
+      row: Object.assign({}, projection({}).row, { isPullRequest: true }),
+      groups: Object.assign({}, projection({}).groups, { mergeInfo: { completeness: 'complete', reason: null, lastQueriedMs: Date.now() } }),
+    })).handleIssueDetail({ number: 7, cwd: 'cwd' })
+    check(known.issue.isPullRequest === true, '库里记着是拉取请求就照实交')
+    check(known.issue.mergedAt === null, '合并信息组确认过、没合并 → mergedAt 给 null（明确知道）')
+  }
   if (fail) { console.log('\nRED #524 探针有失败（过 ' + pass + ' / 败 ' + fail + '）'); process.exit(1) }
   console.log('\nGREEN #524 探针全绿（' + pass + ' 项）')
 }

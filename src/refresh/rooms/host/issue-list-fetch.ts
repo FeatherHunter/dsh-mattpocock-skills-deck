@@ -175,9 +175,9 @@ export function createIssueList(deps: any): any {
         return fail(String(err.kind || 'network'), err.message || '列表读取失败')
       }
       await recordRows(cwd, ref, r.data || [])
-      // 旧 REST 的 jq 是 select(.pull_request == null)：拉取请求从来不进快照。
-      // 会话的 list 两张表都给，这里必须显式滤掉 —— 否则快照索引里有 PR、而 fetchIssueIndex
-      // 走的 listPage 只翻 repository.issues，每轮探测都会把 PR 当成「被删掉的票」→ 整池重建。
+      // 列表视图不收拉取请求（#1870 起口径是这样：PR 有自己的页签，读的是快照里的 PR 行）。
+      // 注意这与「写库」不是一回事：下面 recordRows 照旧把 PR 交给库（库是工作区的权威副本），
+      // 只有这个回包的 issues 数组不收它们。
       const rows = (r.data || []).filter(function (x: any): boolean { return !!x && x.isPullRequest !== true }).map(rowOf)
       return { ok: true, issues: sortRows(rows) }
     })
@@ -231,6 +231,10 @@ export function createIssueList(deps: any): any {
         for (let i = 0; i < items.length; i++) {
           const it: any = items[i]
           if (!it || it.key == null) continue
+          // #1870 防御：这份索引与快照里算出来的那份逐条比对（planDelta 用它判「有没有票被删掉」），
+          // 两边都不能有 PR —— 这一页只翻 repository.issues，PR 本来进不来；真混进来也别让它进索引，
+          // 否则下一趟整扫会把库里的 PR 行读成「这一条不见了」，整池重建停不下来。
+          if (it.isPullRequest === true) continue
           const key = String(it.key)
           // 窗口比对：since 之后动过的票才进这一趟的索引（与旧 gh api 的 since 参数同义）。
           if (useSince) {
@@ -254,37 +258,36 @@ export function createIssueList(deps: any): any {
   /**
    * #1870：重启后的第一次扫描要的起点——库里那份工作区数据。
    *
-   * 为什么在这里取而不在 issue-index-scan 里：只有这一层知道库门面与后端编号怎么问，
-   * 索引扫描那边只持有窗口状态，不该为了开库再引一个依赖。
+   * 为什么在这里取而不在 issue-index-scan 里：只有这一层摸得到库门面，索引扫描那边只持有窗口状态，
+   * 不该为了开库再引一个依赖。
    *
-   * 取的是「库回放出来的整份快照」（readSnapshotReplay 已经把行拼成与在线组装同形的快照），
-   * 起点判据交给 kernel/index-window-rules.ts 的 seedFromSnapshot —— 口径与从前读旧磁盘快照
-   * 那一版完全一样，旧 JSON 一个字节都不碰。
+   * 后端编号由调用方点名传进来（探针那一拍本来就已经知道这一轮是哪个后端），**不在这里开会话去问**：
+   * 开会话要过注册表选择与远端定位，可能真的花一条出站额度，而这条路上紧接着的取数还要再开一趟——
+   * 为了一个字符串多开一趟不划算。拿不到后端编号就回 null，调用方照旧整仓枚举（比猜一个后端、
+   * 开错库文件要好）。
    *
-   * 拿不到（库没接、库为空、身份还不全、后端不支持）就回 null，调用方照旧整仓枚举。
+   * 回的是「库回放出来的整份快照」与行组最老的那一次取数时刻（oldestRowAtMs，见 SnapshotReplay
+   * 那个字段的注释：不能拿最新时刻顶替）。起点判据交给 kernel/index-window-rules.ts 的
+   * seedFromSnapshot —— 口径与从前读旧磁盘快照那一版完全一样，旧 JSON 一个字节都不碰。
    */
-  async function readLibrarySnapshot(cwd: any, repo: any): Promise<{ snapshot: any; lastKnownAtMs: number } | null> {
+  async function readLibrarySnapshot(cwd: any, repo: any, backendId: any): Promise<{ snapshot: any; oldestRowAtMs: number } | null> {
     if (typeof deps.getSnapshotLibrary !== 'function') return null
     if (!repo || !repo.owner || !repo.name) return null
+    const backend: string = String(backendId || '')
+    if (!backend) return null
     let lib: any = null
     try { lib = await Promise.resolve(deps.getSnapshotLibrary()) } catch (e: any) { lib = null }
     if (!lib || typeof lib.readSnapshotReplay !== 'function') return null
-    // 后端编号问会话（与取数同一条口径，不自己猜）；问不到就按这条路上唯一的那一个后端算。
-    let backendId: string = 'github'
-    try {
-      const opened: any = (typeof deps.openSession === 'function') ? await Promise.resolve(deps.openSession(cwd)) : null
-      if (opened && opened.ok === true && opened.backendId) backendId = String(opened.backendId)
-    } catch (e: any) { backendId = 'github' }
     const refId: string = String(repo.owner) + '/' + String(repo.name)
     try {
       const replay: any = await lib.readSnapshotReplay({
         workspaceRoot: cwd,
-        backend: backendId,
+        backend: backend,
         repoIdentity: refId,
-        repo: { backend: backendId, refId: refId, name: refId, url: '' },
+        repo: { backend: backend, refId: refId, name: refId, url: '' },
       })
       if (!replay || !replay.snapshot) return null
-      return { snapshot: replay.snapshot, lastKnownAtMs: Number(replay.lastKnownAtMs) || 0 }
+      return { snapshot: replay.snapshot, oldestRowAtMs: Number(replay.oldestRowAtMs) || 0 }
     } catch (e: any) { return null }
   }
 

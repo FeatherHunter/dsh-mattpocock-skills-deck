@@ -86,6 +86,16 @@ export interface SnapshotReplay {
   mergeVersion: number
   /** 库里这批数据最后一次被查询的时间（毫秒）；界面用它说「这是上次的数据」。 */
   lastKnownAtMs: number
+  /**
+   * 行组**最老**的那一次取数时刻（毫秒）。给「从库里的数据立扫描起点」用，界面不用它。
+   *
+   * 为什么不能拿 lastKnownAtMs 顶替：那是所有票、所有字段组里最新的那一个。库里的行并不齐——
+   * 列表有单页上限，详情与写回执又只更新一张，老票的时刻停在很久以前。拿最新的那一刻当
+   * 「整份数据是什么时候的」，等于替所有旧行宣称「它们在那一刻也是新的」：起点之后的窗口
+   * 从此接不住那些行更早发生的改动，属于静默漏报（正是 kernel/index-window-rules.ts 要防的那一类）。
+   * 取最小值才是真话：每一行都至少是那一刻取到的。
+   */
+  oldestRowAtMs: number
   /** 回放的行数，便于日志与门禁断言。 */
   rows: number
 }
@@ -222,6 +232,21 @@ function lastKnownAtMsOf(projection: ListProjection): number {
 }
 
 /**
+ * 行组最老的那一次取数时刻。只读 `row` 这一组：增量索引比的是状态与更新时间，那两样都归行组管；
+ * 把正文、评论、评审那些组的时刻算进来，一条很久没重取过的评论就能把起点拉到几千小时之前。
+ * 没有行组记录的行（引用骨架）不在列表里，也不进索引，跳过即可。
+ */
+function oldestRowAtMsOf(projection: ListProjection): number {
+  let oldest = 0
+  for (const item of projection.issues) {
+    const group = item.groups.row
+    if (!group || !(group.lastQueriedMs > 0)) continue
+    if (oldest === 0 || group.lastQueriedMs < oldest) oldest = group.lastQueriedMs
+  }
+  return oldest || projection.generatedAtMs
+}
+
+/**
  * 开库诊断：损坏后整库重建、身份或结构不符重建、退回只读。库开不出来就回空数组。
  *
  * 为什么单开一个读口而不是塞进 readSnapshotReplay：库为空（尤其刚重建完）时回放是 null，
@@ -252,6 +277,7 @@ export async function readSnapshotReplay(input: SnapshotReplayInput): Promise<Sn
     snapshot: snapshotOfProjection(input.repo, projection),
     mergeVersion: projection.mergeVersion,
     lastKnownAtMs: lastKnownAtMsOf(projection),
+    oldestRowAtMs: oldestRowAtMsOf(projection),
     rows: projection.issues.length,
   }
 }

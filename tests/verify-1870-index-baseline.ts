@@ -15,8 +15,17 @@
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1870-index-baseline.ts
 
+// 门禁归属: src/refresh/rooms/host/issue-index-scan.ts
+// 门禁归属: src/refresh/rooms/host/issue-list-fetch.ts
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import { printGateResult } from './lib/gate-result.ts'
 import { createIssueIndexScan } from '../src/refresh/rooms/host/issue-index-scan.js'
-import { MAX_WINDOW_MS, SKEW_MS } from '../src/refresh/kernel/index-window-rules.js'
+import { createIssueList } from '../src/refresh/rooms/host/issue-list-fetch.js'
+import { closeSnapshotLibraries, readSnapshotReplay, recordIssueRows } from '../src/refresh/rooms/host/snapshot-library.js'
+import { indexFromSnapshot, MAX_WINDOW_MS, SKEW_MS } from '../src/refresh/kernel/index-window-rules.js'
+import { planDelta } from '../src/refresh/kernel/snapshot-diff.js'
 
 let failed = 0
 let total = 0
@@ -69,7 +78,7 @@ console.log('重启后的索引扫描起点门禁（#1870：基线来自本地�
 
 // ---------- 一、库里有数据 → 第一次扫描就缩窗 ----------
 {
-  const w = build({ library: () => ({ snapshot: librarySnapshot(), lastKnownAtMs: GEN }), answer: () => ({}) })
+  const w = build({ library: () => ({ snapshot: librarySnapshot(), oldestRowAtMs: GEN }), answer: () => ({}) })
   const r = await w.scan.fetchIssueIndexWindowed(CWD)
   check(r.ok === true, 'A1 有库起点时扫描成功')
   check(w.seen.since[0] !== '', 'A2 第一次扫描带 since（重启后不再整仓枚举）')
@@ -80,7 +89,7 @@ console.log('重启后的索引扫描起点门禁（#1870：基线来自本地�
 // ---------- 二、起点就是库里的那一份：窗口小不等于「一大批票被删」 ----------
 {
   // 远端只回了 2 号这一条变化，1 号与 3 号都不在窗口里。
-  const w = build({ library: () => ({ snapshot: librarySnapshot(), lastKnownAtMs: GEN }), answer: () => ({ '2': 'CLOSED|' + ISO_B }) })
+  const w = build({ library: () => ({ snapshot: librarySnapshot(), oldestRowAtMs: GEN }), answer: () => ({ '2': 'CLOSED|' + ISO_B }) })
   const r = await w.scan.fetchIssueIndexWindowed(CWD)
   check(r.ok === true && r.count === 3, 'B1 合并后仍是 3 条（基线没被窗口里的那一条挤掉），实得 ' + r.count)
   check(r.index['1'] === 'OPEN|' + ISO_A && r.index['3'] === 'CLOSED|' + ISO_A, 'B2 窗口外的两条原样保留（库里的值就是基线）')
@@ -90,7 +99,7 @@ console.log('重启后的索引扫描起点门禁（#1870：基线来自本地�
 
 // ---------- 三、窗口里没有任何变化 → 不许假报「变了」 ----------
 {
-  const w = build({ library: () => ({ snapshot: librarySnapshot(), lastKnownAtMs: GEN }), answer: () => ({}) })
+  const w = build({ library: () => ({ snapshot: librarySnapshot(), oldestRowAtMs: GEN }), answer: () => ({}) })
   const r = await w.scan.fetchIssueIndexWindowed(CWD)
   check(r.changed === false, 'C1 空窗口 → 判「没变」（假报会让面板每一拍都整池重建）')
   check(r.count === 3, 'C2 没变化时交回的仍是库里的完整索引')
@@ -115,7 +124,7 @@ console.log('重启后的索引扫描起点门禁（#1870：基线来自本地�
 
 // ---------- 六、库里那份太旧 → 宁可整扫，也不许漏掉中间那段 ----------
 {
-  const w = build({ library: () => ({ snapshot: librarySnapshot(), lastKnownAtMs: NOW - MAX_WINDOW_MS - 60000 }), answer: () => ({}) })
+  const w = build({ library: () => ({ snapshot: librarySnapshot(), oldestRowAtMs: NOW - MAX_WINDOW_MS - 60000 }), answer: () => ({}) })
   const r = await w.scan.fetchIssueIndexWindowed(CWD)
   check(w.seen.since[0] === '', 'F1 数据旧到超出窗口上限（' + Math.round(MAX_WINDOW_MS / 86400000) + ' 天）→ 整扫')
   check(r.ok === true, 'F2 这一档仍然正常回包')
@@ -123,7 +132,7 @@ console.log('重启后的索引扫描起点门禁（#1870：基线来自本地�
 
 // ---------- 七、起点只问一次库；水印推进后窗口跟着走 ----------
 {
-  const w = build({ library: () => ({ snapshot: librarySnapshot(), lastKnownAtMs: GEN }), answer: () => ({}) })
+  const w = build({ library: () => ({ snapshot: librarySnapshot(), oldestRowAtMs: GEN }), answer: () => ({}) })
   await w.scan.fetchIssueIndexWindowed(CWD)
   await w.scan.fetchIssueIndexWindowed(CWD)
   check(w.seen.libraryCalls === 1, 'G1 起点只在没有水印时问一次库（内存里有了就不重复开库），实得 ' + w.seen.libraryCalls)
@@ -139,12 +148,87 @@ console.log('重启后的索引扫描起点门禁（#1870：基线来自本地�
     { number: 1, state: 'OPEN', updatedAt: ISO_A },
     { number: 9, state: 'OPEN', updatedAt: ISO_A, isPullRequest: true },
   ] }
-  const w = build({ library: () => ({ snapshot: snapWithPr, lastKnownAtMs: GEN }), answer: () => ({}) })
+  const w = build({ library: () => ({ snapshot: snapWithPr, oldestRowAtMs: GEN }), answer: () => ({}) })
   const r = await w.scan.fetchIssueIndexWindowed(CWD)
   check(r.ok === true && r.count === 1, 'H1 起点里不含拉取请求（库里有它，索引不该算它），实得 ' + r.count)
-  check(r.changed === false, 'H2 远端没回变化时不假报（PR 不会被判成「被删除」）')
+}
+
+// ---------- 九、真接线：库门面经取数入口交进去，首扫才真用得上库 ----------
+{
+  // 前面几段把 readLibrarySnapshot 直接桩进索引扫描，测的是「拿到起点之后怎么用」。
+  // 这一段不桩它：把真库门面交给 createIssueList（与宿主入口注入的是同一格），
+  // 让取数入口自己去装配索引扫描、自己去库里取起点。入口那一格注入被删掉或恒回 null 时，这里会红。
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'verify-1870-baseline-'))
+  try {
+    mkdirSync(path.join(tempRoot, 'docs', 'agents'), { recursive: true })
+    writeFileSync(path.join(tempRoot, 'docs', 'agents', 'workspace.yaml'), 'name: gate-1870-baseline\n')
+    const row = (key: string, state: string) => ({
+      key: key, effortId: '', type: 'issue' as const, title: '票 ' + key, state: state,
+      body: '', url: 'https://github.com/acme/widgets/issues/' + key,
+      createdAt: '2026-11-01T00:00:00Z', updatedAt: ISO_A, closedAt: null, parentKey: null,
+    })
+    await recordIssueRows({
+      workspaceRoot: tempRoot, backend: 'github', repoIdentity: 'acme/widgets',
+      rows: [row('1', 'open'), row('2', 'closed')],
+    })
+    const seen = { since: [] as string[], pages: 0 }
+    const list = createIssueList({
+      getRepoKey: async () => ({ owner: 'acme', name: 'widgets' }),
+      setCache: () => {},
+      issueIndexFromSnapshot: () => ({}),
+      issueIndexChanged: () => false,
+      rememberIssueIndex: () => {},
+      logCtx: null,
+      noteSnapshot: () => {},
+      onIssueRows: async () => {},
+      // 与宿主入口 src/host/index.ts 注入的那一格同形（门面两个读/写口都在）。
+      getSnapshotLibrary: async () => ({ readSnapshotReplay, recordIssueRows }),
+      openSession: async () => ({
+        ok: true,
+        backendId: 'github',
+        repoRef: { backend: 'github', refId: 'acme/widgets', name: 'acme/widgets', url: '' },
+        call: async (fn: any) => fn({
+          listPage: async (_ref: any, filter: any) => {
+            seen.pages += 1
+            seen.since.push(String((filter && filter.since) || ''))
+            return { ok: true, data: { items: [], nextCursor: null, total: 0 } }
+          },
+        }, {}),
+      }),
+    })
+    const r = await list.fetchIssueIndexWindowed(tempRoot, { backendId: 'github' })
+    check(r.ok === true, 'I1 真接线：首扫跑得通', r)
+    check(seen.since[0] !== '', 'I2 首扫真的带上了 since（起点确实来自库，不是桩）', seen.since)
+    check(seen.pages === 1, 'I3 只翻一页，没有整仓枚举', seen.pages)
+    check(r.windowed === true && r.count === 2, 'I4 基线就是库里的那两行', { windowed: r.windowed, count: r.count })
+  } finally {
+    closeSnapshotLibraries()
+    rmSync(tempRoot, { recursive: true, force: true })
+  }
+}
+
+// ---------- 十、同一份基线喂给行级增量时，PR 不会被读成「这一条不见了」----------
+{
+  // 这一条才是那个症状真正会发生的地方：索引扫描的合并只增不减，看不出删除；
+  // 逐条比对、判「有票被删」的是行级增量的 planDelta。两份实现是同一份（kernel 的 indexFromSnapshot），
+  // 所以这里同时守住了生产那一条路（patch-wiring 注入的就是它）。
+  const snap = { issues: [
+    { number: 1, state: 'OPEN', updatedAt: ISO_A },
+    { number: 9, state: 'OPEN', updatedAt: ISO_A, isPullRequest: true },
+  ] }
+  const baseline = indexFromSnapshot(snap)
+  // 远端索引本来就不含 PR：只有 1 号这一条，且与基线一字不差。
+  // 整扫那一趟（每 10 分钟一次的对账）才是「以这一次拿回来的为准」：基线里多出来的键会被判成删除。
+  // 增量那一趟是与基线合并、只增不减，所以这个症状只在整扫时冒出来。
+  const plan = planDelta(baseline, { '1': 'OPEN|' + ISO_A }, { full: true })
+  check(plan.mode === 'nothing', 'J1 整扫回来与基线一致 → 判「没变」（PR 不在远端索引里不算被删），实得 ' + plan.mode + ' / ' + plan.reason)
+  // 反证：把 PR 算进基线，同一份远端就会被判成「少了一条」——这正是要防的那种整池重建。
+  const withPr = indexFromSnapshot({ issues: [{ number: 1, state: 'OPEN', updatedAt: ISO_A }] })
+  withPr['9'] = 'OPEN|' + ISO_A
+  check(planDelta(withPr, { '1': 'OPEN|' + ISO_A }, { full: true }).mode === 'rebuild', 'J2 反证：基线里混进 PR 就会判整池（说明 J1 不是空转）')
 }
 
 console.log('')
 console.log(failed === 0 ? '全部通过（' + total + ' 项）' : ('失败 ' + failed + ' / ' + total + ' 项'))
+printGateResult('verify-1870-index-baseline', total, failed)
 process.exit(failed === 0 ? 0 : 1)

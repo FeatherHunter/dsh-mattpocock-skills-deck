@@ -337,7 +337,9 @@ async function run(): Promise<void> {
   const scanText = srcText('src/refresh/rooms/host/issue-index-scan.ts')
   check(/await d\.fetchIssueIndex!\(cwd, w\.sinceIso, o\.budget\)/.test(scanText), '窗口扫描把本轮账本透传给翻页（静态接线）')
   const probeWiringText = srcText('src/refresh/rooms/host/probe-handler.ts')
-  check(/fetchIssueIndexWindowed\(cwd, roundBudget \? \{ budget: roundBudget \} : undefined\)/.test(probeWiringText),
+  // #1870：这一拍还要把后端编号一起交下去（重启后第一次扫描要靠它开对那个快照库文件），
+  // 所以入参从一个内联三元改成先拼一个对象；账本仍是同一本，判据不变。
+  check(/const probeOpts: any = roundBudget \? \{ budget: roundBudget \} : \{\}/.test(probeWiringText) && /fetchIssueIndexWindowed\(cwd, probeOpts\)/.test(probeWiringText),
     '探测拍把增量账本传给窗口扫描（同一轮同一本账）')
   check(!/probeTicket/.test(probeWiringText), '探测拍不再自己预扣一条（逐页记账，避免一页一笔造成账实不符）')
 
