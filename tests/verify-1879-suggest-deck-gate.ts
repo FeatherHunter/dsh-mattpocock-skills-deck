@@ -317,6 +317,36 @@ async function main() {
   await show('sid-late')
   check(layer() === null, '重新展开 deck 也不补出关闭期间到达的那一组。')
 
+  // ⑥ 刷新之后：内存里的组缓存与内存关闭标记都没了，只剩 localStorage 那份关闭标记。
+  //    这里另起一份全新的取数层实例（相当于刷新页面后的模块状态），喂它一份「历史里有这条调用」的事件窗口：
+  //    补出逻辑要认得出这条调用的关闭标记并跳过；把标记去掉再跑一遍，同一份历史就会补出来（反证）。
+  const freshStreamMod = await import(pathToFileURL(path.join(ROOT, 'src/client/statusbar/suggestStream.ts')).href + '?refresh=1879')
+  const replayEntries = [
+    { event: startEvent(1) },
+    { event: callEvent('call-keep', 1, ITEMS) },
+    { event: endEvent(1) },
+  ]
+  const replaySource = {
+    subscribe: function () { return function () {} },
+    getSnapshot: function () { return { entries: replayEntries } },
+  }
+  const replayProbe = function (sid) {
+    let restored = 0
+    const stream = freshStreamMod.createSuggestStream({
+      sessions: { binding: function () { return { eventSource: replaySource } } },
+      sid: sid,
+      restoreReplay: true,
+      onReady: function () { restored += 1 },
+    })
+    try { stream.dispose() } catch (e) {}
+    return restored
+  }
+  check(replayProbe('sid-keep') === 0, '刷新之后（内存缓存与内存标记都没了）历史重放里那一组被跨刷新的关闭标记挡住，不再补出来。')
+  win.localStorage.removeItem('dsws.suggestClosed')
+  check(replayProbe('sid-keep') === 1, '反证：把那份关闭标记去掉，同一份历史重放就会把这组补出来（挡住它的确实是这条标记）。')
+  // 收尾：后面接线的断言与这份标记无关，清掉不影响。
+  win.localStorage.clear()
+
   await act(async function () { root.unmount() })
 
   // ── 第五件事：关掉建议开关不影响工具闸门（模型照常可以调用 suggest_next_steps） ──

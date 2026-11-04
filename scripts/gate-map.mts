@@ -578,8 +578,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1854-log-fs-port': 20,
   // 2026-11-05 #1879：关掉整个 deck 后建议气泡还在、且没有独立开关——设置文件的 suggest 四档读写、
   // deck-state 的读口写口、可见性判据四种组合，以及真挂 React 树走「只收起 / 只关开关 / 关整个 deck」
-  // 三条路（关 deck 时清缓存并写跨刷新关闭标记），外加「关掉建议开关不收走模型工具」；单跑实测 48 条。
-  'verify-1879-suggest-deck-gate': 48,
+  // 三条路（关 deck 时清缓存并写跨刷新关闭标记）、刷新后不再补出（附反证），外加「关掉建议开关不收走模型工具」；
+  // 单跑实测 50 条。
+  'verify-1879-suggest-deck-gate': 50,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
