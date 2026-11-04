@@ -35,7 +35,6 @@ const SOURCES = [
   sourcePath('src/host/mapBody.js'),
   sourcePath('src/host/ticketGrouping.js'),
   sourcePath('src/refresh/rooms/host/issue-list-fetch.js'),
-  sourcePath('src/refresh/rooms/host/issue-detail-fetch.js'),
   // #1090：mapBody 的 parseProgress 改为从这份叶子引入，产物新鲜度要把叶子也算进来。
   sourcePath('src/tracker/body-parse.ts'),
   // #1768：分组/分层判定搬进内核，body-parse 只转出名字；新鲜度要跟到真正实现的那份。

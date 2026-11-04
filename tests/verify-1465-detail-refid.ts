@@ -6,7 +6,7 @@
  * 对 GitHub 工作区只给目录时交回空 refId（describe 是房间的同步定位口，
  * 不认 owner/name），房间 get 就报 refId missing；写路径用会话回包
  * opened.repoRef 是对的（会话装配口已经过三级定位补齐），正确路另有一条
- * issue-detail-fetch 的 withReadSession 调 getRepoKey。二选一修一处，
+ * 详情与评论那条宿主方法（comment-thread-fetch）的 openSession 交回 opened.repoRef。二选一修一处，
  * 这里钉住第一种修法：读路径改用 opened.repoRef。
  *
  * 约定接缝：createCommentThreads 的 openSession 交回的 opened.repoRef。

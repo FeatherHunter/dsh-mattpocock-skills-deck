@@ -323,7 +323,7 @@ export const IssueDetail = function (props: any): any {
       const gateAttrs = { 'aria-disabled': gateDisabled ? 'true' : undefined, tabIndex: gateDisabled ? -1 : undefined }
       // #693 评论也只认详情那次取数：快照那一行可能不带评论，拿它当「没有评论」会说错话。
       // #1519：详情回包里的评论只有一种形状 —— GraphQL 连接 {nodes, pageInfo}。宿主
-      // src/refresh/rooms/host/comment-thread-fetch.ts 的 handleIssueDetail 与旧路 issue-detail-fetch.ts
+      // src/refresh/rooms/host/comment-thread-fetch.ts 的 handleIssueDetail（旧路 issue-detail-fetch 已随 #1870 退役）
       // 都按这个形状交回来。界面这边不再兼容数组：多留一条数组分支，只会让「宿主换了形状」这种错
       // 在界面被悄悄兜住、然后显示成「评论 (0)」——那正是 #1519 之前的样子。
       const rawComments = detail ? detail.comments : undefined
