@@ -6,15 +6,17 @@
  *      从库铺出容器树、子票、标签、认领人与阻塞胶囊，回包标 fromCache 与 diskReplay。
  *   B. GitLab：同一个口径，走 composer 支路；仓库身份由 describe 给出，不需要开会话。
  *   C. 本地 Markdown：同一个口径；票号补零、工作单元标识取自目录名这两格也随首屏从库出。
- *   D. 三端跑完后再断言：六个联网口（开会话、会话调用、执行命令、问当前用户、读写旧磁盘快照）
- *      与全局 fetch 的调用次数都是 0。
+ *   D. 每端跑完都断言：票面点名的联网口（开会话、会话调用、执行命令、问当前用户、读旧磁盘快照、
+ *      写旧磁盘快照）加上发送外呼、在线探测两处，以及全局 fetch，调用次数都是 0（见 A12 / B12 / C12）。
+ *      开会话与随后的会话调用共用一套桩：开会话先记一笔，再交回一个所有方法都抛错的会话；调用方
+ *      无论只开会话还是接着 call，都会先记账再抛错。
  *
  * 为什么桩要「先计数再抛错」而不是只计数：只计数时，代码若把抛错吞掉、改走另一条联网路，计数仍是
  * 0，门禁会假绿；先记一笔再抛，任何一次触碰都会留下痕迹。为什么还要拦全局 fetch：现有三扇门禁只
  * 拦插件自己的六个口；新代码若绕过这些口直接 fetch，这一扇要能当场变红。
  *
  * 为什么用真 SQLite 与真临时工作区：写库与回放要穿过真正的快照树（按组合并、父子边、三态），替身
- * 盖不住这些；首屏那条电话用与 tests/verify-1863-snapshot-cold-start.ts 相同的装配方式。
+ * 盖不住这些；首屏那条装配用与 tests/verify-1863-snapshot-cold-start.ts 相同的方式接假依赖。
  *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1869-offline-first-screen.ts
  */
@@ -183,14 +185,6 @@ async function runBackendCase(root: string, c: BackendCase): Promise<void> {
   const realFetch = (globalThis as any).fetch
   ;(globalThis as any).fetch = async () => { net.fetch += 1; throw new Error('断网时不许直接 fetch') }
   try {
-    const fail = (name: string, field: keyof NetCalls) => (..._args: any[]) => { net[field] += 1; throw new Error('断网时不许联网：' + name) }
-    const session = {
-      list: fail('session.list', 'sessionCall'),
-      listPage: fail('session.listPage', 'sessionCall'),
-      listSubIssues: fail('session.listSubIssues', 'sessionCall'),
-      get: fail('session.get', 'sessionCall'),
-      comment: fail('session.comment', 'sessionCall'),
-    }
     const registry = {
       describe: () => c.repo,
       modules: () => [],
@@ -223,9 +217,20 @@ async function runBackendCase(root: string, c: BackendCase): Promise<void> {
       getGhLastError: () => null,
       errText: (e: any) => String((e && e.message) || e),
       getSnapshotLibrary: async () => snapshotLibrary,
-      openSession: async () => { net.openSession += 1; throw new Error('断网时不许开会话') },
+      // 开会话与随后的会话调用都要留痕：开会话先记一笔，再交回一个 call 一用就抛错的会话；调用方
+      // 无论只开会话还是接着 call，都会先记账（call 还会抛错），A12 / B12 / C12 的零调用断言会当场判红。
+      openSession: async () => {
+        net.openSession += 1
+        return {
+          ok: true,
+          backendId: c.backend,
+          repoRef: c.repo,
+          canWrite: false,
+          call: async () => { net.sessionCall += 1; throw new Error('断网时不许开会话再调用') },
+        }
+      },
       logCtx: null,
-    } as any)
+    })
 
     const first: any = await phone.handleSnapshot(Object.assign({ cwd: root, backendId: c.backend }, c.backend === 'markdown' ? { effortId: MARKDOWN_EFFORT } : {}))
     check(first && first.ok === true, prefix + '2 断网后首屏成功（只靠库）', first)
