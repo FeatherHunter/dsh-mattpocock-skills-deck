@@ -1755,6 +1755,15 @@ async function main() {
   check(attrValuesOf(brPanel, 'data-vc-branch-ops')[0] === '13' && attrValuesOf(brPanel, 'data-vc-branch-writes')[0] === '9' && attrValuesOf(brPanel, 'data-vc-branch-forms')[0] === '10' && attrValuesOf(brPanel, 'data-vc-branch-checks')[0] === '1', 'BR20d 面板声明十三条能力入口、九个凭票写动作、十个表单入口与一条预检电话')
   check(attrValuesOf(brPanel, 'data-vc-branch-current')[0] === 'main' && brPanel.indexOf('data-vc-branch-upstream="origin/main"') >= 0 && brPanel.indexOf('主干') >= 0, 'BR20e 当前分支、上游与分支说明都画出来（说明来自读回包，不另读）')
   check(attrValuesOf(brPanel, 'data-vc-branch-merged')[0] === '1' && attrValuesOf(brPanel, 'data-vc-branch-notmerged')[0] === '1', 'BR20f 4.8 已并入与没并入两张名单一起画')
+  // #1881：标签名必须挂在「行」上——容器的事件委托是按行取名字的（vcRealDelegate 读 data-vc-tag-row 上的
+  //   data-vc-tag-name）。只挂在按钮上时，真机点「验签 / 删除标签」会送出空名字。
+  check(attrValuesOf(brPanel, 'data-vc-tag-name').join(',') === 'v1.0.0,v1.1.0', 'BR20g 标签名只挂在行上、按钮上不再重复（事件委托按行取名字）')
+  // #1881：上游那条远端分支被删（for-each-ref 的 [gone]）时不许说「与上游齐平」——参照物已经没了。
+  const brGoneBoard = Object.assign({}, brBoardOf(), {
+    branches: brBoardOf().branches.map(function (b: any) { return b.name === 'feature' ? Object.assign({}, b, { upstream: 'origin/feature', gone: true }) : b }),
+  })
+  const brGonePanel = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: brGoneBoard }))
+  check(brGonePanel.indexOf('vc.shell.branch2.upstreamGone') >= 0 && brGonePanel.indexOf('vc.shell.branch2.inSync') < 0, 'BR20h 上游被删时画「上游已不存在」，不说「与上游齐平」')
   const brEmpty = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: null, onRetry: function () {} }))
   check(attrValuesOf(brEmpty, 'data-vc-branch2-empty')[0] === '1' && attrValuesOf(brEmpty, 'data-vc-branch-row').length === 0 && attrValuesOf(brEmpty, 'data-vc-branch2-retry').length === 1, 'BR21 没读数时画空态与重试，不画假分支（十条写动作入口仍在：' + attrValuesOf(brEmpty, 'data-vc-branch-forms')[0] + '）')
   const brConfirm = VIEW.vcBranchConfirmOf(brCheckReply)

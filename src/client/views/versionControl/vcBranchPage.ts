@@ -82,9 +82,11 @@ const vcBranchMatchedOf = function (board: any, filter: any, query: any) {
 }
 
 // 一条分支现在跟上游是什么关系，照原型的四种子句取一种或几种：
-//   没有上游 → 只说「没有上游」；有上游且 ahead＝0 且 behind＝0 → 「与上游齐平」；
-//   ahead > 0 → 「领先 N」；behind > 0 → 再加一句「落后 N」。
-// 与原型的一处差别（票面偏差表有记）：没有上游时不画「与上游齐平」——没有参照物还说齐平是自相矛盾。
+//   没有上游 → 只说「没有上游」；上游被删（gone）→ 只说「上游已不存在」；
+//   有上游且 ahead＝0 且 behind＝0 → 「与上游齐平」；ahead > 0 → 「领先 N」；behind > 0 → 再加一句「落后 N」。
+// 两处与原型不同（票面偏差表有记）：
+//   ① 没有上游时不画「与上游齐平」——没有参照物还说齐平是自相矛盾；
+//   ② 上游被删（远端那条分支没了）时也不画齐平——参照物已经不存在了，说齐平是假话。
 const vcBranchSyncTextsOf = function (t: any, b: any) {
   const out: any[] = []
   const upstream = String(b.upstream || '')
@@ -92,6 +94,11 @@ const vcBranchSyncTextsOf = function (t: any, b: any) {
   const behind = Number(b.behind) || 0
   if (upstream === '') {
     out.push({ key: 'up', text: vcBranchTextOf(t, 'vc.shell.branch2.noUpstream') })
+    return out
+  }
+  if (b.gone === true) {
+    // 机器读的属性仍然是上游名字（门禁与深链按它认人），只是人读的那句不再说齐平。
+    out.push({ key: 'up', text: upstream + ' · ' + vcBranchTextOf(t, 'vc.shell.branch2.upstreamGone'), upstream: upstream })
     return out
   }
   out.push({ key: 'up', text: upstream, upstream: upstream })
@@ -182,8 +189,8 @@ const vcBranchTagRowOf = function (h: any, t: any, o: any, tag: any) {
   const main: any[] = [h('span', { key: 'title', className: 'obj-title' }, titleKids)]
   if (subParts.length > 0) main.push(h('span', { key: 'sub', className: 'obj-sub' }, subParts.join(' · ')))
   const side: any[] = [
-    h('button', { key: 'verify', type: 'button', className: 'vcs-branch2-act', 'data-vc-tag-action': 'verify', 'data-vc-op': '4.12', 'data-vc-tag-name': name, 'data-press': 'button', 'data-log': 'vc.branch.page.tag.verify' }, t('vc.shell.branch2.verify')),
-    h('button', { key: 'delete', type: 'button', className: 'vcs-branch2-act vcs-branch2-danger', 'data-vc-tag-action': 'delete', 'data-vc-op': '4.11', 'data-vc-tag-name': name, 'data-press': 'button', 'data-log': 'vc.branch.page.tag.delete' }, t('vc.shell.branch2.tagDelete')),
+    h('button', { key: 'verify', type: 'button', className: 'vcs-branch2-act', 'data-vc-tag-action': 'verify', 'data-vc-op': '4.12', 'data-press': 'button', 'data-log': 'vc.branch.page.tag.verify' }, t('vc.shell.branch2.verify')),
+    h('button', { key: 'delete', type: 'button', className: 'vcs-branch2-act vcs-branch2-danger', 'data-vc-tag-action': 'delete', 'data-vc-op': '4.11', 'data-press': 'button', 'data-log': 'vc.branch.page.tag.delete' }, t('vc.shell.branch2.tagDelete')),
   ]
   return vcPageObjRowNode(h, t, { main: main, side: side, attrs: { 'data-vc-tag-row': name, 'data-vc-tag-name': name, 'data-vc-tag-annotated': tag.annotated === true ? '1' : '0' } })
 }
@@ -307,11 +314,14 @@ const vcBranchTrackingSectionOf = function (h: any, t: any, board: any) {
   const upstream = currentRow ? String(currentRow.upstream || '') : ''
   const ahead = currentRow ? Number(currentRow.ahead) || 0 : 0
   const behind = currentRow ? Number(currentRow.behind) || 0 : 0
+  const currentGone = !!(currentRow && currentRow.gone === true)
   const syncText = upstream === ''
     ? vcBranchTextOf(t, 'vc.shell.branch2.noUpstream')
-    : (ahead === 0 && behind === 0
-      ? vcBranchTextOf(t, 'vc.shell.branch2.inSync')
-      : vcBranchTextOf(t, 'vc.shell.branch2.aheadBehind', { ahead: String(ahead), behind: String(behind) }))
+    : (currentGone
+      ? vcBranchTextOf(t, 'vc.shell.branch2.upstreamGone')
+      : (ahead === 0 && behind === 0
+        ? vcBranchTextOf(t, 'vc.shell.branch2.inSync')
+        : vcBranchTextOf(t, 'vc.shell.branch2.aheadBehind', { ahead: String(ahead), behind: String(behind) })))
   // 读时刻只用来算「读于多久之前」这一句：它不是可调时长，所以不新起一个带时间后缀的名字。
   const readAt = Number(board.readAtMs) || 0
   const basis = readAt > 0
