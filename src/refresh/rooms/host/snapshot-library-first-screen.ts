@@ -9,7 +9,8 @@
  * 三条不能改的约定：
  *  1. 库拿不到、打不开、读失败，一律当「这一趟没有回放」：首屏不许因为库不可用而空白，调用方照旧在线取数。
  *  2. `force` 为真时跳过回放（强制重建），但仍然把这一趟取回来的行写库：强制重建是新数据覆盖旧数据的正常时机。
- *  3. 写库失败只吞掉自己那一趟，不影响这次回包：下一轮刷新会把同一批再写一次。
+ *  3. 取回来的行先收在内存里，等组装结束后由 commitRows 整批一个事务写库（#1869 的 1869-02）：
+ *     不能边取边按页提交——进程在页与页之间被杀，库里就会半新半旧。
  */
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { SnapshotDiagnostic } from '../../../workspace-snapshot/contract/types.js'
@@ -27,6 +28,7 @@ export interface FirstScreenLibrary {
     backend: string
     repoIdentity: string
     rows: unknown[]
+    atomic?: boolean
   }): Promise<unknown>
   /** 开库诊断（损坏重建、只读等）；老门禁的假库没有这个口，缺席时当空数组。 */
   readSnapshotDiagnostics?(input: {
@@ -54,8 +56,10 @@ export interface FirstScreenOptions {
 export interface FirstScreen {
   /** 库里已有数据时的回放主体（与在线组装同形）；null = 库里还没数据，得去后端取。 */
   replay: { snapshot: any; lastKnownAtMs: number } | null
-  /** 这一趟要去后端取时，把取回的行按批写库；库不可用时是 undefined。 */
+  /** 这一趟要去后端取时，把取回的行先收在内存里；库不可用时是 undefined。 */
   writeRows: ((rows: unknown[]) => void) | undefined
+  /** 组装结束后整批一个事务写库；没有收到行时回 null。 */
+  commitRows: () => Promise<unknown>
   /** 开库诊断：损坏重建、退回只读等；不论有没有回放都要随回包交给界面。 */
   diagnostics: SnapshotDiagnostic[]
   /** 给回包盖上「来自库」的注记：fromCache 与 diskReplay（与在线重建区分开），并带上开库诊断。 */
@@ -101,17 +105,24 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
       diagnostics = []
     }
   }
+  const pendingRows: unknown[] = []
   const writeRows = function (rows: unknown[]): void {
+    if (!Array.isArray(rows) || !rows.length) return
+    for (let i = 0; i < rows.length; i += 1) pendingRows.push(rows[i])
+  }
+  const commitRows = async function (): Promise<unknown> {
+    if (!pendingRows.length) return null
+    const rows = pendingRows.splice(0, pendingRows.length)
     try {
-      // 同步抛与异步拒绝都要吞掉：这一层只负责把行递过去，取数回包不能被写库的失败带崩。
-      Promise.resolve(lib!.recordIssueRows(Object.assign({ rows: rows }, key))).catch(function () {})
+      return await Promise.resolve(lib!.recordIssueRows(Object.assign({ rows: rows, atomic: true }, key)))
     } catch (e) {
-      /* 写库失败不影响这次回包，下一轮刷新会再写一次 */
+      return null
     }
   }
   return {
     replay: replay,
     writeRows: writeRows,
+    commitRows: commitRows,
     diagnostics: diagnostics,
     decorate: function (snap: any): void {
       if (diagnostics.length) snap.snapshotDiagnostics = diagnostics

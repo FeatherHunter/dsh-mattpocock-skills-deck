@@ -195,7 +195,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           // 本地（JSDoc）那份 composeSnapshot 把第四个参数写窄成了 { force?: boolean }，而这里确实还传了
           // ifNoneMatch；composer 只按本地类型标注，不碰它的实现。
           // #1446：额度读数口接上了才传；#1439 A2：会话口接上了就经会话取数（没接的两种口 composer 各自保持老形状）。
-          const composer: Composer = createSnapshotComposer(reg, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
+          const composer: Composer = createSnapshotComposer(reg, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
           const res: Composed = (first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null, onRows: first ? first.writeRows : undefined })
           if (!res.ok) { const _e1: Error & { fail?: unknown } = new Error((res.error && res.error.message) || 'composeSnapshot failed'); if (res.fail) _e1.fail = res.fail; throw _e1 }
           // #683（F1 · ADR 的 R4）：后端说「没变」（304）时也要把权威选择带上 —— 那正是「只换了后端、 快照内容一个字没变」这个现场：不带的话客户端收到 304 就什么都不做，面板头继续显示旧后端。
@@ -210,7 +210,9 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
             _pair.setupLayout = _layEarly
             return Object.assign({ ok: true, workspaceRoot: cwd, notModified: true, status: 304, version: res.version || '', cached: true, generatedMs: now }, _pair)
           }
-                    const inner = upcaseSnapStates(res.snapshot)
+          // #1869：首屏取回来的行先收在内存里，等编排器成功返回后整批一个事务写库；
+          // 进程在这之前被杀，库仍是上一轮完整数据（不会留下半批）。
+          if (first) { try { await first.commitRows() } catch (e) {} }; const inner = upcaseSnapStates(res.snapshot)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
           let allForList: Row[] = []
           ;(inner.maps || []).forEach(function(m){
@@ -373,10 +375,11 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
         // #1446：回退路径也把额度读数带上；#1439 A2：会话口同主路径（见上方的 composer）。
-        const composer2: Composer = createComposer2(reg2, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
+        const composer2: Composer = createComposer2(reg2, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
         const res2: Composed = (first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null, onRows: first ? first.writeRows : undefined })
         if (!res2.ok) { const _e2: Error & { fail?: unknown } = new Error((res2.error && res2.error.message) || 'composeSnapshot failed'); if (res2.fail) _e2.fail = res2.fail; throw _e2 }
-                  const inner2 = upcaseSnapStates(res2.snapshot)
+        // 同主路径：回退支路也等编排器成功后再整批写库。
+        if (first) { try { await first.commitRows() } catch (e) {} }; const inner2 = upcaseSnapStates(res2.snapshot)
         ;(inner2.maps || []).forEach(function(m){ 
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {

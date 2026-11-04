@@ -44,7 +44,7 @@ type UiDescription = ReturnType<typeof projectUiDescription>
  * #1774：previousSnapshot 是上一趟已知的快照（房间内存缓存里那份），来源不完整时交给编排层
  * 补回上次的容器与子票。为什么由这里传：编排器是每次请求新建的实例，它自己的进程内缓存永远是空的。
  */
-type ComposerOpts = { ifNoneMatch?: string; force?: boolean; previousSnapshot?: unknown }
+type ComposerOpts = { ifNoneMatch?: string; force?: boolean; previousSnapshot?: unknown; onRows?: (rows: unknown[]) => void }
 // 编排回包：snapshot 是后端原始快照（交给 upcaseSnapStates 收形）；error.message 是给人看的那句话。
 type Composed = { ok: boolean; error?: { message?: string } | null; snapshot?: unknown; fail?: unknown; notModified?: unknown; status?: unknown; version?: unknown; cached?: unknown }
 type Composer = { composeSnapshot(id: string, repo: RepoRef, ctx: unknown, o: ComposerOpts): Promise<Composed> }
@@ -72,9 +72,11 @@ type RefreshDeps = {
   openSession?: ((cwd: string, o?: { write?: boolean }) => Promise<any>) | null
   // #1693：刷新失败的记事件口（宿主通知事件库）。没接就照旧只回失败；接了也只记历史，不改刷新语义。
   noteRefreshFailure?: ((cwd: unknown, error: unknown) => unknown) | null
+  // #1869：刷新整轮写入快照库的口。没接就不写（与可选注入的既有口径一致）。
+  getSnapshotLibrary?: (() => Promise<any> | any) | null
 }
 export function createSessionRefresh(deps: RefreshDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure, getSnapshotLibrary } = deps
   // 共用的那份信封（接线处 index.js 传进来，与 wf.snapshot 同一个实例）。
   // 没传就没法组装出与 wf.snapshot 同形的回包 —— 那种情况下宁可如实回一次失败，
   // 也不退回本文件自己拼一份（那正是这次故障的来路：两份信封各自漂）。
@@ -131,6 +133,25 @@ export function createSessionRefresh(deps: RefreshDeps) {
   async function refreshBuild(args: Args, cwd: string, _sel: Sel | null) {
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
+      // #1869：整轮刷新先把行收在内存里，编排成功后再整批一个事务写库；写库失败算刷新失败，
+      // 不能只更新内存而让重启回到旧库。
+      const refreshRows: unknown[] = []
+      const collectRows = function (rows: unknown): void { if (Array.isArray(rows)) for (let i = 0; i < rows.length; i += 1) refreshRows.push(rows[i]) }
+      const persistRefreshRows = async function (persistCwd: string, persistBackend: string, persistRepo: RepoRef): Promise<void> {
+        if (!refreshRows.length || typeof getSnapshotLibrary !== 'function') return
+        const rows = refreshRows.splice(0, refreshRows.length)
+        let lib: any = null
+        try { lib = await Promise.resolve(getSnapshotLibrary()) } catch (e) { lib = null }
+        if (!lib || typeof lib.recordIssueRows !== 'function') return
+        const result: any = await lib.recordIssueRows({
+          workspaceRoot: persistCwd,
+          backend: String(persistBackend),
+          repoIdentity: String((persistRepo && persistRepo.refId) || ''),
+          rows: rows,
+          atomic: true,
+        })
+        if (!result || result.ok !== true) throw new Error('snapshot-persist-failed')
+      }
       // #1774：强制刷新也要把上一趟快照传给编排层，来源不完整时它才能补回上次已知的容器与子票。
       // 编排器是每次请求新建的实例，自带的进程内缓存永远是空的，只能从这里拿。
       const cachedEntry = getCache(cwd)
@@ -152,12 +173,15 @@ export function createSessionRefresh(deps: RefreshDeps) {
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o?: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
           const { createSnapshotComposer } = await import('../../../host/tracker/snapshot.js')
           // #1446：额度读数口接上了才传；#1439 A2：会话口接上了就经会话取数（没接的两种口 composer 各自保持老形状）。
-          const composerOpts: { snapshotTtl: number; budgetReadout?: (backendId: string) => any; openSession?: (cwd: string, o?: { write?: boolean }) => Promise<any> } = { snapshotTtl: SNAPSHOT_TTL_MS }
+          const composerOpts: { snapshotTtl: number; budgetReadout?: (backendId: string) => any; openSession?: (cwd: string, o?: { write?: boolean }) => Promise<any>; logCtx?: any } = { snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }
           if (typeof budgetReadout === 'function') composerOpts.budgetReadout = budgetReadout
           if (typeof openSession === 'function') composerOpts.openSession = openSession
           const composer: Composer = createSnapshotComposer(reg, composerOpts)
-          const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null })
+          refreshRows.length = 0
+          const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null, onRows: collectRows })
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
+          // 先提交库，再把新快照交给界面：写库失败就整趟刷新失败，不能让界面显示一份重启后会消失的数据。
+          await persistRefreshRows(cwd, backendId, repoRef)
                     const inner = upcaseSnapStates(res.snapshot)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
           let allForList: Row[] = []
@@ -321,13 +345,15 @@ export function createSessionRefresh(deps: RefreshDeps) {
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o?: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
         // #1446：回退路径也把额度读数带上，否则面板在回退那一趟看不到后端额度状态（主路径见上方的 composerOpts）。
-        const composer2Opts2: { snapshotTtl: number; budgetReadout?: (b: string) => any; openSession?: (cwd: string, o?: { write?: boolean }) => Promise<any> } = { snapshotTtl: SNAPSHOT_TTL_MS }
+        const composer2Opts2: { snapshotTtl: number; budgetReadout?: (b: string) => any; openSession?: (cwd: string, o?: { write?: boolean }) => Promise<any>; logCtx?: any } = { snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }
         if (typeof budgetReadout === 'function') composer2Opts2.budgetReadout = budgetReadout
         // #1439 A2：会话门面也交给回退路径，两趟都经 Tracker 操作取数。
         if (typeof openSession === 'function') composer2Opts2.openSession = openSession
         const composer2: Composer = createComposer2(reg2, composer2Opts2)
-        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null })
+        refreshRows.length = 0
+        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null, onRows: collectRows })
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
+        await persistRefreshRows(cwd, backendId2, repoRef2)
                   const inner2 = upcaseSnapStates(res2.snapshot)
         ;(inner2.maps || []).forEach(function(m){ 
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }

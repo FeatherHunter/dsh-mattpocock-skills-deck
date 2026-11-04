@@ -58,6 +58,12 @@ export interface SnapshotLibraryKey {
 
 export interface RecordIssueRowsInput extends SnapshotLibraryKey {
   rows: Issue[]
+  /**
+   * true = 整批只开一个事务（刷新/首屏整轮写入用）；缺省按 200 条分批（写回执等增量用）。
+   * 为什么要有这个开关：整轮刷新被杀时，库里要么是上一轮完整数据、要么是这一轮完整数据；
+   * 分批评只能保证「每一批原子」，保证不了整轮原子。见 #1869 的 1869-02。
+   */
+  atomic?: boolean
 }
 
 export interface RecordIssueRowsResult {
@@ -174,6 +180,17 @@ export async function recordIssueRows(input: RecordIssueRowsInput): Promise<Reco
   if (!writes.length) return { ok: true, rows: 0, mergeVersion: null }
   const handle = await handleOf(input)
   if (!handle) return { ok: false, rows: 0, mergeVersion: null, reason: 'unavailable' }
+  // 整批一个事务：读者在提交前只看得到旧库（WAL），进程被杀则整批回滚；stale 时整批重试一次。
+  if (input.atomic === true) {
+    let atomicResult = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+    if (!atomicResult.committed && atomicResult.reason === 'stale') {
+      atomicResult = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+    }
+    if (!atomicResult.committed) {
+      return { ok: false, rows: 0, mergeVersion: null, reason: atomicResult.reason }
+    }
+    return { ok: true, rows: writes.length, mergeVersion: atomicResult.mergeVersion }
+  }
   let written = 0
   let mergeVersion: number | null = null
   for (let offset = 0; offset < writes.length; offset += SNAPSHOT_WRITE_CHUNK) {
