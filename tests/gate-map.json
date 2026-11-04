@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T03:58:59.896Z",
+  "generatedAt": "2026-11-04T04:40:13.321Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 569,
-  "gateCount": 569,
-  "attributedGates": 513,
+  "chainLength": 570,
+  "gateCount": 570,
+  "attributedGates": 514,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 111,
+  "completionRecordedGates": 112,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
   "graphFileCount": 892,
@@ -6631,6 +6631,23 @@
       "completionRecord": true,
       "expectedAssertions": 44,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1869-offline-first-screen.ts",
+      "file": "tests/verify-1869-offline-first-screen.ts",
+      "guards": [
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/snapshot-library-first-screen.ts",
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 39,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-1869-snapshot-log.ts",
@@ -14684,6 +14701,7 @@
       "node tests/verify-1866-write-receipt.ts",
       "node tests/verify-1867-snapshot-gitlab.ts",
       "node tests/verify-1868-snapshot-markdown.ts",
+      "node tests/verify-1869-offline-first-screen.ts",
       "node tests/verify-1869-snapshot-log.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
