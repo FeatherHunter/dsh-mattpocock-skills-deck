@@ -108,6 +108,18 @@ export function vcCommitPanelOf(o: any): any {
     if (plan.mode === 'amend' && form.amend.available === true) amendNote = t('vc.commit.amendPrefill', { oid: String(form.amend.short || ''), subject: String(form.amend.subject || '') })
     else if (noHead && plan.mode === 'amend') amendNote = t('vc.commit.amendNoHead')
   }
+  // #1860 D6：选项收进菜单之后，非默认计划要在提交区留一句话 —— 否则收起菜单就不知道自己已经切成
+  //   修订 / fixup / squash 或勾了跳过钩子。默认（只提交已暂存、三个开关全关）时这一句整块不画。
+  const switched = options.filter(function (o: any) { return o.checked === true }).map(function (o: any) { return o.label })
+  let planNote = ''
+  if (plan.mode === 'all') planNote = t('vc.commit.planAll')
+  else if (plan.mode === 'fixup' || plan.mode === 'squash') {
+    const aim = target ? String(target.short || '') : ''
+    planNote = aim === ''
+      ? t('vc.commit.planFixupNoTarget', { mode: modeLabel(plan.mode) })
+      : t('vc.commit.planFixup', { mode: modeLabel(plan.mode), target: aim })
+  }
+  if (switched.length > 0) planNote = [planNote, t('vc.commit.planSwitches', { list: switched.join(' / ') })].filter(function (s: string) { return s !== '' }).join('；')
   const confirm = commit.confirm
     ? (function () {
       const suffix = commitModeSuffix(plan.mode)
@@ -145,6 +157,7 @@ export function vcCommitPanelOf(o: any): any {
     options: options, trailer: trailer, trailerText: trailer ? t('vc.commit.confirm.trailer', { trailer: trailer }) : '',
     submitDisabled: submitDisabled, submitTip: submitTip, running: running,
     confirm: confirm, amendNote: amendNote, amendOid: String((form && form.amend && form.amend.short) || ''),
+    planNote: planNote, menuOpen: commit.menuOpen === true,
     formProblem: String(commit.formProblem || ''), result: result,
   }
 }
@@ -213,6 +226,8 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
     links.length > 0 ? h('span', { key: 'links', className: 'composer-links' }, links) : null,
   ]))
   if (p.amendNote) children.push(h('div', { key: 'amend', className: 'note', 'data-vc-commit-amend-note': 1 }, p.amendNote))
+  // 非默认计划的那一句话（#1860 D6）：收起菜单之后仍看得出这次提交的是什么。
+  if (p.planNote) children.push(h('div', { key: 'planNote', className: 'composer-plan-note', 'data-vc-commit-plan-note': 1 }, p.planNote))
   // 多行说明：原型 62 的占位文字与说明都一样，换行原样写进提交；预览留在「更多提交选项」里。
   children.push(h('textarea', {
     key: 'msg', rows: 2, className: 'commit-input', value: p.message,
@@ -220,47 +235,6 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
     'aria-label': t('vc.commit.msgLabel'), 'aria-describedby': 'commit-hint',
     onChange: function (e: any) { const fn = handler('setMessage'); if (fn) fn(e && e.target ? e.target.value : '') },
   }))
-  // 最后一行：左边禁用原因或提示、中间交给 AI、右边提交按钮；原因与按钮说的是同一件事，不各占一行。
-  // 定稿原型 62 在 0 个文件已暂存时左下角写的是「还没有暂存的文件」、按钮仍写「提交 0 个文件」；
-  // 所以「什么都没暂存」优先于「说明还没填」，按钮文案始终带数量（只在执行中换成「提交中…」）。
-  const foot: any[] = []
-  const emptyReason: string = stagedCount === 0 ? t('vc.changes.view.commitNoStaged') : ''
-  const footReason: string = emptyReason || (p.submitDisabled ? String(p.submitTip || '') : '')
-  if (footReason) foot.push(h('span', { key: 'reason', className: 'composer-reason', 'data-vc-commit-submit-tip': 1 }, [
-    h('svg', { key: 'icon', viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' }, h('path', { d: 'M12 4l9 16H3zM12 10v4M12 17v.5' })),
-    h('span', { key: 'text' }, footReason),
-  ]))
-  else foot.push(h('span', { key: 'hint', className: 'hint-text' }, t('vc.changes.view.composerHint')))
-  if (typeof opts.onOpenHandoff === 'function') {
-    foot.push(h('button', {
-      key: 'ai', type: 'button', className: 'ai-entry ai-entry-inline', 'data-vc-changes-handoff': 1, 'data-log': 'vc.ai.commit-split',
-      title: t('vc.changes.view.aiSplit'), 'aria-label': t('vc.changes.view.aiSplit'), onClick: function () { opts.onOpenHandoff() },
-    }, [
-      h('svg', { key: 'icon', viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' }, h('path', { d: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM18.5 16l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z' })),
-      h('span', { key: 'label', className: 'ai-entry-label' }, t('vc.changes.view.aiSplit')),
-    ]))
-  }
-  const submitTip = String(p.submitTip || '')
-  const submitNode = h('button', {
-    key: 'go', type: 'button', className: 'btn btn-primary btn-md', 'data-vc-commit-submit': 1,
-    disabled: p.submitDisabled === true, 'aria-disabled': p.submitDisabled === true,
-    'data-press': 'button', 'data-log': 'vc.commit.panel.submit', onClick: click('submit'),
-  }, p.running ? t('vc.commit.running') : t('vc.changes.view.commitLabel', { n: String(stagedCount) }))
-  // 悬停提示统一走 Tip 叶子（verify-no-title 门禁要求三处以上 title 抽组件）：原因已经写在左下角，这里只是补悬停。
-  foot.push(submitTip ? h(Tip, { key: 'submit', content: submitTip }, submitNode) : submitNode)
-  children.push(h('div', { key: 'foot', id: 'commit-hint', className: 'composer-foot' }, foot))
-  // 结果条贴在提交按钮之后（= 触发点）：成功给命令与耗时，失败给原因与重试。
-  //   位置跟着触发控件走，而不是浮到面板顶部（就近原则：结果贴着按下去的那颗按钮）。
-  if (p.result) {
-    const fail = p.result.state !== 'ok'
-    const rel: any[] = [
-      h('span', { key: 'tag', className: 'result-tag' }, t('vc.commit.panelTitle')),
-      h('span', { key: 'text', className: 'result-text', 'data-vc-commit-result-text': 1 }, p.result.text),
-    ]
-    if (p.result.tip) rel.push(h('span', { key: 'tip', className: 'result-detail' }, p.result.tip))
-    if (p.result.retry) rel.push(h('button', { key: 'retry', type: 'button', className: 'link-btn', 'data-vc-commit-retry': 1, 'data-press': 'button', 'data-log': 'vc.commit.retry', onClick: click('retry') }, t('vc.commit.result.retry')))
-    children.push(h('div', { key: 'result', className: 'result ' + (fail ? 'result-error' : 'result-ok'), role: fail ? 'alert' : 'status', 'data-vc-commit-result': p.result.state }, rel))
-  }
   // 形态 / 目标 / 模板 / 三个开关 / 说明预览：原型首屏没有这些，收进折叠；控件与 data-vc-commit-* 钩子一个不少。
   const advanced: any[] = []
   advanced.push(h('div', { key: 'modes', className: 'vcs-commit-modes', role: 'radiogroup', 'aria-label': t('vc.commit.modeLabel') }, p.modes.map(function (m: any) {
@@ -302,9 +276,64 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
     ])
   })))
   if (p.trailerText) advanced.push(h('div', { key: 'trailer', className: 'vcs-note', 'data-vc-commit-trailer': 1 }, p.trailerText))
-  children.push(h('details', { key: 'advanced', className: 'vcs-commit-advanced', 'data-vc-commit-advanced': 1 }, [
-    h('summary', { key: 'summary', className: 'vcs-commit-advanced-title' }, t('vc.commit.moreOptions')),
-  ].concat(advanced)))
+
+  // 最后一行：左边禁用原因或提示、中间交给 AI、右边提交按钮；原因与按钮说的是同一件事，不各占一行。
+  // 定稿原型 62 在 0 个文件已暂存时左下角写的是「还没有暂存的文件」、按钮仍写「提交 0 个文件」；
+  // 所以「什么都没暂存」优先于「说明还没填」，按钮文案始终带数量（只在执行中换成「提交中…」）。
+  const foot: any[] = []
+  const emptyReason: string = stagedCount === 0 ? t('vc.changes.view.commitNoStaged') : ''
+  const footReason: string = emptyReason || (p.submitDisabled ? String(p.submitTip || '') : '')
+  if (footReason) foot.push(h('span', { key: 'reason', className: 'composer-reason', 'data-vc-commit-submit-tip': 1 }, [
+    h('svg', { key: 'icon', viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' }, h('path', { d: 'M12 4l9 16H3zM12 10v4M12 17v.5' })),
+    h('span', { key: 'text' }, footReason),
+  ]))
+  else foot.push(h('span', { key: 'hint', className: 'hint-text' }, t('vc.changes.view.composerHint')))
+  // 提交选项（#1860 D6）：原型提交区只有「已暂存计数 + 两个链接 / 说明框 / 底行」三块，
+  //   所以提交形态、吸收目标、模板与三个开关不再占一行折叠，收进这颗小按钮的菜单里。
+  foot.push(h('button', {
+    key: 'options', type: 'button', className: 'composer-opt-btn' + (p.menuOpen ? ' is-open' : ''),
+    'data-vc-commit-options': 1, 'aria-haspopup': 'menu', 'aria-expanded': p.menuOpen ? 'true' : 'false',
+    'aria-label': t('vc.commit.options'), title: t('vc.commit.optionsHint'),
+    'data-press': 'button', 'data-log': 'vc.commit.options',
+    onClick: click('toggleMenu'),
+  }, [h('span', { key: 'dots', className: 'row-more-dots', 'aria-hidden': 'true' }, '⋯')]))
+  if (typeof opts.onOpenHandoff === 'function') {
+    foot.push(h('button', {
+      key: 'ai', type: 'button', className: 'ai-entry ai-entry-inline', 'data-vc-changes-handoff': 1, 'data-log': 'vc.ai.commit-split',
+      title: t('vc.changes.view.aiSplit'), 'aria-label': t('vc.changes.view.aiSplit'), onClick: function () { opts.onOpenHandoff() },
+    }, [
+      h('svg', { key: 'icon', viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' }, h('path', { d: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM18.5 16l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z' })),
+      h('span', { key: 'label', className: 'ai-entry-label' }, t('vc.changes.view.aiSplit')),
+    ]))
+  }
+  const submitTip = String(p.submitTip || '')
+  const submitNode = h('button', {
+    key: 'go', type: 'button', className: 'btn btn-primary btn-md', 'data-vc-commit-submit': 1,
+    disabled: p.submitDisabled === true, 'aria-disabled': p.submitDisabled === true,
+    'data-press': 'button', 'data-log': 'vc.commit.panel.submit', onClick: click('submit'),
+  }, p.running ? t('vc.commit.running') : t('vc.changes.view.commitLabel', { n: String(stagedCount) }))
+  // 悬停提示统一走 Tip 叶子（verify-no-title 门禁要求三处以上 title 抽组件）：原因已经写在左下角，这里只是补悬停。
+  foot.push(submitTip ? h(Tip, { key: 'submit', content: submitTip }, submitNode) : submitNode)
+  // 菜单挂在底行里、绝对定位浮在底行上方：它不占行高，展开也不把说明框与列表挤小。
+  //   收起时用 hidden 留在 DOM 里（不是不画）：控件与 data-vc-commit-* 钩子一个不少，「每条能力恰有一个
+  //   主入口」那几条门禁仍读得到；读屏与 Tab 不会进 hidden 的子树。
+  foot.push(h('div', {
+    key: 'optionsMenu', className: 'composer-opt-menu', role: 'menu', 'aria-label': t('vc.commit.options'),
+    'data-vc-commit-menu': p.menuOpen ? 'open' : 'closed', hidden: p.menuOpen !== true,
+  }, advanced))
+  children.push(h('div', { key: 'foot', id: 'commit-hint', className: 'composer-foot' }, foot))
+  // 结果条贴在提交按钮之后（= 触发点）：成功给命令与耗时，失败给原因与重试。
+  //   位置跟着触发控件走，而不是浮到面板顶部（就近原则：结果贴着按下去的那颗按钮）。
+  if (p.result) {
+    const fail = p.result.state !== 'ok'
+    const rel: any[] = [
+      h('span', { key: 'tag', className: 'result-tag' }, t('vc.commit.panelTitle')),
+      h('span', { key: 'text', className: 'result-text', 'data-vc-commit-result-text': 1 }, p.result.text),
+    ]
+    if (p.result.tip) rel.push(h('span', { key: 'tip', className: 'result-detail' }, p.result.tip))
+    if (p.result.retry) rel.push(h('button', { key: 'retry', type: 'button', className: 'link-btn', 'data-vc-commit-retry': 1, 'data-press': 'button', 'data-log': 'vc.commit.retry', onClick: click('retry') }, t('vc.commit.result.retry')))
+    children.push(h('div', { key: 'result', className: 'result ' + (fail ? 'result-error' : 'result-ok'), role: fail ? 'alert' : 'status', 'data-vc-commit-result': p.result.state }, rel))
+  }
   if (p.confirm) children.push(vcCommitConfirmNode(h, t, { confirm: p.confirm, ops: ops }))
   if (p.formProblem) children.push(h('div', { key: 'formProblem', className: 'note', 'data-vc-commit-form-problem': 1 }, p.formProblem))
   return h('div', { className: 'composer', 'data-vc-commit-panel': 1, 'data-vc-page': 'changes', 'aria-label': t('vc.commit.panelTitle') }, children)

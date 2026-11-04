@@ -90,8 +90,7 @@ export const vcRealNavOf = function (nav: any): any {
 }
 
 export const vcRealCwdOf = function (props: any): string {
-  const st: any = props && props.st
-  const cwd: any = st && st.cwd
+  const st: any = props && props.st, cwd: any = st && st.cwd
   return cwd === undefined || cwd === null ? '' : String(cwd)
 }
 
@@ -271,6 +270,20 @@ export const vcRealSliceNameKeyOf = function (id: any): string {
 export const vcRealSkinOf = function (bodyEl: any): string {
   if (!bodyEl || typeof bodyEl.hasAttribute !== 'function') return 'dark'
   return bodyEl.hasAttribute('data-ds-dark-theme') ? 'dark' : 'light'
+}
+
+// 盯宿主 themes 开关（#1860 D15）：宿主机在运行中切换深浅主题时不重挂我们的面板，只在 body 上翻
+//   data-ds-dark-theme（class 也一并盯，宿主将来改用类名时同样跟得上）。读到皮肤就交给 onSkin，
+//   返回一个断开函数供 effect 清理；没有 document 或没有 MutationObserver 时按「读一次就完」处理。
+//   为什么放这一层：容器那一叶贴着每文件 350 有效行上限，而这段不碰 React、可以单独测。
+export const vcRealSkinWatchOf = function (onSkin: any): any {
+  const body: any = typeof document !== 'undefined' ? document.body : null
+  const Watcher: any = typeof MutationObserver !== 'undefined' ? MutationObserver : null
+  const fire = function (): void { if (body && typeof onSkin === 'function') onSkin(vcRealSkinOf(body)) }
+  fire()
+  if (!body || !Watcher) return null
+  const mo: any = new Watcher(fire); mo.observe(body, { attributes: true, attributeFilter: ['data-ds-dark-theme', 'class'] })
+  return function () { mo.disconnect() }
 }
 
 // 提交目标：首屏 history 片里已经带了提交清单，容器只把它翻成下拉选项（值仍是完整 oid）。

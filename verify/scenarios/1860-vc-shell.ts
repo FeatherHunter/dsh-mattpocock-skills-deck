@@ -2157,6 +2157,9 @@ const BACK_COUNT_SCRIPT = 'document.querySelectorAll(' + JSON.stringify('button[
 
 // #1860 D7：改动页的工作区文件行（未跟踪文件不适用——宿主对它们直接回「没有可比旧版本」，读不到逐行内容）。
 const CHANGES_FILE_ROW = '[data-vc-file-row]:not([data-vc-file-change="untracked"]) [data-vc-file-open]'
+// #1860 D15：读当前壳的皮肤并翻转宿主 body 上的主题属性（转完再转回来），用来验「不重挂也跟得上」。
+const SKIN_ATTR_SCRIPT = '(function () { var r = document.querySelector(' + JSON.stringify(VC_ROOT_SELECTOR) + ' [data-vc-shell]'); return r ? r.getAttribute(' + JSON.stringify('data-vc-skin') + ') : null })()'
+const SKIN_FLIP_SCRIPT = '(function () { var b = document.body; if (!b) return null; b.toggleAttribute(' + JSON.stringify('data-ds-dark-theme') + '); return b.hasAttribute(' + JSON.stringify('data-ds-dark-theme') + ') ? ' + JSON.stringify('dark') + ' : ' + JSON.stringify('light') + ' })()'
 const CHANGES_DIFF_BLOCK = '[data-vc-changes-diff]'
 const CHANGES_DIFF_LINES_SCRIPT = 'document.querySelectorAll(' + JSON.stringify('[data-vc-changes-diff] [data-vc-diff-line]') + ').length'
 
@@ -2260,6 +2263,23 @@ async function runInteraction(context: ScenarioContext, page: PageHandle, raw: R
     add('interact-file-diff-cached', back && againCount === lineCount, '第三次展开仍是同一份补丁（收起不丢读数，不重读）',
       (back ? '又展开了' : '没展开：' + again.detail) + '，逐行 ' + String(againCount) + ' 行（首次 ' + String(lineCount) + ' 行）')
   }
+
+  // #1860 D15：皮肤跟着宿主的主题开关走。这里不经过宿主设置（那会重载客户端、把工作区绑定弄丢），
+  //   只翻 body 上那个属性 —— 宿主切主题时做的也正是这件事。翻完等一帧再读 data-vc-skin。
+  const skinBefore = await evaluateThrough<string | null>(page, SKIN_ATTR_SCRIPT)
+  const flip1 = await evaluateThrough<string | null>(page, SKIN_FLIP_SCRIPT)
+  await sleep(600)
+  const skinAfter = await evaluateThrough<string | null>(page, SKIN_ATTR_SCRIPT)
+  facts.skinFollow = { before: skinBefore.ok ? skinBefore.value : null, flippedTo: flip1.ok ? flip1.value : null, after: skinAfter.ok ? skinAfter.value : null }
+  const followed = skinBefore.ok && flip1.ok && skinBefore.value !== flip1.value && skinAfter.ok && skinAfter.value === flip1.value
+  add('interact-skin-follow', followed, '翻转宿主的主题属性后，不重挂面板也跟着换皮肤（data-vc-skin 跟着变）',
+    '翻转前 ' + String(skinBefore.value) + '，翻到 ' + String(flip1.value) + ' 之后读到 ' + String(skinAfter.value))
+  if (followed) {
+    const shot = await captureScreenshot(context, page, 'interaction', 'skin-follow', '真机翻转主题属性后的版本管理页')
+    evidence.push(...shot.paths)
+  }
+  await evaluateThrough<string | null>(page, SKIN_FLIP_SCRIPT)
+  await sleep(400)
 
   const failed = items.filter((item) => !item.ok).map((item) => item.id)
   facts.items = items

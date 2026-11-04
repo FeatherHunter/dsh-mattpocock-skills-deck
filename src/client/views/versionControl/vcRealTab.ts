@@ -23,6 +23,7 @@ declare function vcRealCwdOf(props: any): string
 declare function vcRealCwdEmptyOf(cwd: any): boolean
 declare function vcRealSeedOf(reads: any, nav: any, nowMs: any, t: any): any
 declare function vcRealSkinOf(bodyEl: any): string
+declare function vcRealSkinWatchOf(onSkin: any): any
 declare function vcRealCommitTargetsOf(reads: any): any[]
 declare function vcRealChangesSeedOf(reads: any): any
 declare function vcRealActionsOf(deps: any): any
@@ -240,17 +241,18 @@ export const VcRealTab = function (props: any) {
     commitFormCwdRef.current = cwd
     actionsRef.current.commitOps().loadForm()
   }, [nav.page, cwd])
-  // 宽度跟四档与皮肤：宽度量根节点（ResizeObserver），皮肤读宿主的 body 主题开关。
+  // 宽度跟四档与皮肤：宽度量根节点（ResizeObserver），皮肤跟宿主的 body 主题开关。
+  // #1860 D15：皮肤不能只在挂载时读一次。宿主机在运行中切深浅主题时不会重挂这个面板，只在 body 上翻
+  //   data-ds-dark-theme；只读一次的话面板会一直用旧皮肤 —— 深色的浅灰文字落在浅色底上，看着就是「整页空掉」。
   React.useEffect(function () {
-    if (typeof document !== 'undefined' && document.body) setSkinState(vcRealSkinOf(document.body))
+    const stopSkin: any = vcRealSkinWatchOf(function (next: string) { setSkinState(next) })
     const el: any = rootRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro: any = new ResizeObserver(function (entries: any) {
+    const ro: any = (!el || typeof ResizeObserver === 'undefined') ? null : new ResizeObserver(function (entries: any) {
       const box: any = entries && entries[0] && entries[0].contentRect
       if (box && isFinite(box.width) && box.width > 0) setWidthState(Math.round(box.width))
     })
-    ro.observe(el)
-    return function () { ro.disconnect() }
+    if (ro) ro.observe(el)
+    return function () { if (ro) ro.disconnect(); if (typeof stopSkin === 'function') stopSkin() }
   }, [])
   // 滚动位置按页各存一份（规格第 343 行）：回来源页时还原那一页的纵向位置；筛选词与高亮由导航快照 pages 负责。
   const scrollRef: any = React.useRef({})

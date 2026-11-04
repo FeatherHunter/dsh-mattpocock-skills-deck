@@ -183,7 +183,10 @@ export const vcRealCallbacksOf = function (deps: any): any {
     },
     // Esc（规格第 343 行）：浮层开着先只关浮层；没有浮层而当前页有来源页时按 Esc 回来源页。
     //   回来源页后的滚动位置与筛选词由导航快照负责（vcRealNavBack 会把 pages 里存的那份带回来）。
+    //   #1860 D6：提交选项菜单也是浮层的一种，虽然它不在 nav.open 里（状态在 ui.commit.menuOpen），
+    //   所以先让提交动作层收一次菜单；菜单本来没开时它什么都不做。
     escape: function () {
+      if (actionsRef.current && typeof actionsRef.current.commitOps === 'function') actionsRef.current.commitOps().closeMenu()
       const cur: any = getNav()
       const open: any = (cur && cur.open) || {}
       if (open.branch === true || open.palette === true || open.gear === true) { setNav(vcRealNavCloseAll(cur)); return }

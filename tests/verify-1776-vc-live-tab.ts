@@ -163,6 +163,9 @@ global.Element = dom.window.Element
 global.Node = dom.window.Node
 global.MouseEvent = dom.window.MouseEvent
 global.KeyboardEvent = dom.window.KeyboardEvent
+// #1860 D15：容器盯 body 的主题属性用的是全局 MutationObserver；jsdom 只把它挂在 window 上，
+//   这里补一个全局别名，才能验「翻属性之后皮肤跟着变」。
+global.MutationObserver = dom.window.MutationObserver
 global.IS_REACT_ACT_ENVIRONMENT = true
 const React = require('react')
 const ReactDOMClient = require('react-dom/client')
@@ -432,7 +435,9 @@ async function scenarioMain() {
   check(countKin(host, 'wf.gitFirstScreen') === before + 2, 'T15c 写动作完成后按「任务完成」时机再读一次首屏')
 
   // ---- 提交页首批动作：修订（危险动作）走确认卡 ----
+  // #1860 D6：提交形态收进底行的「提交选项」菜单，先点开菜单再选形态（原型提交区只有三块，没有折叠行）。
   await m.click('[data-vc-tab="changes"]')
+  await m.click('[data-vc-commit-options]')
   await m.click('[data-vc-commit-mode="amend"]')
   await m.type('[data-vc-commit-msg]', '门禁用的提交说明')
   const submit = m.q('[data-vc-commit-submit]')
@@ -1205,6 +1210,70 @@ async function scenarioStashAutoDetail() {
   await b.unmount()
   await m.unmount()
 }
+// ---------------- 场景十三：提交区只有三块，提交选项收进底行菜单（#1860 D6） ----------------
+// 依据：改动页原型（docs/prototype/vc-redesign/src/ui/views/changes.ts 的 composer）只有「已暂存计数 + 两个
+//   链接 / 说明框 / 底行」三块，没有第四行折叠。这一段验：折叠行没了、菜单能开能收、非默认计划留一句话、
+//   十颗能力控件仍在页面里（收起不等于丢入口）。
+async function scenarioComposerOptions() {
+  console.log('\n== 场景十三：提交选项收进底行菜单（三块结构不变） ==')
+  const host = makeHost({})
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  const composer = m.q('[data-vc-commit-panel]')
+  check(!!composer && !m.q('[data-vc-commit-advanced]') && !m.q('.vcs-commit-advanced') && !composer.querySelector('details'),
+    'T39 提交区不再有第四行「更多提交选项」折叠（原型只有三块：计数行 / 说明框 / 底行）')
+  const optBtn = m.q('[data-vc-commit-options]')
+  const menu = m.q('[data-vc-commit-menu]')
+  check(!!optBtn && String(optBtn.getAttribute('aria-expanded')) === 'false' && !!menu && menu.hasAttribute('hidden'),
+    'T39b 底行有一颗「提交选项」按钮，菜单默认收起（aria-expanded=false、菜单带 hidden）')
+  const counts = { '2.1': 0, '2.2': 0, '2.3': 0, '2.4': 0, '2.5': 0, '2.6': 0, '2.7': 0, '2.8': 0 }
+  m.qa('[data-cap-control]').forEach(function (el) { const cap = String(el.getAttribute('data-cap-control')); if (counts[cap] !== undefined) counts[cap] += 1 })
+  check(counts['2.1'] === 1 && counts['2.2'] === 1 && counts['2.3'] === 1 && counts['2.4'] === 2 && counts['2.5'] === 1 && counts['2.6'] === 2 && counts['2.7'] === 1 && counts['2.8'] === 1,
+    'T39c 收起菜单不丢入口：八条提交能力的十颗控件都还在页面里（' + JSON.stringify(counts) + '）')
+  await m.click('[data-vc-commit-options]')
+  const opened = m.q('[data-vc-commit-menu]')
+  check(!!opened && !opened.hasAttribute('hidden') && String((m.q('[data-vc-commit-options]') || {}).getAttribute('aria-expanded')) === 'true',
+    'T39d 点「提交选项」把菜单展开（hidden 去掉、aria-expanded=true）')
+  await m.click('[data-vc-commit-options]')
+  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed',
+    'T39e 再点一次收起（同一个按钮管开合，不另加关闭键）')
+  await m.click('[data-vc-commit-options]')
+  await m.click('[data-vc-commit-mode="all"]')
+  check(m.text('[data-vc-commit-plan-note]').indexOf('全部已跟踪改动') >= 0,
+    'T39f 切成「提交全部已跟踪改动」后，提交区留一句话说清这次提交什么（收起菜单也看得见）')
+  await m.click('[data-vc-commit-mode="staged"]')
+  check(!m.q('[data-vc-commit-plan-note]'), 'T39g 切回「只提交已暂存内容」后那句话整块不画（默认状态不出多余说明）')
+  await m.click('[data-vc-commit-options]')
+  await m.click('[data-vc-commit-opt="skipHooks"]')
+  check(m.text('[data-vc-commit-plan-note]').indexOf('跳过钩子') >= 0, 'T39h 勾了「跳过提交钩子」同样留一句话（三个开关也不藏在菜单里）')
+  await m.key('[data-vc-commit-msg]', 'Escape')
+  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed',
+    'T39i 按 Esc 收起提交选项菜单（与页面其它浮层同一套键盘习惯）')
+  await m.unmount()
+}
+// ---------------- 场景十四：皮肤跟着宿主主题开关走（#1860 D15） ----------------
+// 依据：维护者说 D15「跟着宿主主题变就行了，不需要锁定」。宿主机切深浅主题时不重挂我们的面板，
+//   只在 body 上翻 data-ds-dark-theme；只在挂载时读一次皮肤的话，面板会一直用旧皮肤 ——
+//   深色的浅灰文字落在浅色底上，看着就是「整页空掉」。这一段验：翻属性之后 data-vc-skin 跟着变。
+async function scenarioSkinFollow() {
+  console.log('\n== 场景十四：皮肤跟着宿主主题开关走 ==')
+  const host = makeHost({})
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  const shell = function () { const el = m.q('[data-vc-shell]'); return el ? String(el.getAttribute('data-vc-skin')) : '' }
+  check(shell() === 'dark', 'T40 挂载时按宿主的深色属性画深色（data-vc-skin=dark）')
+  await React.act(async function () { document.body.removeAttribute('data-ds-dark-theme') })
+  await settle()
+  check(shell() === 'light', 'T40b 宿主翻成浅色（去掉 body 的 data-ds-dark-theme）后，不重挂面板也跟着变浅（实得 ' + shell() + '）')
+  await React.act(async function () { document.body.setAttribute('data-ds-dark-theme', '') })
+  await settle()
+  check(shell() === 'dark', 'T40c 再翻回深色同样跟上（实得 ' + shell() + '）；皮肤不是只在挂载时读一次的静态值')
+  await m.unmount()
+}
 // ---------------- main ----------------
 async function main() {
   const locUrl = (f) => pathToFileURL(path.join(ROOT, sourcePath(f))).href
@@ -1229,6 +1298,8 @@ async function main() {
   await scenarioHistoryRedesign()
   await scenarioChangesDiff()
   await scenarioStashAutoDetail()
+  await scenarioComposerOptions()
+  await scenarioSkinFollow()
 
   console.log('\n断言 ' + total + ' 条，失败 ' + failed + ' 条')
   printGateResult('verify-1776-vc-live-tab', total, failed ? 1 : 0)
