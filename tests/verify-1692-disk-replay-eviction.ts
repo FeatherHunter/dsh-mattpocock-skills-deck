@@ -3,7 +3,7 @@
  *
  * 文件名与在链上的位置保留（收口矩阵按名字引用它），但它现在守两件事：
  *   A 整份磁盘快照退役（#1870）：旧的 .dsh-mattskillsdeck-cache/<owner>__<repo>.json 不再被读、
- *     不再被写、不再被迁移；格式模块已删除；两条快照电话与它们的装配处都不再引用那三个口。
+ *     不再被写、不再被迁移；格式模块已删除；两条快照宿主方法与它们的装配处都不再引用那三个口。
  *     旧 JSON 文件仍原地留在磁盘上——谁也不碰它，所以它的字节一个都不会变。
  *   B 按需细节淘汰（#1692 的原有判据，随内存工作副本一起保留）：条数上限 200、字节上限 512KB
  *     两个数只住 kernel/detail-eviction.ts；淘汰只删内容、留「曾取过」记号，行本身、父子边、
@@ -113,7 +113,7 @@ function main(): void {
     const gitSrc = srcText('src/refresh/rooms/host/git-execution.ts')
     check(!/readDiskCache|writeDiskCache|cacheFileName|readDiskSnapshot|buildDiskSnapshot/.test(gitSrc), 'A2 宿主执行层不再有读写旧 JSON 的函数')
 
-    const phoneFiles = [
+    const snapshotHostModules = [
       'src/refresh/rooms/host/session-snapshot-cache.ts',
       'src/refresh/rooms/host/session-refresh-schedule.ts',
       'src/refresh/rooms/host/issue-list-fetch.ts',
@@ -123,8 +123,8 @@ function main(): void {
       'src/refresh/rooms/host/patch-wiring.ts',
       'src/host/index.ts',
     ]
-    const dirty = phoneFiles.filter(function (rel) { return /readDiskCache|writeDiskCache|cacheFileName/.test(srcText(rel)) })
-    check(dirty.length === 0, 'A3 快照电话与它们的装配处都不再引用旧的磁盘快照口', dirty)
+    const dirty = snapshotHostModules.filter(function (rel) { return /readDiskCache|writeDiskCache|cacheFileName/.test(srcText(rel)) })
+    check(dirty.length === 0, 'A3 快照宿主方法与它们的装配处都不再引用旧的磁盘快照口', dirty)
 
     // 全仓源码扫一遍：三个旧口与两个格式函数一个都不许留（命中就是还有人在读写那份 JSON）。
     const offenders: string[] = []

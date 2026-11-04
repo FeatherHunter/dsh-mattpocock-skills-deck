@@ -14,6 +14,8 @@ import { SNAPSHOT_TTL_MS } from '../../../shared/time-config/src/values.js'
 // #1584 F1：强制刷新主路径与首屏同构，原来也用注册表 describe 自己造身份；
 // 空 refId 不能当身份（GitHub / GitLab 只给目录时 describe 回的就是空壳），给不出就问会话。
 import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
+// #1870：刷新要的「上一份快照」与首屏读的是同一件事（开库、读回放、拆包），复用首屏那一份实现。
+import { firstScreenFromLibrary } from './snapshot-library-first-screen.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都收在文件顶部：本文件的依赖全部由接线处 index.js 注入（那份是 JS，不检查编译错误），
@@ -115,9 +117,9 @@ export function createSessionRefresh(deps: RefreshDeps) {
       // #652 与快照同钥匙（规整键+工作区根）；#696 起宿主内存按根分表，强制刷新只重写自己根那条。
       const cwd = await canonicalKey(_rawRefCwd)
       const refT0 = Date.now()
-      // #1870：宿主内存那份不再参与刷新（它只是行级增量的工作副本），所以这里没有「上一份快照有多旧」
-      // 可读；ageMs 一律记 0，日志字段形状不变（读它的人本来也不会把 0 当成真实年龄）。
-      try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd), ageMs: 0 }) } catch (eL) {}
+      // #1870：宿主内存那份不再参与刷新（它只是行级增量的工作副本），「上一份快照有多旧」没有来源了，
+      // 所以这一行只留工作区散列；拿 0 冒充年龄会让人把「刚取过」当成事实，宁可少一格。
+      try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd) }) } catch (eL) {}
       let _sel = null
       try { _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined }) }
       catch (eSel) { noteRefreshFail(cwd, eSel); return { ok: false, error: errText(eSel) } }
@@ -165,13 +167,18 @@ export function createSessionRefresh(deps: RefreshDeps) {
        * （面板数据只住这一处）。库开不出来、没有回放时回 null，编排层按「没有上次」处理。
        */
       const previousSnapshotOf = async function (bId: string, ref: RepoRef): Promise<any> {
-        try {
-          if (typeof getSnapshotLibrary !== 'function') return null
-          const lib: any = await Promise.resolve(getSnapshotLibrary())
-          if (!lib || typeof lib.readSnapshotReplay !== 'function') return null
-          const replay: any = await lib.readSnapshotReplay({ workspaceRoot: cwd, backend: String(bId || ''), repoIdentity: String((ref && ref.refId) || ''), repo: ref })
-          return (replay && replay.snapshot) ? replay.snapshot : null
-        } catch (e) { return null }
+        // 没有回放是正常的一档（第一次进工作区、库刚被清掉），不是异常；
+        // 库开不出来、租约被占、库损坏这些异常由快照库自己的 workspaceSnapshot.* 日志交代，
+        // 首屏助手也把「库不可用」折成「这一趟没有回放」，所以这里不另造一条事件。
+        const screen: any = await firstScreenFromLibrary({
+          getSnapshotLibrary: getSnapshotLibrary,
+          workspaceRoot: cwd,
+          backend: String(bId || ''),
+          repoIdentity: String((ref && ref.refId) || ''),
+          repo: ref,
+          force: false,
+        })
+        return (screen && screen.replay) ? screen.replay.snapshot : null
       }
       try {
         // 第一性原理分发：与 wf.snapshot 同构

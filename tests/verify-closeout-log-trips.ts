@@ -278,7 +278,8 @@ async function main() {
     const rv = out && out.diskReplay;
     fiveSegments('T5 重启', {
       input: !!req && !!req.fields && typeof req.fields.cwdHash === 'string',
-      reason: !!miss && !!miss.fields && miss.fields.reason === 'empty',
+      // #1870：库里有回放的那一趟根本没重建，就不该记 snapshot.cache.miss —— 这里反过来钉住「没有 miss」。
+      reason: !miss,
       external: detections === 0 && !!rv && finite(out.generatedMs),
       // 回放注记的字段名沿用 diskReplay（客户端按这个名字读「上次已知」），内容换成工作区快照库那一套。
       state: !!out && out.fromCache === true && !!rv && rv.schema === 'snapshot-sqlite-v1' && rv.source === 'sqlite' && finite(rv.lastKnownAtMs),

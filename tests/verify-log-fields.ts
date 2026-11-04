@@ -126,7 +126,8 @@ const ALLOWED = {
   //   由运行时采集断言「实得键集与白名单一字不差」，多一格少一格都会变红。
   'probe.eval': ['repoKeyHash', 'count', 'changed'],
   'panelSync.eval': ['repoKeyHash', 'baseline', 'dirty', 'failures'],
-  'panelSync.dirty': ['cwdHash', 'ageMs'],
+  // 2026-11-04 #1870：ageMs 随「宿主内存那份退出刷新」一起删（那一格没有来源了，不拿 0 冒充）。
+  'panelSync.dirty': ['cwdHash'],
   'registry.select': ['cwdHash', 'backendId', 'source', 'latencyMs', 'caller'],
   'registry.stub': ['op', 'backendId'],
   // 2026-10-14（#1048）：常驻 #16 `detection.detect` 从「判定链条上的一处埋点」改成「统一判定出口
