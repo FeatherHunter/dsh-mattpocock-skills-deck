@@ -608,13 +608,15 @@ async function main() {
   const hostEntrySrc = readText('src/host/index.ts')
   const handleNames = Array.from(hostEntrySrc.matchAll(/harness\.handle\('([^']+)'/g)).map((m) => m[1])
   const hostEntryOut = require('esbuild').transformSync(hostEntrySrc, { loader: 'ts', target: 'es2020' }).code
-  const swallowed = handleNames.filter((n) => hostEntryOut.indexOf("'" + n + "'") < 0 && hostEntryOut.indexOf('"' + n + '"') < 0)
+  // 认「注册调用本身」，不是裸名字：名字只出现在注释或文档字符串里时，裸名字也会命中，判据会假绿。
+  const registeredIn = (out, n) => out.indexOf('harness.handle("' + n + '"') >= 0 || out.indexOf("harness.handle('" + n + "'") >= 0
+  const swallowed = handleNames.filter((n) => !registeredIn(hostEntryOut, n))
   check(handleNames.length > 60 && swallowed.length === 0, '电话注册表：源码里 ' + handleNames.length + ' 条 wf.* 电话全部活着进了转译产物（被吞掉的：' + (swallowed.join('、') || '无') + '）')
   check(swallowed.indexOf('wf.gitStash') < 0 && handleNames.indexOf('wf.gitStash') >= 0, 'wf.gitStash 在注册名单里且没有被注释吞掉（真机那一轮就是它回 unknown endpoint）')
   // 反证：把那一处改回「少分号 + 行注释」的原样，同一套判据必须当场判红。
   const brokenEntrySrc = hostEntrySrc.replace('}); /* #1748', '}) // #1748')
   const brokenOut = require('esbuild').transformSync(brokenEntrySrc, { loader: 'ts', target: 'es2020' }).code
-  const brokenSwallowed = handleNames.filter((n) => brokenOut.indexOf("'" + n + "'") < 0 && brokenOut.indexOf('"' + n + '"') < 0)
+  const brokenSwallowed = handleNames.filter((n) => !registeredIn(brokenOut, n))
   check(brokenEntrySrc !== hostEntrySrc && brokenSwallowed.indexOf('wf.gitStash') >= 0,
     '反证：把那一处改回「少分号 + 行注释」，wf.gitStash 立刻从转译产物里消失（这条判据抓得住这类漏注册）')
 

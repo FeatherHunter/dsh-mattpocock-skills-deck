@@ -2005,6 +2005,36 @@ async function recordBoth(context: ScenarioContext, subdir: string, name: string
   return paths
 }
 
+
+/**
+ * 提交区「⋯」菜单的实拍（#1860 D6）：收起时四页签的图里看不到它，所以按档另外拍一张打开状态，
+ * 顺带量一下菜单有没有超出提交区左右边界 —— 最窄档（300）是它唯一可能被挤坏的地方。
+ * 只出证据、不新增检查项：版式好坏由人看图判断，这里只把矩形记进 facts 供核对。
+ */
+async function captureComposerMenu(
+  context: ScenarioContext,
+  page: PageHandle,
+  raw: RawBrowserPage,
+  width: number,
+  skin: string,
+): Promise<{ paths: string[]; rects: Record<string, unknown> }> {
+  const reopened = await openTab(page, raw, 'changes')
+  if (!reopened.ok) return { paths: [], rects: { ok: false, detail: reopened.detail } }
+  const opened = await clickPage(page, raw, '[data-vc-commit-options]')
+  const shown = await waitFor(page, '[data-vc-commit-menu="open"]', 5000)
+  if (!shown) return { paths: [], rects: { ok: false, detail: opened.detail } }
+  const rects = await evaluateThrough<Record<string, unknown>>(page, '(function () {' +
+    ' var menu = document.querySelector(' + JSON.stringify('[data-vc-commit-menu="open"]') + ');' +
+    ' var panel = document.querySelector(' + JSON.stringify('[data-vc-commit-panel]') + ');' +
+    ' if (!menu || !panel) return { ok: false };' +
+    ' var a = menu.getBoundingClientRect(), b = panel.getBoundingClientRect();' +
+    ' return { ok: true, menu: { left: Math.round(a.left), right: Math.round(a.right), width: Math.round(a.width), height: Math.round(a.height) },' +
+    ' panel: { left: Math.round(b.left), right: Math.round(b.right) }, fits: a.left >= b.left - 1 && a.right <= b.right + 1 }; })()')
+  const shot = await captureScreenshot(context, page, String(width) + '-' + skin, 'composer-options', '提交选项菜单打开（' + String(width) + ' 档 / ' + skin + '）')
+  await clickPage(page, raw, '[data-vc-commit-options]')
+  await waitGone(page, '[data-vc-commit-menu="open"]', 3000)
+  return { paths: shot.paths, rects: rects.ok ? rects.value : { ok: false, error: rects.error.message } }
+}
 interface CaptureResult {
   readonly observation: ScenarioObservation
   readonly evidence: string[]
@@ -2314,8 +2344,15 @@ async function runInteraction(context: ScenarioContext, page: PageHandle, raw: R
     const shot = await captureScreenshot(context, page, 'interaction', 'skin-follow', '真机翻转主题属性后的版本管理页')
     evidence.push(...shot.paths)
   }
-  await evaluateThrough<string | null>(page, SKIN_FLIP_SCRIPT)
-  await sleep(400)
+  // 翻回去之后要确认真的回去了：这一项动了全局状态（body 上的主题属性），宿主可能把它连同偏好一起落盘，
+  //   翻不回来会污染下一次运行（浅色那一轮起不来，先查的就是这里）。
+  const restoreFlip = await evaluateThrough<string | null>(page, SKIN_FLIP_SCRIPT)
+  await sleep(600)
+  const restored = await evaluateThrough<string | null>(page, SKIN_ATTR_SCRIPT)
+  facts.skinRestored = { flippedBackTo: restoreFlip.ok ? restoreFlip.value : null, skin: restored.ok ? restored.value : null }
+  add('interact-skin-restore', restored.ok && restored.value === (skinBefore.ok ? skinBefore.value : null),
+    '翻回来之后皮肤回到原样（不把主题状态留给下一次运行）',
+    '翻回来读到 ' + String(restored.value) + '，原样是 ' + String(skinBefore.value))
 
   const failed = items.filter((item) => !item.ok).map((item) => item.id)
   facts.items = items
@@ -2477,6 +2514,14 @@ async function runSweep(context: ScenarioContext): Promise<ScenarioObservation[]
           captures.push({ observation: observation, evidence: [], failed: ['exception'], softFailed: [], view: view, width: width, skin: skin })
         }
         observations.push(captures[captures.length - 1].observation)
+      }
+      // #1860 D6：这一档的提交区「⋯」菜单另外拍一张（收起时四页签图里看不到它）。
+      try {
+        const menu = await captureComposerMenu(context, page, raw, width, skin)
+        if (menu.paths.length > 0) captures[captures.length - 1].evidence.push(...menu.paths)
+        console.log('[1860] 提交选项菜单 @ ' + String(width) + ' / ' + skin + '：' + JSON.stringify(menu.rects))
+      } catch (error) {
+        console.log('[1860] 提交选项菜单实拍失败：' + messageOf(error))
       }
     }
   }
