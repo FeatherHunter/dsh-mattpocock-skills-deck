@@ -6,7 +6,8 @@
  * 本文件由 store-snapshot.js 转写而来，只加类型标注与环境声明，运行行为一字不改。
  * 同工作区所有会话共用按工作区根分桶的内存表（#653），快照命中只记数不打扰人。
  * #1863：GitHub 客户端的 IndexedDB 持久快照退役——首屏由宿主从工作区快照库回放，客户端只留内存 LRU
- * 与在途请求；diskPutSnapshot/diskGetSnapshot 保留导出名给既有闭包文件引用，行为改成空操作。
+ * 与在途请求。#1870 把最后三个空壳（磁盘条数上限、写入口、读入口）也删了，壳里也没有
+ * 「往 IndexedDB 写一份」的代码可以再被接回去。
  * 反例：不要在这里决定行该怎么画（那是 store-derived.ts 的事），也不要在这里存人的偏好（那是 store-prefs.ts 的事）。
  */
 declare function keyOf(...args: any[]): any;
@@ -161,12 +162,6 @@ export const touchProbeAt = function (cwd: any, ms: any): void {
     try { Object.keys(stores).forEach(function (kk: any): void { const st2: any = stores[kk]; if (st2 && st2.cwd && wsKeyOf(st2.cwd) === k) emit(st2) }) } catch (e2) {}
   } catch (e) {}
 }
-export const SNAP_DISK_CAP: number = 0
-// #1863：客户端不再有自己的持久快照；这一行保留是因为旧门禁拿它给「上次探测时间」那段划边界。
-// #1863：持久快照退役，落盘是空操作（保留导出名给既有闭包文件与门禁名单）。
-export const diskPutSnapshot = function (_k: any, _entry: any): void {}
-// #1863：客户端不再读磁盘快照；首屏由宿主的列表快照库回放。
-export const diskGetSnapshot = function (_k: any): Promise<any> { return Promise.resolve(null) }
 // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id + 语言；#529 加语言维：中英快照分开存；#653：这里的「工作区键」走 wsKeyOf 锚到工作区根）
 export const CHAIN_CWD_LRU_MAX: number = 20
 // 条目的形状：{snapshot, ts, sessionId?}。sessionId 记「这份快照是哪个会话求出来的」——#1483 起用来

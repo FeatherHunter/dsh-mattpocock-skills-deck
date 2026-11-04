@@ -452,7 +452,7 @@ async function main(): Promise<void> {
     const storeFile = path.join(clientDir, 'snapshot-cache-store.ts')
     const storeText = readFileSync(storeFile, 'utf8')
     check(storeText.indexOf('indexedDB') < 0, 'H1 共享的客户端快照存储不再碰 IndexedDB')
-    check(/diskPutSnapshot\s*=\s*function\s*\([^)]*\)[^{]*\{\s*\}/.test(storeText), 'H2 diskPutSnapshot 已退役为空操作')
+    check(storeText.indexOf('diskPutSnapshot') < 0 && storeText.indexOf('diskGetSnapshot') < 0 && storeText.indexOf('SNAP_DISK_CAP') < 0, 'H2 客户端持久快照的三个口已删除（#1870：不再是留白的空操作）')
     const clientFiles = readdirSync(clientDir, { recursive: true })
       .map((rel) => path.join(clientDir, String(rel)))
       .filter((file) => file.endsWith('.ts'))

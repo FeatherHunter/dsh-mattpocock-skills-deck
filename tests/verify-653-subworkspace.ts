@@ -97,7 +97,7 @@ const storeBlock = noExport(
   storeSrc.slice(storeSrc.indexOf('const getCachedSnapshot'), storeSrc.indexOf('const lastProbeAtByCwd'))
 )
 const probeBlock = noExport(
-  storeSrc.slice(storeSrc.indexOf('const lastProbeAtByCwd'), storeSrc.indexOf('const SNAP_DISK_CAP'))
+  storeSrc.slice(storeSrc.indexOf('const lastProbeAtByCwd'), storeSrc.indexOf('const CHAIN_CWD_LRU_MAX'))
 )
 // 手法：compileFn——同上，把十个参数名收进数组交给共用入口，缓存分级那一段行为不变。
 const CACHE = compileFn(

@@ -469,7 +469,7 @@ async function main() {
   const snapSrc = spliceableJs('src/refresh/rooms/client/snapshot-cache-store.js')
   const wsKeyBlock = noExport(snapSrc.slice(snapSrc.indexOf('const workspaceRootByCwd'), snapSrc.indexOf('const shared = makeStore()')))
   const storeBlock = noExport(snapSrc.slice(snapSrc.indexOf('const getCachedSnapshot'), snapSrc.indexOf('const lastProbeAtByCwd')))
-  const probeBlock = noExport(snapSrc.slice(snapSrc.indexOf('const lastProbeAtByCwd'), snapSrc.indexOf('const SNAP_DISK_CAP')))
+  const probeBlock = noExport(snapSrc.slice(snapSrc.indexOf('const lastProbeAtByCwd'), snapSrc.indexOf('const CHAIN_CWD_LRU_MAX')))
   const chainBlock = noExport(snapSrc.slice(snapSrc.indexOf('const getChainCacheKey'), snapSrc.indexOf('const hydrateFromCache')))
   // 真源文本与假零件一起求值：改走共用入口 compileFn，参数名照原样逐个列出。
   const C: any = compileFn(

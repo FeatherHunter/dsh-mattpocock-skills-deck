@@ -83,10 +83,9 @@ for (const [name, src] of targets) {
   hasNot(src, "'dsws-cache'", name, '不再引用 IDB 库名 dsws-cache')
   hasNot(src, "'snapshots'", name, '不再引用 IDB 表名 snapshots')
   hasNot(src, 'window.indexedDB', name, '代码里不再碰 IndexedDB')
-  hasNot(src, 'diskPutSnapshot(k, ent)', name, 'setCachedSnapshot 不再写穿透磁盘')
-  hasNot(src, 'SNAP_DISK_CAP = 24', name, '磁盘 LRU 上限不再是 24')
-  has(src, 'diskPutSnapshot', name, '保留空操作导出（既有闭包文件仍按名字引用）')
-  has(src, 'diskGetSnapshot', name, '保留空读导出（旧调用点不再返回数据）')
+  hasNot(src, 'diskPutSnapshot', name, '客户端持久快照的写入口已删除（#1870）')
+  hasNot(src, 'diskGetSnapshot', name, '客户端持久快照的读入口已删除（#1870）')
+  hasNot(src, 'SNAP_DISK_CAP', name, '磁盘 LRU 上限这一格已删除（#1870）')
 }
 
 console.log('\n3) 特性 B：loadSnapshot 读路径（只水合内存，命中不出现可见加载）')
