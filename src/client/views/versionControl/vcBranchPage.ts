@@ -35,24 +35,16 @@ declare function vcPageObjRowNode(h: any, t: any, o: any): any
 declare function vcPageFactGridNode(h: any, t: any, o: any): any
 
 // 提交号只取前 7 位：行里放整串 40 位会把 300 宽撑破；短号只是标识，不承担唯一定位。
-const vcBranchOidTextOf = function (oid: any) {
-  const s = String(oid === null || oid === undefined ? '' : oid)
-  return s.length > 7 ? s.slice(0, 7) : s
-}
+const vcBranchOidTextOf = function (oid: any) { const s = String(oid === null || oid === undefined ? '' : oid); return s.length > 7 ? s.slice(0, 7) : s }
 
 // 词条取值：叶子内部统一过 t，调用方只给键；t 缺席时回键本身（独立求值的那几扇门禁不传词表）。
 const vcBranchTextOf = function (t: any, key: string, vars?: any): string {
-  if (typeof t !== 'function') return key
-  return vars ? String(t(key, vars)) : String(t(key))
+  return typeof t !== 'function' ? key : (vars ? String(t(key, vars)) : String(t(key)))
 }
 
 // 三颗筛选胶囊：全部 / 当前分支 / 未并入当前分支。文案来自词表，值只认这三个标识。
-const vcBranchFiltersOf = function (t: any) {
-  return [
-    { id: 'all', label: 'vc.shell.branch2.filterAll' },
-    { id: 'current', label: 'vc.shell.branch2.filterCurrent' },
-    { id: 'unmerged', label: 'vc.shell.branch2.filterUnmerged' },
-  ]
+const vcBranchFiltersOf = function (_t: any) {
+  return [{ id: 'all', label: 'vc.shell.branch2.filterAll' }, { id: 'current', label: 'vc.shell.branch2.filterCurrent' }, { id: 'unmerged', label: 'vc.shell.branch2.filterUnmerged' }]
 }
 
 // 提交时间怎么说交给 vcText 的同一个判据（一周内相对、更早绝对）；这条叶子被单独求值时
@@ -350,8 +342,7 @@ const vcBranchReasonOf = function (t: any, err: any) {
 }
 
 const vcBranchRetryOf = function (h: any, t: any, opts: any, key: string) {
-  if (typeof opts.onRetry !== 'function') return null
-  return h('button', { key: key, type: 'button', className: 'vcs-branch2-act', 'data-vc-branch2-retry': '1', 'data-press': 'button', 'data-log': 'vc.branch.page.retry', onClick: opts.onRetry }, t('vc.shell.state.retry'))
+  return typeof opts.onRetry !== 'function' ? null : h('button', { key: key, type: 'button', className: 'vcs-branch2-act', 'data-vc-branch2-retry': '1', 'data-press': 'button', 'data-log': 'vc.branch.page.retry', onClick: opts.onRetry }, t('vc.shell.state.retry'))
 }
 
 const vcBranchStaleNoticeOf = function (h: any, t: any, opts: any, board: any, state: string) {

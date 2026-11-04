@@ -1763,7 +1763,9 @@ async function main() {
     branches: brBoardOf().branches.map(function (b: any) { return b.name === 'feature' ? Object.assign({}, b, { upstream: 'origin/feature', gone: true }) : b }),
   })
   const brGonePanel = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: brGoneBoard }))
-  check(brGonePanel.indexOf('vc.shell.branch2.upstreamGone') >= 0 && brGonePanel.indexOf('vc.shell.branch2.inSync') < 0, 'BR20h 上游被删时画「上游已不存在」，不说「与上游齐平」')
+  const goneSaid = brGonePanel.indexOf('上游已不存在') >= 0 || brGonePanel.indexOf('vc.shell.branch2.upstreamGone') >= 0
+  const flatSaid = brGonePanel.indexOf('与上游齐平') >= 0 || brGonePanel.indexOf('vc.shell.branch2.inSync') >= 0
+  check(goneSaid && !flatSaid, 'BR20h 上游被删时画「上游已不存在」，不说「与上游齐平」')
   const brEmpty = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: null, onRetry: function () {} }))
   check(attrValuesOf(brEmpty, 'data-vc-branch2-empty')[0] === '1' && attrValuesOf(brEmpty, 'data-vc-branch-row').length === 0 && attrValuesOf(brEmpty, 'data-vc-branch2-retry').length === 1, 'BR21 没读数时画空态与重试，不画假分支（十条写动作入口仍在：' + attrValuesOf(brEmpty, 'data-vc-branch-forms')[0] + '）')
   const brConfirm = VIEW.vcBranchConfirmOf(brCheckReply)
