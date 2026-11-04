@@ -150,7 +150,13 @@ export function createSessionRefresh(deps: RefreshDeps) {
           rows: rows,
           atomic: true,
         })
-        if (!result || result.ok !== true) throw new Error('snapshot-persist-failed')
+        if (result && result.ok === true) return
+        const reason = String((result && result.reason) || 'unknown')
+        // 只读与开不出库是这一侧已知的降级，不是「写了一半」：照常把新数据交给界面，只是这趟不落库。
+        // 典型现场是 1869-04 的多会话——另一个窗口拿着写租约，这一边必须还能刷新看数据。
+        if (reason === 'readonly' || reason === 'unavailable') return
+        // 真写失败则整趟刷新失败：宁可让用户看到失败，也不能让界面显示一份重启后会消失的数据。
+        throw new Error('这轮刷新没写进本地快照库（' + reason + '），为避免重启后回到旧数据，这次刷新按失败处理。')
       }
       // #1774：强制刷新也要把上一趟快照传给编排层，来源不完整时它才能补回上次已知的容器与子票。
       // 编排器是每次请求新建的实例，自带的进程内缓存永远是空的，只能从这里拿。
@@ -177,7 +183,6 @@ export function createSessionRefresh(deps: RefreshDeps) {
           if (typeof budgetReadout === 'function') composerOpts.budgetReadout = budgetReadout
           if (typeof openSession === 'function') composerOpts.openSession = openSession
           const composer: Composer = createSnapshotComposer(reg, composerOpts)
-          refreshRows.length = 0
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null, onRows: collectRows })
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
           // 先提交库，再把新快照交给界面：写库失败就整趟刷新失败，不能让界面显示一份重启后会消失的数据。
@@ -350,7 +355,6 @@ export function createSessionRefresh(deps: RefreshDeps) {
         // #1439 A2：会话门面也交给回退路径，两趟都经 Tracker 操作取数。
         if (typeof openSession === 'function') composer2Opts2.openSession = openSession
         const composer2: Composer = createComposer2(reg2, composer2Opts2)
-        refreshRows.length = 0
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null, onRows: collectRows })
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
         await persistRefreshRows(cwd, backendId2, repoRef2)

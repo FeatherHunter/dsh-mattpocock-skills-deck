@@ -17,9 +17,10 @@
 // 门禁归属: src/refresh/rooms/host/session-refresh-schedule.ts
 // 门禁归属: src/refresh/rooms/host/snapshot-library.ts
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { printGateResult } from './lib/gate-result.ts'
 import { createSessionRefresh } from '../src/refresh/rooms/host/session-refresh-schedule.ts'
 import { recordIssueRows, readSnapshotReplay, closeSnapshotLibraries } from '../src/refresh/rooms/host/snapshot-library.ts'
@@ -120,6 +121,14 @@ async function replayOf(cwd: string): Promise<any> {
   return await readSnapshotReplay({ workspaceRoot: cwd, backend: 'github', repoIdentity: REF.refId, repo: REF })
 }
 
+/** 找到临时工作区里的快照库文件，供「把租约借给别人」这一步直接改 meta 行。 */
+function dbPathOf(root: string): string {
+  const dir = path.join(root, '.dsh-mattskillsdeck-cache', 'snapshot')
+  const hit = readdirSync(dir).filter((n) => n.endsWith('.sqlite'))[0]
+  if (!hit) throw new Error('快照库文件不在：' + dir)
+  return path.join(dir, hit)
+}
+
 async function main(): Promise<void> {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'verify-1869-refresh-write-'))
   try {
@@ -159,7 +168,9 @@ async function main(): Promise<void> {
     const bad = createSessionRefresh(depsFor(dir, rowsWith('更旧'), failing) as any)
     const badReply: any = await bad.handleRefresh({ cwd: dir })
     check(badReply && badReply.ok === false, 'B1 写库失败时刷新如实失败', badReply && badReply.ok)
-    check(String(badReply && badReply.error || '').indexOf('snapshot-persist-failed') >= 0, 'B2 失败原因指向写库（snapshot-persist-failed）', badReply && badReply.error)
+    const badText = String((badReply && badReply.error) || '')
+    check(badText.indexOf('没写进本地快照库') >= 0 && badText.indexOf('disk-full') >= 0,
+      'B2 失败原因说清是写库失败并带上库层原因（disk-full）', badText)
     const replay2 = await replayOf(dir)
     check(replay2 !== null && replay2.mergeVersion === replay1!.mergeVersion, 'B3 写库失败时合并版本不动', replay2 && replay2.mergeVersion)
     check(titlesIn(replay2).every((t) => t.indexOf('新') === 0), 'B4 写库失败时库里仍是上一轮的完整数据', titlesIn(replay2))
@@ -172,6 +183,29 @@ async function main(): Promise<void> {
     check(legacyReply && legacyReply.ok === true, 'C1 没接库口时刷新仍成功（不改旧语义）', legacyReply && legacyReply.error)
     const replay3 = await replayOf(dir)
     check(replay3 !== null && replay3.mergeVersion === replay1!.mergeVersion, 'C2 没接库口时库不动', replay3 && replay3.mergeVersion)
+
+    // ── D. 另一个窗口拿着写租约：这一侧是只读，刷新仍要成功（画新数据），但不许写库 ─────────────
+    // 这正是 1869-04 的多会话现场：抢不到租约的一边必须还能刷新看数据，不能因为「写不了库」整趟失败。
+    closeSnapshotLibraries()
+    const raw = new DatabaseSync(dbPathOf(dir))
+    raw.prepare('UPDATE meta SET lease_owner = ?, lease_heartbeat_ms = ?, lease_expires_ms = ? WHERE id = 1')
+      .run('other-window', Date.now(), Date.now() + 60000)
+    raw.close()
+    const readonlyCalls: any[] = []
+    const realLib = {
+      recordIssueRows: async (input: any) => {
+        readonlyCalls.push(input)
+        return await recordIssueRows(input)
+      },
+    }
+    const ro = createSessionRefresh(depsFor(dir, rowsWith('只读新'), realLib) as any)
+    const roReply: any = await ro.handleRefresh({ cwd: dir })
+    check(roReply && roReply.ok === true, 'D1 只读窗口刷新仍成功（能看新数据，不写库）', roReply && roReply.error)
+    check(readonlyCalls.length === 1 && readonlyCalls[0] && readonlyCalls[0].atomic === true,
+      'D2 只读窗口仍会尝试整批写库一次（由库层判只读）', readonlyCalls.length)
+    const replay4 = await replayOf(dir)
+    check(replay4 !== null && replay4.mergeVersion === replay1!.mergeVersion, 'D3 只读窗口不推进合并版本', replay4 && replay4.mergeVersion)
+    check(titlesIn(replay4).every((t) => t.indexOf('新') === 0), 'D4 只读窗口不改库里的上一轮数据', titlesIn(replay4))
   } finally {
     closeSnapshotLibraries()
     rmSync(dir, { recursive: true, force: true })
