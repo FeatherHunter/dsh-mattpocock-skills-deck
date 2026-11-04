@@ -181,6 +181,23 @@ export interface SessionState {
   hiddenWorktrees: string[]
   unlockedWorktrees: string[]
   prunedWorktrees: string[]
+  /** 新建工作区：页底那张表单开着没有、目录、分支来源与分支名，以及表单里的一条错误。 */
+  wtCreateOpen: boolean
+  wtCreatePath: string
+  wtCreateMode: 'new' | 'existing'
+  wtCreateBranch: string
+  wtCreateError: string | null
+  /** 原型里新建出来的工作区：接回宿主后它们来自一次真实的 git worktree add。 */
+  createdWorktrees: Array<{ path: string; branch: string }>
+  /** 已经移动过的工作区：原路径 → 新路径。其余动作仍按原路径认这一行。 */
+  movedWorktrees: Record<string, string>
+  /** 移动工作区：哪一行开着输入框、输入框里写的新目录。 */
+  wtMovePath: string | null
+  wtMoveDraft: string
+  /** 稀疏检出：哪一行开着折叠区、勾了哪些顶层目录，以及已经保存的规则。 */
+  wtSparsePath: string | null
+  wtSparseDirs: string[]
+  wtSparseRules: Record<string, string[]>
   /** 改动行的危险动作确认：丢弃、暂存忽略、删除未跟踪文件、解决冲突。 */
   changesPending: ChangesPending | null
   /** 哪一行的「更多」菜单被点开了：菜单紧贴这一行画，不再另开一层页面。 */
@@ -295,6 +312,20 @@ export type Action =
   | { type: 'branch-delete'; name: string }
   | { type: 'wt-pending'; pending: WorktreePending | null }
   | { type: 'wt-apply' }
+  | { type: 'wt-create-open' }
+  | { type: 'wt-create-close' }
+  | { type: 'wt-create-path'; value: string }
+  | { type: 'wt-create-mode'; mode: 'new' | 'existing' }
+  | { type: 'wt-create-branch'; value: string }
+  | { type: 'wt-create-submit'; path?: string }
+  | { type: 'wt-move-open'; path: string }
+  | { type: 'wt-move-draft'; value: string }
+  | { type: 'wt-move-close' }
+  | { type: 'wt-move-apply' }
+  | { type: 'wt-sparse-open'; path: string }
+  | { type: 'wt-sparse-toggle'; dir: string }
+  | { type: 'wt-sparse-close' }
+  | { type: 'wt-sparse-save' }
   | { type: 'changes-pending'; pending: ChangesPending | null }
   | { type: 'changes-apply' }
   | { type: 'changes-open-menu'; path: string | null }
@@ -375,6 +406,18 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
     hiddenWorktrees: [],
     unlockedWorktrees: [],
     prunedWorktrees: [],
+    wtCreateOpen: false,
+    wtCreatePath: '',
+    wtCreateMode: 'new',
+    wtCreateBranch: '',
+    wtCreateError: null,
+    createdWorktrees: [],
+    movedWorktrees: {},
+    wtMovePath: null,
+    wtMoveDraft: '',
+    wtSparsePath: null,
+    wtSparseDirs: [],
+    wtSparseRules: {},
     changesPending: null,
     openMenuPath: null,
     renamePath: null,
@@ -997,6 +1040,119 @@ function acted(state: SessionState, action: Action, base: SessionBase): SessionS
         hiddenWorktrees: hidden,
       }, { tone: 'ok', text: `已移除工作区：${pending.name}。`, detail: '分支与提交都还在仓库里。这一步只删掉了检出记录与工作目录。', source: 'worktree' })
     }
+    /*
+     * 新建工作区：页底一张表单，两种填法共用同一处——新建一条分支，或从本地已有分支里选一条。
+     * 表单里的错误留在表单下面（wtCreateError），不放到页面底部的结果条：
+     * 填错时要改的是这张表，提示得贴着它。
+     */
+    case 'wt-create-open':
+      return { ...state, wtCreateOpen: true, wtCreateError: null }
+    case 'wt-create-close':
+      return { ...state, wtCreateOpen: false, wtCreateError: null }
+    case 'wt-create-path':
+      return { ...state, wtCreatePath: action.value, wtCreateError: null }
+    case 'wt-create-mode':
+      return { ...state, wtCreateMode: action.mode, wtCreateBranch: '', wtCreateError: null }
+    case 'wt-create-branch':
+      return { ...state, wtCreateBranch: action.value, wtCreateError: null }
+    case 'wt-create-submit': {
+      const target = action.path ?? state.wtCreatePath.trim().replace(/\\/g, '/')
+      const branch = state.wtCreateBranch.trim()
+      if (target === '') return { ...state, wtCreateError: COPY.worktrees.createEmptyPath }
+      if (branch === '') {
+        return { ...state, wtCreateError: state.wtCreateMode === 'new' ? COPY.worktrees.createEmptyBranch : COPY.worktrees.createNoBranch }
+      }
+      if (state.wtCreateMode === 'existing' && !state.branches.some((row) => row.name === branch)) {
+        return { ...state, wtCreateError: COPY.worktrees.createNoBranch }
+      }
+      if (worktreePathsOf(base, state).includes(target)) return { ...state, wtCreateError: COPY.worktrees.createTaken }
+      const name = nameOfPath(target)
+      return withResult({
+        ...state,
+        createdWorktrees: [...state.createdWorktrees, { path: target, branch }],
+        wtCreateOpen: false,
+        wtCreateError: null,
+        wtCreatePath: '',
+        wtCreateBranch: '',
+      }, {
+        tone: 'ok',
+        text: COPY.worktrees.resultCreated(name, branch),
+        detail: state.wtCreateMode === 'new'
+          ? `git worktree add -b ${branch} ${target}：新建一条分支，并在新目录里检出它。接回宿主后这一步会真的建目录。`
+          : `git worktree add ${target} ${branch}：把已有分支检出到新目录；同一条分支不能在两处同时检出。`,
+        source: 'worktree',
+      })
+    }
+    case 'wt-move-open':
+      return { ...state, wtMovePath: action.path, wtMoveDraft: action.path, wtSparsePath: null, worktreePending: null }
+    case 'wt-move-draft':
+      return { ...state, wtMoveDraft: action.value }
+    case 'wt-move-close':
+      return { ...state, wtMovePath: null, wtMoveDraft: '' }
+    case 'wt-move-apply': {
+      const from = state.wtMovePath
+      if (from === null) return state
+      const target = state.wtMoveDraft.trim().replace(/\\/g, '/')
+      if (target === '') return withResult(state, { tone: 'error', text: COPY.worktrees.moveEmpty, detail: null, source: 'worktree' })
+      if (target === from) return withResult(state, { tone: 'warn', text: COPY.worktrees.moveSame, detail: null, source: 'worktree' })
+      if (worktreePathsOf(base, state).includes(target)) {
+        return withResult(state, { tone: 'error', text: COPY.worktrees.moveTaken, detail: '移动不会覆盖已有目录，git 会直接拒绝。', source: 'worktree' })
+      }
+      // 移动过的工作区仍按原路径认这一行，所以映射记在原路径上；再移一次就改同一条记录。
+      const key = Object.keys(state.movedWorktrees).find((old) => state.movedWorktrees[old] === from) ?? from
+      const name = nameOfPath(target)
+      return withResult({
+        ...state,
+        movedWorktrees: { ...state.movedWorktrees, [key]: target },
+        createdWorktrees: state.createdWorktrees.map((entry) => (entry.path === from ? { ...entry, path: target } : entry)),
+        wtMovePath: null,
+        wtMoveDraft: '',
+        worktreePending: null,
+      }, {
+        tone: 'ok',
+        text: `已把这个工作区移到 ${name}。`,
+        detail: `git worktree move：git 记录与磁盘上的目录一起改，旧路径 ${from} 不再属于任何工作区。`,
+        source: 'worktree',
+      })
+    }
+    case 'wt-sparse-open': {
+      const saved = state.wtSparseRules[action.path]
+      return {
+        ...state,
+        wtSparsePath: action.path,
+        wtSparseDirs: saved ?? sparseTopDirsOf(base),
+        wtMovePath: null,
+        worktreePending: null,
+      }
+    }
+    case 'wt-sparse-toggle': {
+      const has = state.wtSparseDirs.includes(action.dir)
+      return { ...state, wtSparseDirs: has ? state.wtSparseDirs.filter((dir) => dir !== action.dir) : [...state.wtSparseDirs, action.dir] }
+    }
+    case 'wt-sparse-close':
+      return { ...state, wtSparsePath: null, wtSparseDirs: [] }
+    case 'wt-sparse-save': {
+      const path = state.wtSparsePath
+      if (path === null) return state
+      const all = sparseTopDirsOf(base)
+      const dirs = all.filter((dir) => state.wtSparseDirs.includes(dir))
+      if (dirs.length === 0) return withResult(state, { tone: 'error', text: COPY.worktrees.sparseEmpty, detail: '全都不勾等于把工作区拆空，git 也会拒绝。', source: 'worktree' })
+      const name = nameOfPath(path)
+      const allKept = dirs.length === all.length
+      return withResult({
+        ...state,
+        wtSparseRules: { ...state.wtSparseRules, [path]: dirs },
+        wtSparsePath: null,
+        wtSparseDirs: [],
+      }, {
+        tone: 'ok',
+        text: allKept ? COPY.worktrees.sparseAll : COPY.worktrees.sparseSaved(dirs),
+        detail: allKept
+          ? `${name} 仍会检出全部目录，相当于没开稀疏检出。`
+          : `${name} 只会检出这几个顶层目录；没勾的目录不落到磁盘，改动仍然留在仓库里。`,
+        source: 'worktree',
+      })
+    }
     case 'changes-pending':
       return { ...state, changesPending: action.pending, openMenuPath: null }
     case 'changes-open-menu':
@@ -1440,6 +1596,31 @@ interface HeadInfo {
   subject: string
   parents: string[]
   files: Array<{ path: string; added: number; deleted: number }>
+}
+
+/**
+ * 稀疏检出能勾的顶层目录：取采集到的提交文件清单里出现过的一级目录。
+ * 原型没有目录树读数，用这个近似比写死一份清单更贴近仓库的真实形状。
+ */
+export function sparseTopDirsOf(base: SessionBase): string[] {
+  const dirs = new Set<string>()
+  for (const files of base.commitFiles.values()) {
+    for (const file of files) {
+      const first = file.path.split('/')[0]
+      if (first !== undefined && first !== '' && first !== file.path) dirs.add(first)
+    }
+  }
+  return [...dirs].sort()
+}
+
+/** 清单里现在登记着的全部工作区路径，已经算上新建与移动过的：用来挡「目录重名」。 */
+function worktreePathsOf(base: SessionBase, state: SessionState): string[] {
+  const raw = [
+    base.screen.identity.worktreePath,
+    ...base.screen.otherWorktrees.map((item) => item.path),
+    ...state.createdWorktrees.map((item) => item.path),
+  ]
+  return raw.filter((path) => path !== '').map((path) => state.movedWorktrees[path] ?? path)
 }
 
 /** 历史里能当「引用」用的那几条：本地新提交在前，采集提交在后，撤销与替换掉的不算。 */

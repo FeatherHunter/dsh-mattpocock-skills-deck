@@ -1020,6 +1020,52 @@ export function mount(root: HTMLElement): void {
         repaint({ focusKey: `wt-expand:${path}` })
         return
       }
+      // 新建工作区：页底表单，开、改、提交三者分开，错误留在表单里。
+      case 'wt-create-open':
+        dispatch({ type: 'wt-create-open' }, { focusKey: 'wt-create-path', scroll: null })
+        return
+      case 'wt-create-close':
+        dispatch({ type: 'wt-create-close' }, { focusKey: 'wt-create-open', scroll: null })
+        return
+      case 'wt-create-mode': {
+        const mode = el.dataset.mode === 'existing' ? 'existing' : 'new'
+        dispatch({ type: 'wt-create-mode', mode }, { focusKey: `wt-mode:${mode}`, scroll: null })
+        return
+      }
+      case 'wt-create-branch':
+        dispatch({ type: 'wt-create-branch', value: el.dataset.value ?? '' }, { focusKey: 'wt-create-branch', scroll: null })
+        return
+      case 'wt-create-submit':
+        dispatch({ type: 'wt-create-submit' }, { focusKey: 'wt-create-submit', scroll: null })
+        return
+      // 移动与稀疏检出都贴在展开行里，焦点回到发起它们的那颗按钮。
+      case 'wt-move-open': {
+        const path = el.dataset.path ?? ''
+        dispatch({ type: 'wt-move-open', path }, { focusKey: `wt-move:${path}`, scroll: null })
+        return
+      }
+      case 'wt-move-close':
+        dispatch({ type: 'wt-move-close' }, { focusKey: `wt-move-open:${expandedWorktree ?? ''}`, scroll: null })
+        return
+      case 'wt-move-apply':
+        dispatch({ type: 'wt-move-apply' }, { focusKey: 'wt-move-apply', scroll: null })
+        return
+      case 'wt-sparse-open': {
+        const path = el.dataset.path ?? ''
+        dispatch({ type: 'wt-sparse-open', path }, { focusKey: `wt-sparse-open:${path}`, scroll: null })
+        return
+      }
+      case 'wt-sparse-toggle': {
+        const dir = el.dataset.dir ?? ''
+        dispatch({ type: 'wt-sparse-toggle', dir }, { focusKey: `wt-dir:${dir}`, scroll: null })
+        return
+      }
+      case 'wt-sparse-close':
+        dispatch({ type: 'wt-sparse-close' }, { focusKey: `wt-sparse-open:${expandedWorktree ?? ''}`, scroll: null })
+        return
+      case 'wt-sparse-save':
+        dispatch({ type: 'wt-sparse-save' }, { focusKey: 'wt-sparse-save', scroll: null })
+        return
       case 'branch-open':
         dispatch({ type: 'branch-open' }, { focusKey: 'branch-query' })
         return
@@ -1252,6 +1298,12 @@ export function mount(root: HTMLElement): void {
       dispatch({ type: 'compare-draft', which: field === 'compare-from' ? 'from' : 'to', value: target.value }, { focusKey: field })
     } else if (field === 'note') {
       dispatch({ type: 'note-draft', value: target.value }, { focusKey: 'note-input' })
+    } else if (field === 'wt-create-path') {
+      dispatch({ type: 'wt-create-path', value: target.value }, { focusKey: 'wt-create-path' })
+    } else if (field === 'wt-create-branch') {
+      dispatch({ type: 'wt-create-branch', value: target.value }, { focusKey: 'wt-create-branch' })
+    } else if (field === 'wt-move') {
+      dispatch({ type: 'wt-move-draft', value: target.value }, { focusKey: `wt-move:${expandedWorktree ?? ''}` })
     } else if (field === 'branch-query') {
       dispatch({ type: 'branch-query', value: target.value }, { focusKey: 'branch-query' })
     } else if (field === 'branch-draft') {
@@ -1481,6 +1533,26 @@ export function mount(root: HTMLElement): void {
     if (params.get('wtexpand') === '1') {
       const first = panelModelOf(base, state, Date.now()).worktrees.others.find((row) => row.abnormal)
       expandedWorktree = first === undefined ? null : first.path
+    }
+    // 三张新表单的深链：新建（可连带提交）、移动、稀疏检出，截图不用手点。
+    if (params.get('wtnew') === '1') {
+      state = reduce(state, { type: 'wt-create-open' }, base)
+      const newPath = params.get('wtnewpath')
+      if (newPath !== null && newPath !== '') state = reduce(state, { type: 'wt-create-path', value: newPath }, base)
+      if (params.get('wtnewmode') === 'existing') state = reduce(state, { type: 'wt-create-mode', mode: 'existing' }, base)
+      const newBranch = params.get('wtnewbranch')
+      if (newBranch !== null && newBranch !== '') state = reduce(state, { type: 'wt-create-branch', value: newBranch }, base)
+      if (params.get('wtnewsubmit') === '1') state = reduce(state, { type: 'wt-create-submit' }, base)
+    }
+    const moveParam = params.get('wtmove')
+    if (moveParam !== null && moveParam !== '') {
+      expandedWorktree = moveParam
+      state = reduce(state, { type: 'wt-move-open', path: moveParam }, base)
+    }
+    const sparseParam = params.get('wtsparse')
+    if (sparseParam !== null && sparseParam !== '') {
+      expandedWorktree = sparseParam
+      state = reduce(state, { type: 'wt-sparse-open', path: sparseParam }, base)
     }
     // 工作区动作的确认卡也留深链入口：评审要截「移除前确认」时不用先展开再点按钮。
     const wtPendingParam = params.get('wtpending')

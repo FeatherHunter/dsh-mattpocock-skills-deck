@@ -18,7 +18,7 @@ import { changeBadge, lineDelta, shortOid, splitPath, syncModel } from '../data/
 import type { ChangeTone, SyncModel } from '../data/format'
 import { patchHunksOf, samplePatch } from '../data/patches'
 import type { BranchPending, BranchRow, BranchSub, ChangesFilter, ChangesPendingKind, CommitForm, HistoryScope, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
-import { headInfoOf, metadataOf, trackedChangesOf } from './session'
+import { headInfoOf, metadataOf, sparseTopDirsOf, trackedChangesOf } from './session'
 import type { SessionBase } from './session'
 
 export type BadgeTone = ChangeTone | 'warn' | 'error' | 'ok' | 'info' | 'muted'
@@ -305,6 +305,16 @@ export interface WorktreeRowModel {
   /** 三个动作按钮各自是否应该出现；由行状态决定，不在视图里再判一遍。 */
   locked: boolean
   prunable: boolean
+  /** 展开区里开着哪一张就地表单：移动的输入框、稀疏检出的折叠区，同一时刻只开一个。 */
+  moveOpen: boolean
+  /** 移动输入框里的内容（这一行开着时才有意义）。 */
+  moveDraft: string
+  sparseOpen: boolean
+  /** 稀疏检出可以勾的顶层目录（全量），以及这一行当前勾了哪些。 */
+  sparseDirs: string[]
+  sparseSelected: string[]
+  /** 这一行已经保存的稀疏规则；没设过时为 null。 */
+  sparseSummary: string | null
 }
 
 export interface WorktreesModel {
@@ -319,6 +329,16 @@ export interface WorktreesModel {
   aiLabel: string
   aiEnabled: boolean
   pending: WorktreePending | null
+  /** 页底「新建工作区」表单：开没开、目录、分支来源、分支名与表单里的那条错误。 */
+  create: {
+    open: boolean
+    path: string
+    mode: 'new' | 'existing'
+    branch: string
+    error: string | null
+    /** 从已有分支里选时的候选：最近用过的几条，原型不在这里做搜索。 */
+    branches: string[]
+  }
 }
 
 /** 一条分支在列表里的样子：名字与当前标记之外只留判断要用的数字。 */
@@ -1054,9 +1074,10 @@ function stateChipsOf(worktree: WorktreeInfo): { states: WorktreeRowModel['state
   return { states, abnormal }
 }
 
-function worktreeRowOf(state: SessionState, worktree: WorktreeInfo): WorktreeRowModel {
+function worktreeRowOf(base: SessionBase, state: SessionState, worktree: WorktreeInfo): WorktreeRowModel {
   const { dir, name } = splitPath(worktree.path)
   const chips = stateChipsOf(worktree)
+  const rule = state.wtSparseRules[worktree.path]
   return {
     path: worktree.path,
     dir,
@@ -1069,7 +1090,20 @@ function worktreeRowOf(state: SessionState, worktree: WorktreeInfo): WorktreeRow
     copied: state.copiedPath === worktree.path,
     locked: worktree.locked,
     prunable: worktree.prunable,
+    moveOpen: state.wtMovePath === worktree.path,
+    moveDraft: state.wtMovePath === worktree.path ? state.wtMoveDraft : worktree.path,
+    sparseOpen: state.wtSparsePath === worktree.path,
+    sparseDirs: sparseTopDirsOf(base),
+    sparseSelected: state.wtSparsePath === worktree.path ? state.wtSparseDirs : (rule ?? []),
+    sparseSummary: rule === undefined ? null : COPY.worktrees.sparseCurrent(rule),
   }
+}
+
+/** 移动过的工作区：路径换成新的，其余字段（锁、可清除）仍按原记录算。 */
+function movedWorktreeOf(state: SessionState, item: WorktreeInfo): WorktreeInfo {
+  const to = state.movedWorktrees[item.path]
+  if (to === undefined) return item
+  return { ...item, path: to, display: splitPath(to).name }
 }
 
 /**
@@ -1093,7 +1127,7 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
   const identity = base.screen.identity
   const current = identity.worktreePath === ''
     ? null
-    : worktreeRowOf(state, {
+    : worktreeRowOf(base, state, {
       path: identity.worktreePath,
       display: identity.worktreeDisplay,
       head: identity.oid ?? '',
@@ -1107,12 +1141,27 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
       prunableUnknown: false,
     })
   const demo = state.demoWorktrees ? demoWorktreesOf(identity.worktreePath) : []
-  const othersRaw = [...base.screen.otherWorktrees.filter((item) => !item.current), ...demo]
+  // 原型里新建出来的工作区排在采集清单前面：刚建的那一棵要一眼看见。
+  const created: WorktreeInfo[] = state.createdWorktrees.map((entry) => ({
+    path: entry.path,
+    display: splitPath(entry.path).name,
+    head: identity.oid ?? '',
+    branch: entry.branch,
+    bare: false,
+    current: false,
+    locked: false,
+    lockReason: null,
+    lockUnknown: false,
+    prunable: false,
+    prunableUnknown: false,
+  }))
+  const othersRaw = [...created, ...base.screen.otherWorktrees.filter((item) => !item.current), ...demo]
     .filter((item) => !state.hiddenWorktrees.includes(item.path))
     .map((item) => applyWorktreeActions(state, item))
+    .map((item) => movedWorktreeOf(state, item))
   // 需要人工处理的工作区排在最前，其余保持 git 记录顺序（sort 在 ES2019 起稳定）。
   const others = othersRaw
-    .map((item) => worktreeRowOf(state, item))
+    .map((item) => worktreeRowOf(base, state, item))
     .sort((a, b) => Number(b.abnormal) - Number(a.abnormal))
   const abnormal = others.filter((row) => row.abnormal).length
   return {
@@ -1125,6 +1174,20 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
     aiLabel: COPY.worktrees.ai,
     aiEnabled: abnormal > 0,
     pending: state.worktreePending,
+    create: {
+      open: state.wtCreateOpen,
+      path: state.wtCreatePath,
+      mode: state.wtCreateMode,
+      branch: state.wtCreateBranch,
+      error: state.wtCreateError,
+      // 已有分支的候选：最近用过的几条，当前分支不列（它已经在当前工作区里检出）。
+      branches: state.branches
+        .filter((row) => !row.current)
+        .slice()
+        .sort((a, b) => b.lastCommitMs - a.lastCommitMs)
+        .slice(0, 6)
+        .map((row) => row.name),
+    },
   }
 }
 

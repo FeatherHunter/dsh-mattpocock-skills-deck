@@ -110,6 +110,14 @@ const SHOTS = [
   // 提交详情整页比默认列表高：这两张也用高窗口，从标题到备注一次截全，不截半截。
   { name: '91-commit-file-menu-460', query: 'view=commits&open=' + HEAD_OID, clicks: ['.commit-file-more'], viewport: TALL },
   { name: '92-commit-note-380-light', query: 'view=commits&open=' + HEAD_OID, width: 380, theme: 'light', viewport: { width: 760, height: 1200 } },
+  // 工作区页四条：新建（新建分支 / 已有分支两种填法）、移动、稀疏检出，以及新建之后的结果。
+  // 新建表单位于页底，展开行里的表单贴着第一行：都在面板内部，不指定 scrollTo，
+  // 免得 scrollIntoView 把外层页面一起滚上去、把面板标题截掉。
+  { name: '93-wt-create-460', query: 'view=worktrees&wtnew=1&wtnewpath=D:/repo/.worktrees/1800-new&wtnewbranch=ticket/1800-new' },
+  { name: '94-wt-create-existing-380-light', query: 'view=worktrees&wtnew=1&wtnewmode=existing&wtnewpath=D:/repo/.worktrees/1800-new&wtnewbranch=feat/version-control', width: 380, theme: 'light' },
+  { name: '95-wt-move-460', query: 'view=worktrees', clicks: ['.wt-row [data-action="wt-expand"]', '[data-action="wt-move-open"]'], viewport: TALL },
+  { name: '96-wt-sparse-460', query: 'view=worktrees', clicks: ['.wt-row [data-action="wt-expand"]', '[data-action="wt-sparse-open"]'], viewport: TALL },
+  { name: '97-wt-created-460', query: 'view=worktrees&wtnew=1&wtnewpath=D:/repo/.worktrees/1800-new&wtnewbranch=ticket/1800-new&wtnewsubmit=1' },
 ]
 
 async function main() {

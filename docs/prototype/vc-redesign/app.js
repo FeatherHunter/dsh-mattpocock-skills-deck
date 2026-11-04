@@ -388,7 +388,43 @@
       resultUnlocked: (name) => `\u5DF2\u89E3\u9664\u5360\u7528\uFF1A${name}\u3002`,
       resultPruned: (name) => `\u5DF2\u6E05\u9664\u8BB0\u5F55\uFF1A${name}\u3002`,
       resultRemoved: (name) => `\u5DF2\u79FB\u9664\u5DE5\u4F5C\u533A\uFF1A${name}\u3002`,
-      ai: "\u8BA9 AI \u5904\u7406\u5F02\u5E38\u5DE5\u4F5C\u533A"
+      ai: "\u8BA9 AI \u5904\u7406\u5F02\u5E38\u5DE5\u4F5C\u533A",
+      createOpen: "\u65B0\u5EFA\u5DE5\u4F5C\u533A",
+      createTitle: "\u65B0\u5EFA\u5DE5\u4F5C\u533A",
+      createPath: "\u76EE\u5F55",
+      createPathPlaceholder: "\u4F8B\u5982 D:/repo/.worktrees/1800-new",
+      createBranch: "\u5206\u652F",
+      createBranchPlaceholder: "\u5206\u652F\u540D\uFF0C\u4F8B\u5982 ticket/1800-new",
+      createModeNew: "\u65B0\u5EFA\u5206\u652F",
+      createModeExisting: "\u5DF2\u6709\u5206\u652F",
+      createHintNew: "git worktree add -b <\u5206\u652F> <\u76EE\u5F55>\uFF1A\u65B0\u5EFA\u4E00\u6761\u5206\u652F\uFF0C\u5E76\u5728\u65B0\u76EE\u5F55\u91CC\u68C0\u51FA\u5B83\u3002",
+      createHintExisting: "git worktree add <\u76EE\u5F55> <\u5206\u652F>\uFF1A\u628A\u5DF2\u6709\u5206\u652F\u68C0\u51FA\u5230\u65B0\u76EE\u5F55\uFF1B\u540C\u4E00\u6761\u5206\u652F\u4E0D\u80FD\u5728\u4E24\u5904\u540C\u65F6\u68C0\u51FA\u3002",
+      createRecent: "\u6700\u8FD1\u7528\u8FC7\u7684\u5206\u652F",
+      createSubmit: "\u521B\u5EFA\u5DE5\u4F5C\u533A",
+      createCancel: "\u53D6\u6D88",
+      createEmptyPath: "\u5148\u586B\u4E00\u4E2A\u76EE\u5F55\uFF1A\u5DE5\u4F5C\u533A\u4F1A\u68C0\u51FA\u5230\u8FD9\u91CC\u3002",
+      createEmptyBranch: "\u5148\u586B\u4E00\u4E2A\u5206\u652F\u540D\u3002",
+      createNoBranch: "\u672C\u5730\u6CA1\u6709\u8FD9\u6761\u5206\u652F\uFF1B\u8981\u65B0\u5F00\u4E00\u6761\uFF0C\u5207\u5230\u300C\u65B0\u5EFA\u5206\u652F\u300D\u3002",
+      createTaken: "\u8FD9\u4E2A\u76EE\u5F55\u5DF2\u7ECF\u767B\u8BB0\u6210\u5DE5\u4F5C\u533A\u4E86\u3002",
+      resultCreated: (name, branch) => `\u5DF2\u65B0\u5EFA\u5DE5\u4F5C\u533A ${name}\uFF08\u5206\u652F ${branch}\uFF09\u3002`,
+      move: "\u79FB\u52A8",
+      moveTitle: "\u79FB\u52A8\u5DE5\u4F5C\u533A",
+      moveLabel: "\u65B0\u76EE\u5F55",
+      moveHint: "git worktree move\uFF1Agit \u8BB0\u5F55\u4E0E\u78C1\u76D8\u4E0A\u7684\u76EE\u5F55\u4E00\u8D77\u6539\u3002\u65B0\u4F4D\u7F6E\u4E0D\u80FD\u5DF2\u7ECF\u5B58\u5728\uFF0C\u4E5F\u4E0D\u80FD\u662F\u5F53\u524D\u5DE5\u4F5C\u533A\u3002",
+      moveSubmit: "\u4FDD\u5B58\u65B0\u76EE\u5F55",
+      moveEmpty: "\u65B0\u76EE\u5F55\u4E0D\u80FD\u4E3A\u7A7A\u3002",
+      moveTaken: "\u8FD9\u4E2A\u76EE\u5F55\u5DF2\u7ECF\u88AB\u522B\u7684\u5DE5\u4F5C\u533A\u5360\u4E86\u3002",
+      moveSame: "\u65B0\u76EE\u5F55\u548C\u73B0\u5728\u4E00\u6837\uFF0C\u6CA1\u6709\u53EF\u6539\u7684\u3002",
+      sparse: "\u7A00\u758F\u68C0\u51FA",
+      sparseTitle: "\u7A00\u758F\u68C0\u51FA",
+      sparseHint: "\u52FE\u4E0A\u7684\u9876\u5C42\u76EE\u5F55\u624D\u4F1A\u68C0\u51FA\u5230\u78C1\u76D8\uFF1B\u6CA1\u52FE\u7684\u76EE\u5F55\u4E0D\u51FA\u73B0\u5728\u8FD9\u4E2A\u5DE5\u4F5C\u533A\u91CC\uFF0C\u6539\u52A8\u4ECD\u7136\u7559\u5728\u4ED3\u5E93\u3002",
+      sparseEmpty: "\u81F3\u5C11\u8981\u4FDD\u7559\u4E00\u4E2A\u76EE\u5F55\u3002",
+      sparseNone: "\u5F53\u524D\u6CA1\u6709\u7A00\u758F\u89C4\u5219\uFF1A\u6240\u6709\u76EE\u5F55\u90FD\u4F1A\u68C0\u51FA\u3002",
+      sparseCurrent: (dirs) => `\u5F53\u524D\u89C4\u5219\uFF1A\u53EA\u4FDD\u7559 ${dirs.join("\u3001")}\u3002`,
+      sparseSaved: (dirs) => `\u5DF2\u4FDD\u5B58\u7A00\u758F\u89C4\u5219\uFF1A\u53EA\u4FDD\u7559 ${dirs.join("\u3001")}\u3002`,
+      sparseAll: "\u5DF2\u4FDD\u5B58\uFF1A\u6240\u6709\u9876\u5C42\u76EE\u5F55\u90FD\u4FDD\u7559\uFF0C\u7B49\u4E8E\u6CA1\u5F00\u7A00\u758F\u68C0\u51FA\u3002",
+      sparseSave: "\u4FDD\u5B58\u89C4\u5219",
+      sparseCancel: "\u53D6\u6D88"
     },
     /**
      * 储藏页签：git stash 的完整生命周期。文案只说用户能看见的两件事——
@@ -3771,6 +3807,18 @@
       hiddenWorktrees: [],
       unlockedWorktrees: [],
       prunedWorktrees: [],
+      wtCreateOpen: false,
+      wtCreatePath: "",
+      wtCreateMode: "new",
+      wtCreateBranch: "",
+      wtCreateError: null,
+      createdWorktrees: [],
+      movedWorktrees: {},
+      wtMovePath: null,
+      wtMoveDraft: "",
+      wtSparsePath: null,
+      wtSparseDirs: [],
+      wtSparseRules: {},
       changesPending: null,
       openMenuPath: null,
       renamePath: null,
@@ -4338,6 +4386,114 @@
           hiddenWorktrees: hidden
         }, { tone: "ok", text: `\u5DF2\u79FB\u9664\u5DE5\u4F5C\u533A\uFF1A${pending.name}\u3002`, detail: "\u5206\u652F\u4E0E\u63D0\u4EA4\u90FD\u8FD8\u5728\u4ED3\u5E93\u91CC\u3002\u8FD9\u4E00\u6B65\u53EA\u5220\u6389\u4E86\u68C0\u51FA\u8BB0\u5F55\u4E0E\u5DE5\u4F5C\u76EE\u5F55\u3002", source: "worktree" });
       }
+      /*
+       * 新建工作区：页底一张表单，两种填法共用同一处——新建一条分支，或从本地已有分支里选一条。
+       * 表单里的错误留在表单下面（wtCreateError），不放到页面底部的结果条：
+       * 填错时要改的是这张表，提示得贴着它。
+       */
+      case "wt-create-open":
+        return { ...state, wtCreateOpen: true, wtCreateError: null };
+      case "wt-create-close":
+        return { ...state, wtCreateOpen: false, wtCreateError: null };
+      case "wt-create-path":
+        return { ...state, wtCreatePath: action.value, wtCreateError: null };
+      case "wt-create-mode":
+        return { ...state, wtCreateMode: action.mode, wtCreateBranch: "", wtCreateError: null };
+      case "wt-create-branch":
+        return { ...state, wtCreateBranch: action.value, wtCreateError: null };
+      case "wt-create-submit": {
+        const target = action.path ?? state.wtCreatePath.trim().replace(/\\/g, "/");
+        const branch = state.wtCreateBranch.trim();
+        if (target === "") return { ...state, wtCreateError: COPY.worktrees.createEmptyPath };
+        if (branch === "") {
+          return { ...state, wtCreateError: state.wtCreateMode === "new" ? COPY.worktrees.createEmptyBranch : COPY.worktrees.createNoBranch };
+        }
+        if (state.wtCreateMode === "existing" && !state.branches.some((row) => row.name === branch)) {
+          return { ...state, wtCreateError: COPY.worktrees.createNoBranch };
+        }
+        if (worktreePathsOf(base, state).includes(target)) return { ...state, wtCreateError: COPY.worktrees.createTaken };
+        const name = nameOfPath(target);
+        return withResult({
+          ...state,
+          createdWorktrees: [...state.createdWorktrees, { path: target, branch }],
+          wtCreateOpen: false,
+          wtCreateError: null,
+          wtCreatePath: "",
+          wtCreateBranch: ""
+        }, {
+          tone: "ok",
+          text: COPY.worktrees.resultCreated(name, branch),
+          detail: state.wtCreateMode === "new" ? `git worktree add -b ${branch} ${target}\uFF1A\u65B0\u5EFA\u4E00\u6761\u5206\u652F\uFF0C\u5E76\u5728\u65B0\u76EE\u5F55\u91CC\u68C0\u51FA\u5B83\u3002\u63A5\u56DE\u5BBF\u4E3B\u540E\u8FD9\u4E00\u6B65\u4F1A\u771F\u7684\u5EFA\u76EE\u5F55\u3002` : `git worktree add ${target} ${branch}\uFF1A\u628A\u5DF2\u6709\u5206\u652F\u68C0\u51FA\u5230\u65B0\u76EE\u5F55\uFF1B\u540C\u4E00\u6761\u5206\u652F\u4E0D\u80FD\u5728\u4E24\u5904\u540C\u65F6\u68C0\u51FA\u3002`,
+          source: "worktree"
+        });
+      }
+      case "wt-move-open":
+        return { ...state, wtMovePath: action.path, wtMoveDraft: action.path, wtSparsePath: null, worktreePending: null };
+      case "wt-move-draft":
+        return { ...state, wtMoveDraft: action.value };
+      case "wt-move-close":
+        return { ...state, wtMovePath: null, wtMoveDraft: "" };
+      case "wt-move-apply": {
+        const from = state.wtMovePath;
+        if (from === null) return state;
+        const target = state.wtMoveDraft.trim().replace(/\\/g, "/");
+        if (target === "") return withResult(state, { tone: "error", text: COPY.worktrees.moveEmpty, detail: null, source: "worktree" });
+        if (target === from) return withResult(state, { tone: "warn", text: COPY.worktrees.moveSame, detail: null, source: "worktree" });
+        if (worktreePathsOf(base, state).includes(target)) {
+          return withResult(state, { tone: "error", text: COPY.worktrees.moveTaken, detail: "\u79FB\u52A8\u4E0D\u4F1A\u8986\u76D6\u5DF2\u6709\u76EE\u5F55\uFF0Cgit \u4F1A\u76F4\u63A5\u62D2\u7EDD\u3002", source: "worktree" });
+        }
+        const key = Object.keys(state.movedWorktrees).find((old) => state.movedWorktrees[old] === from) ?? from;
+        const name = nameOfPath(target);
+        return withResult({
+          ...state,
+          movedWorktrees: { ...state.movedWorktrees, [key]: target },
+          createdWorktrees: state.createdWorktrees.map((entry) => entry.path === from ? { ...entry, path: target } : entry),
+          wtMovePath: null,
+          wtMoveDraft: "",
+          worktreePending: null
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u628A\u8FD9\u4E2A\u5DE5\u4F5C\u533A\u79FB\u5230 ${name}\u3002`,
+          detail: `git worktree move\uFF1Agit \u8BB0\u5F55\u4E0E\u78C1\u76D8\u4E0A\u7684\u76EE\u5F55\u4E00\u8D77\u6539\uFF0C\u65E7\u8DEF\u5F84 ${from} \u4E0D\u518D\u5C5E\u4E8E\u4EFB\u4F55\u5DE5\u4F5C\u533A\u3002`,
+          source: "worktree"
+        });
+      }
+      case "wt-sparse-open": {
+        const saved = state.wtSparseRules[action.path];
+        return {
+          ...state,
+          wtSparsePath: action.path,
+          wtSparseDirs: saved ?? sparseTopDirsOf(base),
+          wtMovePath: null,
+          worktreePending: null
+        };
+      }
+      case "wt-sparse-toggle": {
+        const has = state.wtSparseDirs.includes(action.dir);
+        return { ...state, wtSparseDirs: has ? state.wtSparseDirs.filter((dir) => dir !== action.dir) : [...state.wtSparseDirs, action.dir] };
+      }
+      case "wt-sparse-close":
+        return { ...state, wtSparsePath: null, wtSparseDirs: [] };
+      case "wt-sparse-save": {
+        const path = state.wtSparsePath;
+        if (path === null) return state;
+        const all = sparseTopDirsOf(base);
+        const dirs = all.filter((dir) => state.wtSparseDirs.includes(dir));
+        if (dirs.length === 0) return withResult(state, { tone: "error", text: COPY.worktrees.sparseEmpty, detail: "\u5168\u90FD\u4E0D\u52FE\u7B49\u4E8E\u628A\u5DE5\u4F5C\u533A\u62C6\u7A7A\uFF0Cgit \u4E5F\u4F1A\u62D2\u7EDD\u3002", source: "worktree" });
+        const name = nameOfPath(path);
+        const allKept = dirs.length === all.length;
+        return withResult({
+          ...state,
+          wtSparseRules: { ...state.wtSparseRules, [path]: dirs },
+          wtSparsePath: null,
+          wtSparseDirs: []
+        }, {
+          tone: "ok",
+          text: allKept ? COPY.worktrees.sparseAll : COPY.worktrees.sparseSaved(dirs),
+          detail: allKept ? `${name} \u4ECD\u4F1A\u68C0\u51FA\u5168\u90E8\u76EE\u5F55\uFF0C\u76F8\u5F53\u4E8E\u6CA1\u5F00\u7A00\u758F\u68C0\u51FA\u3002` : `${name} \u53EA\u4F1A\u68C0\u51FA\u8FD9\u51E0\u4E2A\u9876\u5C42\u76EE\u5F55\uFF1B\u6CA1\u52FE\u7684\u76EE\u5F55\u4E0D\u843D\u5230\u78C1\u76D8\uFF0C\u6539\u52A8\u4ECD\u7136\u7559\u5728\u4ED3\u5E93\u91CC\u3002`,
+          source: "worktree"
+        });
+      }
       case "changes-pending":
         return { ...state, changesPending: action.pending, openMenuPath: null };
       case "changes-open-menu":
@@ -4753,6 +4909,24 @@
     if (meta.addedLines !== null && meta.addedLines > 0) parts.push(`\u65B0\u589E ${meta.addedLines} \u884C`);
     if (meta.deletedLines !== null && meta.deletedLines > 0) parts.push(`\u5220\u9664 ${meta.deletedLines} \u884C`);
     return parts.join("\uFF0C");
+  }
+  function sparseTopDirsOf(base) {
+    const dirs = /* @__PURE__ */ new Set();
+    for (const files of base.commitFiles.values()) {
+      for (const file of files) {
+        const first = file.path.split("/")[0];
+        if (first !== void 0 && first !== "" && first !== file.path) dirs.add(first);
+      }
+    }
+    return [...dirs].sort();
+  }
+  function worktreePathsOf(base, state) {
+    const raw = [
+      base.screen.identity.worktreePath,
+      ...base.screen.otherWorktrees.map((item) => item.path),
+      ...state.createdWorktrees.map((item) => item.path)
+    ];
+    return raw.filter((path) => path !== "").map((path) => state.movedWorktrees[path] ?? path);
   }
   function refListOf(base, state) {
     const local = state.localCommits.map((commit) => ({ oid: commit.oid, short: commit.short }));
@@ -5486,9 +5660,10 @@
     const abnormal = states.some((state) => state.tone === "warn" || state.tone === "error");
     return { states, abnormal };
   }
-  function worktreeRowOf(state, worktree) {
+  function worktreeRowOf(base, state, worktree) {
     const { dir, name } = splitPath(worktree.path);
     const chips = stateChipsOf(worktree);
+    const rule = state.wtSparseRules[worktree.path];
     return {
       path: worktree.path,
       dir,
@@ -5500,8 +5675,19 @@
       abnormal: chips.abnormal,
       copied: state.copiedPath === worktree.path,
       locked: worktree.locked,
-      prunable: worktree.prunable
+      prunable: worktree.prunable,
+      moveOpen: state.wtMovePath === worktree.path,
+      moveDraft: state.wtMovePath === worktree.path ? state.wtMoveDraft : worktree.path,
+      sparseOpen: state.wtSparsePath === worktree.path,
+      sparseDirs: sparseTopDirsOf(base),
+      sparseSelected: state.wtSparsePath === worktree.path ? state.wtSparseDirs : rule ?? [],
+      sparseSummary: rule === void 0 ? null : COPY.worktrees.sparseCurrent(rule)
     };
+  }
+  function movedWorktreeOf(state, item) {
+    const to = state.movedWorktrees[item.path];
+    if (to === void 0) return item;
+    return { ...item, path: to, display: splitPath(to).name };
   }
   function applyWorktreeActions(state, item) {
     const unlocked = state.unlockedWorktrees.includes(item.path);
@@ -5516,7 +5702,7 @@
   }
   function worktreesOf(base, state) {
     const identity = base.screen.identity;
-    const current = identity.worktreePath === "" ? null : worktreeRowOf(state, {
+    const current = identity.worktreePath === "" ? null : worktreeRowOf(base, state, {
       path: identity.worktreePath,
       display: identity.worktreeDisplay,
       head: identity.oid ?? "",
@@ -5530,8 +5716,21 @@
       prunableUnknown: false
     });
     const demo = state.demoWorktrees ? demoWorktreesOf(identity.worktreePath) : [];
-    const othersRaw = [...base.screen.otherWorktrees.filter((item) => !item.current), ...demo].filter((item) => !state.hiddenWorktrees.includes(item.path)).map((item) => applyWorktreeActions(state, item));
-    const others = othersRaw.map((item) => worktreeRowOf(state, item)).sort((a, b) => Number(b.abnormal) - Number(a.abnormal));
+    const created = state.createdWorktrees.map((entry) => ({
+      path: entry.path,
+      display: splitPath(entry.path).name,
+      head: identity.oid ?? "",
+      branch: entry.branch,
+      bare: false,
+      current: false,
+      locked: false,
+      lockReason: null,
+      lockUnknown: false,
+      prunable: false,
+      prunableUnknown: false
+    }));
+    const othersRaw = [...created, ...base.screen.otherWorktrees.filter((item) => !item.current), ...demo].filter((item) => !state.hiddenWorktrees.includes(item.path)).map((item) => applyWorktreeActions(state, item)).map((item) => movedWorktreeOf(state, item));
+    const others = othersRaw.map((item) => worktreeRowOf(base, state, item)).sort((a, b) => Number(b.abnormal) - Number(a.abnormal));
     const abnormal = others.filter((row) => row.abnormal).length;
     return {
       current,
@@ -5542,7 +5741,16 @@
       notice: COPY.worktrees.scope,
       aiLabel: COPY.worktrees.ai,
       aiEnabled: abnormal > 0,
-      pending: state.worktreePending
+      pending: state.worktreePending,
+      create: {
+        open: state.wtCreateOpen,
+        path: state.wtCreatePath,
+        mode: state.wtCreateMode,
+        branch: state.wtCreateBranch,
+        error: state.wtCreateError,
+        // 已有分支的候选：最近用过的几条，当前分支不列（它已经在当前工作区里检出）。
+        branches: state.branches.filter((row) => !row.current).slice().sort((a, b) => b.lastCommitMs - a.lastCommitMs).slice(0, 6).map((row) => row.name)
+      }
     };
   }
   function branchRowOf(state, row, nowMs) {
@@ -7946,13 +8154,13 @@
     { id: "3.13", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u300C\u53D6\u8FD9\u4E2A\u7248\u672C\u7684\u6587\u4EF6\u5185\u5BB9\u300D\u7684\u53EA\u8BFB\u5F62\u72B6", status: "\u53EA\u8BFB", reason: "\u53D6\u67D0\u4E2A\u7248\u672C\u7684\u6587\u4EF6\u5185\u5BB9\u662F\u53EA\u8BFB\u8BCA\u65AD\uFF0C\u9762\u677F\u5728\u8BE6\u60C5\u91CC\u5C55\u793A\u5B83\u8BFB\u5230\u7684\u6587\u4EF6\u4E0E\u4F53\u79EF\uFF0C\u4E0D\u753B\u6267\u884C\u6309\u94AE\u3002" },
     // —— 工作区页 ——
     { id: "9.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5DE5\u4F5C\u533A\u9875\u7684\u5F53\u524D\u5DE5\u4F5C\u533A\u5361\u4E0E\u5176\u4ED6\u5DE5\u4F5C\u533A\u5217\u8868", status: "\u5DF2\u753B" },
-    { id: "9.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5DE5\u4F5C\u533A\u9875\u5E95\u90E8\u7684\u300C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u300D\u8868\u5355", status: "\u5F85\u753B", reason: "\u65B0\u5EFA\u5DE5\u4F5C\u533A\u8981\u586B\u8DEF\u5F84\u4E0E\u5206\u652F\uFF0C\u7528\u4E00\u4E2A\u8868\u5355\u6BD4\u5728\u884C\u91CC\u585E\u4E24\u9897\u6309\u94AE\u6E05\u695A\uFF1B\u653E\u5728\u5217\u8868\u4E0B\u65B9\uFF0C\u56E0\u4E3A\u5B83\u4E0D\u5C5E\u4E8E\u4EFB\u4F55\u4E00\u884C\u3002" },
-    { id: "9.3", form: "\u53EF\u5C55\u5F00\u533A", at: "\u300C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u300D\u8868\u5355\u91CC\u7684\u300C\u7528\u5DF2\u6709\u5206\u652F\u300D\uFF0C\u4ECE\u5206\u652F\u6E05\u5355\u91CC\u9009\u4E00\u6761", status: "\u5F85\u753B", reason: "\u5B83\u548C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u662F\u540C\u4E00\u5F20\u8868\u5355\u7684\u7B2C\u4E8C\u79CD\u586B\u6CD5\uFF1A\u8DEF\u5F84\u7167\u586B\uFF0C\u5206\u652F\u6539\u6210\u4ECE\u5DF2\u6709\u6E05\u5355\u91CC\u9009\uFF0C\u6240\u4EE5\u5E76\u8FDB\u540C\u4E00\u5904\u3002" },
+    { id: "9.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5DE5\u4F5C\u533A\u9875\u5E95\u90E8\u300C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u300D\u5F39\u51FA\u7684\u8868\u5355\uFF1A\u76EE\u5F55\u4E0E\u5206\u652F\u4E24\u884C\uFF0C\u9ED8\u8BA4\u65B0\u5EFA\u5206\u652F", status: "\u672C\u7968\u5DF2\u753B", reason: "\u65B0\u5EFA\u5DE5\u4F5C\u533A\u8981\u586B\u8DEF\u5F84\u4E0E\u5206\u652F\uFF0C\u7528\u4E00\u4E2A\u8868\u5355\u6BD4\u5728\u884C\u91CC\u585E\u4E24\u9897\u6309\u94AE\u6E05\u695A\uFF1B\u653E\u5728\u5217\u8868\u4E0B\u65B9\uFF0C\u56E0\u4E3A\u5B83\u4E0D\u5C5E\u4E8E\u4EFB\u4F55\u4E00\u884C\u3002" },
+    { id: "9.3", form: "\u53EF\u5C55\u5F00\u533A", at: "\u540C\u4E00\u5F20\u8868\u5355\u91CC\u7684\u300C\u5DF2\u6709\u5206\u652F\u300D\uFF1A\u70B9\u6700\u8FD1\u7528\u8FC7\u7684\u5206\u652F\u586B\u8FDB\u8F93\u5165\u6846\uFF0C\u5206\u652F\u540D\u4ECD\u53EF\u624B\u6539", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u548C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u662F\u540C\u4E00\u5F20\u8868\u5355\u7684\u7B2C\u4E8C\u79CD\u586B\u6CD5\uFF1A\u8DEF\u5F84\u7167\u586B\uFF0C\u5206\u652F\u6539\u6210\u4ECE\u5DF2\u6709\u6E05\u5355\u91CC\u9009\uFF0C\u6240\u4EE5\u5E76\u8FDB\u540C\u4E00\u5904\u3002" },
     { id: "9.4", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u79FB\u9664\u5DE5\u4F5C\u533A\u300D\u4E0E\u5185\u8054\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
     { id: "9.5", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5C55\u5F00\u76EE\u5F55\u4E0D\u5B58\u5728\u7684\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u6E05\u9664\u8BB0\u5F55\u300D", status: "\u5DF2\u753B" },
     { id: "9.6", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5C55\u5F00\u88AB\u5360\u7528\u7684\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u89E3\u9664\u9501\u5B9A\u300D", status: "\u5DF2\u753B" },
-    { id: "9.7", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u79FB\u52A8\u5DE5\u4F5C\u533A\u300D\uFF0C\u586B\u4E00\u4E2A\u65B0\u76EE\u5F55", status: "\u5F85\u753B", reason: "\u79FB\u52A8\u6539\u7684\u662F\u8FD9\u4E00\u68F5\u7684\u8DEF\u5F84\uFF0C\u5C5E\u4E8E\u5C55\u5F00\u533A\u91CC\u7684\u884C\u7EA7\u52A8\u4F5C\uFF1B\u4E0D\u653E\u8FDB\u65B0\u5EFA\u8868\u5355\uFF08\u5B83\u4E0D\u52A8\u767B\u8BB0\u5185\u5BB9\uFF09\uFF0C\u4E5F\u4E0D\u653E\u9875\u9762\u7EA7\u52A8\u4F5C\uFF08\u4E00\u6B21\u53EA\u79FB\u4E00\u68F5\uFF09\u3002" },
-    { id: "9.8", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u7A00\u758F\u68C0\u51FA\u300D\uFF0C\u9009\u8981\u4FDD\u7559\u7684\u76EE\u5F55", status: "\u5F85\u753B", reason: "\u7A00\u758F\u68C0\u51FA\u6539\u7684\u662F\u8FD9\u4E00\u68F5\u7684\u68C0\u51FA\u8303\u56F4\uFF0C\u8DDF\u7740\u8FD9\u68F5\u8D70\uFF1B\u653E\u5C55\u5F00\u533A\uFF0C\u8BFB\u8005\u80FD\u8FB9\u770B\u5F53\u524D\u8DEF\u5F84\u8FB9\u9009\u4FDD\u7559\u54EA\u4E9B\u76EE\u5F55\u3002" },
+    { id: "9.7", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u79FB\u52A8\u300D\uFF1A\u586B\u4E00\u4E2A\u65B0\u76EE\u5F55\uFF0C\u4FDD\u5B58\u540E\u6E05\u5355\u91CC\u6362\u6210\u65B0\u8DEF\u5F84", status: "\u672C\u7968\u5DF2\u753B", reason: "\u79FB\u52A8\u6539\u7684\u662F\u8FD9\u4E00\u68F5\u7684\u8DEF\u5F84\uFF0C\u5C5E\u4E8E\u5C55\u5F00\u533A\u91CC\u7684\u884C\u7EA7\u52A8\u4F5C\uFF1B\u4E0D\u653E\u8FDB\u65B0\u5EFA\u8868\u5355\uFF08\u5B83\u4E0D\u52A8\u767B\u8BB0\u5185\u5BB9\uFF09\uFF0C\u4E5F\u4E0D\u653E\u9875\u9762\u7EA7\u52A8\u4F5C\uFF08\u4E00\u6B21\u53EA\u79FB\u4E00\u68F5\uFF09\u3002" },
+    { id: "9.8", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u7A00\u758F\u68C0\u51FA\u300D\uFF1A\u52FE\u9876\u5C42\u76EE\u5F55\u3001\u4FDD\u5B58\u89C4\u5219\uFF0C\u5C55\u5F00\u884C\u91CC\u5E38\u9A7B\u4E00\u53E5\u5F53\u524D\u89C4\u5219", status: "\u672C\u7968\u5DF2\u753B", reason: "\u7A00\u758F\u68C0\u51FA\u6539\u7684\u662F\u8FD9\u4E00\u68F5\u7684\u68C0\u51FA\u8303\u56F4\uFF0C\u8DDF\u7740\u8FD9\u68F5\u8D70\uFF1B\u653E\u5C55\u5F00\u533A\uFF0C\u8BFB\u8005\u80FD\u8FB9\u770B\u5F53\u524D\u8DEF\u5F84\u8FB9\u9009\u4FDD\u7559\u54EA\u4E9B\u76EE\u5F55\u3002" },
     // —— 储藏页 ——
     { id: "7.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6539\u52A8\u9875\u63D0\u4EA4\u533A\u53F3\u4E0A\u89D2\u7684\u300C\u50A8\u85CF\u300D", status: "\u5DF2\u753B" },
     { id: "7.2", form: "\u884C\u5C3E\u83DC\u5355", at: "\u300C\u50A8\u85CF\u300D\u53F3\u4FA7\u7684\u83DC\u5355\u9879\u300C\u8FDE\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u300D", status: "\u5F85\u753B", reason: "\u8FDE\u672A\u8DDF\u8E2A\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u662F\u50A8\u85CF\u52A8\u4F5C\u7684\u4E00\u4E2A\u53D8\u4F53\uFF0C\u6302\u5728\u540C\u4E00\u9897\u300C\u50A8\u85CF\u300D\u4E0A\u6700\u76F4\u63A5\uFF1B\u4E0D\u653E\u8FDB\u50A8\u85CF\u9875\u7B7E\uFF08\u90A3\u6761\u8BB0\u5F55\u5DF2\u7ECF\u751F\u6210\uFF0C\u6765\u4E0D\u53CA\u53CD\u6094\uFF09\u3002" },
@@ -9874,12 +10082,18 @@
     } else if (rows.length === 0) {
       list.append(emptyState(COPY.worktrees.filterEmpty, null));
     } else {
-      for (const row of rows) list.append(renderRow2(row, options.expandedPath === row.path, model.pending));
+      for (const row of rows) list.append(renderRow2(row, options.expandedPath === row.path, model));
     }
     view.append(list);
+    if (model.create.open) view.append(renderCreateForm(model));
     view.append(h(
       "div",
       { class: "wt-foot" },
+      h("button", {
+        class: `link-btn wt-create-open${model.create.open ? " is-on" : ""}`,
+        attrs: { type: "button", "aria-expanded": model.create.open ? "true" : "false", "data-focus-key": "wt-create-open" },
+        dataset: { action: "wt-create-open" }
+      }, COPY.worktrees.createOpen),
       handoffEntry(model.abnormalCount > 0 ? HANDOFF_ENTRY.worktrees : COPY.ai.cleanEntry, "worktrees")
     ));
     if (result !== null) view.append(resultBanner(result));
@@ -9968,7 +10182,7 @@
       h("span", { class: "filter-count", text: count })
     );
   }
-  function renderRow2(row, expanded, pending) {
+  function renderRow2(row, expanded, model) {
     const rowNode = h("div", {
       class: `wt-row${row.abnormal ? " is-abnormal" : ""}${expanded ? " is-open" : ""}`
     });
@@ -10014,7 +10228,7 @@
     );
     rowNode.append(h("div", { class: "wt-main" }, nameRow, pathRow, stateRow), actions);
     const wrap = h("div", { class: "wt-row-wrap" }, rowNode);
-    if (expanded) wrap.append(renderDetail3(row, pending));
+    if (expanded) wrap.append(renderDetail3(row, model.pending));
     return wrap;
   }
   function renderDetail3(row, pending) {
@@ -10036,6 +10250,7 @@
         if (state.detail === null) continue;
         detail.append(fact(state.label, state.detail, false));
       }
+      if (row.sparseSummary !== null) detail.append(fact(COPY.worktrees.sparse, row.sparseSummary, false));
     }
     if (!awaiting) {
       const actions = h("div", { class: "wt-actions-row" });
@@ -10060,6 +10275,22 @@
         }));
       }
       actions.append(button({
+        label: COPY.worktrees.move,
+        kind: "secondary",
+        size: "sm",
+        action: "wt-move-open",
+        dataset: { path: row.path },
+        focusKey: `wt-move-open:${row.path}`
+      }));
+      actions.append(button({
+        label: COPY.worktrees.sparse,
+        kind: "secondary",
+        size: "sm",
+        action: "wt-sparse-open",
+        dataset: { path: row.path },
+        focusKey: `wt-sparse-open:${row.path}`
+      }));
+      actions.append(button({
         label: COPY.worktrees.remove,
         kind: "danger",
         size: "sm",
@@ -10069,6 +10300,8 @@
       }));
       detail.append(actions);
     }
+    if (row.moveOpen) detail.append(renderMoveForm(row));
+    if (row.sparseOpen) detail.append(renderSparsePanel(row));
     if (pending !== null && pending.path === row.path) {
       detail.append(h(
         "div",
@@ -10097,6 +10330,144 @@
       ));
     }
     return detail;
+  }
+  function renderCreateForm(model) {
+    const create = model.create;
+    const pathInput = h("input", {
+      class: "wt-input",
+      attrs: {
+        type: "text",
+        id: "wt-create-path",
+        placeholder: COPY.worktrees.createPathPlaceholder,
+        "aria-label": COPY.worktrees.createPath,
+        autocomplete: "off",
+        spellcheck: "false",
+        "data-field": "wt-create-path",
+        "data-focus-key": "wt-create-path"
+      }
+    });
+    pathInput.value = create.path;
+    const branchInput = h("input", {
+      class: "wt-input",
+      attrs: {
+        type: "text",
+        id: "wt-create-branch",
+        placeholder: COPY.worktrees.createBranchPlaceholder,
+        "aria-label": COPY.worktrees.createBranch,
+        autocomplete: "off",
+        spellcheck: "false",
+        "data-field": "wt-create-branch",
+        "data-focus-key": "wt-create-branch"
+      }
+    });
+    branchInput.value = create.branch;
+    const mode = (value, label) => {
+      const on = create.mode === value;
+      return h("button", {
+        class: `wt-mode${on ? " is-on" : ""}`,
+        attrs: { type: "button", "aria-pressed": on ? "true" : "false", "data-focus-key": `wt-mode:${value}` },
+        dataset: { action: "wt-create-mode", mode: value }
+      }, label);
+    };
+    const recent = create.mode === "existing" && create.branches.length > 0 ? h(
+      "div",
+      { class: "wt-recent" },
+      h("span", { class: "wt-recent-lead", text: COPY.worktrees.createRecent }),
+      ...create.branches.map((name) => h("button", {
+        class: `wt-recent-chip${create.branch === name ? " is-on" : ""}`,
+        attrs: { type: "button", title: name, "data-focus-key": `wt-branch:${name}` },
+        dataset: { action: "wt-create-branch", value: name }
+      }, name))
+    ) : null;
+    return h(
+      "div",
+      { class: "wt-form wt-create", attrs: { role: "group", "aria-label": COPY.worktrees.createTitle } },
+      h("h4", { class: "wt-form-title", text: COPY.worktrees.createTitle }),
+      h(
+        "div",
+        { class: "wt-field" },
+        h("label", { class: "wt-field-k", text: COPY.worktrees.createPath, attrs: { for: "wt-create-path" } }),
+        pathInput
+      ),
+      h(
+        "div",
+        { class: "wt-field" },
+        h("label", { class: "wt-field-k", text: COPY.worktrees.createBranch, attrs: { for: "wt-create-branch" } }),
+        h(
+          "div",
+          { class: "wt-modes", attrs: { role: "group", "aria-label": COPY.worktrees.createBranch } },
+          mode("new", COPY.worktrees.createModeNew),
+          mode("existing", COPY.worktrees.createModeExisting)
+        ),
+        branchInput,
+        recent
+      ),
+      h("p", { class: "wt-form-hint", text: create.mode === "new" ? COPY.worktrees.createHintNew : COPY.worktrees.createHintExisting }),
+      create.error === null ? null : h("p", { class: "wt-form-error", attrs: { role: "alert" }, text: create.error }),
+      h(
+        "div",
+        { class: "wt-form-actions" },
+        button({ label: COPY.worktrees.createCancel, kind: "ghost", size: "sm", action: "wt-create-close", focusKey: "wt-create-cancel" }),
+        button({ label: COPY.worktrees.createSubmit, kind: "secondary", size: "sm", action: "wt-create-submit", focusKey: "wt-create-submit" })
+      )
+    );
+  }
+  function renderMoveForm(row) {
+    const input = h("input", {
+      class: "wt-input",
+      attrs: {
+        type: "text",
+        "aria-label": COPY.worktrees.moveLabel,
+        autocomplete: "off",
+        spellcheck: "false",
+        "data-field": "wt-move",
+        "data-focus-key": `wt-move:${row.path}`
+      }
+    });
+    input.value = row.moveDraft;
+    return h(
+      "div",
+      { class: "wt-form wt-move", attrs: { role: "group", "aria-label": COPY.worktrees.moveTitle } },
+      h("h4", { class: "wt-form-title", text: COPY.worktrees.moveTitle }),
+      h("label", { class: "wt-field-k", text: COPY.worktrees.moveLabel }),
+      input,
+      h("p", { class: "wt-form-hint", text: COPY.worktrees.moveHint }),
+      h(
+        "div",
+        { class: "wt-form-actions" },
+        button({ label: COPY.worktrees.createCancel, kind: "ghost", size: "sm", action: "wt-move-close", focusKey: "wt-move-cancel" }),
+        button({ label: COPY.worktrees.moveSubmit, kind: "secondary", size: "sm", action: "wt-move-apply", focusKey: "wt-move-apply" })
+      )
+    );
+  }
+  function renderSparsePanel(row) {
+    const dirs = h("div", { class: "wt-dirs", attrs: { role: "group", "aria-label": COPY.worktrees.sparseTitle } });
+    for (const dir of row.sparseDirs) {
+      const on = row.sparseSelected.includes(dir);
+      dirs.append(h(
+        "button",
+        {
+          class: `wt-dir${on ? " is-on" : ""}`,
+          attrs: { type: "button", "aria-pressed": on ? "true" : "false", title: on ? `\u4E0D\u4FDD\u7559 ${dir}` : `\u4FDD\u7559 ${dir}`, "data-focus-key": `wt-dir:${dir}` },
+          dataset: { action: "wt-sparse-toggle", dir }
+        },
+        h("span", { class: "wt-dir-box", attrs: { "aria-hidden": "true" }, text: on ? "\u2713" : "" }),
+        h("span", { class: "mono", text: dir })
+      ));
+    }
+    return h(
+      "div",
+      { class: "wt-form wt-sparse", attrs: { role: "group", "aria-label": COPY.worktrees.sparseTitle } },
+      h("h4", { class: "wt-form-title", text: COPY.worktrees.sparseTitle }),
+      h("p", { class: "wt-form-hint", text: COPY.worktrees.sparseHint }),
+      dirs,
+      h(
+        "div",
+        { class: "wt-form-actions" },
+        button({ label: COPY.worktrees.sparseCancel, kind: "ghost", size: "sm", action: "wt-sparse-close", focusKey: "wt-sparse-cancel" }),
+        button({ label: COPY.worktrees.sparseSave, kind: "secondary", size: "sm", action: "wt-sparse-save", focusKey: "wt-sparse-save" })
+      )
+    );
   }
   function pendingTitle(pending) {
     if (pending.kind === "unlock") return COPY.worktrees.unlockTitle;
@@ -12253,6 +12624,52 @@
           repaint({ focusKey: `wt-expand:${path}` });
           return;
         }
+        // 新建工作区：页底表单，开、改、提交三者分开，错误留在表单里。
+        case "wt-create-open":
+          dispatch({ type: "wt-create-open" }, { focusKey: "wt-create-path", scroll: null });
+          return;
+        case "wt-create-close":
+          dispatch({ type: "wt-create-close" }, { focusKey: "wt-create-open", scroll: null });
+          return;
+        case "wt-create-mode": {
+          const mode = el.dataset.mode === "existing" ? "existing" : "new";
+          dispatch({ type: "wt-create-mode", mode }, { focusKey: `wt-mode:${mode}`, scroll: null });
+          return;
+        }
+        case "wt-create-branch":
+          dispatch({ type: "wt-create-branch", value: el.dataset.value ?? "" }, { focusKey: "wt-create-branch", scroll: null });
+          return;
+        case "wt-create-submit":
+          dispatch({ type: "wt-create-submit" }, { focusKey: "wt-create-submit", scroll: null });
+          return;
+        // 移动与稀疏检出都贴在展开行里，焦点回到发起它们的那颗按钮。
+        case "wt-move-open": {
+          const path = el.dataset.path ?? "";
+          dispatch({ type: "wt-move-open", path }, { focusKey: `wt-move:${path}`, scroll: null });
+          return;
+        }
+        case "wt-move-close":
+          dispatch({ type: "wt-move-close" }, { focusKey: `wt-move-open:${expandedWorktree ?? ""}`, scroll: null });
+          return;
+        case "wt-move-apply":
+          dispatch({ type: "wt-move-apply" }, { focusKey: "wt-move-apply", scroll: null });
+          return;
+        case "wt-sparse-open": {
+          const path = el.dataset.path ?? "";
+          dispatch({ type: "wt-sparse-open", path }, { focusKey: `wt-sparse-open:${path}`, scroll: null });
+          return;
+        }
+        case "wt-sparse-toggle": {
+          const dir = el.dataset.dir ?? "";
+          dispatch({ type: "wt-sparse-toggle", dir }, { focusKey: `wt-dir:${dir}`, scroll: null });
+          return;
+        }
+        case "wt-sparse-close":
+          dispatch({ type: "wt-sparse-close" }, { focusKey: `wt-sparse-open:${expandedWorktree ?? ""}`, scroll: null });
+          return;
+        case "wt-sparse-save":
+          dispatch({ type: "wt-sparse-save" }, { focusKey: "wt-sparse-save", scroll: null });
+          return;
         case "branch-open":
           dispatch({ type: "branch-open" }, { focusKey: "branch-query" });
           return;
@@ -12478,6 +12895,12 @@
         dispatch({ type: "compare-draft", which: field === "compare-from" ? "from" : "to", value: target.value }, { focusKey: field });
       } else if (field === "note") {
         dispatch({ type: "note-draft", value: target.value }, { focusKey: "note-input" });
+      } else if (field === "wt-create-path") {
+        dispatch({ type: "wt-create-path", value: target.value }, { focusKey: "wt-create-path" });
+      } else if (field === "wt-create-branch") {
+        dispatch({ type: "wt-create-branch", value: target.value }, { focusKey: "wt-create-branch" });
+      } else if (field === "wt-move") {
+        dispatch({ type: "wt-move-draft", value: target.value }, { focusKey: `wt-move:${expandedWorktree ?? ""}` });
       } else if (field === "branch-query") {
         dispatch({ type: "branch-query", value: target.value }, { focusKey: "branch-query" });
       } else if (field === "branch-draft") {
@@ -12673,6 +13096,25 @@
       if (params.get("wtexpand") === "1") {
         const first = panelModelOf(base, state, Date.now()).worktrees.others.find((row) => row.abnormal);
         expandedWorktree = first === void 0 ? null : first.path;
+      }
+      if (params.get("wtnew") === "1") {
+        state = reduce(state, { type: "wt-create-open" }, base);
+        const newPath = params.get("wtnewpath");
+        if (newPath !== null && newPath !== "") state = reduce(state, { type: "wt-create-path", value: newPath }, base);
+        if (params.get("wtnewmode") === "existing") state = reduce(state, { type: "wt-create-mode", mode: "existing" }, base);
+        const newBranch = params.get("wtnewbranch");
+        if (newBranch !== null && newBranch !== "") state = reduce(state, { type: "wt-create-branch", value: newBranch }, base);
+        if (params.get("wtnewsubmit") === "1") state = reduce(state, { type: "wt-create-submit" }, base);
+      }
+      const moveParam = params.get("wtmove");
+      if (moveParam !== null && moveParam !== "") {
+        expandedWorktree = moveParam;
+        state = reduce(state, { type: "wt-move-open", path: moveParam }, base);
+      }
+      const sparseParam = params.get("wtsparse");
+      if (sparseParam !== null && sparseParam !== "") {
+        expandedWorktree = sparseParam;
+        state = reduce(state, { type: "wt-sparse-open", path: sparseParam }, base);
       }
       const wtPendingParam = params.get("wtpending");
       if (wtPendingParam === "unlock" || wtPendingParam === "prune" || wtPendingParam === "remove") {
