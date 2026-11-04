@@ -35,8 +35,16 @@ export const vcCapabilityAliasOf = function (cap: any) {
   return out.join(' ')
 }
 
+/**
+ * 页签在界面上叫「工作区」「储藏」（原型与四页签条都用这两个词），而能力账本里记的是
+ * 「工作树页」「贮藏页」这两组旧叫法（账本是记账用的，按票面不改）。命令面板的「去这里」显示的是
+ * 用户真能看到的页签名，所以这里按页面 id 覆盖一次，只影响显示，不改账本里的任何一条。
+ */
+const PAGE_VISIBLE_NAMES: Record<string, string> = { worktrees: '工作区', stash: '储藏' }
+
 export const vcCapabilityPageNameOf = function (cap: any) {
   const id = String((cap && cap.page) || '')
+  if (PAGE_VISIBLE_NAMES[id]) return PAGE_VISIBLE_NAMES[id]
   for (let i = 0; i < PAGE_SURFACES.length; i += 1) {
     if (PAGE_SURFACES[i] && PAGE_SURFACES[i].id === id) return PAGE_SURFACES[i].name
   }
