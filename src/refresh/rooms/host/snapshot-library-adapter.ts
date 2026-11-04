@@ -58,17 +58,21 @@ function unknownGroup<T>(reason: string | null | undefined, source = SOURCE_LIST
 }
 
 /**
- * GitLab 的能力差异：它原生没有「子票计数、评审、合并信息」这三组数据。
+ * 后端能力差异：这两个后端原生都没有「评审」与「合并信息」，GitLab 另外还没有「子票计数」。
  *
  * 为什么必须在库里写成 unknown + not-applicable，而不是不写或写空值：
  *  - 不写 = 从没取过，界面只能说「不知道」；
  *  - 写 complete + 空值 = 「确认没有」，那是谎话（GitLab 不是「确认没有评审」，而是根本没有评审这回事）；
  *  - unknown + not-applicable 才是准确的说法：这一组对这个后端不适用。
  *
- * 只补还没有表达过的组：将来 GitLab 真给出了合并时间或评审明细，真实的组会先生成，这里一个字节都不动。
+ * 本地 Markdown 的子票计数不在这段里写死「不适用」：它**有**子票（#1826 落了真实现），只是现在的读
+ * 结果不带这组计数——那是「这次没表达」而不是「这个后端没有」，两件事不能混成一句。
+ *
+ * 只补还没有表达过的组：将来真给出了合并时间或评审明细，真实的组会先生成，这里一个字节都不动。
  */
-function applyGitlabCapabilityGaps(groups: IssueGroupsWrite, source: string, operation: string, withReview: boolean): void {
-  if (groups.subIssues === undefined) groups.subIssues = unknownGroup('not-applicable', source, operation)
+function applyBackendCapabilityGaps(groups: IssueGroupsWrite, backend: string, source: string, operation: string, withReview: boolean): void {
+  if (backend !== 'gitlab' && backend !== 'markdown') return
+  if (backend === 'gitlab' && groups.subIssues === undefined) groups.subIssues = unknownGroup('not-applicable', source, operation)
   if (groups.mergeInfo === undefined) groups.mergeInfo = unknownGroup('not-applicable', source, operation)
   if (withReview && groups.review === undefined) groups.review = unknownGroup('not-applicable', source, operation) as IssueGroupsWrite['review']
 }
@@ -195,7 +199,7 @@ export function issueWriteOf(issue: Issue, backend = ''): IssueWrite {
   if (subIssues !== undefined) groups.subIssues = subIssues
   const mergeInfo = mergeInfoGroupOf(issue)
   if (mergeInfo !== undefined) groups.mergeInfo = mergeInfo
-  if (backend === 'gitlab') applyGitlabCapabilityGaps(groups, SOURCE_LIST, OPERATION_LIST, false)
+  applyBackendCapabilityGaps(groups, backend, SOURCE_LIST, OPERATION_LIST, false)
   return { effortId: String(issue.effortId || ''), key: String(issue.key), groups }
 }
 
@@ -218,7 +222,7 @@ export function detailIssueWriteOf(issue: Issue, backend = ''): IssueWrite {
   const review = reviewsGroupOf(issue, SOURCE_DETAIL, OPERATION_DETAIL)
   if (review !== undefined) write.groups.review = review
   write.groups.row = complete(issueRowValueOf(issue), SOURCE_DETAIL, OPERATION_DETAIL)
-  if (backend === 'gitlab') applyGitlabCapabilityGaps(write.groups, SOURCE_DETAIL, OPERATION_DETAIL, true)
+  applyBackendCapabilityGaps(write.groups, backend, SOURCE_DETAIL, OPERATION_DETAIL, true)
   return write
 }
 
@@ -362,7 +366,7 @@ export function receiptIssueWriteOf(issue: Issue, operation: string, backend = '
     group.source = RECEIPT_SOURCE
     group.operation = operation
   }
-  if (backend === 'gitlab') applyGitlabCapabilityGaps(write.groups, RECEIPT_SOURCE, operation, false)
+  applyBackendCapabilityGaps(write.groups, backend, RECEIPT_SOURCE, operation, false)
   return write
 }
 
