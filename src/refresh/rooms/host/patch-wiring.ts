@@ -50,6 +50,20 @@ export function createPatchWiring(deps: PatchWiringDeps): { patchOf: () => any }
         openSession: openSession, // #1444：薄行取数改走只读会话（取数文件不再经 send/runGh）
         // 与活跃集合、写事件白名单同一把短散列：不一致就会让探测这条路每一笔都被判「推迟」。
         workspaceKeyOf: workspaceKeyOf,
+        // #1866：写回执先提交进本地快照库，提交成功调用方才并进快照（界面才更新）。
+        // 库门面没注入或打不开时回「降级」：这一趟按老路继续（内存加磁盘），不假装写进了库；
+        // 门面在、但事务没提交（版本门丢弃或者写失败）时回 ok:false，调用方据此保持旧值。
+        recordWriteReceipt: async function (input: any): Promise<any> {
+          try {
+            const lib: any = (typeof d.getSnapshotLibrary === 'function') ? await d.getSnapshotLibrary() : null
+            if (!lib || typeof lib.recordWriteReceipt !== 'function') {
+              return { ok: true, degraded: true, rows: 0, mergeVersion: null, reason: 'library-unavailable' }
+            }
+            return await lib.recordWriteReceipt(input)
+          } catch (eR: any) {
+            return { ok: false, rows: 0, mergeVersion: null, reason: 'receipt-threw' }
+          }
+        },
         now: Date.now,
         logCtx: logCtx,
       })

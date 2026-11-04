@@ -41,6 +41,11 @@ export interface ThinFetchEnv {
   stats: { thinQueries: number }
   /** #1689：降级常驻时的增量轮预算本子（由 probe-handler 透传下来）；主路正常时不传，一条都不记账。 */
   budget?: FallbackRoundBudget
+  /**
+   * #1866：写回执落库。写事件之后补行这条路会给它：把这些票先提交进本地快照库，
+   * 提交成功才算这一趟取到（调用方才并进快照、界面才更新）；不传时老行为不变，只取数。
+   */
+  receipt?: (input: { workspaceRoot: string, backend: string, repoIdentity: string, issues: Issue[] }) => Promise<any>
 }
 
 /** 本文件认的仓库坐标：宿主 getRepoKey 交出来的那两格。 */
@@ -50,7 +55,7 @@ interface RepoKey { owner: string; name: string }
 interface SessionError { kind?: string; message?: string }
 
 /** 一票的取数结局：拿到行，或一条失败原因（整批据此不并）。 */
-interface OneResult { k: any; row?: any; bad?: { outcome: string; reason: string } }
+interface OneResult { k: any; row?: any; issue?: Issue; bad?: { outcome: string; reason: string } }
 
 /**
  * 把会话交回来的契约票转成列表里那一行的形状（与 issue-list-fetch.ts 的 fetchIssues 同口径）。
@@ -141,7 +146,7 @@ export async function fetchThinRows(env: ThinFetchEnv, cwd: any, repo: any, keys
         if (!r || r.ok !== true || !r.data) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-failed' } }
         const row = rowOf(r.data, r.provenance)
         if (!Number.isFinite(row.number)) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-parse' } }
-        return { k: k, row: row }
+        return { k: k, row: row, issue: r.data }
       }))
     })
   } catch (e: any) {
@@ -149,11 +154,31 @@ export async function fetchThinRows(env: ThinFetchEnv, cwd: any, repo: any, keys
   }
   const rows: any[] = new Array(list.length)
   const failedKeys: any[] = []
+  const issues: Issue[] = []
   let firstBad: any = null
   for (let i = 0; i < got.length; i++) {
     if (got[i].bad) { failedKeys.push(list[i]); if (!firstBad) firstBad = got[i].bad }
-    else rows[i] = got[i].row
+    else {
+      rows[i] = got[i].row
+      if (got[i].issue) issues.push(got[i].issue as Issue)
+    }
   }
   if (firstBad) return { ok: false, outcome: firstBad.outcome, keys: failedKeys, reason: firstBad.reason }
+  // #1866：写事件之后的这一趟，先把这几张票的当前状态提交进本地快照库，提交成功才算取到。
+  // 为什么落库失败要算整批失败：调用方拿到成功就会并进快照、界面立刻显示新值；库没写成时
+  // 界面上那个值就只活在内存里，重启就丢，正是「写成功才更新界面」要挡的那件事。
+  if (typeof env.receipt === 'function' && issues.length) {
+    const identity = {
+      workspaceRoot: String(cwd || ''),
+      backend: String((opened && opened.backendId) || ''),
+      repoIdentity: String((opened && opened.repoRef && opened.repoRef.refId) || ''),
+      issues: issues,
+    }
+    let stored: any = null
+    try { stored = await Promise.resolve(env.receipt(identity)) } catch (eR: any) { stored = { ok: false, reason: 'receipt-threw' } }
+    if (!stored || stored.ok !== true) {
+      return sessionFailure(list, 'receipt-not-committed:' + String((stored && stored.reason) || 'unknown'))
+    }
+  }
   return { ok: true, rows: rows, queries: list.length }
 }

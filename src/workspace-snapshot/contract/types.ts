@@ -59,6 +59,28 @@ export interface GroupWrite<T> {
 }
 
 /**
+ * 一条评论的写回执（#1866）：写完一条评论之后，把「多了这一条」并进库里那一组。
+ *
+ * 为什么它与「按页取回来的评论组」不是同一条路：一页永远是整组从头上数的一段前缀，
+ * 而写回执只知道「多了一条，它在最后」。把一条新评论当成前缀写，会让游标跟着往前走，
+ * 下一次「加载更多」就会跳过中间还没取到的那几条；位置算错还会把已知评论覆盖掉。
+ *
+ * 两条约定：
+ *  - position 是这一条在整组里的位置（从 0 数）。知道票面总数时就用它，前面的空隙留给还没取到的那些；
+ *    不知道总数时给 null，落到已取条数后面。库里发现那个位置已经有别人取回来的评论，就往后挪，
+ *    宁可位置不精确也不删掉已知的那一条。
+ *  - completeness 是写完这一条之后这一组的处境：原来完整就仍然完整（加一条之后我们仍知道全部），
+ *    原来只有一部分就仍然只有一部分（中间那几条我们没取过）。游标只在完整时跟着条数走。
+ */
+export interface CommentReceiptWrite {
+  comment: SnapshotComment
+  position: number | null
+  completeness: GroupCompleteness
+  source?: string | null
+  operation?: string | null
+}
+
+/**
  * 一张票这一批要表达的字段组。没有出现的组 = 这次没取到，不参与合并，也不参与版本门。
  *
  * 两组边写的是「目标票的 key」，不是数据库 id：上层拿到的列表行里只有 key，写库时由快照库
@@ -92,6 +114,11 @@ export interface IssueGroupsWrite {
   comments?: GroupWrite<SnapshotComment[]>
   /** 评审（按顺序）；complete + 空数组 = 确认没有评审。 */
   review?: GroupWrite<SnapshotReview[]>
+  /**
+   * 写回执追加的一条评论（#1866）。与 comments 互斥：一次写入只走其中一条路。
+   * 它落在同一张表、同一个组名（comments）下，所以版本门与三态章都按评论组算。
+   */
+  commentReceipt?: CommentReceiptWrite
 }
 
 /**
@@ -117,6 +144,11 @@ export interface WriteBatch {
 export interface IngestSuccess {
   committed: true
   mergeVersion: number
+  /**
+   * 这一批里写回执那条评论最后落在第几位（#1866）。只有表达过评论写回执时才有值；
+   * 上层拿它说「这一条存在第几位」，与库里实际写下的位置一致（被占用时可能往后挪过）。
+   */
+  commentPositions?: number[]
 }
 
 export interface IngestFailure {

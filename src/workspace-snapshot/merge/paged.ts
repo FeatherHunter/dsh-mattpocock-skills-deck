@@ -17,6 +17,23 @@ export type PagedMergeDecision<T> =
   | { kind: 'replace-prefix', items: T[] }
 
 /**
+ * 写回执那一条新评论该落在第几位（#1866）。
+ *
+ * 规则只有两句：
+ *  - 调用方知道票面总数时，就用那个数（新评论的下标就是「原来一共几条」）；前面的空隙留给
+ *    还没取到的那些评论，下一次取一页只会覆盖更小的位置，不会把这一条冲掉。
+ *  - 不知道总数时落到已取条数后面（`taken`）：位置可能不准，但至少不会盖掉已知的那几条。
+ *
+ * 反例：把它当成「前缀的第 taken 条」写进评论组，游标会跟着前进，下一次「加载更多」就会跳过
+ * 中间那几条还没取到的评论；位置取 0 更糟，会把第一条已知评论覆盖掉。
+ */
+export function receiptCommentSlot(position: number | null | undefined, taken: number): number {
+  const fallback = (typeof taken === 'number' && Number.isFinite(taken) && taken > 0) ? Math.floor(taken) : 0
+  if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) return fallback
+  return Math.max(Math.floor(position), fallback)
+}
+
+/**
  * 判断一组按页取回的条目这一批该做什么。
  *
  * unknown 只盖章不动值（三态的通用规则）；complete 连空数组一起换（那是「确认没有」）；

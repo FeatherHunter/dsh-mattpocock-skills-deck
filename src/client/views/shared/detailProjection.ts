@@ -172,6 +172,31 @@ function rowHasDetail(row: any): boolean {
 }
 
 /**
+ * 详情页给不给评论输入框（#1866）。
+ *
+ * 旧口径（#1694）：只有「这一趟详情取数成功」的详情才给输入框 —— 当时写评论要现开一次网络往返，
+ * 从快照投影出来的详情连后端能不能收评论都不知道，给了输入框只会让人写一段发不出去的字。
+ *
+ * 新口径：写评论改成「写回执先落库、界面再显示」之后，判据换成「我们知不知道评论这件事」：
+ *  - 评论字段是连接（有 nodes 数组）才算知道；缺席（连 comments 都不给）是「这个后端不表达评论」；
+ *  - 这一趟取回来的详情（live）一直都算知道；
+ *  - 从本地快照库读回来的详情（source 不是 live）要看库里评论组的完整度：完整或只有一部分
+ *    都算知道，「不知道」与「从没取过」不算。
+ *
+ * 拉取请求不在这里判：那条判据还要看列表行上的标记，留在 IssueDetail 里（#506 的口径不变）。
+ */
+export function commentsAvailableOf(detail: any, source: string): boolean {
+  if (!detail) return false
+  const comments: any = detail.comments
+  if (!comments || !Array.isArray(comments.nodes)) return false
+  if (source === 'live') return true
+  const groups: any = detail.snapshotGroups
+  const group: any = groups && groups.comments
+  const completeness: string = (group && typeof group.completeness === 'string') ? group.completeness : ''
+  return completeness === 'complete' || completeness === 'truncated'
+}
+
+/**
  * 详情页这一次该画什么：快照投影优先（#1695 起这是唯一业务数据来源），
  * 快照行里没有内容时才回退到这一趟取回的详情（live，进入页面到宿主合并回来之间的短暂过渡）。
  * 返回 { issue, source, lastKnownAtMs, noticeKey }：
@@ -241,6 +266,9 @@ export function detailViewFor(st: any, n: any, effortId?: any): any {
 function withSlots(view: any, detail: any, snapIssue: any, mode: any, relationsDetail?: any): any {
   view.bodySlot = bodySlotOf(detail, view, snapIssue, mode)
   view.relationsNotice = relationsNoticeOf(relationsDetail === undefined ? detail : relationsDetail, view)
+  // #1866：评论输入框的判据也在这里一次算完，理由与上面两条相同：视图不新增全局名字，
+  // 老门禁渲染 IssueDetail 时不用跟着加替身。这里只算「知道不知道」，拉取请求那条判据留在视图里。
+  view.commentsAvailable = commentsAvailableOf(detail, view.source)
   return view
 }
 

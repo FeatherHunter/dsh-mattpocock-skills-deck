@@ -182,6 +182,37 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
   function writeSessionFailure(opened: any): any {
     return sessionFailure(opened, '写')
   }
+  /**
+   * 把刚发出去的那条评论并进本地快照库（#1866）。
+   *
+   * 为什么非做不可：详情现在是本地优先（#1864）——60 秒内再打开同一张票会直接从库交回。
+   * 库里没有刚发的那一条，人就会看到「评论发出去了却不见了」。
+   *
+   * 回 true 只表示「提交进库了」。库打不开（降级）或事务没提交都回 false：调用方据此告诉界面
+   * 「评论已经发出去了，但本地库没存上」，而不是把两种结局说成一种。
+   */
+  async function storeCommentReceipt(cwd: any, opened: any, repoRef: any, number: any, comment: any, body: string): Promise<{ stored: boolean, reason: string }> {
+    const lib: any = (typeof deps.getSnapshotLibrary === 'function') ? await deps.getSnapshotLibrary().catch(function () { return null }) : null
+    if (!lib || typeof lib.recordCommentReceipt !== 'function') return { stored: false, reason: 'library-unavailable' }
+    const backend: string = String((opened && opened.backendId) || '')
+    const repoIdentity: string = String((repoRef && repoRef.refId) || '')
+    if (!backend) return { stored: false, reason: 'backend-missing' }
+    const effortId: string = (repoRef && repoRef.effortId !== undefined && repoRef.effortId !== null) ? String(repoRef.effortId) : ''
+    // 票号两种写法都交下去：本地 Markdown 存的是补零的键（05），GitHub 是不补零的（5）；
+    // 库里按先到先得认一个已存在的键，写错键会在库里多出一张只有身份的骨架票。
+    const padded: string = String(number).padStart(2, '0')
+    const plain: string = String(number)
+    const keys: string[] = padded === plain ? [padded] : [padded, plain]
+    const value: any = (comment && typeof comment.body === 'string') ? comment : { body: String(body || '') }
+    try {
+      const res: any = await lib.recordCommentReceipt({
+        workspaceRoot: cwd, backend: backend, repoIdentity: repoIdentity,
+        keys: keys, effortId: effortId, comment: value,
+      })
+      const stored: boolean = !!(res && res.ok === true && res.degraded !== true)
+      return { stored: stored, reason: stored ? '' : String((res && res.reason) || 'not-committed') }
+    } catch (eR) { return { stored: false, reason: 'receipt-threw' } }
+  }
   async function handleIssueDetail(args: any): Promise<any> {
     const n: any = args && args.number
     // #1003 空目录闸：不拿进程目录冒充去读票，诚实失败等就绪。
@@ -408,6 +439,10 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       if (r && r.ok) {
         // 写操作成功 → 失效面板快照缓存（#213 同语义；右侧列表增量由 client 静默重取快照经差异产出）
         try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
+        // #1866：写回执先提交进库，界面上那一条才有地方来。提交结果如实交回：stored 为假时
+        // 客户端说「发出去了但没存上」，不把两种结局混成一句「成功」。
+        const receipt: { stored: boolean, reason: string } = await storeCommentReceipt(cwd, opened, repoRef, n, r.data, String(body))
+        return Object.assign({}, r, { stored: receipt.stored, storedReason: receipt.reason })
       }
       return r
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }

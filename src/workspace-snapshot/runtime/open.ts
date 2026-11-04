@@ -194,7 +194,7 @@ export function openWorkspaceSnapshot(
           mergeVersion: result.mergeVersion,
           elapsedMs,
         })
-        return { committed: true, mergeVersion: result.mergeVersion as number }
+        return { committed: true, mergeVersion: result.mergeVersion as number, commentPositions: result.commentPositions }
       }
       const reason = result.reason ?? 'write-failed'
       logSnapshot(logEvent, reason === 'stale' ? 'warn' : 'error', 'workspaceSnapshot.ingest', {

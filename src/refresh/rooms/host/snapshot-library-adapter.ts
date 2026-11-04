@@ -317,3 +317,52 @@ export function issueWritesOf(rows: Issue[]): IssueWrite[] {
     .filter((row) => row && row.key != null && row.isPullRequest !== true)
     .map(issueWriteOf)
 }
+
+// #1866：写回执的来源与操作名单独一档，排查时一眼分得清「这条数据是写完读回来的」还是「列表取回来的」。
+export const RECEIPT_SOURCE = 'refresh-write'
+
+/**
+ * 一张票的写回执 → 组写入（#1866）。
+ *
+ * 回执是「写完之后 tracker 交回来的那张票」：改状态、改标签、改标题这几类写之后，
+ * 后端会把改完的整票读回来。它表达的组与列表读结果同一套换算（行、标签、指派、父票、阻塞），
+ * 只是来源与操作名换成写回执那一档。
+ *
+ * 什么不做：写回执不碰正文、评论、评审、子票计数、合并信息这几组 —— 那几样回执没表达，
+ * 拿它去清空会把上一次详情取到的内容误删（「没表达」不等于「确认没有」，这是三态的总规矩）。
+ */
+export function receiptIssueWriteOf(issue: Issue, operation: string): IssueWrite {
+  const write = issueWriteOf(issue)
+  const groups: Record<string, { source?: string | null, operation?: string | null } | undefined> = write.groups as any
+  for (const name of Object.keys(groups)) {
+    const group = groups[name]
+    if (!group) continue
+    group.source = RECEIPT_SOURCE
+    group.operation = operation
+  }
+  return write
+}
+
+/**
+ * 一条评论的写回执 → 库里的评论值（#1866）。
+ *
+ * 与「一页评论」的换算同口径：时间换毫秒，后端没给作者就不写作者字段（空登录名不建成一行 actor，
+ * 否则库里会多出一个叫空串的参与人）。
+ */
+export function commentReceiptValueOf(comment: Comment): SnapshotComment {
+  const out: SnapshotComment = { body: typeof comment.body === 'string' ? comment.body : '' }
+  if (typeof comment.id === 'string' && comment.id) out.backendId = comment.id
+  if (comment.author && typeof comment.author.login === 'string' && comment.author.login) {
+    out.author = {
+      login: comment.author.login,
+      kind: comment.author.kind ?? null,
+      name: comment.author.name ?? null,
+      avatarUrl: comment.author.avatarUrl ?? null,
+    }
+  }
+  if (typeof comment.authorAssociation === 'string') out.authorAssociation = comment.authorAssociation
+  out.createdAtMs = msOf(comment.createdAt)
+  out.updatedAtMs = msOf(comment.updatedAt)
+  out.editedAtMs = msOf(comment.editedAt)
+  return out
+}

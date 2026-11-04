@@ -331,7 +331,10 @@ export const IssueDetail = function (props: any): any {
       // 名字沿用 rawComments：门禁 tests/verify-issue-comment.ts 会从构建产物里按这个名字切出判据求值。
       let canComment = !!rawComments && Array.isArray(rawComments.nodes)
       // #1694：从快照投影出来、或失败后保留的评论只读 —— 写评论仍要等这一趟详情取数成功。
-      if (proj.source !== 'live') canComment = false
+      // #1866：这条限制撤掉了。写评论改成「写回执先落库、界面再显示」之后，判据换成
+      // 「我们知不知道评论这件事」：live 详情照旧可写；从本地快照库读回来的详情，库里评论组
+      // 知道（完整或一部分）也可写。判据住在 views/shared/detailProjection.ts（proj.commentsAvailable）。
+      if (proj.source !== 'live' && proj.commentsAvailable !== true) canComment = false
       const commentsNodes = (proj.source !== 'none' && !!rawComments && Array.isArray(rawComments.nodes)) ? rawComments.nodes : []
       // #1783：快照投影里「评论未知」与「确实没有评论」是两件事。投影出来的详情没有 comments 字段时，
       // 说明这一行只带了正文、评论还没取过（GitLab 列表就是这样）；这时既不能说「评论 (0)」，也不能说「只读」。

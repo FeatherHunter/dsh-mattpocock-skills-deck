@@ -10,9 +10,9 @@
 // 为什么作者要落库：评论正文与作者信息是「已取过就不重取」的内容，作者只在 actor 表里存一份，
 // 多条评论按登录名共用一行；写的时候用补缺口径（overwrite=false），不拿 NULL 盖掉已知的昵称头像。
 import type { DatabaseSync } from 'node:sqlite'
-import type { GroupWrite } from '../contract/types.js'
+import type { CommentReceiptWrite, GroupWrite } from '../contract/types.js'
 import type { SnapshotComment } from '../model/types.js'
-import { decidePagedMerge } from '../merge/paged.js'
+import { decidePagedMerge, receiptCommentSlot } from '../merge/paged.js'
 import { upsertActor } from './actor-write.js'
 import { readFetchCursor, writeFetchCursor } from './fetch-cursor.js'
 
@@ -72,4 +72,62 @@ function advanceCommentsCursor(
   }
   const current = readFetchCursor(db, issueId, COMMENTS_GROUP)
   if (current === null || count > current) writeFetchCursor(db, issueId, COMMENTS_GROUP, count, nowMs)
+}
+
+/** 这张票已经有多少条评论行（写回执找不到位置时退到它后面）。 */
+function countCommentRows(db: DatabaseSync, issueId: number): number {
+  const row = db.prepare('SELECT COUNT(*) AS n FROM comment WHERE issue_id = ?').get(issueId) as { n?: number } | null
+  const count = row ? Number(row.n) : 0
+  return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
+}
+
+/** 那个位置是不是已经有评论了。 */
+function positionTaken(db: DatabaseSync, issueId: number, position: number): boolean {
+  const row = db.prepare('SELECT 1 AS hit FROM comment WHERE issue_id = ? AND position = ?').get(issueId, position)
+  return !!row
+}
+
+/**
+ * 落一条评论写回执（#1866）：只把「刚发的那一条」写进去，不当作一页。
+ *
+ * 三条规矩：
+ *  1. 位置由 merge/paged.ts 的 receiptCommentSlot 定（知道总数就用总数，否则落到已知条数后面）；
+ *     那个位置已经有别人取回来的评论时往后挪 —— 宁可位置不精确，也不删掉已知的那一条。
+ *  2. 游标分两种情形：原来完整时跟着这一组现在的条数走（完整意味着我们全知道，条数变了游标就变）；
+ *     只有一部分时一个字节都不动 —— 追加一条不等于「取到了第 N 条」，动了会让「加载更多」跳过中间几条。
+ *  3. 作者照旧按登录名补缺口写进 actor 表，不拿 NULL 盖掉已知的昵称头像。
+ *
+ * 返回这条评论最终落在第几位（被占用时可能比调用方要的靠后）。
+ */
+export function applyCommentReceipt(
+  db: DatabaseSync,
+  issueId: number,
+  receipt: CommentReceiptWrite,
+  nowMs: number,
+): number {
+  const comment = receipt.comment
+  let position = receiptCommentSlot(receipt.position, countCommentRows(db, issueId))
+  while (positionTaken(db, issueId, position)) position += 1
+  const authorId = comment && comment.author ? upsertActor(db, comment.author, false) : null
+  db.prepare(
+    `INSERT INTO comment (
+       issue_id, backend_id, author_id, author_association, body,
+       created_at_ms, updated_at_ms, edited_at_ms, position
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    issueId,
+    comment && typeof comment.backendId === 'string' && comment.backendId ? comment.backendId : null,
+    authorId,
+    comment && typeof comment.authorAssociation === 'string' ? comment.authorAssociation : null,
+    comment && typeof comment.body === 'string' ? comment.body : '',
+    comment ? comment.createdAtMs ?? null : null,
+    comment ? comment.updatedAtMs ?? null : null,
+    comment ? comment.editedAtMs ?? null : null,
+    position,
+  )
+  // 组本身完整时，「取到第几条」就等于这一组现在的条数；只有一部分时游标一个字节都不动。
+  if (receipt.completeness === 'complete') {
+    writeFetchCursor(db, issueId, COMMENTS_GROUP, countCommentRows(db, issueId), nowMs)
+  }
+  return position
 }

@@ -23,7 +23,7 @@ import { applyIssueAssignees, applyIssueLabels } from '../persistence/issue-grou
 import { ensureIssueId, findIssueId } from '../persistence/issue-identity-write.js'
 import { fillIssueRow, replaceIssueRow } from '../persistence/issue-row-write.js'
 import { applyIssueMergeInfo, applyIssueSubIssues } from '../persistence/issue-scalar-write.js'
-import { applyIssueComments } from '../persistence/comment-write.js'
+import { applyIssueComments, applyCommentReceipt } from '../persistence/comment-write.js'
 import { applyIssueReviews } from '../persistence/review-write.js'
 import { readMergeVersion } from '../persistence/schema.js'
 
@@ -60,6 +60,8 @@ export interface IngestWritesResult {
   mergeVersion?: number
   reason?: 'stale' | 'write-failed'
   detail?: string
+  /** 这一批里评论写回执落在第几位（#1866）；没表达过这一组时是空数组。 */
+  commentPositions?: number[]
 }
 
 /**
@@ -91,11 +93,15 @@ export function ingestWrites(
     }
 
     const nextVersion = readMergeVersion(db) + 1
-    for (const write of writes) applyIssueWrite(db, write, nowMs, nextVersion)
+    const commentPositions: number[] = []
+    for (const write of writes) {
+      const appliedPosition = applyIssueWrite(db, write, nowMs, nextVersion)
+      if (appliedPosition !== null) commentPositions.push(appliedPosition)
+    }
     db.prepare('UPDATE meta SET merge_version = ?, last_write_ms = ? WHERE id = 1')
       .run(nextVersion, nowMs)
     db.exec('COMMIT')
-    return { committed: true, mergeVersion: nextVersion }
+    return { committed: true, mergeVersion: nextVersion, commentPositions }
   } catch (error) {
     try { db.exec('ROLLBACK') } catch { /* 事务可能已因约束错误自动回滚 */ }
     return {
@@ -119,6 +125,8 @@ function collectExpressedGroups(writes: readonly IssueWrite[]): ExpressedGroup[]
     if (write.groups.subIssues !== undefined) out.push({ write, group: 'subIssues' })
     if (write.groups.mergeInfo !== undefined) out.push({ write, group: 'mergeInfo' })
     if (write.groups.comments !== undefined) out.push({ write, group: 'comments' })
+    // 写回执那一条评论与评论组是同一张表、同一个组名（#1866）：版本门与三态章都按评论组算。
+    if (write.groups.commentReceipt !== undefined) out.push({ write, group: 'comments' })
     if (write.groups.review !== undefined) out.push({ write, group: 'review' })
   }
   return out
@@ -135,23 +143,28 @@ function readGroupWrittenVersion(db: DatabaseSync, item: ExpressedGroup): number
   return row ? Number(row.written_version) : null
 }
 
-/** 落一张票表达的所有组。row 组 complete+null 是「确认不存在」，删掉后不再处理同批的其它组。 */
+/**
+ * 落一张票表达的所有组。row 组 complete+null 是「确认不存在」，删掉后不再处理同批的其它组。
+ *
+ * 回值只有评论写回执用得上：这一条最后落在第几位（没表达这一组时是 null）。
+ */
 function applyIssueWrite(
   db: DatabaseSync,
   write: IssueWrite,
   nowMs: number,
   version: number,
-): void {
+): number | null {
   if (typeof write.effortId !== 'string') throw new Error('写入缺少 effortId')
   if (typeof write.key !== 'string' || write.key.length === 0) throw new Error('写入缺少 key')
 
-  const { row, body, labels, assignees, parents, blockedBy, subIssues, mergeInfo, comments, review } = write.groups
+  const { row, body, labels, assignees, parents, blockedBy, subIssues, mergeInfo, comments, review, commentReceipt } = write.groups
+  let receiptPosition: number | null = null
   if (row !== undefined) {
     const decision = decideRowMerge(null, row)
     if (decision.kind === 'remove') {
       const existingId = findIssueId(db, write.effortId, write.key)
       if (existingId !== null) db.prepare('DELETE FROM issue WHERE issue_id = ?').run(existingId)
-      return
+      return null
     }
     const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
     if (decision.kind === 'replace') {
@@ -217,6 +230,15 @@ function applyIssueWrite(
     applyIssueReviews(db, issueId, review)
     stampGroup(db, issueId, GROUP_REVIEW, review, nowMs, version)
   }
+
+  // 评论写回执（#1866）：只追加刚发的那一条，不当作一页，也不推进游标（除非这一组本来就完整）。
+  if (commentReceipt !== undefined) {
+    const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
+    receiptPosition = applyCommentReceipt(db, issueId, commentReceipt, nowMs)
+    stampGroup(db, issueId, GROUP_COMMENTS, commentReceipt, nowMs, version)
+  }
+
+  return receiptPosition
 }
 
 /**
@@ -227,7 +249,7 @@ function stampGroup(
   db: DatabaseSync,
   issueId: number,
   groupName: string,
-  write: GroupWrite<unknown>,
+  write: { completeness: string, reason?: string | null, source?: string | null, operation?: string | null },
   nowMs: number,
   version: number,
 ): void {

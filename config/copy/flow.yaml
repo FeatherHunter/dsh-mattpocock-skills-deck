@@ -135,6 +135,7 @@ zh:
   detail.cmtAuthFail: 未登录 GitHub：请在终端运行 gh auth login 后重试，或到网页端评论
   detail.cmtRateLimit: 已达到 GitHub API 限流配额，请稍后重试
   detail.cmtGeneric: 评论发送失败，请重试（{msg}）
+  detail.cmtNotStored: 评论已经发出去了，但没存进本地快照库（{msg}）：下次刷新会重新取回。
   list.newSessionLabel: 新会话
   map.newSessionTitle: 在新会话打开（推进该 map）
   tip.fullTitle: 完整标题：{t}
@@ -397,6 +398,7 @@ en:
   detail.cmtAuthFail: "Not logged into GitHub: run gh auth login and retry, or comment on the web"
   detail.cmtRateLimit: GitHub API rate limit reached — please retry later
   detail.cmtGeneric: Comment failed, please retry ({msg})
+  detail.cmtNotStored: "The comment was posted but not saved to the local snapshot library ({msg}); the next refresh will fetch it again."
   list.newSessionLabel: New session
   map.newSessionTitle: Open in a new session (advance this map)
   tip.fullTitle: "Full title: {t}"

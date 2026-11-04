@@ -136,6 +136,13 @@ const STATUS_EXCEPTIONS = [
     reason: '评论提交触发限流的提示色：用琥珀和网络失败（红）区分开。',
   },
   {
+    // #1866：评论已经发出去、但没存进本地快照库时的那一句提示。它既不是失败（红）也不是成功，
+    // 用同一块区域的警示橙；与上面限流那条同一套底色与边框，位置不同（输入框上方）。
+    file: 'src/client/views/IssueDetailComments.ts',
+    segment: "rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.3)', color: '#f59e0b' } }, [",
+    reason: '评论发出去了但没存进本地快照库的警示句：提醒人这一条眼下看不到、下次刷新会重新取回。',
+  },
+  {
     file: 'src/client/views/ListTab.ts',
     segment: 'list.partial',
     reason: '健康检查结果不完整（list.partial）的琥珀小点：只在清单异常缺失时亮（缺未关闭票、列表触上限、REST 降级、计数冲突或缺失），悬停按 missingOpen 说缺几张未关闭票；「已关闭只装首页」不再算。结果状态提示。',
@@ -409,7 +416,9 @@ const STATUS_EXCEPTIONS = [
 //   #f59e0b/#0e8a16（改引像素皮肤令牌），白名单里这两条与落点一起删除：同值点 79→77、落点文件 32→30。
 // #1840：版本控制页签按定稿原型换深浅两套色板，深色主强调绿 #3fb950 与完成态绿同值，
 //   页签自带调色板登记进白名单：同值点 77→78、落点文件 30→31。
-const STATUS_REPO_HITS = 78
+// #1866：评论「发出去了但没存进本地库」的警示句用同一枚琥珀，登记进白名单：
+//   同值点 78→79、落点文件仍是 31（IssueDetailComments.ts 原来就在名单里）。
+const STATUS_REPO_HITS = 79
 const STATUS_REPO_FILES = 31
 // 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [
