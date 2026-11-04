@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T20:20:17.702Z",
+  "generatedAt": "2026-11-04T22:01:57.855Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 572,
   "gateCount": 572,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 115,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 902,
+  "graphFileCount": 904,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4265,7 +4265,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 97,
+      "expectedAssertions": 110,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -5637,6 +5637,7 @@
         "src/client/views/versionControl",
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcRealActions.ts",
+        "src/client/views/versionControl/vcRealCommitFlow.ts",
         "src/client/views/versionControl/vcRealDelegate.ts",
         "src/client/views/versionControl/vcRealManage.ts",
         "src/client/views/versionControl/vcRealManageActions.ts",
@@ -5665,8 +5666,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 259,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 15 条"
+      "expectedAssertions": 262,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 16 条"
     },
     {
       "step": "node tests/verify-1776-vc-tab-browser.ts",
@@ -8052,6 +8053,7 @@
         "src/client/views/versionControl/vcClonePage.ts",
         "src/client/views/versionControl/vcCommit.ts",
         "src/client/views/versionControl/vcCommitOps.ts",
+        "src/client/views/versionControl/vcCommitOptions.ts",
         "src/client/views/versionControl/vcCommitPage.ts",
         "src/client/views/versionControl/vcConfigOps.ts",
         "src/client/views/versionControl/vcConfigPage.ts",
@@ -8084,6 +8086,7 @@
         "src/client/views/versionControl/vcQuery.ts",
         "src/client/views/versionControl/vcQueryView.ts",
         "src/client/views/versionControl/vcRealActions.ts",
+        "src/client/views/versionControl/vcRealCommitFlow.ts",
         "src/client/views/versionControl/vcRealDelegate.ts",
         "src/client/views/versionControl/vcRealManage.ts",
         "src/client/views/versionControl/vcRealManageActions.ts",
@@ -8170,7 +8173,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 733,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 113 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 115 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -8269,6 +8272,7 @@
         "src/client/views/versionControl/vcClonePage.ts",
         "src/client/views/versionControl/vcCommit.ts",
         "src/client/views/versionControl/vcCommitOps.ts",
+        "src/client/views/versionControl/vcCommitOptions.ts",
         "src/client/views/versionControl/vcCommitPage.ts",
         "src/client/views/versionControl/vcConfigOps.ts",
         "src/client/views/versionControl/vcConfigPage.ts",
@@ -8301,6 +8305,7 @@
         "src/client/views/versionControl/vcQuery.ts",
         "src/client/views/versionControl/vcQueryView.ts",
         "src/client/views/versionControl/vcRealActions.ts",
+        "src/client/views/versionControl/vcRealCommitFlow.ts",
         "src/client/views/versionControl/vcRealDelegate.ts",
         "src/client/views/versionControl/vcRealManage.ts",
         "src/client/views/versionControl/vcRealManageActions.ts",
@@ -8385,7 +8390,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 112 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 114 条"
     },
     {
       "step": "node tests/verify-847-stall-watch.ts",
@@ -15751,9 +15756,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 925,
+    "fileCount": 927,
     "dirCount": 92,
-    "coveredFileCount": 925,
+    "coveredFileCount": 927,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 73,
@@ -15964,6 +15969,7 @@
       "src/client/views/versionControl/vcClonePage.ts",
       "src/client/views/versionControl/vcCommit.ts",
       "src/client/views/versionControl/vcCommitOps.ts",
+      "src/client/views/versionControl/vcCommitOptions.ts",
       "src/client/views/versionControl/vcCommitPage.ts",
       "src/client/views/versionControl/vcConfigOps.ts",
       "src/client/views/versionControl/vcConfigPage.ts",
@@ -16005,6 +16011,7 @@
       "src/client/views/versionControl/vcQuery.ts",
       "src/client/views/versionControl/vcQueryView.ts",
       "src/client/views/versionControl/vcRealActions.ts",
+      "src/client/views/versionControl/vcRealCommitFlow.ts",
       "src/client/views/versionControl/vcRealDelegate.ts",
       "src/client/views/versionControl/vcRealManage.ts",
       "src/client/views/versionControl/vcRealManageActions.ts",

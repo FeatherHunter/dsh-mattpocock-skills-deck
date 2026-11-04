@@ -209,7 +209,8 @@ export function createWriteCheck(deps: any): any {
       // 提交绑两格：计划摘要（模式、目标、危险开关）与索引条数；2.2 的 commit -a 还要绑工作树形状，
       // 否则「预检之后又改了一个已跟踪文件」会被 -a 静默带进这次提交。比对口径与执行前那一侧逐字节一致。
       const pre: any = { planDigest: digest16(planBindingInput(commitPlan)) }
-      if (commitPlan.mode === 'all') pre.worktreeDigest = digest16(worktreeBindingInput(screen))
+      // 2.2 的 all 与形态互相独立：#1877 起计划里是独立字段，所以按 all 判，而不是看形态名。
+      if (commitPlan.all === true) pre.worktreeDigest = digest16(worktreeBindingInput(screen))
       bindings = makeBindings({ counters: { indexEntries: indexEntries }, preconditions: pre })
       // i-t-a（git add -N）：与「真暂存一个空文件」指纹相同但提交结局不同，直接拒绝（总工订正 3）。
       const st: any = await readOut(cwd, ['status', '--porcelain=v2', '-z', '--untracked-files=all', '--find-renames'], LSFILES_TIMEOUT_MS, LSFILES_LIMIT)

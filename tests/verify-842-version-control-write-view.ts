@@ -147,8 +147,10 @@ const VC_FILES = [
   // #1745 历史高级查询：数据层（十条能力的目录与读取）与面板画法都排在页面壳之前。
   'src/client/views/versionControl/vcQuery.js',
   'src/client/views/versionControl/vcQueryView.js',
-  // #1743 提交页：动作层与正文叶子（与构建同序，排在页面壳之前，壳要调 vcCommitPageNode）。
+  // #1743 提交页：动作层、提交选项展开区与正文叶子（与构建同序，排在页面壳之前，壳要调 vcCommitPageNode）。
   'src/client/views/versionControl/vcCommitOps.js',
+  // #1877：提交选项四组住在独立叶子里，提交页要调 vcCommitOptionsNode，闭包少了它一渲染就 ReferenceError。
+  'src/client/views/versionControl/vcCommitOptions.js',
   'src/client/views/versionControl/vcCommitPage.js',
   // #1740 长任务区（真任务在跑时的进度、四类结论与取消按钮）：M2 的容器要读任务槽并轮询，拼闭包缺它就会在挂载那一帧抛错。
   'src/client/views/versionControl/vcTaskPanel.js',
@@ -212,6 +214,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcRealShell.js',
   'src/client/views/versionControl/vcRealDelegate.js',
   'src/client/views/versionControl/vcRealActions.js',
+  // #1877：提交选项浮层的关闭与焦点行为拆成独立叶子，容器要调 vcRealCommitFlowEffectsOf。
+  'src/client/views/versionControl/vcRealCommitFlow.js',
   'src/client/views/versionControl/vcRealTab.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -571,8 +575,8 @@ function groupA(view) {
   const a3TypedBtn = tagAt(a3Typed, 'data-vc-commit-submit="')
   // 只看独立的 disabled 属性：aria-disabled="false" 里也含 disabled 这个子串，不能用 indexOf 直接判。
   const a3Disabled = function (tag) { return /(?:^|\s)disabled(?:="")?(?:\s|>)/.test(tag) }
-  check(a3Disabled(a3BlankBtn) && a3Blank.indexOf('data-vc-commit-submit-tip') >= 0 && a3TypedBtn !== '' && !a3Disabled(a3TypedBtn) && a3Typed.indexOf('写一句提交信息') >= 0 && a3Typed.indexOf('data-vc-commit-preview') >= 0,
-    'A3 提交区真渲染：没有提交信息时按钮禁用并写明原因，写了信息就解除禁用、说明与预览都看得到')
+  check(a3Disabled(a3BlankBtn) && a3Blank.indexOf('data-vc-commit-submit-tip') >= 0 && a3TypedBtn !== '' && !a3Disabled(a3TypedBtn) && a3Typed.indexOf('写一句提交信息') >= 0 && /<textarea[^>]*data-vc-commit-msg="1"/.test(a3Typed),
+    'A3 提交区真渲染：没有提交信息时按钮禁用并写明原因，写了信息就解除禁用、说明就在提交区的多行输入框里（#1877 起原型不再画单独的预览块）')
 
   const rowB = rowOf(blocks, 'b.txt')
   check(!!(rowB && rowB.stageAction && rowB.stageAction.show === true), 'A4 未暂存文件行的模型里有「add」按钮')

@@ -303,7 +303,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     // #1743 域 2 提交区：按原型贴在文件行与动作面板之后；说明与选项展开，提交按钮固定在这块底部。
     children.push(Object.assign({}, vcCommitPageNode(h, t, {
       reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
-      ops: opts.commitOps || null, targets: opts.commitTargets || [],
+      ops: opts.commitOps || null,
       panel: opts.commitPanel || null,
       // #1860 原型提交区：已暂存个数与两个快捷入口（取消全部暂存 / 储藏）都从改动页读数里拿，
       //   所以把整份改动模型与开放交接的回调一起递进去；拿不到时这两处只是不画，不影响提交本身。
@@ -390,7 +390,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // #1745：历史高级查询面板的输入与四态由调用方带着走（不传就是空的「还没跑」）。
     queries: opts.queries, inputs: opts.inputs,
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
-    commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
+    commitOps: opts.commitOps || null, commitPanel: opts.commitPanel || null,
     // #1751 贮藏页要首屏读数与本地编辑状态/回调（不传就是空态，其它页渲染不变）。
     seed: seed, stash: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit,
     // 页面要的真数据与回调原样往下传（不传就是骨架，既有页面渲染不变）：#1752 工作树、#1756 克隆向导、#1757 子模块页、#1760 配置与钩子页；#1761 诊断页的读数与五个回调也原样往下传

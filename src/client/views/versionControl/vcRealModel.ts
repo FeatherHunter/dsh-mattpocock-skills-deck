@@ -286,18 +286,6 @@ export const vcRealSkinWatchOf = function (onSkin: any): any {
   return function () { mo.disconnect() }
 }
 
-// 提交目标：首屏 history 片里已经带了提交清单，容器只把它翻成下拉选项（值仍是完整 oid）。
-export const vcRealCommitTargetsOf = function (reads: any): any[] {
-  const slice: any = vcFirstScreenSliceOf(reads, 'history') || {}
-  const data: any = (slice && slice.data) || {}
-  const commits: any[] = Array.isArray(data.commits) ? data.commits : []
-  return commits.map(function (c: any) {
-    const oid: string = String((c && c.oid) || '')
-    const short: string = String((c && c.short) || oid.slice(0, 7))
-    return { oid: oid, label: short + ' ' + String((c && c.subject) || '') }
-  })
-}
-
 // 改动页的种子：计数来自首屏 changes 片；values 是表单当前值（由容器持有，动作层按它拼电话参数）。
 export const vcRealChangesSeedOf = function (reads: any): any {
   const slice: any = vcFirstScreenSliceOf(reads, 'changes') || {}

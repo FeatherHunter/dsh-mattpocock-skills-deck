@@ -155,6 +155,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcQueryView.js',
   // #1743 提交页：动作层与正文叶子（与构建同序，排在页面壳之前，壳要调 vcCommitPageNode）。
   'src/client/views/versionControl/vcCommitOps.js',
+  // #1877：提交选项四组住在独立叶子里，提交页要调 vcCommitOptionsNode，闭包少了它一渲染就 ReferenceError。
+  'src/client/views/versionControl/vcCommitOptions.js',
   'src/client/views/versionControl/vcCommitPage.js',
   // #1740 长任务区（真任务在跑时的进度、四类结论与取消按钮）：M2 的容器要读任务槽并轮询，拼闭包缺它就会在挂载那一帧抛错。
   'src/client/views/versionControl/vcTaskPanel.js',
@@ -219,6 +221,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcRealShell.js',
   'src/client/views/versionControl/vcRealDelegate.js',
   'src/client/views/versionControl/vcRealActions.js',
+  // #1877：提交选项浮层的关闭与焦点行为（换页签 / 点外面 / 收起后焦点回箭头）拆成独立叶子，容器调它。
+  'src/client/views/versionControl/vcRealCommitFlow.js',
   'src/client/views/versionControl/vcRealTab.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -1405,13 +1409,13 @@ async function main() {
     return segs.join(',') === 'what,wont,reversible,verb' && html.indexOf('data-vc-commit-confirm="1"') >= 0 &&
       html.indexOf('data-focus-default="cancel"') >= 0
   }
-  // 结果节点的位置：在提交面板里、在提交按钮之后（结果贴触发点，不是全局横幅）。
+  // 结果节点的位置：在提交面板里、在已暂存计数之前（原型把这次提交的结果放在 composer 第一块）。
   const pResultJudgmentOf = function (v: any) {
     const html = pRenderOf(v, { plan: v.commitPlanOf({ mode: 'amend' }), result: { state: 'ok', mode: 'amend', ms: 12, cmd: 'commit' } })
     const panelAt = html.indexOf('data-vc-commit-panel')
-    const submitAt = html.indexOf('data-vc-commit-submit')
+    const countAt = html.indexOf('data-vc-staged-count')
     const resultAt = html.indexOf('data-vc-commit-result="ok"')
-    return panelAt >= 0 && submitAt > panelAt && resultAt > submitAt
+    return panelAt >= 0 && resultAt > panelAt && countAt > resultAt
   }
   check(typeof VIEW.vcCommitPageNode === 'function' && typeof VIEW.vcCommitOpsOf === 'function' && typeof VIEW.commitArgvOf === 'function', 'P1 提交页叶子与共享提交计划已按构建次序拼进闭包（八条能力共用一份 argv 真源）')
   const pDefault = pRenderOf(VIEW, null)
@@ -1420,19 +1424,19 @@ async function main() {
   // #1860：改动页页体不再画能力清单；21 条能力的主入口搬到命令面板，按账本顺序逐条渲染。
   check(attrValuesOf(pDefault, 'data-cap-primary').length === 0 && pagePaletteIdsOf('changes').length === VIEW.PAGE_COUNTS.changes && pagePaletteIdsOf('changes').join(',') === VIEW.vcPageCapabilitiesOf('changes').map(function (c) { return c.id }).join(',') && pagePaletteIdsOf('changes').filter(function (id) { return id === '2.4' }).length === 1, 'P3b 改动页页面体不再画能力清单（data-cap-primary 0 个）；命令面板空查询里这页 ' + VIEW.PAGE_COUNTS.changes + ' 条能力齐全、顺序=账本顺序且 2.4 恰一条')
   check(pMultilineJudgmentOf(VIEW), 'P4 2.7 的说明是面板内多行输入框（原型 composer 的 textarea rows=2，带 data-vc-commit-msg；没有单行 input 顶替，也不弹外部编辑器）')
-  check(pDefault.indexOf('data-vc-commit-template="1"') >= 0 && pDefault.indexOf('模板第二行') >= 0 && pDefault.indexOf('data-vc-template-text') >= 0, 'P5 2.8 把 commit.template 的原文读进面板并原样显示（套用前先让人看见要写什么）')
+  check(pDefault.indexOf('data-vc-commit-template="1"') >= 0 && pDefault.indexOf('data-cap-control="2.8"') >= 0 && pDefault.indexOf('.gitmessage') >= 0, 'P5 2.8 提交说明一组的模板链接指向仓库配置的模板（抄 path 写进旁边的说明，套用前就看得见模板来自哪里；原型不在面板里再贴一份原文）')
   const pOpts = attrValuesOf(pDefault, 'data-vc-commit-opt')
-  check(pOpts.join(',') === 'skipHooks,sign,signoff' && pDefault.indexOf('data-vc-commit-trailer="1"') >= 0 && pDefault.indexOf('Signed-off-by: 张三') >= 0 && pDefault.indexOf('example.com') >= 0, 'P6 2.5 / 2.6 各自独立勾选：跳过钩子、签名提交、追加签名行是三颗分开的勾选框，追加签名行的原文显示在面板里')
+  check(pOpts.join(',') === 'skipHooks,sign,signoff' && pDefault.indexOf('data-vc-commit-opt-hint') >= 0 && pDefault.indexOf('Signed-off-by: 张三') >= 0 && pDefault.indexOf('example.com') >= 0, 'P6 2.5 / 2.6 各自独立开关：跳过提交钩子、签名提交、追加签名行是三颗分开的开关，追加签名行的原文写在后果里（悬停与读屏都能拿到）')
   check(pConfirmJudgmentOf(VIEW), 'P7 危险动作（修订 / 吸收提交）的确认卡贴触发点、四段齐全、默认焦点在取消键')
-  check(pResultJudgmentOf(VIEW), 'P8 成功结果画在提交面板里、在提交按钮之后（结果贴触发点）')
+  check(pResultJudgmentOf(VIEW), 'P8 成功结果画在提交面板里、在已暂存计数之前（原型把结果条放在 composer 第一块，不是全局横幅）')
   const pFail = pRenderOf(VIEW, { result: { state: 'fail', reason: 'signing-failed', message: 'gpg failed to sign the data', hint: '按本机签名配置检查' } })
   check(pFail.indexOf('data-vc-commit-result="fail"') >= 0 && pFail.indexOf('role="alert"') >= 0 && pFail.indexOf(LOC.zh['vc.block.signingFailed']) >= 0 && pFail.indexOf('gpg failed to sign the data') >= 0, 'P9 失败结果带上分类词条与 git 原话（签名失败归到 signingFailed，不落 unknown）')
   const pNoHead = pRenderOf(VIEW, { form: Object.assign({}, pForm, { amend: { available: false, oid: '', short: '', subject: '', message: '' } }) })
   check(pNoHead.indexOf('data-cap-why="vc.block.nothingToAmend"') >= 0 && pNoHead.indexOf('disabled') >= 0, 'P10 没有上一条提交时 2.3 / 2.4 禁用并常驻原因（理由键与宿主判定同源）')
-  const pFixup = pRenderOf(VIEW, { plan: VIEW.commitPlanOf({ mode: 'fixup', target: '' }) })
-  check(pFixup.indexOf('data-vc-commit-target="1"') >= 0 && pFixup.indexOf(LOC.zh['vc.block.needCommitTarget']) >= 0 && pFixup.indexOf('data-vc-commit-submit-tip') >= 0, 'P11 fixup / squash 缺可吸收目标时按钮禁用并给原因（目标候选行同时出现）')
+  const pFixup = pRenderOf(VIEW, { plan: VIEW.commitPlanOf({ mode: 'fixup' }), message: '' })
+  check(pFixup.indexOf('data-vc-commit-auto="fixup"') >= 0 && pFixup.indexOf('fixup! 上一条提交') >= 0 && pFixup.indexOf('data-vc-commit-msg') < 0, 'P11 2.4 fixup 形态把输入框换成一行自动说明（fixup! <上一条提交>）：吸收目标按原型固定为上一条，不再画「吸收进哪条提交」的下拉框')
   const pLong = pRenderOf(VIEW, { message: '第一行摘要\n\n第二段正文' })
-  check(pLong.indexOf('第一行摘要') >= 0 && pLong.indexOf('第二段正文') >= 0 && pLong.indexOf('data-vc-commit-preview') >= 0, 'P12 长相说明与换行在面板里写、在预览里看得到（外部编辑器不再是必经路径）')
+  check(pLong.indexOf('第一行摘要') >= 0 && pLong.indexOf('第二段正文') >= 0 && /<textarea[^>]*data-vc-commit-msg="1"/.test(pLong), 'P12 长说明与换行在提交区的多行输入框里写、也就在那里看得到（外部编辑器不再是必经路径；原型不再单独画一块预览）')
   // 判定同源：仓库没有暂存内容时，普通提交被拦（nothing-staged），但修订上一条提交仍放行（只改说明也能提交）。
   const pPlainDecision = VIEW.judge(pScreen, 'commit')
   const pAmendDecision = VIEW.commitDecisionOf(pPlainDecision, VIEW.commitPlanOf({ mode: 'amend' }), pScreen)
@@ -3178,7 +3182,7 @@ async function main() {
     // #1743：提交说明退回单行输入框 —— P4 的多行判据必须当场红。
     // #1860：提交区改成原型 composer 之后，说明框的位置与类名换了（textarea.commit-input[data-vc-commit-msg]），
     //   这条反证要改针对新源码里的那一行，否则补丁打不中就等于没证。
-    { name: '提交说明退回单行输入框', patch: (s) => s.replace("  children.push(h('textarea', {\n    key: 'msg', rows: 2, className: 'commit-input', value: p.message,", "  children.push(h('input', {\n    key: 'msg', type: 'text', className: 'commit-input', value: p.message,"), test: pMultilineJudgmentOf, what: 'P4' },
+    { name: '提交说明退回单行输入框', patch: (s) => s.replace("    children.push(h('textarea', {\n      key: 'msg', rows: 2, className: 'commit-input', value: p.message,", "    children.push(h('input', {\n      key: 'msg', type: 'text', className: 'commit-input', value: p.message,"), test: pMultilineJudgmentOf, what: 'P4' },
     // #1743：追加签名行与跳过钩子挤到同一条能力上 —— P3 的「每条能力各自一个控件」必须当场红。
     { name: '追加签名行挂到别条能力上', patch: (s) => s.replace("{ key: 'signoff', cap: '2.6',", "{ key: 'signoff', cap: '2.5',"), test: pCapControlJudgmentOf, what: 'P3' },
     // #1743：确认卡删掉「可逆性与恢复路径」那一段 —— P7 的四段判据必须当场红。

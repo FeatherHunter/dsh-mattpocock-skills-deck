@@ -66,7 +66,9 @@ const multiLineOk = (M) => {
 const av = (plan, msg) => P.commitArgvOf(plan, msg).join('|')
 
 check(av({ mode: 'staged' }, '标题') === 'commit|-m|标题', 'A1 2.1 提交已暂存内容：argv 为 commit / -m / 说明三个独立元素')
-check(av({ mode: 'all' }, '标题') === 'commit|-a|-m|标题', 'A2 2.2 提交全部已跟踪改动：-a 是独立元素，排在说明之前')
+check(av({ mode: 'all' }, '标题') === 'commit|-a|-m|标题', 'A2 2.2 提交全部已跟踪改动：-a 是独立元素、排在说明之前（旧的 mode:all 口径仍归一成「新提交 + 一起提交」）')
+check(av({ mode: 'amend', all: true }, '改说明') === 'commit|-a|--amend|-m|改说明', 'A2b 2.2 与 2.3 可以同时成立：一起提交与形态是两个字段，argv 里 -a 排在形态开关之前')
+check(av({ mode: 'fixup', all: true, target: 'HEAD~1' }, '') === 'commit|-a|--fixup=HEAD~1', 'A2c 2.2 与 2.4 同时成立时同样带 -a（内容来源不因形态变化而丢失）')
 check(av({ mode: 'amend' }, '') === 'commit|--amend|--no-edit', 'A3a 2.3 修订上一条提交且不写新说明：用 --amend 与 --no-edit')
 check(av({ mode: 'amend' }, '改说明') === 'commit|--amend|-m|改说明', 'A3b 2.3 修订并改说明：--amend 与 -m 说明各自独立')
 check(av({ mode: 'fixup', target: 'HEAD~1' }, '随便') === 'commit|--fixup=HEAD~1', 'A4a 2.4 fixup：目标以 --fixup=<目标> 一个元素传入，不拼 -m')
@@ -83,7 +85,8 @@ check(argvAll.every((x) => typeof x === 'string' && x.indexOf('commit ') !== 0 &
 
 // ---------- B 组：计划归一、校验、危险动作、追加签名行原文 ----------
 const norm = P.commitPlanOf({ mode: 'nonsense', target: '  HEAD~1  ', skipHooks: 1, sign: 'true', signoff: true })
-check(norm.mode === 'staged' && norm.target === 'HEAD~1' && norm.skipHooks === false && norm.sign === false && norm.signoff === true, 'B1 外部输入归一：名单外形态回落 staged，目标去空白，布尔只认 true')
+check(norm.mode === 'staged' && norm.all === false && norm.target === 'HEAD~1' && norm.skipHooks === false && norm.sign === false && norm.signoff === true, 'B1 外部输入归一：名单外形态回落 staged，all 只认 true，目标去空白，布尔只认 true')
+check(P.commitPlanOf({ mode: 'all' }).mode === 'staged' && P.commitPlanOf({ mode: 'all' }).all === true && P.commitPlanOf({ all: true }).all === true, 'B1b 2.2 的两种旧写法（mode:all / all:true）都归一成「staged + all」：形态里不再有 all 这一档')
 check(P.commitPlanProblem({ mode: 'fixup' }) === 'need-commit-target', 'B2a 2.4 fixup 没选目标：理由为 need-commit-target')
 check(P.commitPlanProblem({ mode: 'squash', target: '-x' }) === 'bad-commit-target', 'B2b 目标以短横线开头（像开关）：理由为 bad-commit-target')
 check(P.commitPlanProblem({ mode: 'staged', target: 'a b' }) === 'bad-commit-target', 'B2c 目标里有空格：理由为 bad-commit-target')
@@ -338,7 +341,7 @@ async function commitGroup() {
   const h2 = await makeCommitVc('d2')
   realGit(h2.dir, ['reset', '-q'])
   const p2 = await h2.vc.handleGitWriteCheck({ cwd: h2.dir, op: 'commit', message: '标题二', plan: { mode: 'all' } })
-  check(p2.ok === true && p2.decision.verdict === 'allow' && p2.plan.mode === 'all', 'D3 2.2 只有未暂存改动时 -a 计划仍放行（不逼人先暂存）')
+  check(p2.ok === true && p2.decision.verdict === 'allow' && p2.plan.mode === 'staged' && p2.plan.all === true, 'D3 2.2 只有未暂存改动时 -a 计划仍放行（不逼人先暂存；计划里是 staged + all，不再是 mode=all）')
   const t2 = (await h2.vc.writeTickets()).get(p2.ticket.id)
   check(!!t2 && typeof t2.bindings.preconditions.worktreeDigest === 'string' && t2.bindings.preconditions.worktreeDigest.length === 16, 'D4 2.2 额外绑工作树形状（预检后改过的已跟踪文件不会被 -a 静默带走）')
   const p2default = await h2.vc.handleGitWriteCheck({ cwd: h2.dir, op: 'commit', message: '标题二', plan: null })
@@ -389,7 +392,7 @@ async function commitGroup() {
   const p7 = await h7.vc.handleGitWriteCheck({ cwd: h7.dir, op: 'commit', message: '全部已跟踪改动', plan: { mode: 'all' } })
   const x7 = await h7.vc.handleGitCommit({ cwd: h7.dir, ticketId: p7.ticket.id, requestId: 'e2-1', message: '全部已跟踪改动', plan: { mode: 'all' } })
   const c7 = h7.spawns.filter(function (a) { return h7.after(a)[0] === 'commit' })[0] || []
-  check(x7.ok === true && x7.mode === 'all' && h7.after(c7).join('\u0001') === 'commit\u0001-a\u0001-m\u0001全部已跟踪改动', 'E5 2.2 argv 是 commit -a -m：-a 独立元素且排在说明前')
+  check(x7.ok === true && x7.all === true && h7.after(c7).join('\u0001') === 'commit\u0001-a\u0001-m\u0001全部已跟踪改动', 'E5 2.2 argv 是 commit -a -m：-a 独立元素且排在说明前；回包如实说这次打开了 all')
 
   // E6 2.3：修订上一条提交，argv 是 --amend；说明为空时用 --no-edit 不逼人重写。
   const h8 = await makeCommitVc('e3')
@@ -462,6 +465,9 @@ async function commitGroup() {
 // 做法与 A 组同一套：把 commit-plan 与 vcCommitPage 两份真源原文拼成闭包求值，再用 react-dom/server
 // 渲成静态 HTML 读外部行为。反证（F11 起）把真源文本改坏，同一套判据必须判红。
 const PAGE_SOURCE = 'src/client/views/versionControl/vcCommitPage.ts'
+// #1877：提交选项四组（形态 / 内容来源 / 说明模板 / 记录方式）住在这份新叶子里，闭包要把它一起拼进来，
+// 否则 vcCommitPageNode 渲染到展开区就 ReferenceError —— 那样测出来的只是「页面画不出来」。
+const OPTIONS_SOURCE = 'src/client/views/versionControl/vcCommitOptions.ts'
 const PAGE_EXPORTS = ['vcCommitPanelOf', 'vcCommitPageNode', 'vcCommitConfirmNode', 'commitBlockKeyOf']
 const React = require('react')
 const renderToStaticMarkup = require('react-dom/server').renderToStaticMarkup
@@ -472,9 +478,9 @@ const tStub = function (key, params) {
   return extra ? String(key) + ' ' + extra : String(key)
 }
 
-/** 把两份真源原文（可先按 patch 改坏）求值成页面模块：反证装置就靠 patch 这个入口。 */
+/** 把三份真源原文（可先按 patch 改坏）求值成页面模块：反证装置就靠 patch 这个入口。 */
 function evalPage(patch) {
-  let src = stripExports(sourceText(PLAN_SOURCE)) + '\n' + stripExports(sourceText(PAGE_SOURCE))
+  let src = stripExports(sourceText(PLAN_SOURCE)) + '\n' + stripExports(sourceText(OPTIONS_SOURCE)) + '\n' + stripExports(sourceText(PAGE_SOURCE))
   if (patch) src = patch(src)
   src = toEvalJs(src)
   // 真实构建里全局提示叶子 Tip 排在所有视图叶子之前；求值闭包要给它一份垫片，否则渲染到提交按钮时会拿到 ReferenceError。
@@ -490,23 +496,39 @@ const PAGE_FORM = {
   trailer: 'Signed-off-by: 张三 <z@example.com>',
   amend: { available: true, short: 'abc1234', subject: '上一条提交', message: '原说明' },
 }
-const PAGE_TARGETS = [{ oid: 'abc1234', short: 'abc1234', subject: '上一条提交' }]
+// #1877：改动页读数要带一份已暂存与一份未暂存（一个已跟踪 + 一个未跟踪），
+// 「一起提交」的份数只数已跟踪那一行 —— 未跟踪的新文件不在 git commit -a 的范围里。
+const PAGE_CHANGES = {
+  counts: { staged: 1, unstaged: 1, untracked: 1, conflicts: 0 },
+  files: {
+    staged: [{ path: 'a.txt' }],
+    unstaged: [{ path: 'b.txt', change: 'modified', untracked: false }, { path: 'new.txt', change: 'untracked', untracked: true }],
+  },
+}
 
 function pageUi(over) {
   const commit = Object.assign({
-    plan: { mode: 'staged', target: '', skipHooks: false, sign: false, signoff: false },
+    plan: { mode: 'staged', all: false, target: '', skipHooks: false, sign: false, signoff: false },
     message: '标题\n\n正文第一段', state: 'idle', form: PAGE_FORM,
-    decision: null, result: null, confirm: null, formProblem: '',
+    decision: null, result: null, confirm: null, formProblem: '', menuOpen: false, templateApplied: false,
   }, over || {})
   return { commit: commit }
 }
 
 function renderPanel(ui, module) {
   const M = module || PAGE
-  return renderToStaticMarkup(M.vcCommitPageNode(React.createElement, tStub, { ui: ui, targets: PAGE_TARGETS }))
+  return renderToStaticMarkup(M.vcCommitPageNode(React.createElement, tStub, { ui: ui, changes: PAGE_CHANGES }))
 }
 
 const countOf = function (html, token) { return html.split(token).length - 1 }
+/** 读出 HTML 里某个属性的全部取值（按出现次序）：形态按钮、能力编号这类「逐个元素」的判据用它。 */
+const attrValuesOf = function (html, attr) {
+  const out = []
+  const re = new RegExp(attr + '="([^"]*)"', 'g')
+  let hit = re.exec(html)
+  while (hit) { out.push(hit[1]); hit = re.exec(html) }
+  return out
+}
 
 /** F2 的判据本体：说明输入必须是多行 textarea（反证会把 textarea 改回单行 input）。 */
 const multiLineOkUi = function (html) {
@@ -517,7 +539,14 @@ const signSplitOk = function (html) {
   return countOf(html, 'data-cap-control="2.6"') === 2 && countOf(html, 'data-cap-control="2.5"') === 1 &&
     html.indexOf('data-vc-commit-opt="sign"') >= 0 && html.indexOf('data-vc-commit-opt="signoff"') >= 0
 }
-/** F5 的判据本体：确认卡固定四段（反证会删掉可逆性与恢复路径那一段）。 */
+/** F5 的判据本体：八条能力恰好十颗控件（反证会把内容来源的编号挪走，让 2.1 变成两颗）。 */
+const capCountsOk = function (html) {
+  const counts = {}
+  ;['2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8'].forEach(function (cap) { counts[cap] = countOf(html, 'data-cap-control="' + cap + '"') })
+  return counts['2.1'] === 1 && counts['2.2'] === 1 && counts['2.3'] === 1 && counts['2.4'] === 2 &&
+    counts['2.5'] === 1 && counts['2.6'] === 2 && counts['2.7'] === 1 && counts['2.8'] === 1
+}
+/** F6 的判据本体：确认卡固定四段（反证会删掉可逆性与恢复路径那一段）。 */
 const confirmSegsOk = function (html) {
   return ['what', 'wont', 'reversible', 'verb'].every(function (seg) { return html.indexOf('data-vc-commit-seg="' + seg + '"') >= 0 })
 }
@@ -527,14 +556,21 @@ const PAGE = evalPage(null)
 function pageGroup() {
   const html = renderPanel(pageUi())
   check(html.indexOf('data-vc-commit-panel="1"') >= 0 && html.indexOf('data-vc-page="changes"') >= 0, 'F1 提交面板挂在改动页上：面板根节点带 data-vc-commit-panel 与 data-vc-page=changes')
-  check(multiLineOkUi(html), 'F2 2.7 提交说明是面板内多行输入框（textarea，rows=6），不是单行输入框，也没有把用户推给外部编辑器')
+  check(multiLineOkUi(html), 'F2 2.7 提交说明是面板内多行输入框（textarea，rows=2），不是单行输入框，也没有把用户推给外部编辑器')
   check(html.indexOf('正文第一段') >= 0, 'F2b 多行说明的换行内容原样出现在 textarea 的值里（长文与换行不被压成一行）')
-  check(signSplitOk(html), 'F3 2.6 签名提交（sign）与追加签名行（signoff）是两枚独立勾选框，各自 data-cap-control=2.6；2.5 跳过钩子单独一枚（三件事不合并）')
-  check(html.indexOf('data-vc-commit-template') >= 0 && html.indexOf('data-cap-control="2.8"') >= 0 && html.indexOf('模板第一行') >= 0, 'F4 2.8 套用提交说明模板：按钮与模板原文都在面板内可见（读回 commit.template 后照原文套用）')
-  check(html.indexOf('data-vc-commit-trailer') >= 0 && html.indexOf('Signed-off-by: 张三') >= 0, 'F4b 2.6 面板内显示将写入的尾部签名行原文（追加签名行写什么，确认之前就能看见）')
-  const counts = {}
-  ;['2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8'].forEach(function (cap) { counts[cap] = countOf(html, 'data-cap-control="' + cap + '"') })
-  check(counts['2.1'] === 1 && counts['2.2'] === 1 && counts['2.3'] === 1 && counts['2.4'] === 2 && counts['2.5'] === 1 && counts['2.6'] === 2 && counts['2.7'] === 1 && counts['2.8'] === 1, 'F5 八条能力各自恰好一个主入口（2.4 的 fixup 与 squash 共用一条能力、两枚形态按钮）：共 10 个 data-cap-control')
+  check(signSplitOk(html), 'F3 2.6 签名提交（sign）与追加签名行（signoff）是两枚独立开关，各自 data-cap-control=2.6；2.5 跳过提交钩子单独一枚（三件事不合并）')
+  check(html.indexOf('data-vc-commit-template="1"') >= 0 && html.indexOf('data-cap-control="2.8"') >= 0 && html.indexOf('vc.commit.templateHint path=.gitmessage') >= 0, 'F4 2.8 套用提交说明模板：链接在提交选项的「提交说明」一组里，旁边写明模板来自哪个配置项')
+  check(html.indexOf('data-vc-commit-opt="signoff"') >= 0 && html.indexOf('Signed-off-by: 张三') >= 0, 'F4b 2.6 追加签名行的原文写在开关的后果里（悬停与读屏都能拿到「将写入这一行」，确认之前就能核对）')
+  check(capCountsOk(html), 'F5 八条能力各自恰好一个主入口：2.1 提交按钮、2.2 内容来源开关、2.3 / 2.4 形态按钮、2.5 / 2.6 三个记录方式、2.7 说明输入、2.8 模板链接，共 10 个 data-cap-control')
+  // #1877：内容来源（2.2）从「第五种形态」挪成独立开关；形态只剩四种，按钮上的字与原型一致。
+  const modes = attrValuesOf(html, 'data-vc-commit-mode')
+  const allTag = (/<button[^>]*data-vc-commit-all="1"[^>]*>/.exec(html) || [''])[0]
+  const allSwitch = allTag !== '' && allTag.indexOf('role="switch"') >= 0 && allTag.indexOf('aria-checked="false"') >= 0
+  check(modes.join(',') === 'staged,amend,fixup,squash' && allSwitch, 'F5b 提交形态只有四种（新提交 / 修订上一条 / fixup / squash）、内容来源是另一颗独立开关（aria-checked=false）：-a 不再冒充一种形态')
+  check(html.indexOf('data-vc-commit-options="1"') >= 0 && html.indexOf('aria-expanded="false"') >= 0 && html.indexOf('commit-split') >= 0 && html.indexOf('commit-options-caret') >= 0, 'F5c 提交选项的入口是贴在提交按钮右侧的一枚箭头（commit-split 里、默认 aria-expanded=false），不占一行')
+  check(html.indexOf('data-vc-commit-menu="closed"') >= 0 && /<div[^>]*commit-options[^>]*hidden/.test(html), 'F5d 提交选项默认收起：浮层带 hidden，控件留在页面里（收起不等于丢入口）')
+  const openHtml = renderPanel(pageUi({ menuOpen: true }))
+  check(openHtml.indexOf('data-vc-commit-menu="open"') >= 0 && !/<div[^>]*commit-options[^>]*hidden/.test(openHtml), 'F5e 点开箭头后浮层展开（data-vc-commit-menu=open、hidden 去掉）')
 
   const confirmHtml = renderPanel(pageUi({ confirm: {} }))
   check(confirmSegsOk(confirmHtml) && confirmHtml.indexOf('data-focus-default="cancel"') >= 0 && confirmHtml.indexOf('data-vc-commit-confirm="1"') >= 0, 'F6 危险动作的确认卡贴面板内（不是居中模态）：四段「会动什么/不会动什么/可逆性与恢复路径/动词写后果」齐全，默认焦点在取消')
@@ -543,26 +579,42 @@ function pageGroup() {
   const okHtml = renderPanel(pageUi({ result: { state: 'ok', ms: 12, cmd: 'commit' } }))
   const okIdx = okHtml.indexOf('data-vc-commit-result="ok"')
   const okRoot = okHtml.indexOf('data-vc-commit-panel="1"')
-  // #1860：提交区按原型 composer 重排，结果条的位置跟着原型走（原型把结果条放在 composer 顶部），
-  // 不再是「排在提交按钮之后」；这条判据只守「仍在本面板内、不是全局横幅」。
-  check(okRoot >= 0 && okIdx > okRoot && okIdx < okHtml.lastIndexOf('</div>'), 'F7 成功回执贴在本面板内：结果节点在 data-vc-commit-panel 根节点之内（原型把它放在 composer 顶部，不是全局横幅；#1860 起「在提交按钮之后」不再是判据）')
+  const okCount = okHtml.indexOf('data-vc-staged-count')
+  check(okRoot >= 0 && okIdx > okRoot && okCount > okIdx, 'F7 成功回执贴在提交区顶部（原型 composer 的第一块）：结果节点在本面板里、排在已暂存计数之前，不是全局横幅')
 
   const failHtml = renderPanel(pageUi({ result: { state: 'fail', reason: 'signing-failed', message: 'gpg: signing failed', hint: '检查签名配置', ms: 3 } }))
   check(failHtml.indexOf('data-vc-commit-result="fail"') >= 0 && failHtml.indexOf('role="alert"') >= 0 && failHtml.indexOf('vc.block.signingFailed') >= 0 && failHtml.indexOf('gpg: signing failed') >= 0, 'F8 失败回执也贴触发点：分类词条（signing-failed 那一族）与 git 原话一起显示，读屏用 role=alert')
 
-  const fixHtml = renderPanel(pageUi({ plan: { mode: 'fixup', target: '', skipHooks: false, sign: false, signoff: false } }))
-  check(fixHtml.indexOf('data-vc-commit-target="1"') >= 0 && fixHtml.indexOf('data-vc-commit-target-tip') >= 0 && fixHtml.indexOf('vc.block.needCommitTarget') >= 0, 'F9 2.4 fixup / squash 没有可吸收目标时：目标选择行给出 needCommitTarget 常驻原因，提交按钮一并禁用')
+  // #1877 原型：fixup / squash 的说明由面板按前缀自动写成，输入框换成一行只读说明。
+  const fixHtml = renderPanel(pageUi({ plan: { mode: 'fixup', all: false, target: '', skipHooks: false, sign: false, signoff: false } }))
+  check(fixHtml.indexOf('data-vc-commit-auto="fixup"') >= 0 && fixHtml.indexOf('fixup! 上一条提交') >= 0 && fixHtml.indexOf('data-vc-commit-msg') < 0, 'F9 2.4 fixup 形态：说明自动写成 fixup! <上一条提交的主题>，输入框换成只读说明（人不该手写这条说明）')
+  const squashHtml = renderPanel(pageUi({ plan: { mode: 'squash', all: false, target: '', skipHooks: false, sign: false, signoff: false } }))
+  check(squashHtml.indexOf('data-vc-commit-auto="squash"') >= 0 && squashHtml.indexOf('squash! 上一条提交') >= 0, 'F9b 2.4 squash 形态：自动说明是 squash! <上一条提交的主题>（变基时与上一条并成一条）')
 
-  const noHeadHtml = renderPanel(pageUi({ form: Object.assign({}, PAGE_FORM, { amend: { available: false, short: '', subject: '', message: '' } }), plan: { mode: 'amend', target: '', skipHooks: false, sign: false, signoff: false } }))
-  check(noHeadHtml.indexOf('data-cap-why="vc.block.nothingToAmend"') >= 0 && /<button[^>]*data-vc-commit-mode="amend"[^>]*disabled/.test(noHeadHtml), 'F10 2.3 分支还没有任何提交时：修订按钮禁用，并把 nothingToAmend 的常驻原因挂在按钮上')
+  const noHeadHtml = renderPanel(pageUi({ form: Object.assign({}, PAGE_FORM, { amend: { available: false, short: '', subject: '', message: '' } }), plan: { mode: 'amend', all: false, target: '', skipHooks: false, sign: false, signoff: false } }))
+  check(noHeadHtml.indexOf('data-cap-why="vc.block.nothingToAmend"') >= 0 && /<button[^>]*data-vc-commit-mode="amend"[^>]*disabled/.test(noHeadHtml) && noHeadHtml.indexOf('data-vc-commit-submit-tip') >= 0, 'F10 2.3 分支还没有任何提交时：修订按钮禁用，理由挂在按钮上，提交按钮一并给出同一条原因')
+  const noHeadFixup = renderPanel(pageUi({ form: Object.assign({}, PAGE_FORM, { amend: { available: false, short: '', subject: '', message: '' } }), plan: { mode: 'fixup', all: false, target: '', skipHooks: false, sign: false, signoff: false } }))
+  check(noHeadFixup.indexOf('vc.block.nothingToAmend') >= 0 && noHeadFixup.indexOf('vc.block.needCommitTarget') < 0, 'F10b 2.4 没有上一条提交时：理由说「没有可以修订的提交」，不再说「先选一条要吸收进去的提交」（原型已把吸收目标固定为上一条）')
+  // 空仓库里第一条提交不能被「没有上一条提交」挡住：那条理由只属于修订与吸收提交。
+  const noHeadNew = renderPanel(pageUi({ form: Object.assign({}, PAGE_FORM, { amend: { available: false, short: '', subject: '', message: '' } }) }))
+  const noHeadNewBtn = (/<button[^>]*data-vc-commit-submit="1"[^>]*>/.exec(noHeadNew) || [''])[0]
+  check(noHeadNewBtn !== '' && !/(?:^|\s)disabled(?:="")?(?:\s|>)/.test(noHeadNewBtn) && noHeadNew.indexOf('data-vc-commit-submit-tip') < 0, 'F10c 分支还没有提交时「新提交」照样能提交（没有上一条提交只挡住修订 / fixup / squash 三颗按钮，不挡第一条提交）')
+  // 2.2 没有可一起提交的改动时，原因写在「内容来源」那一组的常驻说明里，不只在悬停提示里。
+  const noTrackedHtml = renderToStaticMarkup(PAGE.vcCommitPageNode(React.createElement, tStub, { ui: pageUi(), changes: { counts: { staged: 1, unstaged: 0, untracked: 0, conflicts: 0 }, files: { staged: [{ path: 'a.txt' }], unstaged: [] } } }))
+  check(noTrackedHtml.indexOf('vc.commit.content.allTrackedEmpty') >= 0, 'F5f 2.2 工作区没有未暂存改动时，「内容来源」那一组常驻写着「没有未暂存的改动可以加进来」（不把原因只藏在悬停里）')
+  const amendResult = renderPanel(pageUi({ plan: { mode: 'staged', all: false, target: '', skipHooks: false, sign: false, signoff: false }, result: { state: 'ok', mode: 'amend', ms: 5, cmd: 'commit', headAfter: 'abcdef1234567' } }))
+  check(amendResult.indexOf('vc.commit.result.okAmend') >= 0 && amendResult.indexOf('vc.commit.result.headShort oid=abcdef1') >= 0, 'F7b 回执按「刚才那一下的形态」写：修订成功后说明是「已修订上一条提交」，并写出新的提交短号（成功后形态已归零，不能拿当前形态冒充）')
 
-  // F11–F13 反证：把真源文本改坏，上面同一套判据必须判红（证明这扇门禁会咬，不是永远绿）。
+  // F11–F14 反证：把真源文本改坏，上面同一套判据必须判红（证明这扇门禁会咬，不是永远绿）。
   const broken1 = evalPage(function (s) { return s.replace("h('textarea'", "h('input'") })
   check(multiLineOkUi(renderPanel(pageUi(), broken1)) === false, 'F11 反证：把多行 textarea 改回单行 input，F2 同一套判据判红（多行输入不是摆设）')
   const broken2 = evalPage(function (s) { return s.replace("{ key: 'signoff', cap: '2.6',", "{ key: 'signoff', cap: '2.5',") })
   check(signSplitOk(renderPanel(pageUi(), broken2)) === false, 'F12 反证：把追加签名行的能力标号挂到 2.5 上，F3 同一套判据判红（签名与追加签名行不许混成一条）')
   const broken3 = evalPage(function (s) { return s.replace(/\s*\{ seg: 'reversible'[^\n]*\n/, '\n') })
   check(confirmSegsOk(renderPanel(pageUi({ confirm: {} }), broken3)) === false, 'F13 反证：删掉确认卡的可逆性与恢复路径那一段，F6 同一套判据判红（四段少一段就挡住）')
+  // #1877：内容来源的编号从 2.2 挪到 2.1，会让 2.1 变成两颗、2.2 一颗不剩 —— F5 必须判红。
+  const broken4 = evalPage(function (s) { return s.replace("key: 'all', label: t('vc.commit.content.allTracked'), cap: '2.2',", "key: 'all', label: t('vc.commit.content.allTracked'), cap: '2.1',") })
+  check(capCountsOk(renderPanel(pageUi(), broken4)) === false, 'F14 反证：把内容来源开关的能力标号改成 2.1，F5 同一套判据判红（形态与内容来源各有各的编号）')
 }
 
 // C 组起是异步的（要真的拨宿主电话、等回包）：汇总与 GATE-RESULT 等它们跑完再打。

@@ -40,6 +40,8 @@ const NEW_FILES = [
   'src/client/views/versionControl/vcRealShell.js',
   'src/client/views/versionControl/vcRealDelegate.js',
   'src/client/views/versionControl/vcRealActions.js',
+  // #1877：提交选项浮层的关闭与焦点行为拆成独立叶子（容器贴着 350 有效行上限），容器要调它。
+  'src/client/views/versionControl/vcRealCommitFlow.js',
   'src/client/views/versionControl/vcRealTab.js',
 ]
 const EXPORTS = [
@@ -111,7 +113,16 @@ function makeHost(opts) {
     if (phone === 'wf.gitFirstScreen') return { ok: true, firstScreen: snapshotOf({ failSlice: o.failSlice, failMessage: o.failMessage }), readAtMs: NOW }
     if (phone === 'wf.gitStashCheck') return { ok: true, ticket: { id: 'st-ticket', checkedAtMs: NOW, expiresAtMs: NOW + 120000 }, plan: { subject: '第1条贮藏' } }
     if (phone === 'wf.gitStash') return { ok: true, entries: [], recent: [], stderr: '', stdout: '' }
-    if (phone === 'wf.gitCommitForm') return { ok: true, form: { branch: 'main', stagedCount: 0, hooks: [], amend: { available: true, message: '上一条提交的说明' } } }
+    // 提交表单的读回包与真实电话同形（#1877：身份 / 签名 / 模板 / 上一条提交都摊在顶层，
+    //   不是再包一层 form；修订预填、fixup 自动说明、模板链接都读这同一份）。
+    if (phone === 'wf.gitCommitForm') return {
+      ok: true,
+      identity: { name: '某甲', email: 'a@b.c' },
+      signing: { key: 'KEY123', format: 'openpgp', gpgsign: false },
+      template: { configured: false, path: '', text: '', problem: '', truncated: false },
+      trailer: 'Signed-off-by: 某甲 <a@b.c>',
+      amend: { available: true, oid: 'aaaa1111222233334444', short: 'aaaa111', subject: '上一条提交', message: '上一条提交' },
+    }
     if (phone === 'wf.gitWriteCheck') return { ok: true, decision: { verdict: 'allow', reasons: ['ok'] }, plan: { mode: 'amend' }, confirmRequired: true, ticket: { id: 'cm-ticket', checkedAtMs: NOW, expiresAtMs: NOW } }
     if (phone === 'wf.gitCommit') return { ok: true, cmd: 'git commit --amend', ms: 5, n: 1 }
     if (phone === 'wf.gitChangesCheck') return { ok: true, decision: { verdict: 'allow', reasons: ['ok'] }, plan: {}, confirmRequired: false, ticket: { id: 'ch-ticket', checkedAtMs: NOW, expiresAtMs: NOW }, readAtMs: NOW }
@@ -535,10 +546,10 @@ function scenarioRegistration() {
   const buildSrc = read('scripts/build.mts')
   const indexSrc = read('src/client/index.ts')
   const g818 = read('tests/verify-818-version-control-view.ts')
-  const newTs = ['vcRealModel', 'vcRealManage', 'vcRealManageReads', 'vcRealManageActions', 'vcRealManageActions2', 'vcRealManageActions3', 'vcRealManageSide', 'vcRealShell', 'vcRealDelegate', 'vcRealActions', 'vcRealTab']
-  check(newTs.every(function (id) { return buildSrc.indexOf('id: \'' + id + '\'') >= 0 }), 'T22 scripts/build.mts 叶子清单登记了十一个新叶子')
-  check(newTs.every(function (id) { return indexSrc.indexOf('leaf:' + id) >= 0 }), 'T22b src/client/index.ts 有十一个新叶子的拼接标记')
-  check(NEW_FILES.every(function (f) { return g818.indexOf(f) >= 0 }), 'T22c verify-818 的闭包文件清单登记了十一个新叶子（否则 818 渲染会缺函数）')
+  const newTs = ['vcRealModel', 'vcRealManage', 'vcRealManageReads', 'vcRealManageActions', 'vcRealManageActions2', 'vcRealManageActions3', 'vcRealManageSide', 'vcRealShell', 'vcRealDelegate', 'vcRealActions', 'vcRealCommitFlow', 'vcRealTab']
+  check(newTs.every(function (id) { return buildSrc.indexOf('id: \'' + id + '\'') >= 0 }), 'T22 scripts/build.mts 叶子清单登记了十二个新叶子')
+  check(newTs.every(function (id) { return indexSrc.indexOf('leaf:' + id) >= 0 }), 'T22b src/client/index.ts 有十二个新叶子的拼接标记')
+  check(NEW_FILES.every(function (f) { return g818.indexOf(f) >= 0 }), 'T22c verify-818 的闭包文件清单登记了十二个新叶子（否则 818 渲染会缺函数）')
   const tabSrc = read('src/client/views/versionControl/VersionControlTab.ts')
   check(tabSrc.indexOf('VcRealTab') >= 0 && tabSrc.indexOf('vcBlocksOf') < 0, 'T22d 入口组件只做委托（出现 VcRealTab、不再有旧块渲染入口）')
   const files = fs.readdirSync(path.join(ROOT, 'src/client/views/versionControl')).filter(function (name) { return /\.ts$/.test(name) })
@@ -1271,47 +1282,74 @@ async function scenarioStashAutoDetail() {
   await h.unmount()
   await m.unmount()
 }
-// ---------------- 场景十三：提交区只有三块，提交选项收进底行菜单（#1860 D6） ----------------
-// 依据：改动页原型（docs/prototype/vc-redesign/src/ui/views/changes.ts 的 composer）只有「已暂存计数 + 两个
-//   链接 / 说明框 / 底行」三块，没有第四行折叠。这一段验：折叠行没了、菜单能开能收、非默认计划留一句话、
-//   十颗能力控件仍在页面里（收起不等于丢入口）。
+// ---------------- 场景十三：提交选项的入口与关闭路径（#1877，按 #1876 原型） ----------------
+// 依据：原型提交区首屏只有三块（已暂存计数 + 两个链接 / 说明框 / 底行），提交按钮右边多一枚 24 像素箭头；
+//   点开才是「提交选项」浮层（提交形态 / 内容来源 / 提交说明 / 记录方式四组）。这一段验：入口位置与默认收起、
+//   四组控件与能力编号、内容来源与记录方式收起后的可见反馈、Esc / 点外面 / 换页签三条关闭路径、
+//   以及提交成功之后这次的选择全部归零。
 async function scenarioComposerOptions() {
-  console.log('\n== 场景十三：提交选项收进底行菜单（三块结构不变） ==')
+  console.log('\n== 场景十三：提交选项的入口与关闭路径（#1877 原型） ==')
   const host = makeHost({})
   const view = buildView(host, null)
   const m = mountOf(view, { st: { cwd: CWD } })
   await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
   await settle()
   const composer = m.q('[data-vc-commit-panel]')
-  check(!!composer && !m.q('[data-vc-commit-advanced]') && !m.q('.vcs-commit-advanced') && !composer.querySelector('details'),
-    'T39 提交区不再有第四行「更多提交选项」折叠（原型只有三块：计数行 / 说明框 / 底行）')
+  check(!!composer && !m.q('[data-vc-commit-advanced]') && !composer.querySelector('details'),
+    'T39 提交区没有第四行折叠（原型首屏只有三块：计数行 / 说明框 / 底行）')
   const optBtn = m.q('[data-vc-commit-options]')
   const menu = m.q('[data-vc-commit-menu]')
-  check(!!optBtn && String(optBtn.getAttribute('aria-expanded')) === 'false' && !!menu && menu.hasAttribute('hidden'),
-    'T39b 底行有一颗「提交选项」按钮，菜单默认收起（aria-expanded=false、菜单带 hidden）')
+  const split = m.q('.commit-split')
+  const submitBtn = m.q('[data-vc-commit-submit]')
+  check(!!optBtn && !!split && !!submitBtn && split.contains(submitBtn) && split.contains(optBtn) && String(optBtn.getAttribute('aria-expanded')) === 'false' && !!menu && menu.hasAttribute('hidden'),
+    'T39b 「提交选项」的入口是贴在提交按钮右侧的一枚箭头（同一个格里），浮层默认收起（aria-expanded=false、带 hidden）')
   const counts = { '2.1': 0, '2.2': 0, '2.3': 0, '2.4': 0, '2.5': 0, '2.6': 0, '2.7': 0, '2.8': 0 }
   m.qa('[data-cap-control]').forEach(function (el) { const cap = String(el.getAttribute('data-cap-control')); if (counts[cap] !== undefined) counts[cap] += 1 })
   check(counts['2.1'] === 1 && counts['2.2'] === 1 && counts['2.3'] === 1 && counts['2.4'] === 2 && counts['2.5'] === 1 && counts['2.6'] === 2 && counts['2.7'] === 1 && counts['2.8'] === 1,
-    'T39c 收起菜单不丢入口：八条提交能力的十颗控件都还在页面里（' + JSON.stringify(counts) + '）')
+    'T39c 收起浮层不丢入口：八条提交能力的十颗控件都还在页面里（' + JSON.stringify(counts) + '）')
+  const modes = m.qa('[data-vc-commit-mode]').map(function (el) { return String(el.getAttribute('data-vc-commit-mode')) })
+  check(modes.join(',') === 'staged,amend,fixup,squash', 'T39d 提交形态只有四种（新提交 / 修订上一条 / fixup / squash），-a 不再冒充第五种形态（实得 ' + modes.join(',') + '）')
   await m.click('[data-vc-commit-options]')
-  const opened = m.q('[data-vc-commit-menu]')
-  check(!!opened && !opened.hasAttribute('hidden') && String((m.q('[data-vc-commit-options]') || {}).getAttribute('aria-expanded')) === 'true',
-    'T39d 点「提交选项」把菜单展开（hidden 去掉、aria-expanded=true）')
-  await m.click('[data-vc-commit-options]')
-  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed',
-    'T39e 再点一次收起（同一个按钮管开合，不另加关闭键）')
-  await m.click('[data-vc-commit-options]')
-  await m.click('[data-vc-commit-mode="all"]')
-  check(m.text('[data-vc-commit-plan-note]').indexOf('全部已跟踪改动') >= 0,
-    'T39f 切成「提交全部已跟踪改动」后，提交区留一句话说清这次提交什么（收起菜单也看得见）')
-  await m.click('[data-vc-commit-mode="staged"]')
-  check(!m.q('[data-vc-commit-plan-note]'), 'T39g 切回「只提交已暂存内容」后那句话整块不画（默认状态不出多余说明）')
-  await m.click('[data-vc-commit-options]')
+  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'open' && !m.q('[data-vc-commit-menu]').hasAttribute('hidden') && String((m.q('[data-vc-commit-options]') || {}).getAttribute('aria-expanded')) === 'true',
+    'T39e 点箭头展开浮层（data-vc-commit-menu=open、hidden 去掉、aria-expanded=true）')
+  // 内容来源（2.2）是独立开关：打开后份数与脚注都跟着变，未跟踪的新文件明确不算。
+  await m.click('[data-vc-commit-all]')
+  check(String((m.q('[data-vc-commit-all]') || {}).getAttribute('aria-checked')) === 'true' && m.text('[data-vc-commit-submit]').indexOf('1 个文件') >= 0 && m.text('[data-vc-commit-panel]').indexOf('未跟踪的新文件不算') >= 0,
+    'T39f 打开「把未暂存的改动也一起提交」：开关打开、按钮份数含刚一起暂存的改动、脚注写明未跟踪的新文件不算')
+  await m.click('[data-vc-commit-all]')
+  check(String((m.q('[data-vc-commit-all]') || {}).getAttribute('aria-checked')) === 'false' && m.text('[data-vc-commit-submit]').indexOf('0 个文件') >= 0,
+    'T39g 再点一次关掉：份数回到已暂存那一个数（内容来源与形态互不影响）')
   await m.click('[data-vc-commit-opt="skipHooks"]')
-  check(m.text('[data-vc-commit-plan-note]').indexOf('跳过钩子') >= 0, 'T39h 勾了「跳过提交钩子」同样留一句话（三个开关也不藏在菜单里）')
+  await m.click('[data-vc-commit-options-close]')
+  const flag = m.q('[data-vc-commit-flag="skipHooks"]')
+  check(!!flag && String((m.q('[data-vc-commit-options]') || {}).getAttribute('aria-label')).indexOf('已开启') >= 0,
+    'T39h 勾了「跳过提交钩子」再收起浮层：提交按钮上方留一枚标签，箭头自己的说明也写着已开启（菜单 ' + String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) + '、标签 ' + (flag ? '有' : '无') + '、箭头说明「' + String((m.q('[data-vc-commit-options]') || {}).getAttribute('aria-label')) + '」）')
+  await m.click('[data-vc-commit-options]')
   await m.key('[data-vc-commit-msg]', 'Escape')
+  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed' && focusOn(m, '[data-vc-commit-options]'),
+    'T39i 按 Esc 收起浮层，焦点回到那枚箭头（下一个按键还落在原处）')
+  await m.click('[data-vc-commit-options]')
+  await React.act(async function () { document.body.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true })) })
+  await settle()
   check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed',
-    'T39i 按 Esc 收起提交选项菜单（与页面其它浮层同一套键盘习惯）')
+    'T39j 点浮层外面也收起（和行菜单、分支浮层同一套习惯）')
+  await m.click('[data-vc-commit-options]')
+  await m.click('[data-vc-tab="commits"]')
+  await m.click('[data-vc-tab="changes"]')
+  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed',
+    'T39k 换页签也收起（提交选项是「这一次提交」的临时选择，离开改动页就失效）')
+  // 一次成功的普通提交：预检放行后直接执行，成功后这次的选择全部归零。
+  await m.click('[data-vc-commit-options]')
+  await m.click('[data-vc-commit-all]')
+  await m.click('[data-vc-commit-opt="skipHooks"]')
+  await m.type('[data-vc-commit-msg]', '门禁用的提交说明')
+  const commitBefore = countKin(host, 'wf.gitCommit')
+  await m.click('[data-vc-commit-submit]')
+  const resetOk = String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed' &&
+    !m.q('[data-vc-commit-flag]') && String((m.q('[data-vc-commit-all]') || {}).getAttribute('aria-checked')) === 'false' &&
+    String((m.q('[data-vc-commit-msg]') || {}).value || '') === '' && !!m.q('[data-vc-commit-mode="staged"].is-on')
+  check(countKin(host, 'wf.gitCommit') === commitBefore + 1 && resetOk,
+    'T39l 普通提交（含一起提交与跳过钩子）预检放行后直接执行；成功后形态回到新提交、内容来源与记录方式关掉、说明清空、浮层收起')
   await m.unmount()
 }
 // ---------------- 场景十四：皮肤跟着宿主主题开关走（#1860 D15） ----------------

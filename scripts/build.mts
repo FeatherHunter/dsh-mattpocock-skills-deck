@@ -863,6 +863,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcQuery', file: 'src/client/views/versionControl/vcQuery.ts' }, // #1745 历史高级查询的数据层：十条能力的目录、输入校验与一次读取（纯逻辑，不画界面）
   { id: 'vcQueryView', file: 'src/client/views/versionControl/vcQueryView.ts' }, // #1745 历史高级查询面板的画法（提交历史页六组、管理·诊断页四组；排在页面壳之前，壳要调它）
   { id: 'vcCommitOps', file: 'src/client/views/versionControl/vcCommitOps.ts' }, // #1743 提交页的动作层（预检拿票、危险动作确认、写电话、模板套用；不画界面）
+  { id: 'vcCommitOptions', file: 'src/client/views/versionControl/vcCommitOptions.ts' }, // #1877 提交选项展开区（形态 / 内容来源 / 说明模板 / 记录方式四组；排在提交页之前，页要调它）
   { id: 'vcCommitPage', file: 'src/client/views/versionControl/vcCommitPage.ts' }, // #1743 提交页正文（八条能力的主入口、多行说明、确认卡与结果都在面板里；排在页面壳之前，壳要调它）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
   { id: 'vcBranches', file: 'src/client/views/versionControl/vcBranches.ts' }, // #1746 分支与标签业务面板（4.1–4.13 十三条入口、dryRun 判定、确认卡与结果；由页面壳挂进分支与标签页）
@@ -947,6 +948,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcRealShell', file: 'src/client/views/versionControl/vcRealShell.ts' },
   { id: 'vcRealDelegate', file: 'src/client/views/versionControl/vcRealDelegate.ts' },
   { id: 'vcRealActions', file: 'src/client/views/versionControl/vcRealActions.ts' },
+  { id: 'vcRealCommitFlow', file: 'src/client/views/versionControl/vcRealCommitFlow.ts' }, // #1877 提交选项浮层的关闭与焦点行为（换页签 / 点外面 / 收起后焦点回箭头），容器调它
   { id: 'vcRealTab', file: 'src/client/views/versionControl/vcRealTab.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
