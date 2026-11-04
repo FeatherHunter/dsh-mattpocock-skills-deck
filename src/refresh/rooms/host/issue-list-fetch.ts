@@ -250,10 +250,52 @@ export function createIssueList(deps: any): any {
   // ── 索引扫描入口（#1429）：窗口扫描与水印推进住同目录 issue-index-scan.ts（createIssueIndexScan，
   //   内含唯一一份窗口状态，不另起第二份）；这里只留同名转交字段（index.ts / probe-handler / 单测写法不变），
   //   仍走动态 import（宿主侧禁止静态引入新文件 D7，与既有范式一致）。
+  /**
+   * #1870：重启后的第一次扫描要的起点——库里那份工作区数据。
+   *
+   * 为什么在这里取而不在 issue-index-scan 里：只有这一层知道库门面与后端编号怎么问，
+   * 索引扫描那边只持有窗口状态，不该为了开库再引一个依赖。
+   *
+   * 取的是「库回放出来的整份快照」（readSnapshotReplay 已经把行拼成与在线组装同形的快照），
+   * 起点判据交给 kernel/index-window-rules.ts 的 seedFromSnapshot —— 口径与从前读旧磁盘快照
+   * 那一版完全一样，旧 JSON 一个字节都不碰。
+   *
+   * 拿不到（库没接、库为空、身份还不全、后端不支持）就回 null，调用方照旧整仓枚举。
+   */
+  async function readLibrarySnapshot(cwd: any, repo: any): Promise<{ snapshot: any; lastKnownAtMs: number } | null> {
+    if (typeof deps.getSnapshotLibrary !== 'function') return null
+    if (!repo || !repo.owner || !repo.name) return null
+    let lib: any = null
+    try { lib = await Promise.resolve(deps.getSnapshotLibrary()) } catch (e: any) { lib = null }
+    if (!lib || typeof lib.readSnapshotReplay !== 'function') return null
+    // 后端编号问会话（与取数同一条口径，不自己猜）；问不到就按这条路上唯一的那一个后端算。
+    let backendId: string = 'github'
+    try {
+      const opened: any = (typeof deps.openSession === 'function') ? await Promise.resolve(deps.openSession(cwd)) : null
+      if (opened && opened.ok === true && opened.backendId) backendId = String(opened.backendId)
+    } catch (e: any) { backendId = 'github' }
+    const refId: string = String(repo.owner) + '/' + String(repo.name)
+    try {
+      const replay: any = await lib.readSnapshotReplay({
+        workspaceRoot: cwd,
+        backend: backendId,
+        repoIdentity: refId,
+        repo: { backend: backendId, refId: refId, name: refId, url: '' },
+      })
+      if (!replay || !replay.snapshot) return null
+      return { snapshot: replay.snapshot, lastKnownAtMs: Number(replay.lastKnownAtMs) || 0 }
+    } catch (e: any) { return null }
+  }
+
   let _idxScanP: any = null
   function _idxScan(): Promise<any> {
     if (!_idxScanP) _idxScanP = import('./issue-index-scan.js').then(function (m: any) {
-      return m.createIssueIndexScan({ getRepoKey: getRepoKey, fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso, budget) }, now: Date.now })
+      return m.createIssueIndexScan({
+        getRepoKey: getRepoKey,
+        fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso, budget) },
+        readLibrarySnapshot: readLibrarySnapshot,
+        now: Date.now,
+      })
     })
     return _idxScanP
   }

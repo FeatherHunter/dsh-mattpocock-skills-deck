@@ -19,6 +19,10 @@ interface IssueIndexWindowDeps {
   // 只问窗口内的变化（回包带 repo/index/count）。#1689 起尾参可带一本本轮预算账本：
   // 带 since 的窗口扫描可以用探针同一轮的增量账本继续预扣，整仓枚举由取数入口自己开枚举账本。
   fetchIssueIndex?: (cwd: string, sinceIso: string, budget?: any) => Promise<any>
+  // #1870：重启后第一次扫描的起点。回「本地快照库回放出来的那份快照」与它的数据时刻
+  // （库里一条票都没有、库打不开都回 null）。为什么由调用方注入：本文件只持有窗口状态，
+  // 不碰数据库，也不该知道库在哪。
+  readLibrarySnapshot?: (cwd: string, repo: { owner: string; name: string }) => Promise<{ snapshot: any; lastKnownAtMs: number } | null>
   // 取时间（门禁注入假时钟）
   now?: () => number
 }
@@ -33,8 +37,9 @@ interface RepoHit {
 //   getRepoKey(cwd)              → { owner, name }
 //   fetchIssueIndex(cwd, since)  → 只问窗口内的变化，回 { ok, repo, index, count }（#1689 起尾参可带本轮预算账本）
 //   now                          → 取时间（门禁注入假时钟）
-// #1870：重启后的第一次扫描不再从旧的整份磁盘快照立起点——那份 JSON 已经不读了，第一条扫描就是
-// 一次不带 since 的整仓枚举（水印从 0 起，与「从来没扫过」同一个口径）。
+// #1870：重启后的第一次扫描的起点改从本地快照库取（旧的那份磁盘 JSON 已经不读了）。库里有这一份
+// 工作区数据时，第一次扫描就是缩窗的；库为空、库打不开、或者那份数据太旧，照旧退化成一次不带 since
+// 的整仓枚举（判据全在 kernel/index-window-rules.ts 的 seedFromSnapshot 里，这里一条都不重写）。
 // 回包：{ scan(cwd, opts), commit(cwd, nextWatermarkMs, nextIndex), state(cwd) }
 export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | undefined): {
   scan: (cwd: string, opts?: { commit?: boolean; budget?: any }) => Promise<any>
@@ -54,6 +59,27 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
     } catch (e) { return null }
   }
 
+  /**
+   * #1870：库里那份数据给这一轮扫描立起点（基线 + 水印），只在内存里还没有水印时问一次。
+   *
+   * 回放里没有 generatedMs 这一格——它说的是「这份数据是什么时候取的」，所以用 lastKnownAtMs
+   * 顶上去交给 seedFromSnapshot：太旧、没有票、时刻在将来，那三档判据与从前读旧磁盘快照
+   * 那一版逐字相同，这里一条都不重写。
+   */
+  async function seedFromLibrary(cwd: string, repo: { owner: string; name: string }, startedMs: number): Promise<void> {
+    if (typeof d.readLibrarySnapshot !== 'function') return
+    let got: { snapshot: any; lastKnownAtMs: number } | null = null
+    try { got = await d.readLibrarySnapshot(cwd, repo) } catch (e) { got = null }
+    if (!got || !got.snapshot) return
+    const seed: any = (indexWindow as any).seedFromSnapshot(
+      Object.assign({}, got.snapshot, { generatedMs: Number(got.lastKnownAtMs) || 0 }),
+      startedMs,
+    )
+    if (!seed) return
+    lastIndexBaselineByRepo[repo.owner + '/' + repo.name] = seed.baseline
+    lastIndexWatermarkByRepo[repo.owner + '/' + repo.name] = seed.watermarkMs
+  }
+
   // 扫一次窗口。opts.commit === true 时才把「基线 + 下一次的水印」记下来（默认不记）。
   // #1689：opts.budget 是调用方（降级探针）注入的本轮请求预算账本，原样转给 fetchIssueIndex 记在翻页那一层；
   // 不注入时取数入口按「带窗口=增量轮 / 不带窗口=枚举轮」自己开一本。
@@ -64,6 +90,10 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
     if (!hit) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
     const rk = hit.rk
     const startedMs = now()
+    // 这一份工作区在本进程里还没扫过：先问库要起点（重启后就靠这一步不整仓枚举）。
+    // 判据是「水印那一格有没有」而不是「基线在不在」：没有水印时 scanWindow 本来就要整扫，
+    // 基线在不在都不影响结论，少问一次库也就少开一次句柄。
+    if (lastIndexWatermarkByRepo[rk] === undefined) await seedFromLibrary(cwd, hit.repo, startedMs)
     const w = (indexWindow as any).scanWindow(lastIndexWatermarkByRepo[rk], startedMs)
     const remote = await d.fetchIssueIndex!(cwd, w.sinceIso, o.budget)
     if (!remote || remote.ok !== true) return remote || { ok: false, error: { kind: 'env', error: '索引扫描没有回包' } }
@@ -117,7 +147,13 @@ export function createIssueIndexScan(deps: any): any {
   const d: any = deps || {}
   let stP: any = null
   function _st(): any {
-    if (!stP) stP = createIssueIndexWindowState({ getRepoKey: d.getRepoKey, fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return d.fetchIssueIndex(cwd, sinceIso, budget) }, now: Date.now })
+    if (!stP) stP = createIssueIndexWindowState({
+      getRepoKey: d.getRepoKey,
+      fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return d.fetchIssueIndex(cwd, sinceIso, budget) },
+      // #1870：起点从本地快照库来（入口经取数入口注入）；没接就照旧整扫一次。
+      readLibrarySnapshot: d.readLibrarySnapshot,
+      now: Date.now,
+    })
     return stP
   }
     // 增量索引：把「只问变化」的时间窗与水印合并进完整基线，再判有没有真的变。为什么必须合并：

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T16:08:55.074Z",
+  "generatedAt": "2026-11-04T16:37:31.682Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 569,
-  "gateCount": 569,
-  "attributedGates": 513,
+  "chainLength": 570,
+  "gateCount": 570,
+  "attributedGates": 514,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 112,
@@ -6673,6 +6673,23 @@
       "completionRecord": true,
       "expectedAssertions": 32,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1870-index-baseline.ts",
+      "file": "tests/verify-1870-index-baseline.ts",
+      "guards": [
+        "src/refresh/kernel/index-window-rules.ts",
+        "src/refresh/rooms/host/issue-index-scan.ts"
+      ],
+      "dirs": [
+        "src/refresh/kernel",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 2 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -14503,6 +14520,7 @@
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
       "node tests/verify-1831-read-timeout.ts",
+      "node tests/verify-1870-index-baseline.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -14672,6 +14690,7 @@
       "node tests/verify-1869-offline-first-screen.ts",
       "node tests/verify-1869-refresh-write.ts",
       "node tests/verify-1869-snapshot-log.ts",
+      "node tests/verify-1870-index-baseline.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
