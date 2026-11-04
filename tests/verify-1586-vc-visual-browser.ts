@@ -602,8 +602,9 @@ async function run(browser: any, env: any) {
       }
     }
     // ---- G 组：分支与标签页（#1829 阶段 3）—— 四档宽 × 两皮肤 ----
-    // 判据只看结构与读数：面板在、行按读数顺序、十三条能力仍各一个主入口、四条根读数不变、
-    // 首屏顺序（页头 → 说明 → 只读边界 → 当前分支 → 筛选与列表 → 标签 → 页尾折叠）、无溢出、无截断。
+    // 判据只看结构与读数：面板在、分支行按「当前分支第一 + 其余读数顺序」、十三条能力仍各一个主入口、
+    // 四条根读数不变、首屏顺序（页头导语 → 分支 / 标签 / 上游跟踪三段 → 两条新建入口的页尾折叠区）、
+    // 本页页头不画能力计数、无溢出、无截断。
     const branchCaps: string[] = await page.evaluate(() => window.__capsOf('branch-tags'))
     const branchBoard = branchBoardOf()
     for (let s = 0; s < SKINS.length; s += 1) {

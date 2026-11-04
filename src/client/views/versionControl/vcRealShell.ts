@@ -79,9 +79,12 @@ export const vcRealSelectCapOf = function (getNav: any, setNav: any): any {
 const VC_REAL_BRANCH_LANDING: any = {
   list: { page: 'branch-tags', sel: '[data-vc-branch-query]' },
   create: { page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="create"]' },
-  // #1881：页尾不再有删除按钮——删除分支收在每行的「⋯」菜单里，所以落点是菜单开关本身。
-  //   落地时 vcRealFocusLandingOf 会把菜单展开再把焦点放到 summary 上，读者接着按 Enter 就进菜单。
-  delete: { page: 'branch-tags', sel: '[data-vc-branch-menu] > summary' },
+  // #1881：页尾不再有删除按钮——删除分支收在每行的「⋯」菜单里。落点要绕开两件事：
+  //   ① 当前分支通常删不掉（宿主预检会 block），而 #1881 又把它排在第一行，所以排除带
+  //      data-vc-branch-is-current 的那一行；② 不要落在菜单开关上——vcRealFocusLandingOf 会先把菜单
+  //      展开再聚焦，落到 summary 上再按 Enter 反而把菜单关掉。直接落到菜单里的「删除分支」那一项，
+  //      读者按 Enter 就是执行。
+  delete: { page: 'branch-tags', sel: '[data-vc-branch-row]:not([data-vc-branch-is-current]) [data-vc-branch-menu] [data-vc-branch-action="delete"]' },
   merge: { page: 'conflicts', sel: '[data-vc-conflicts-op="merge"]' },
   rebase: { page: 'rebase', sel: '[data-vc-rebase-op="rebase-onto"]' },
 }

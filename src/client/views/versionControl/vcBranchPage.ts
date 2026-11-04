@@ -200,7 +200,10 @@ const vcBranchRowOf = function (h: any, t: any, board: any, o: any, b: any) {
     h('button', { key: 'switch', type: 'button', className: 'vcs-branch2-act', 'data-vc-branch-action': 'switch', 'data-vc-op': '4.3', 'data-vc-branch-name': name, 'data-vc-branch-form': '0', 'data-press': 'button', 'data-log': 'vc.branch.page.act.switch' }, t('vc.shell.branch2.switch')),
     vcBranchMenuOf(h, t, name),
   ]
-  return vcPageObjRowNode(h, t, { main: main, side: side, attrs: { 'data-vc-branch-row': name } })
+  // data-vc-branch-row 是委托层认行的唯一依据；is-current 只给「浮层删除」挑落点时排除当前分支用。
+  const attrs: any = { 'data-vc-branch-row': name }
+  if (b.current === true) attrs['data-vc-branch-is-current'] = '1'
+  return vcPageObjRowNode(h, t, { main: main, side: side, attrs: attrs })
 }
 
 // 降级说明：低版本 git 把新建/切换改走 checkout 等价动作；替代做法逐条来自能力账本，界面不自己编。
@@ -333,12 +336,21 @@ const vcBranchNoDataOf = function (h: any, t: any, opts: any, state: string) {
 //   「这两个是不是一回事」。行数写进 data-vc-branch-forms，818 BR20d 按它判。
 const VC_BRANCH_FOOTER_OPS: string[] = ['4.2', '4.10']
 
+// 页尾这一屏实际放哪几条：常态是那两条新建动作。一行本地分支都没有时（页面支持的空态），
+//   行内菜单不存在，4.4「切到这个提交」会整页失去入口，所以这个状态下把它放回页尾。
+//   读数为空（还没读到 / 读失败）时仍然是两条：那时连分支清单都没有，凭空多一条动作反而是假话。
+const vcBranchFooterOpsOf = function (board: any) {
+  if (!board) return VC_BRANCH_FOOTER_OPS
+  const rows: any[] = Array.isArray(board.branches) ? board.branches : []
+  return rows.length === 0 ? VC_BRANCH_FOOTER_OPS.concat(['4.4']) : VC_BRANCH_FOOTER_OPS
+}
+
 // 页尾：两条写动作的入口，默认收起，DOM 与 data-vc-branch-forms 一直在（818 BR21 / D30 都读它）。
 //   需要输入的动作各带一个 [data-vc-branch-input]，vcRealBranchFieldsOf 按 kind 拆参数。
-const vcBranchFormsOf = function (h: any, t: any) {
+const vcBranchFormsOf = function (h: any, t: any, ops: string[]) {
   const rows: any[] = []
-  for (let i = 0; i < VC_BRANCH_FOOTER_OPS.length; i += 1) {
-    const act = vcBranchActOf(VC_BRANCH_FOOTER_OPS[i])
+  for (let i = 0; i < ops.length; i += 1) {
+    const act = vcBranchActOf(ops[i])
     if (!act) continue
     rows.push(vcBranchOpRowOf(h, t, { op: act.op, kind: act.kind, label: act.label, form: act.form === true }))
   }
@@ -368,7 +380,7 @@ export const vcBranchTreeOf = function (h: any, t: any, o: any) {
   } else {
     kids.push(vcBranchNoDataOf(h, t, opts, state))
   }
-  kids.push(vcBranchFormsOf(h, t))
+  kids.push(vcBranchFormsOf(h, t, vcBranchFooterOpsOf(board)))
   if (opts.confirm) kids.push(Object.assign({}, vcShellConfirmCardNode(h, t, opts.confirm), { key: 'confirm' }))
   if (opts.result) kids.push(Object.assign({}, vcShellResultNode(h, t, opts.result), { key: 'result' }))
   return h('section', { className: 'vcs-branch2', 'data-vc-branch2': '1', 'data-vc-branch-ops': String(VC_BRANCH_OP_IDS.length), 'data-vc-branch-writes': String(VC_BRANCH_WRITE_OPS.length), 'data-vc-branch-checks': '1' }, kids)

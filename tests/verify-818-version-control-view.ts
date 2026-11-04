@@ -1786,6 +1786,13 @@ async function main() {
   const footerOps = footerAt < 0 ? '' : attrValuesOf(String(brPanel).slice(footerAt), 'data-vc-op').join(',')
   const menuWant = '4.6,4.5,4.4,4.7,4.13'
   check(menuNames.join(',') === 'main,feature' && menuOpsOf('main') === menuWant && menuOpsOf('feature') === menuWant && footerOps === '4.2,4.10', 'BR20i 每行一颗「⋯」菜单，两行的菜单里都按序是删除 / 重命名 / 切提交 / 设上游 / 写说明；页尾只剩新建并切换分支与建标签（实得 main ' + menuOpsOf('main') + '；feature ' + menuOpsOf('feature') + '；页尾 ' + footerOps + '）')
+  // #1881：一行本地分支都没有的空态下没有行可挂菜单，4.4「切到这个提交」回页尾——
+  //   否则这个状态整页没有它的入口。读数为空（board 为 null）时仍是两条，BR21 钉住那一种。
+  const brNoBranchBoard = Object.assign({}, brBoardOf(), { branches: [], merged: [], notMerged: [] })
+  const brNoBranches = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: brNoBranchBoard }))
+  const noBranchAt = String(brNoBranches).indexOf('data-vc-branch-forms')
+  const noBranchOps = noBranchAt < 0 ? '' : attrValuesOf(String(brNoBranches).slice(noBranchAt), 'data-vc-op').join(',')
+  check(attrValuesOf(brNoBranches, 'data-vc-branch-forms')[0] === '3' && noBranchOps === '4.2,4.10,4.4', 'BR20j 一行本地分支都没有时，4.4「切到这个提交」回到页尾（行内菜单这时不存在；实得 ' + noBranchOps + '）')
   const brEmpty = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: null, onRetry: function () {} }))
   check(attrValuesOf(brEmpty, 'data-vc-branch2-empty')[0] === '1' && attrValuesOf(brEmpty, 'data-vc-branch-row').length === 0 && attrValuesOf(brEmpty, 'data-vc-branch2-retry').length === 1, 'BR21 没读数时画空态与重试，不画假分支（页尾两条新建入口仍在：' + attrValuesOf(brEmpty, 'data-vc-branch-forms')[0] + '）')
   const brConfirm = VIEW.vcBranchConfirmOf(brCheckReply)

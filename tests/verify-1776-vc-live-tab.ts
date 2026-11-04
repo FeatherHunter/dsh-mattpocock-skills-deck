@@ -634,7 +634,12 @@ async function scenarioManage() {
   // #1881：行尾只剩「切换」+「⋯」。删除分支不再平铺在行上，而是收进菜单；
   //   事件委托按最近的 data-vc-branch-row 认行，所以点菜单里那一项要带出这条分支的名字。
   const delInMenu = m.q('[data-vc-branch-row="feat/x"] [data-vc-branch-menu] [data-vc-branch-action="delete"]')
-  check(!!delInMenu && !m.q('[data-vc-branch-row="feat/x"] .obj-side > [data-vc-branch-action="delete"]'), 'T24g 删除分支收进行内「⋯」菜单（行尾只剩切换与菜单开关，不再并排两颗动作）')
+  // 行尾恰好两件：切换按钮 + 「⋯」菜单。只断言「没有直接子节点 delete」挡不住第三颗动作或回到行尾的旧结构。
+  const sideKinds = m.qa('[data-vc-branch-row="feat/x"] .obj-side > *').map(function (el) {
+    if (el.getAttribute('data-vc-branch-action') === 'switch') return 'switch'
+    return el.getAttribute('data-vc-branch-menu') !== null ? 'menu' : String(el.tagName)
+  })
+  check(!!delInMenu && sideKinds.join(',') === 'switch,menu', 'T24g 行尾恰好两件：切换与「⋯」菜单（删除分支收在菜单里，不再并排，也没有第三颗动作；实得 ' + sideKinds.join(',') + '）')
   const delCheckBefore = countKin(host, 'wf.gitBranchCheck')
   if (delInMenu) await m.click(delInMenu)
   const delCheckLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitBranchCheck' })
@@ -704,9 +709,10 @@ async function scenarioManage() {
   const landingCases = [
     { action: 'list', page: 'branch-tags', sel: '[data-vc-branch-query]' },
     { action: 'create', page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="create"]' },
-    // #1881：删除分支不再平铺在页尾，它收在每条分支行的「⋯」菜单里；落点是菜单开关本身，
-    //   焦点到位时 vcRealFocusLandingOf 会把菜单展开，读者接着就能看到那一项。
-    { action: 'delete', page: 'branch-tags', sel: '[data-vc-branch-menu] > summary' },
+    // #1881：删除分支不再平铺在页尾，它收在每条分支行的「⋯」菜单里。落点是「不是当前分支的那一行」
+    //   菜单里的删除项：当前分支通常删不掉，vcRealFocusLandingOf 又会先展开菜单再聚焦，落到删除项上
+    //   就正好是一次 Enter 的距离。
+    { action: 'delete', page: 'branch-tags', sel: '[data-vc-branch-row]:not([data-vc-branch-is-current]) [data-vc-branch-menu] [data-vc-branch-action="delete"]' },
     { action: 'merge', page: 'conflicts', sel: '[data-vc-conflicts-op="merge"]' },
     { action: 'rebase', page: 'rebase', sel: '[data-vc-rebase-op="rebase-onto"]' },
   ]
