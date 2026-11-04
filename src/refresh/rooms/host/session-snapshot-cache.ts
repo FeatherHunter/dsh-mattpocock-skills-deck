@@ -46,10 +46,10 @@ type Composed = { ok: boolean; error?: { message?: string } | null; snapshot?: u
 type Composer = { composeSnapshot(id: string, repo: RepoRef, ctx: unknown, o: ComposerOpts): Promise<Composed> }
 type Levels = { byNumber?: Record<string, unknown>; byKey?: Record<string, unknown> }
 type Envelope = ReturnType<typeof createSnapshotEnvelope>
+// 工作副本里那份快照：selection 是权威选择，setupLayout 是记住的布局答案。
+type CachedSnap = { selection?: Sel | null; setupLayout?: Layout | null; generatedMs?: number; fromCache?: boolean; backendModules?: unknown }
 // 在途表取回的那份回包：两条电话路各自组装，形状不同，取回时只能按「是对象、可能带 ok」这一层还原。
 type Reply = { ok?: unknown; [k: string]: unknown }
-// 缓存里那份快照（内存与磁盘同一形状）：selection 是权威选择，setupLayout 是记住的布局答案。
-type CachedSnap = { selection?: Sel | null; setupLayout?: Layout | null; generatedMs?: number; fromCache?: boolean; backendModules?: unknown }
 // 记住的布局答案（#683）：layout 是选的哪一种，pickedAt 是什么时候选的。
 type Layout = { layout: unknown; pickedAt: unknown }
 type LogCtx = { fire(level: string, event: string, payload?: unknown): void; isEnabled(name: string): boolean }
@@ -58,6 +58,7 @@ type Platform = { ident?: unknown }
 type SnapshotDeps = {
   canonicalKey(cwd: unknown): Promise<string> | string; selectEarly(o: { cwd: string; backendId?: unknown }): Promise<Sel | null> | Sel | null; isComposerSelection(sel: Sel | null): sel is Sel & { backendId: string }; getTrackerRegistry(): Promise<Reg> | Reg; getPlatform(): Promise<Platform> | Platform
   ctx: { get(name: string): unknown }; logCtx?: LogCtx | null; DEFAULT_CWD?: string; envelope?: Envelope | null
+  // #1870：工作副本的读写口（行级增量与库为空时的兜底用；面板数据本身只从库回放）。
   getCache(cwd: string): { ts: number; snapshot: CachedSnap | null }; setCache(v: { ts: number; snapshot: unknown; error: unknown; cwd: string }): void; CACHE_MS: number; cacheSnapshotIsCurrent(snap: unknown, cwd: string): Promise<unknown> | unknown
   upcaseSnapStates(snap: unknown): Inner; computeLevels(tickets: Row[]): Levels; groupTickets(tickets: Row[]): unknown
   getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<{ owner?: string; name?: string } | null> | { owner?: string; name?: string } | null
@@ -89,7 +90,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP: Promise<typeof import('../../../shared/tracker/list-dedupe.js')> | null = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../../../shared/tracker/list-dedupe.js'); return _dedupeP }
-  const { freshBackendModules, readSetupLayoutOf, attachWorkRouteTable } = decoration
+  const { readSetupLayoutOf, attachWorkRouteTable } = decoration
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   // #653 快照多带 workspaceRoot（即开头算出的 cwd，已锚到工作区根）；客户端靠它按根分桶并渲染归属提示，自己算不出根故由宿主带过去。
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
@@ -120,13 +121,16 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
   async function snapshotOf(args: Args, cwdRef: { cwd: string }) {
       const _rawSnapCwd = (args && args.cwd) || ''; if (!String(_rawSnapCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawSnapCwd); if (String(cwd == null ? '' : cwd)) cwdRef.cwd = String(cwd) // #1003 空目录闸：没目录不冒充取快照；#1835 外层要按这个工作区记失败段
       const now = Date.now()
-      // 第一性原理分发前置：先算 selection，再决定缓存与数据链路（避免旧 GitHub 缓存遮住 Markdown）
+      // 第一性原理分发前置：先算 selection，再决定数据链路（避免旧判断遮住 Markdown）
       const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
       const _layEarly = await readSetupLayoutOf(cwd) // #683（F1 · R6）：记住的布局答案随每条回包一起回去（同 R4 那条路）
       const useComposerEarly = isComposerSelection(_selEarly)
       const isForce = !!(args && args.force)
-      // #683（F1 · ADR 的 R4）：每一条回包都要带权威 {selection, rev}。下面三条短路路径（内存缓存、磁盘回放、以及 304）此前回的是缓存里那份**旧** selection —— 只换了后端时快照内容一个字没变、版本号也没变，客户端就收到「没变」，于是面板头与状态栏继续显示旧后端，而同屏的链与横幅（走 wf.detect）已经按新值答了 —— 自己跟自己打架。
-      //   只在「缓存里那条选择与这一轮算出来的不是同一个后端、或修订号变了」时才换一份浅拷贝带上新值；选择没变时照旧返回缓存里那**同一个对象**（缓存优先那条纪律：这一步不重新拼数据，也不联网核对）。
+      // #683（F1 · ADR 的 R4）：每一条回包都要带权威 {selection, rev}。库回放与兜底缓存这两条短路路此前
+      // 回的是那份**旧** selection —— 只换了后端时快照内容一个字没变、版本号也没变，客户端就收到「没变」，
+      // 于是面板头与状态栏继续显示旧后端，而同屏的链与横幅（走 wf.detect）已经按新值答了。
+      //   只在「那份选择与这一轮算出来的不是同一个后端、或修订号变了」时才换一份浅拷贝带上新值；
+      // 选择没变时照旧返回同一个对象（这一步不重新拼数据，也不联网核对）。
       const shortCircuit = function () {
         const c = getCache(cwd)
         const s = c && c.snapshot
@@ -140,20 +144,9 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         const cp = Object.assign({}, s, { selection: _selEarly, rev: nowRev }); cp.setupLayout = _layEarly; return cp // #1433：布局以这一轮为准（含空：文件里没有时不留缓存里那份旧答案）
       }
       try { if (logCtx) logCtx.fire('info', 'snapshot.request', { cwdHash: hash8(cwd), backend: String((_selEarly && _selEarly.backendId) || ''), force: isForce }) } catch (eL) {}
+      // #1870：面板数据的主来源是本地快照库（两条支路各自的 firstScreenFromLibrary）；下面这份工作副本
+      // 只在库里还没有这一轮数据时兜底（库刚被清掉、库打不开、第一次进工作区），不再抢在库前面交付。
       const cachedEntry = getCache(cwd)
-      if (!isForce && cachedEntry.snapshot) {
-        // GitHub 路径才用 issue 索引校验；Markdown 等走通用缓存时只看时间与 backend 是否一致
-        // 权威动作 force 必须无条件重建，不走此短路（P2 要求）
-        if (useComposerEarly) {
-          const cachedBackend = cachedEntry.snapshot.selection && cachedEntry.snapshot.selection.backendId
-          if (cachedBackend === _selEarly.backendId && now - cachedEntry.ts < CACHE_MS) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - cachedEntry.ts } }) } catch (eL) {}; return shortCircuit() }
-        } else {
-          // 手上有缓存立即交付，不先联网核对（全仓库扫描约 4~5 秒，多为没变，白等）；正确性交 60 秒自动探测，不加年龄门槛。
-          return shortCircuit()
-        }
-        const current = await cacheSnapshotIsCurrent(cachedEntry.snapshot, cwd)
-        if (current === true || (current === null && now - cachedEntry.ts < CACHE_MS)) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'memory', ageMs: now - cachedEntry.ts } }) } catch (eL) {}; return shortCircuit() }
-      }
       const missReason = (function () { try { if (isForce) return 'force'; const c = getCache(cwd); if (!c.snapshot) return 'empty'; const cb = c.snapshot.selection && c.snapshot.selection.backendId; const nb = _selEarly && _selEarly.backendId; if (cb !== nb) return 'backend-changed'; return 'expired' } catch (e) { return 'expired' } })()
       try { if (logCtx) logCtx.fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
       // #729：在途合并与刷新路共用一张表（键不带强制标记；强制只搭强制的车，非强制搭任何车）
@@ -189,6 +182,11 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
           const libraryBackend = backendId === 'gitlab' || backendId === 'markdown'
           const first = (libraryBackend && identityResolved) ? await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId, repoIdentity: String((repoRef && repoRef.refId) || ''), repo: repoRef, force: !!(args && args.force) }) : null
+          // #1870：库里有数据就只读库；库为空时才用工作副本兜底（再没有才联网重建）。
+          if (!(first && first.replay) && !isForce && cachedEntry.snapshot) {
+            const cachedBackend = cachedEntry.snapshot.selection && cachedEntry.snapshot.selection.backendId
+            if (String(cachedBackend || '') === String((_selEarly && _selEarly.backendId) || '') && now - cachedEntry.ts < CACHE_MS) return shortCircuit()
+          }
           // #927：面板取数这一路的每条命令都过闸（分类是「人的动作」那一档：只记账、不降档）；没给 send 时照旧直发。
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'snapshot'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'snapshot') }).then(function (r) { return r.result }) } }
           const { createSnapshotComposer } = await import('../../../host/tracker/snapshot.js')
@@ -196,7 +194,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           // ifNoneMatch；composer 只按本地类型标注，不碰它的实现。
           // #1446：额度读数口接上了才传；#1439 A2：会话口接上了就经会话取数（没接的两种口 composer 各自保持老形状）。
           const composer: Composer = createSnapshotComposer(reg, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
-          const res: Composed = (first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null, onRows: first ? first.writeRows : undefined })
+          const res: Composed = (first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (first && first.replay) ? first.replay.snapshot : ((cachedEntry && cachedEntry.snapshot) || null), onRows: first ? first.writeRows : undefined })
           if (!res.ok) { const _e1: Error & { fail?: unknown } = new Error((res.error && res.error.message) || 'composeSnapshot failed'); if (res.fail) _e1.fail = res.fail; throw _e1 }
           // #683（F1 · ADR 的 R4）：后端说「没变」（304）时也要把权威选择带上 —— 那正是「只换了后端、 快照内容一个字没变」这个现场：不带的话客户端收到 304 就什么都不做，面板头继续显示旧后端。
           // #1440：304 回包必须带上工作区根（与下面重建分支的 workspaceRoot: cwd 同一个值）。
@@ -208,7 +206,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
             const _pair: { selection?: Sel | null; rev?: unknown; setupLayout?: Layout | null } = (_selEarly && _selEarly.backendId) ? { selection: _selEarly, rev: (Number.isInteger(_selEarly.rev) ? _selEarly.rev : 0) } : {}
             // #1449：布局无条件带上（含 null）—— 客户端删掉浏览器那份布局表以后，只能靠这条回包清空旧答案。
             _pair.setupLayout = _layEarly
-            return Object.assign({ ok: true, workspaceRoot: cwd, notModified: true, status: 304, version: res.version || '', cached: true, generatedMs: now }, _pair)
+            return Object.assign({ ok: true, workspaceRoot: cwd, notModified: true, status: 304, version: res.version || '', cached: true, generatedMs: Date.now() }, _pair)
           }
           // #1869：首屏取回来的行先收在内存里，等编排器成功返回后整批一个事务写库；
           // 进程在这之前被杀，库仍是上一轮完整数据（不会留下半批）。
@@ -366,11 +364,13 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         // 库坏/为空才落到下面的在线重建（首屏不许因库不可用而空）。
         // #1870：旧的整份磁盘快照文件已退役，这里不再有「磁盘回放」这一档。
         const first = await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId2, repoIdentity: String((repoRef2 && repoRef2.refId) || ''), repo: repoRef2, force: isForce })
+        // #1870：库里有数据就只读库；库为空时才用工作副本兜底（再没有才联网重建）。
+        if (!(first && first.replay) && !isForce && cachedEntry.snapshot) return shortCircuit()
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
         // #1446：回退路径也把额度读数带上；#1439 A2：会话口同主路径（见上方的 composer）。
         const composer2: Composer = createComposer2(reg2, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
-        const res2: Composed = (first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null, onRows: first ? first.writeRows : undefined })
+        const res2: Composed = (first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (first && first.replay) ? first.replay.snapshot : ((cachedEntry && cachedEntry.snapshot) || null), onRows: first ? first.writeRows : undefined })
         if (!res2.ok) { const _e2: Error & { fail?: unknown } = new Error((res2.error && res2.error.message) || 'composeSnapshot failed'); if (res2.fail) _e2.fail = res2.fail; throw _e2 }
         // 同主路径：回退支路也等编排器成功后再整批写库。
         if (first) { try { await first.commitRows() } catch (e) {} }; const inner2 = upcaseSnapStates(res2.snapshot)

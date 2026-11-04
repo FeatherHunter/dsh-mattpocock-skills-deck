@@ -523,6 +523,8 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/client/statusbar/checksums.ts', name: '_probeMs', reason: '读出来的探测时刻，不是可调参数' },
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/client/views/shared/truthLines.ts', name: 'ageMs', reason: '算出来的时间差（距今多久），不是可调参数' },
+  // #1870：宿主内存那份不再参与刷新，「上一份快照有多旧」已经没有来源；这一格固定记 0，日志字段形状不变。
+  { file: 'src/refresh/rooms/host/session-refresh-schedule.ts', name: 'ageMs', reason: '固定记 0 的占位格：没有「上一份快照的年龄」可读（#1870）' },
   { file: 'src/client/views/versionControl/vcBlocks.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'elapsedMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'timeoutMs', reason: '透传参数，缺省接 GIT_CREDENTIAL_PROBE_TIMEOUT_MS（已登记）' },

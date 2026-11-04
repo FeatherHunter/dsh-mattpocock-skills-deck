@@ -134,6 +134,18 @@ async function refreshDeps(table: any, tracker: any) {
   const envMod = await import(url('src/host/snapshotEnvelope.ts'))
   const adopt = function (s: unknown, c: string) { table.setCache({ ts: Date.now(), snapshot: s, error: null, cwd: c }); return s }
   d.envelope = envMod.createSnapshotEnvelope({ getGhPath: function () { return '' }, getGhLastError: function () { return '' }, adoptSnapshot: adopt, logCtx: quiet })
+  // #1870：刷新这一路要的「上一份快照」只从本地快照库回放里取（宿主内存那份不再参与显示）。
+  // 门禁里用同一张表模拟库：上一趟采纳进表里的那份就是库里的回放。
+  d.getSnapshotLibrary = async function () {
+    return {
+      readSnapshotReplay: async function (input: any) {
+        const e = table.getCache(input && input.workspaceRoot)
+        return (e && e.snapshot) ? { snapshot: e.snapshot, lastKnownAtMs: e.ts } : null
+      },
+      recordIssueRows: async function () { return { ok: true, rows: 0, mergeVersion: null } },
+      readSnapshotDiagnostics: async function () { return [] },
+    }
+  }
   return d
 }
 // 完整一趟：容器 2001 + 三张子票；截断一趟：只剩子票 2002（第一页边界上正好被切断的样子）。
