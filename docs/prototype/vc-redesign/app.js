@@ -130,6 +130,13 @@
       untracked: "\u672A\u8DDF\u8E2A",
       typeUnknown: "\u65E0\u6CD5\u5224\u5B9A\u53D8\u66F4\u7C7B\u578B",
       stagedBadge: "\u5DF2\u6682\u5B58",
+      hunkTitle: (index) => `\u7B2C ${index} \u5757`,
+      hunkStage: "\u6682\u5B58\u8FD9\u4E00\u5757",
+      hunkUnstage: "\u53D6\u6D88\u6682\u5B58\u8FD9\u4E00\u5757",
+      hunkStaged: "\u5DF2\u6682\u5B58",
+      hunkProgress: (staged, total) => `\u5DF2\u6682\u5B58 ${staged}/${total} \u5757`,
+      hunkProgressTitle: (staged, total) => `\u8FD9\u4E2A\u6587\u4EF6\u5171 ${total} \u5757\uFF0C\u5176\u4E2D ${staged} \u5757\u5DF2\u8FDB\u7D22\u5F15`,
+      hunkNote: "\u5757\u5934\u7684\u6309\u94AE\u53EA\u628A\u8FD9\u4E00\u5757\u653E\u8FDB\u7D22\u5F15\uFF0C\u522B\u7684\u5757\u7559\u5728\u5DE5\u4F5C\u533A\uFF1B\u6574\u4EFD\u6587\u4EF6\u7684\u5757\u5168\u90E8\u6682\u5B58\u5B8C\uFF0C\u8FD9\u4E00\u884C\u624D\u79FB\u5230\u300C\u5DF2\u6682\u5B58\u300D\u3002",
       menuMore: "\u66F4\u591A\u64CD\u4F5C",
       menuDiscard: "\u4E22\u5F03\u4FEE\u6539",
       menuIgnore: "\u52A0\u5165 .gitignore",
@@ -3608,6 +3615,72 @@
     };
   }
 
+  // docs/prototype/vc-redesign/src/data/patches.ts
+  var TS_SAMPLE = [
+    { kind: "filehead", text: "diff --git a/src/client/views/shared/workRouteTable.ts b/src/client/views/shared/workRouteTable.ts" },
+    { kind: "hunk", text: "@@ -18,7 +18,7 @@ export const workRouteTableOf = function (rows) {" },
+    { kind: "context", text: "  const table = new Map()" },
+    { kind: "context", text: "  for (const row of rows) {" },
+    { kind: "del", text: "-    table.set(row.key, row.ticket)" },
+    { kind: "add", text: "+    table.set(row.key, row.ticket ?? row.fallback)" },
+    { kind: "context", text: "  }" },
+    { kind: "context", text: "  return table" },
+    { kind: "context", text: "}" },
+    // 第二个块：逐块暂存要有两块以上才验得出来，只有一块时「按块暂存」和「整个文件暂存」看不出区别。
+    { kind: "hunk", text: "@@ -42,4 +42,6 @@ export const headerOf = function (row) {" },
+    { kind: "context", text: "  if (!row) return null" },
+    { kind: "add", text: "+  const merged = Object.assign({}, row.fallback, row)" },
+    { kind: "add", text: "+  return merged.ticket ? merged : null" },
+    { kind: "context", text: "}" }
+  ];
+  var TS_SAMPLE_TWO = [
+    { kind: "filehead", text: "diff --git a/src/refresh/rooms/host/outbound-admission.ts b/src/refresh/rooms/host/outbound-admission.ts" },
+    { kind: "hunk", text: "@@ -41,6 +41,10 @@ export const admitOutbound = function (request) {" },
+    { kind: "context", text: "  if (!request.sessionId) return { ok: false, reason: 'no-session' }" },
+    { kind: "add", text: "+  if (request.retryOf) {" },
+    { kind: "add", text: "+    traces.push({ kind: 'retry', id: request.retryOf })" },
+    { kind: "add", text: "+  }" },
+    { kind: "context", text: "  const admitted = checkQuota(request)" },
+    { kind: "del", text: "-  return admitted ? allow(request) : deny(request)" },
+    { kind: "add", text: "+  return admitted ? allow(request) : deny(request, { retryable: true })" }
+  ];
+  var MARKDOWN_SAMPLE = [
+    { kind: "filehead", text: "diff --git a/docs/review/sample.md b/docs/review/sample.md" },
+    { kind: "hunk", text: "@@ -1,4 +1,6 @@" },
+    { kind: "context", text: "# \u8BC4\u5BA1\u8BB0\u5F55" },
+    { kind: "add", text: "+## \u7ED3\u8BBA" },
+    { kind: "add", text: "+\u4E24\u5904\u9700\u8981\u4EBA\u5DE5\u786E\u8BA4\u7684\u8FB9\u754C\u5DF2\u7ECF\u5217\u5728\u4E0B\u9762\u3002" },
+    { kind: "context", text: "" },
+    { kind: "context", text: "## \u8BC1\u636E" }
+  ];
+  var PNG_SAMPLE = [
+    { kind: "filehead", text: "Binary files a/docs/design/md-env-check-chain.png and b/docs/design/md-env-check-chain.png differ" },
+    { kind: "no-newline", text: "\u539F\u578B\u4E0D\u6E32\u67D3\u4E8C\u8FDB\u5236\u5DEE\u5F02\u3002" }
+  ];
+  function patchHunksOf(lines) {
+    const header = [];
+    const hunks = [];
+    let current = null;
+    for (const line of lines) {
+      if (line.kind === "hunk") {
+        current = [line];
+        hunks.push(current);
+        continue;
+      }
+      if (current === null) header.push(line);
+      else current.push(line);
+    }
+    return { header, hunks };
+  }
+  function samplePatch(path) {
+    if (path.endsWith(".ts") || path.endsWith(".mts") || path.endsWith(".tsx")) {
+      return path.includes("outbound-admission") ? TS_SAMPLE_TWO : TS_SAMPLE;
+    }
+    if (path.endsWith(".md")) return MARKDOWN_SAMPLE;
+    if (path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".webp")) return PNG_SAMPLE;
+    return null;
+  }
+
   // docs/prototype/vc-redesign/src/domain/session.ts
   function createSessionState(base, nowMs) {
     const conflicts = [];
@@ -3666,6 +3739,7 @@
       renamePath: null,
       renameDraft: "",
       renames: [],
+      stagedHunks: {},
       ignored: [],
       stashes: [],
       stashPending: null,
@@ -3683,6 +3757,28 @@
   }
   function unique(paths) {
     return paths.filter((path, index) => paths.indexOf(path) === index);
+  }
+  function hunkCountOf(path) {
+    const patch = samplePatch(path);
+    return patch === null ? 0 : patchHunksOf(patch).hunks.length;
+  }
+  function withoutHunks(records, path) {
+    if (records[path] === void 0) return records;
+    const next = { ...records };
+    delete next[path];
+    return next;
+  }
+  function pruneHunks(state) {
+    const keys = Object.keys(state.stagedHunks);
+    if (keys.length === 0) return state;
+    const kept = {};
+    let dropped = false;
+    for (const key of keys) {
+      const blocks = state.stagedHunks[key];
+      if (blocks !== void 0 && state.unstaged.includes(key)) kept[key] = blocks;
+      else dropped = true;
+    }
+    return dropped ? { ...state, stagedHunks: kept } : state;
   }
   function withResult(state, result) {
     return { ...state, result };
@@ -3745,6 +3841,9 @@
     return out;
   }
   function reduce(state, action, base) {
+    return pruneHunks(acted(state, action, base));
+  }
+  function acted(state, action, base) {
     switch (action.type) {
       case "demo-worktrees":
         return { ...state, demoWorktrees: true };
@@ -3771,6 +3870,75 @@
           unstaged: unique([...state.unstaged, action.path])
         };
       }
+      /*
+       * 逐块暂存：块的下标按补丁里的顺序，已暂的块记在 stagedHunks 里。
+       * 整份文件的块都暂完才把它挪到「已暂存」——这也是 git 的行为：部分暂存的文件
+       * 在索引与工作区各有一份内容，列表上仍算「未暂存」。
+       */
+      case "stage-hunk": {
+        if (state.busy !== null || state.reloading) return state;
+        const { path, index } = action;
+        if (state.conflicts.includes(path)) return state;
+        if (state.staged.includes(path) || !state.unstaged.includes(path)) return state;
+        const total = hunkCountOf(path);
+        if (total === 0 || index < 0 || index >= total) return state;
+        const had = state.stagedHunks[path] ?? [];
+        if (had.includes(index)) return state;
+        const kept = [...had, index].sort((a, b) => a - b);
+        const name = nameOfPath(path);
+        const remaining = total - kept.length;
+        if (remaining === 0) {
+          return withResult({
+            ...state,
+            staged: unique([...state.staged, path]),
+            unstaged: state.unstaged.filter((item) => item !== path),
+            stagedHunks: withoutHunks(state.stagedHunks, path)
+          }, {
+            tone: "ok",
+            text: `\u5DF2\u6682\u5B58 ${name} \u7684\u6700\u540E\u4E00\u5757\uFF0C\u6574\u4E2A\u6587\u4EF6\u8FDB\u5165\u300C\u5DF2\u6682\u5B58\u300D\u3002`,
+            detail: `\u5B83\u7684 ${total} \u5757\u90FD\u8FDB\u7D22\u5F15\u4E86\uFF0C\u8FD9\u4E00\u884C\u4ECE\u300C\u672A\u6682\u5B58\u300D\u79FB\u5230\u300C\u5DF2\u6682\u5B58\u300D\uFF1B\u63D0\u4EA4\u65F6\u4F1A\u5E26\u4E0A\u8FD9\u4E9B\u5757\u3002`,
+            source: "changes"
+          });
+        }
+        return withResult({
+          ...state,
+          stagedHunks: { ...state.stagedHunks, [path]: kept }
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u6682\u5B58 ${name} \u7684\u7B2C ${index + 1} \u5757\uFF0C\u8FD8\u5269 ${remaining} \u5757\u3002`,
+          detail: "\u8FD9\u4E2A\u6587\u4EF6\u8981\u7B49\u6240\u6709\u5757\u90FD\u6682\u5B58\u5B8C\uFF0C\u624D\u4F1A\u6574\u884C\u79FB\u5230\u300C\u5DF2\u6682\u5B58\u300D\uFF1B\u73B0\u5728\u5B83\u4ECD\u5728\u300C\u672A\u6682\u5B58\u300D\u91CC\uFF0C\u884C\u4E0A\u6807\u7740\u5DF2\u6682\u5B58\u51E0\u5757\u3002",
+          source: "changes"
+        });
+      }
+      case "unstage-hunk": {
+        if (state.busy !== null || state.reloading) return state;
+        const { path, index } = action;
+        const total = hunkCountOf(path);
+        if (total === 0 || index < 0 || index >= total) return state;
+        const wholeStaged = state.staged.includes(path);
+        if (!wholeStaged && !state.unstaged.includes(path)) return state;
+        const had = wholeStaged ? Array.from({ length: total }, (_, item) => item) : state.stagedHunks[path] ?? [];
+        if (!had.includes(index)) return state;
+        const left = had.filter((item) => item !== index);
+        const name = nameOfPath(path);
+        let next = {
+          ...state,
+          stagedHunks: left.length === 0 ? withoutHunks(state.stagedHunks, path) : { ...state.stagedHunks, [path]: left }
+        };
+        if (wholeStaged) {
+          next = {
+            ...next,
+            staged: state.staged.filter((item) => item !== path),
+            unstaged: unique([...state.unstaged, path])
+          };
+        }
+        return withResult(next, {
+          tone: "info",
+          text: `\u5DF2\u53D6\u6D88\u6682\u5B58 ${name} \u7684\u7B2C ${index + 1} \u5757\u3002`,
+          detail: left.length === 0 ? "\u8FD9\u4E2A\u6587\u4EF6\u73B0\u5728\u6574\u4EFD\u90FD\u5728\u300C\u672A\u6682\u5B58\u300D\u91CC\uFF0C\u884C\u4E0A\u4E5F\u5C31\u6CA1\u6709\u5DF2\u6682\u5B58\u7684\u5757\u6570\u4E86\u3002" : `\u8FD8\u6709 ${left.length} \u5757\u7559\u5728\u5DF2\u6682\u5B58\uFF1B\u8FD9\u4E00\u884C\u663E\u793A\u5728\u300C\u672A\u6682\u5B58\u300D\u91CC\uFF0C\u5E76\u6807\u7740\u5DF2\u6682\u5B58\u51E0\u5757\u3002`,
+          source: "changes"
+        });
+      }
       case "stage-all": {
         if (state.busy !== null || state.reloading) return state;
         if (state.conflicts.length > 0) return state;
@@ -3778,12 +3946,15 @@
       }
       case "unstage-all": {
         if (state.busy !== null || state.reloading) return state;
-        return { ...state, unstaged: unique([...state.unstaged, ...state.staged]), staged: [] };
+        return { ...state, unstaged: unique([...state.unstaged, ...state.staged]), staged: [], stagedHunks: {} };
       }
       case "filter":
         return { ...state, changesFilter: action.filter };
       case "toggle-file":
         return { ...state, openFile: state.openFile === action.path ? null : action.path };
+      // 深链专用：把某一行「打开」，不因为已经打开就关掉（截图脚本要可以重复打开同一行）。
+      case "expand-file":
+        return { ...state, openFile: action.path };
       case "message":
         return { ...state, message: action.value };
       case "commit-start":
@@ -4646,51 +4817,6 @@
     branches: "\u5206\u652F\u5173\u7CFB\u592A\u4E71\uFF1F\u4EA4\u7ED9 AI \u7406\u6E05"
   };
 
-  // docs/prototype/vc-redesign/src/data/patches.ts
-  var TS_SAMPLE = [
-    { kind: "filehead", text: "diff --git a/src/client/views/shared/workRouteTable.ts b/src/client/views/shared/workRouteTable.ts" },
-    { kind: "hunk", text: "@@ -18,7 +18,7 @@ export const workRouteTableOf = function (rows) {" },
-    { kind: "context", text: "  const table = new Map()" },
-    { kind: "context", text: "  for (const row of rows) {" },
-    { kind: "del", text: "-    table.set(row.key, row.ticket)" },
-    { kind: "add", text: "+    table.set(row.key, row.ticket ?? row.fallback)" },
-    { kind: "context", text: "  }" },
-    { kind: "context", text: "  return table" },
-    { kind: "context", text: "}" }
-  ];
-  var TS_SAMPLE_TWO = [
-    { kind: "filehead", text: "diff --git a/src/refresh/rooms/host/outbound-admission.ts b/src/refresh/rooms/host/outbound-admission.ts" },
-    { kind: "hunk", text: "@@ -41,6 +41,10 @@ export const admitOutbound = function (request) {" },
-    { kind: "context", text: "  if (!request.sessionId) return { ok: false, reason: 'no-session' }" },
-    { kind: "add", text: "+  if (request.retryOf) {" },
-    { kind: "add", text: "+    traces.push({ kind: 'retry', id: request.retryOf })" },
-    { kind: "add", text: "+  }" },
-    { kind: "context", text: "  const admitted = checkQuota(request)" },
-    { kind: "del", text: "-  return admitted ? allow(request) : deny(request)" },
-    { kind: "add", text: "+  return admitted ? allow(request) : deny(request, { retryable: true })" }
-  ];
-  var MARKDOWN_SAMPLE = [
-    { kind: "filehead", text: "diff --git a/docs/review/sample.md b/docs/review/sample.md" },
-    { kind: "hunk", text: "@@ -1,4 +1,6 @@" },
-    { kind: "context", text: "# \u8BC4\u5BA1\u8BB0\u5F55" },
-    { kind: "add", text: "+## \u7ED3\u8BBA" },
-    { kind: "add", text: "+\u4E24\u5904\u9700\u8981\u4EBA\u5DE5\u786E\u8BA4\u7684\u8FB9\u754C\u5DF2\u7ECF\u5217\u5728\u4E0B\u9762\u3002" },
-    { kind: "context", text: "" },
-    { kind: "context", text: "## \u8BC1\u636E" }
-  ];
-  var PNG_SAMPLE = [
-    { kind: "filehead", text: "Binary files a/docs/design/md-env-check-chain.png and b/docs/design/md-env-check-chain.png differ" },
-    { kind: "no-newline", text: "\u539F\u578B\u4E0D\u6E32\u67D3\u4E8C\u8FDB\u5236\u5DEE\u5F02\u3002" }
-  ];
-  function samplePatch(path) {
-    if (path.endsWith(".ts") || path.endsWith(".mts") || path.endsWith(".tsx")) {
-      return path.includes("outbound-admission") ? TS_SAMPLE_TWO : TS_SAMPLE;
-    }
-    if (path.endsWith(".md")) return MARKDOWN_SAMPLE;
-    if (path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".webp")) return PNG_SAMPLE;
-    return null;
-  }
-
   // docs/prototype/vc-redesign/src/domain/select.ts
   function judgeScreen(base, state) {
     const screen = base.screen;
@@ -4812,8 +4938,22 @@
     const badge = changeBadge(change);
     const { dir, name } = splitPath(path);
     const isUntracked = change === "untracked";
+    const busy = state.busy !== null || state.reloading;
     const expanded = state.openFile === path;
     const patch = expanded && !isUntracked && !options.conflict ? samplePatch(path) : null;
+    const split = patch === null ? null : patchHunksOf(patch);
+    const stagedIndexes = split === null ? [] : options.staged ? split.hunks.map((_, index) => index) : state.stagedHunks[path] ?? [];
+    const hunks = split === null ? [] : split.hunks.map((lines, index) => {
+      const stagedHere = stagedIndexes.includes(index);
+      return {
+        index,
+        lines,
+        staged: stagedHere,
+        canStage: !busy && !options.conflict && !options.staged && !stagedHere,
+        canUnstage: !busy && !options.conflict && stagedHere
+      };
+    });
+    const hunkProgress = split !== null && !options.staged && stagedIndexes.length > 0 ? { staged: stagedIndexes.length, total: split.hunks.length } : null;
     let patchNote = null;
     if (expanded) {
       if (options.conflict) patchNote = "\u51B2\u7A81\u6587\u4EF6\u5728\u5408\u5E76\u5B8C\u6210\u524D\u6CA1\u6709\u5355\u4E00\u57FA\u7EBF\uFF0C\u539F\u578B\u4E0D\u5C55\u793A\u5DEE\u5F02\u3002";
@@ -4821,10 +4961,16 @@
       else if (patch === null) patchNote = "\u8FD9\u4E2A\u6269\u5C55\u540D\u6CA1\u6709\u53EF\u5C55\u793A\u7684\u793A\u4F8B\u8865\u4E01\u3002";
     }
     const extraBadges = [];
-    if (options.conflict) extraBadges.push("\u51B2\u7A81");
-    else if (options.staged) extraBadges.push(COPY.changes.stagedBadge);
-    if (isUntracked) extraBadges.push(COPY.changes.untracked);
-    const busy = state.busy !== null || state.reloading;
+    if (options.conflict) extraBadges.push({ text: "\u51B2\u7A81", tone: "error" });
+    else if (options.staged) extraBadges.push({ text: COPY.changes.stagedBadge, tone: "ok" });
+    if (isUntracked) extraBadges.push({ text: COPY.changes.untracked, tone: "muted" });
+    if (hunkProgress !== null) {
+      extraBadges.push({
+        text: COPY.changes.hunkProgress(hunkProgress.staged, hunkProgress.total),
+        tone: "ok",
+        title: COPY.changes.hunkProgressTitle(hunkProgress.staged, hunkProgress.total)
+      });
+    }
     return {
       path,
       dir,
@@ -4837,7 +4983,8 @@
       conflict: options.conflict,
       staged: options.staged,
       expanded,
-      patch,
+      patchHead: split === null ? null : split.header,
+      hunks,
       patchNote,
       canStage: !busy && !options.conflict && !options.staged,
       canUnstage: !busy && !options.conflict && options.staged,
@@ -7589,16 +7736,16 @@
   var TAB_ENTRIES = [
     // —— 改动页：工作区与暂存 ——
     { id: "1.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6539\u52A8\u9875\u9876\u90E8\u7684\u4E09\u5F20\u7EDF\u8BA1\u5361\u4E0E\u6587\u4EF6\u5217\u8868", status: "\u5DF2\u753B" },
-    { id: "1.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u6587\u4EF6\u884C\u5C55\u5F00\u540E\u7684\u9010\u5757\u5DEE\u5F02\uFF0C\u6BCF\u4E00\u5757\u53F3\u4FA7\u7ED9\u300C\u6682\u5B58\u8FD9\u4E00\u5757\u300D", status: "\u5F85\u753B", reason: "\u9010\u5757\u6682\u5B58\u9009\u7684\u662F\u300C\u54EA\u4E9B\u884C\u8FDB\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\uFF0C\u6240\u4EE5\u8D34\u5728\u9010\u884C\u5DEE\u5F02\u4E0A\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u90A3\u91CC\u6539\u7684\u662F\u8FD9\u6B21\u63D0\u4EA4\u600E\u4E48\u8BB0\uFF09\uFF0C\u4E5F\u4E0D\u653E\u884C\u5C3E\u83DC\u5355\uFF08\u83DC\u5355\u91CC\u770B\u4E0D\u5230\u662F\u54EA\u4E00\u5757\uFF09\u3002" },
+    { id: "1.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u6587\u4EF6\u884C\u5C55\u5F00\u540E\u7684\u9010\u5757\u5DEE\u5F02\uFF0C\u6BCF\u4E00\u5757\u4E0A\u65B9\u4E00\u884C\u7ED9\u300C\u6682\u5B58\u8FD9\u4E00\u5757 / \u53D6\u6D88\u6682\u5B58\u8FD9\u4E00\u5757\u300D\uFF0C\u90E8\u5206\u6682\u5B58\u7684\u884C\u4E0A\u6807\u300C\u5DF2\u6682\u5B58 1/2 \u5757\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u9010\u5757\u6682\u5B58\u9009\u7684\u662F\u300C\u54EA\u4E9B\u884C\u8FDB\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\uFF0C\u6240\u4EE5\u8D34\u5728\u9010\u884C\u5DEE\u5F02\u4E0A\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u90A3\u91CC\u6539\u7684\u662F\u8FD9\u6B21\u63D0\u4EA4\u600E\u4E48\u8BB0\uFF09\uFF0C\u4E5F\u4E0D\u653E\u884C\u5C3E\u83DC\u5355\uFF08\u83DC\u5355\u91CC\u770B\u4E0D\u5230\u662F\u54EA\u4E00\u5757\uFF09\u3002" },
     { id: "1.3", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6587\u4EF6\u884C\u5C3E\u7684\u300C\u6682\u5B58\u300D", status: "\u5DF2\u753B" },
     { id: "1.4", form: "\u884C\u5185\u63A7\u4EF6", at: "\u672A\u6682\u5B58\u5206\u7EC4\u6807\u9898\u53F3\u4FA7\u7684\u300C\u5168\u90E8\u6682\u5B58\u300D", status: "\u5DF2\u753B" },
     { id: "1.5", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6587\u4EF6\u884C\u5C3E\u7684\u300C\u53D6\u6D88\u6682\u5B58\u300D\u4E0E\u5DF2\u6682\u5B58\u5206\u7EC4\u6807\u9898\u7684\u300C\u5168\u90E8\u53D6\u6D88\u6682\u5B58\u300D", status: "\u5DF2\u753B" },
     { id: "1.6", form: "\u884C\u5C3E\u83DC\u5355", at: "\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u4E22\u5F03\u4FEE\u6539\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
     { id: "1.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u672A\u6682\u5B58\u5206\u7EC4\u6807\u9898\u53F3\u4FA7\u7684\u300C\u4E22\u5F03\u5168\u90E8\u300D\u4E0E\u8D34\u7EC4\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
     { id: "1.8", form: "\u884C\u5C3E\u83DC\u5355", at: "\u672A\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u5220\u9664\u8FD9\u4E2A\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
-    { id: "1.9", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u5220\u9664\u8FD9\u4E2A\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5F85\u753B", reason: "\u5B83\u53EA\u4F5C\u7528\u4E8E\u8FD9\u4E00\u884C\u3001\u5220\u6389\u5C31\u627E\u4E0D\u56DE\u6765\uFF0C\u6240\u4EE5\u548C\u300C\u4E22\u5F03\u4FEE\u6539\u300D\u540C\u4E00\u5C42\u653E\u5728\u884C\u5C3E\u83DC\u5355\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u90A3\u91CC\u53EA\u51B3\u5B9A\u8FD9\u6B21\u63D0\u4EA4\u600E\u4E48\u8BB0\uFF09\uFF0C\u4E5F\u4E0D\u5355\u72EC\u5360\u4E00\u5C4F\uFF08\u4E00\u6B21\u53EA\u5220\u4E00\u884C\uFF09\u3002" },
-    { id: "1.10", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u505C\u6B62\u8DDF\u8E2A\uFF0C\u4FDD\u7559\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u8BF4\u660E", status: "\u5F85\u753B", reason: "\u8BFB\u8005\u662F\u5728\u8FD9\u4E00\u884C\u4E0A\u8BF4\u300C\u522B\u518D\u8DDF\u8E2A\u5B83\u300D\uFF0C\u548C\u52A0\u5165\u5FFD\u7565\u6E05\u5355\u662F\u540C\u4E00\u7C7B\u51B3\u5B9A\uFF0C\u6240\u4EE5\u653E\u884C\u5C3E\u83DC\u5355\uFF1B\u7ED3\u679C\u8981\u8BA9\u8FD9\u4E2A\u6587\u4EF6\u4ECE\u5217\u8868\u6D88\u5931\u3001\u5E76\u5199\u660E\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u8FD8\u5728\u3002" },
-    { id: "1.11", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u91CD\u547D\u540D\u6216\u79FB\u52A8\u300D\uFF0C\u5C55\u5F00\u4E00\u4E2A\u53EA\u586B\u65B0\u8DEF\u5F84\u7684\u8F93\u5165\u6846", status: "\u5F85\u753B", reason: "\u91CD\u547D\u540D\u6539\u7684\u662F\u4E00\u6761\u8DEF\u5F84\uFF0C\u5C5E\u4E8E\u884C\u7EA7\u52A8\u4F5C\uFF0C\u6240\u4EE5\u548C\u4E22\u5F03\u3001\u5FFD\u7565\u653E\u5728\u540C\u4E00\u5F20\u83DC\u5355\u91CC\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u5B83\u4E0D\u662F\u63D0\u4EA4\u65B9\u5F0F\uFF09\uFF0C\u4E5F\u4E0D\u653E\u4E8C\u7EA7\u9875\uFF08\u4E3A\u4E00\u4E2A\u8DEF\u5F84\u5F00\u4E00\u5C4F\u592A\u91CD\uFF09\u3002" },
+    { id: "1.9", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u5220\u9664\u5DF2\u8DDF\u8E2A\u7684\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u53EA\u4F5C\u7528\u4E8E\u8FD9\u4E00\u884C\u3001\u5220\u6389\u5C31\u627E\u4E0D\u56DE\u6765\uFF0C\u6240\u4EE5\u548C\u300C\u4E22\u5F03\u4FEE\u6539\u300D\u540C\u4E00\u5C42\u653E\u5728\u884C\u5C3E\u83DC\u5355\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u90A3\u91CC\u53EA\u51B3\u5B9A\u8FD9\u6B21\u63D0\u4EA4\u600E\u4E48\u8BB0\uFF09\uFF0C\u4E5F\u4E0D\u5355\u72EC\u5360\u4E00\u5C4F\uFF08\u4E00\u6B21\u53EA\u5220\u4E00\u884C\uFF09\u3002" },
+    { id: "1.10", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u505C\u6B62\u8DDF\u8E2A\uFF0C\u4FDD\u7559\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u672C\u7968\u5DF2\u753B", reason: "\u8BFB\u8005\u662F\u5728\u8FD9\u4E00\u884C\u4E0A\u8BF4\u300C\u522B\u518D\u8DDF\u8E2A\u5B83\u300D\uFF0C\u548C\u52A0\u5165\u5FFD\u7565\u6E05\u5355\u662F\u540C\u4E00\u7C7B\u51B3\u5B9A\uFF0C\u6240\u4EE5\u653E\u884C\u5C3E\u83DC\u5355\uFF1B\u7ED3\u679C\u8981\u8BA9\u8FD9\u4E2A\u6587\u4EF6\u4ECE\u5217\u8868\u6D88\u5931\u3001\u5E76\u5199\u660E\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u8FD8\u5728\u3002" },
+    { id: "1.11", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u91CD\u547D\u540D\u6216\u79FB\u52A8\u300D\uFF0C\u70B9\u5F00\u540E\u5728\u8FD9\u4E00\u884C\u4E0B\u9762\u5C55\u5F00\u53EA\u586B\u65B0\u8DEF\u5F84\u7684\u8F93\u5165\u6846", status: "\u672C\u7968\u5DF2\u753B", reason: "\u91CD\u547D\u540D\u6539\u7684\u662F\u4E00\u6761\u8DEF\u5F84\uFF0C\u5C5E\u4E8E\u884C\u7EA7\u52A8\u4F5C\uFF0C\u6240\u4EE5\u548C\u4E22\u5F03\u3001\u5FFD\u7565\u653E\u5728\u540C\u4E00\u5F20\u83DC\u5355\u91CC\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u5B83\u4E0D\u662F\u63D0\u4EA4\u65B9\u5F0F\uFF09\uFF0C\u4E5F\u4E0D\u653E\u4E8C\u7EA7\u9875\uFF08\u4E3A\u4E00\u4E2A\u8DEF\u5F84\u5F00\u4E00\u5C4F\u592A\u91CD\uFF09\u3002" },
     { id: "1.12", form: "\u884C\u5C3E\u83DC\u5355", at: "\u672A\u8DDF\u8E2A\u6216\u5DF2\u4FEE\u6539\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u52A0\u5165 .gitignore\u300D", status: "\u5DF2\u753B" },
     { id: "1.13", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u6587\u4EF6\u884C\u5C55\u5F00\u91CC\u7684\u300C\u8FD9\u6761\u8DEF\u5F84\u4E3A\u4EC0\u4E48\u88AB\u5FFD\u7565\u300D", status: "\u53EA\u8BFB", reason: "git check-ignore \u662F\u53EA\u8BFB\u8BCA\u65AD\uFF0C\u9762\u677F\u53EA\u5C55\u793A\u5B83\u8BFB\u5230\u7684\u89C4\u5219\u4E0E\u6765\u6E90\u6587\u4EF6\uFF0C\u4E0D\u753B\u80FD\u6539\u7684\u63A7\u4EF6\u3002" },
     // —— 改动页：提交 ——
@@ -8553,7 +8700,9 @@
     ));
     if (row.extraBadges.length > 0) {
       const extras = h("span", { class: "file-extras" });
-      for (const text of row.extraBadges) extras.append(chip(text, row.conflict ? "error" : text === COPY.changes.stagedBadge ? "ok" : "muted", { small: true }));
+      for (const extra of row.extraBadges) {
+        extras.append(chip(extra.text, extra.tone, { small: true, ...extra.title === void 0 ? {} : { title: extra.title } }));
+      }
       main.append(extras);
     }
     if (row.delta !== null) {
@@ -8600,11 +8749,43 @@
     if (pendingHere && model.pending !== null) wrap.append(renderConfirmCard(model.pending));
     if (row.expanded) {
       const body = h("div", { class: "file-detail" });
-      if (row.patch !== null) body.append(patchBlock(row.patch), h("div", { class: "file-detail-note", text: COPY.changes.patchNote }));
-      else if (row.patchNote !== null) body.append(note(row.patchNote));
+      const hasPatch = row.hunks.length > 0 || (row.patchHead?.length ?? 0) > 0;
+      if (hasPatch) {
+        const blocks = h("div", { class: "hunked" });
+        if (row.patchHead !== null && row.patchHead.length > 0) blocks.append(patchBlock(row.patchHead));
+        for (const hunk of row.hunks) blocks.append(renderHunk(hunk, row));
+        body.append(blocks, h("div", { class: "file-detail-note", text: COPY.changes.patchNote }));
+        if (row.hunks.length > 0) body.append(h("div", { class: "file-detail-note", text: COPY.changes.hunkNote }));
+      } else if (row.patchNote !== null) {
+        body.append(note(row.patchNote));
+      }
       wrap.append(body);
     }
     return wrap;
+  }
+  function renderHunk(hunk, row) {
+    const copy = COPY.changes;
+    const unstage = hunk.canUnstage;
+    const label = unstage ? copy.hunkUnstage : copy.hunkStage;
+    const bar = h(
+      "div",
+      { class: "hunk-bar" },
+      h("span", { class: "hunk-name", text: copy.hunkTitle(hunk.index + 1) }),
+      hunk.staged ? chip(copy.hunkStaged, "ok", { small: true }) : null,
+      h("span", { class: "hunk-gap" }),
+      // 外形沿用行尾动作那颗小按钮（.row-act），只把高度与字号压到块头这一行的高度。
+      h("button", {
+        class: "row-act hunk-act",
+        attrs: {
+          type: "button",
+          disabled: !unstage && !hunk.canStage,
+          "data-focus-key": `hunk:${row.fullPath}:${hunk.index}`,
+          title: `${label}\uFF08${row.name} \u5171 ${row.hunks.length} \u5757\uFF09`
+        },
+        dataset: { action: unstage ? "unstage-hunk" : "stage-hunk", path: row.fullPath, index: String(hunk.index) }
+      }, label)
+    );
+    return h("div", { class: `hunk${hunk.staged ? " is-staged" : ""}` }, bar, patchBlock(hunk.lines));
   }
   function renderRowMenu(row, model) {
     const menu = h("div", { class: "row-menu", attrs: { role: "menu", "aria-label": `${row.name} \u7684\u66F4\u591A\u64CD\u4F5C` } });
@@ -11451,6 +11632,14 @@
           dispatch({ type: action, path }, { focusKey: `row:${path}` });
           return;
         }
+        case "stage-hunk":
+        case "unstage-hunk": {
+          const path = el.dataset.path ?? "";
+          const index = Number(el.dataset.index);
+          if (!Number.isInteger(index)) return;
+          dispatch({ type: action, path, index }, { focusKey: `hunk:${path}:${index}` });
+          return;
+        }
         case "stage-all":
           dispatch({ type: "stage-all" }, { focusKey: "stage-all" });
           return;
@@ -12124,6 +12313,8 @@
       if (filter === "conflict" || filter === "staged" || filter === "unstaged") {
         state = reduce(state, { type: "filter", filter }, base);
       }
+      const expandPath = params.get("expand");
+      if (expandPath !== null && expandPath !== "") state = reduce(state, { type: "expand-file", path: expandPath }, base);
       const message = params.get("message");
       if (message !== null && message !== "") state = reduce(state, { type: "message", value: message }, base);
       if (params.get("stageall") === "1") state = reduce(state, { type: "stage-all" }, base);

@@ -16,6 +16,7 @@
  */
 
 import { COPY } from '../data/copy'
+import { patchHunksOf, samplePatch } from '../data/patches'
 
 /** 结果出现的位置：这是「结果不能堆在页面底部」的具体落点。 */
 export type ResultSource = 'sync' | 'reload' | 'commit' | 'copy' | 'ai' | 'branch' | 'worktree' | 'changes' | 'stash' | 'history'
@@ -167,6 +168,11 @@ export interface SessionState {
   renameDraft: string
   /** 改过名的文件：旧路径 → 新路径。读数与差异仍按旧路径查，列表上按新路径画。 */
   renames: Array<{ from: string; to: string }>
+  /**
+   * 逐块暂存：每个文件已经暂存了哪几块（按补丁里块的下标）。
+   * 整份文件的块全部暂完时，文件本身进「已暂存」，这里就不留它的记录。
+   */
+  stagedHunks: Record<string, number[]>
   /** 原型里「已经加入 .gitignore」的文件：接回宿主后它们会在下一次读取时从列表消失。 */
   ignored: string[]
   /** 储藏清单：按 git stash 的顺序，最近一条在最前面。 */
@@ -214,6 +220,9 @@ export type Action =
   | { type: 'unstage-all' }
   | { type: 'filter'; filter: ChangesFilter }
   | { type: 'toggle-file'; path: string }
+  | { type: 'expand-file'; path: string }
+  | { type: 'stage-hunk'; path: string; index: number }
+  | { type: 'unstage-hunk'; path: string; index: number }
   | { type: 'message'; value: string }
   | { type: 'commit-start' }
   | { type: 'commit-finish' }
@@ -330,6 +339,7 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
     renamePath: null,
     renameDraft: '',
     renames: [],
+    stagedHunks: {},
     ignored: [],
     stashes: [],
     stashPending: null,
@@ -348,6 +358,37 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
 
 function unique(paths: string[]): string[] {
   return paths.filter((path, index) => paths.indexOf(path) === index)
+}
+
+/** 这个文件的一段示例补丁有几块；0 表示拆不出块（二进制、未知扩展名），这一行就不给「按块」按钮。 */
+function hunkCountOf(path: string): number {
+  const patch = samplePatch(path)
+  return patch === null ? 0 : patchHunksOf(patch).hunks.length
+}
+
+/** 去掉一个文件的逐块记录；本来就没有记录时返回原对象，省一次无谓的重画。 */
+function withoutHunks(records: Record<string, number[]>, path: string): Record<string, number[]> {
+  if (records[path] === undefined) return records
+  const next = { ...records }
+  delete next[path]
+  return next
+}
+
+/**
+ * 剪掉「已经不在未暂存列表里」的块记录。串在 reduce 的最后一步：
+ * 动作只要把这个文件移走（暂存、丢弃、删除、停止跟踪、改名、储藏），记录就跟着没。
+ */
+function pruneHunks(state: SessionState): SessionState {
+  const keys = Object.keys(state.stagedHunks)
+  if (keys.length === 0) return state
+  const kept: Record<string, number[]> = {}
+  let dropped = false
+  for (const key of keys) {
+    const blocks = state.stagedHunks[key]
+    if (blocks !== undefined && state.unstaged.includes(key)) kept[key] = blocks
+    else dropped = true
+  }
+  return dropped ? { ...state, stagedHunks: kept } : state
 }
 
 function withResult(state: SessionState, result: ResultMessage): SessionState {
@@ -414,7 +455,18 @@ function shortOid(): string {
   return out
 }
 
+/**
+ * 对外的状态入口：先跑动作，再把逐块记录修剪一遍。
+ *
+ * 逐块记录只对「未暂存」列表里的文件有意义——文件整份暂存、被丢弃、被删除、被改名之后，
+ * 记录必须一起消失，否则它下次回到「未暂存」时会带着上一次的块记忆。修剪集中在这一层，
+ * 而不是每个分支各写一遍：漏一个分支就是一条很难查出来的错状态。
+ */
 export function reduce(state: SessionState, action: Action, base: SessionBase): SessionState {
+  return pruneHunks(acted(state, action, base))
+}
+
+function acted(state: SessionState, action: Action, base: SessionBase): SessionState {
   switch (action.type) {
     case 'demo-worktrees':
       return { ...state, demoWorktrees: true }
@@ -442,6 +494,78 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         unstaged: unique([...state.unstaged, action.path]),
       }
     }
+    /*
+     * 逐块暂存：块的下标按补丁里的顺序，已暂的块记在 stagedHunks 里。
+     * 整份文件的块都暂完才把它挪到「已暂存」——这也是 git 的行为：部分暂存的文件
+     * 在索引与工作区各有一份内容，列表上仍算「未暂存」。
+     */
+    case 'stage-hunk': {
+      if (state.busy !== null || state.reloading) return state
+      const { path, index } = action
+      if (state.conflicts.includes(path)) return state
+      if (state.staged.includes(path) || !state.unstaged.includes(path)) return state
+      const total = hunkCountOf(path)
+      if (total === 0 || index < 0 || index >= total) return state
+      const had = state.stagedHunks[path] ?? []
+      if (had.includes(index)) return state
+      const kept = [...had, index].sort((a, b) => a - b)
+      const name = nameOfPath(path)
+      const remaining = total - kept.length
+      if (remaining === 0) {
+        return withResult({
+          ...state,
+          staged: unique([...state.staged, path]),
+          unstaged: state.unstaged.filter((item) => item !== path),
+          stagedHunks: withoutHunks(state.stagedHunks, path),
+        }, {
+          tone: 'ok',
+          text: `已暂存 ${name} 的最后一块，整个文件进入「已暂存」。`,
+          detail: `它的 ${total} 块都进索引了，这一行从「未暂存」移到「已暂存」；提交时会带上这些块。`,
+          source: 'changes',
+        })
+      }
+      return withResult({
+        ...state,
+        stagedHunks: { ...state.stagedHunks, [path]: kept },
+      }, {
+        tone: 'ok',
+        text: `已暂存 ${name} 的第 ${index + 1} 块，还剩 ${remaining} 块。`,
+        detail: '这个文件要等所有块都暂存完，才会整行移到「已暂存」；现在它仍在「未暂存」里，行上标着已暂存几块。',
+        source: 'changes',
+      })
+    }
+    case 'unstage-hunk': {
+      if (state.busy !== null || state.reloading) return state
+      const { path, index } = action
+      const total = hunkCountOf(path)
+      if (total === 0 || index < 0 || index >= total) return state
+      // 整份已暂存的文件也可以逐块退回：这时先把「全部块都已暂存」展开成一份清单，再拿掉这一块。
+      const wholeStaged = state.staged.includes(path)
+      if (!wholeStaged && !state.unstaged.includes(path)) return state
+      const had = wholeStaged ? Array.from({ length: total }, (_, item) => item) : (state.stagedHunks[path] ?? [])
+      if (!had.includes(index)) return state
+      const left = had.filter((item) => item !== index)
+      const name = nameOfPath(path)
+      let next: SessionState = {
+        ...state,
+        stagedHunks: left.length === 0 ? withoutHunks(state.stagedHunks, path) : { ...state.stagedHunks, [path]: left },
+      }
+      if (wholeStaged) {
+        next = {
+          ...next,
+          staged: state.staged.filter((item) => item !== path),
+          unstaged: unique([...state.unstaged, path]),
+        }
+      }
+      return withResult(next, {
+        tone: 'info',
+        text: `已取消暂存 ${name} 的第 ${index + 1} 块。`,
+        detail: left.length === 0
+          ? '这个文件现在整份都在「未暂存」里，行上也就没有已暂存的块数了。'
+          : `还有 ${left.length} 块留在已暂存；这一行显示在「未暂存」里，并标着已暂存几块。`,
+        source: 'changes',
+      })
+    }
     case 'stage-all': {
       if (state.busy !== null || state.reloading) return state
       if (state.conflicts.length > 0) return state
@@ -449,12 +573,16 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
     }
     case 'unstage-all': {
       if (state.busy !== null || state.reloading) return state
-      return { ...state, unstaged: unique([...state.unstaged, ...state.staged]), staged: [] }
+      // 「全部取消暂存」等于 git reset：索引整个清空，逐块暂存过的文件也一起退回未暂存。
+      return { ...state, unstaged: unique([...state.unstaged, ...state.staged]), staged: [], stagedHunks: {} }
     }
     case 'filter':
       return { ...state, changesFilter: action.filter }
     case 'toggle-file':
       return { ...state, openFile: state.openFile === action.path ? null : action.path }
+    // 深链专用：把某一行「打开」，不因为已经打开就关掉（截图脚本要可以重复打开同一行）。
+    case 'expand-file':
+      return { ...state, openFile: action.path }
     case 'message':
       return { ...state, message: action.value }
     case 'commit-start':

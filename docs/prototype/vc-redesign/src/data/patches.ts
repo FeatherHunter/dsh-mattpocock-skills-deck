@@ -17,6 +17,12 @@ const TS_SAMPLE: PatchLine[] = [
   { kind: 'context', text: '  }' },
   { kind: 'context', text: '  return table' },
   { kind: 'context', text: '}' },
+  // 第二个块：逐块暂存要有两块以上才验得出来，只有一块时「按块暂存」和「整个文件暂存」看不出区别。
+  { kind: 'hunk', text: '@@ -42,4 +42,6 @@ export const headerOf = function (row) {' },
+  { kind: 'context', text: '  if (!row) return null' },
+  { kind: 'add', text: '+  const merged = Object.assign({}, row.fallback, row)' },
+  { kind: 'add', text: '+  return merged.ticket ? merged : null' },
+  { kind: 'context', text: '}' },
 ]
 
 const TS_SAMPLE_TWO: PatchLine[] = [
@@ -45,6 +51,32 @@ const PNG_SAMPLE: PatchLine[] = [
   { kind: 'filehead', text: 'Binary files a/docs/design/md-env-check-chain.png and b/docs/design/md-env-check-chain.png differ' },
   { kind: 'no-newline', text: '原型不渲染二进制差异。' },
 ]
+
+/** 一段补丁拆成「文件头 + 若干个块」：逐块暂存按块给按钮，块本身要保持原样。 */
+export interface PatchHunks {
+  header: PatchLine[]
+  hunks: PatchLine[][]
+}
+
+/**
+ * 把补丁切成文件头与块。块的顺序就是界面上的顺序，块的下标就是「第几块」；
+ * 没有块的补丁（二进制、未知扩展名）返回空数组，界面照旧只画一段说明。
+ */
+export function patchHunksOf(lines: PatchLine[]): PatchHunks {
+  const header: PatchLine[] = []
+  const hunks: PatchLine[][] = []
+  let current: PatchLine[] | null = null
+  for (const line of lines) {
+    if (line.kind === 'hunk') {
+      current = [line]
+      hunks.push(current)
+      continue
+    }
+    if (current === null) header.push(line)
+    else current.push(line)
+  }
+  return { header, hunks }
+}
 
 /** 按扩展名给一段示例补丁；未知扩展名返回 null，界面据此只显示说明。 */
 export function samplePatch(path: string): PatchLine[] | null {

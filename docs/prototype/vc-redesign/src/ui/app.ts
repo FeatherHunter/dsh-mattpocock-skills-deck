@@ -780,6 +780,14 @@ export function mount(root: HTMLElement): void {
         dispatch({ type: action, path }, { focusKey: `row:${path}` })
         return
       }
+      case 'stage-hunk':
+      case 'unstage-hunk': {
+        const path = el.dataset.path ?? ''
+        const index = Number(el.dataset.index)
+        if (!Number.isInteger(index)) return
+        dispatch({ type: action, path, index }, { focusKey: `hunk:${path}:${index}` })
+        return
+      }
       case 'stage-all':
         dispatch({ type: 'stage-all' }, { focusKey: 'stage-all' })
         return
@@ -1497,6 +1505,10 @@ export function mount(root: HTMLElement): void {
     if (filter === 'conflict' || filter === 'staged' || filter === 'unstaged') {
       state = reduce(state, { type: 'filter', filter }, base)
     }
+    // 逐块暂存的按钮长在展开区里：?expand=<路径> 直接把那一行打开。
+    // 用 expand-file 而不是 toggle-file：同一张图重跑脚本时不能把已经打开的行又收起来。
+    const expandPath = params.get('expand')
+    if (expandPath !== null && expandPath !== '') state = reduce(state, { type: 'expand-file', path: expandPath }, base)
     const message = params.get('message')
     if (message !== null && message !== '') state = reduce(state, { type: 'message', value: message }, base)
     // 提交选项的深链：评审要截「修订形态」「fixup 形态」时不用先点开再点三下。

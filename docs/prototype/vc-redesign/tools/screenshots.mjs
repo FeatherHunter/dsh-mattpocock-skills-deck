@@ -26,8 +26,12 @@ const INDEX = pathToFileURL(resolve(ROOT, 'index.html')).href
  *   scrollTo 截图前先滚到某个位置：'bottom' 表示页面内容区滚到底，选择器表示把它滚进可视区；
  *   clicks  截图前依次点开的选择器：菜单、确认卡这类状态只能用点击造出来，光靠查询串复现不了；
  *   embed   嵌入模式（只留产品面板，用于文档内引用）；
- *   viewport 浏览器窗口尺寸，按内容高度微调，保证面板本体截图不变形。
+ *   viewport 浏览器窗口尺寸，按内容高度微调，保证面板本体截图不变形；
+ *            默认按宽度与 embed 推出来，展开区比列表高时（逐块暂存那三张）单独给一个高窗口。
  */
+const HUNK_ROW = '[data-action="toggle-file"][data-path="src/client/views/shared/workRouteTable.ts"]'
+const TALL = { width: 820, height: 1200 }
+
 const SHOTS = [
   { name: '37-manage-460', query: 'manage=1' },
   { name: '38-branch-tags-460', query: 'page=branch-tags' },
@@ -89,6 +93,12 @@ const SHOTS = [
   { name: '81-rename-form-460', query: 'menu=src/client/views/shared/workRouteTable.ts', clicks: ['[data-action="rename-open"]'], scrollTo: '.rename-form' },
   { name: '82-untrack-confirm-460', query: 'cpending=untrack&cpath=src/client/views/shared/workRouteTable.ts' },
   { name: '83-delete-tracked-confirm-460', query: 'cpending=delete-tracked&cpath=src/client/views/shared/workRouteTable.ts' },
+  // 逐块暂存：展开一行后每一块右侧一颗按钮；暂存其中一块之后，这一行留在「未暂存」，
+  // 行上写出「已暂存 1/2 块」，已暂的那块压暗、按钮换成「取消暂存这一块」。
+  // 展开的一行比默认列表可视区高，这三张用高一点的窗口，把行头与两块一起截进来。
+  { name: '84-hunk-stage-460', query: 'expand=src/client/views/shared/workRouteTable.ts', scrollTo: HUNK_ROW, viewport: TALL },
+  { name: '85-hunk-partial-460', query: 'expand=src/client/views/shared/workRouteTable.ts', clicks: ['.hunk-act'], scrollTo: HUNK_ROW, viewport: TALL },
+  { name: '86-hunk-partial-light-380', query: 'expand=src/client/views/shared/workRouteTable.ts', clicks: ['.hunk-act'], width: 380, theme: 'light', scrollTo: HUNK_ROW, viewport: TALL },
 ]
 
 async function main() {
@@ -103,9 +113,9 @@ async function main() {
       params.set(pair.slice(0, index), pair.slice(index + 1))
     }
     if (shot.embed === true) params.set('embed', '1')
-    const viewport = shot.embed === true
+    const viewport = shot.viewport ?? (shot.embed === true
       ? { width: 620, height: 1250 }
-      : { width: Math.max(760, width + 320), height: 940 }
+      : { width: Math.max(760, width + 320), height: 940 })
     const page = await browser.newPage({ viewport, deviceScaleFactor: 1 })
     page.on('pageerror', (error) => problems.push(shot.name + ' 页面异常：' + error.message))
     page.on('console', (message) => {

@@ -925,6 +925,24 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .diff-head::before,
 .diff-note::before { opacity: 0.3; }
 
+/* 逐块暂存：块头单独一行，左边写第几块，右边只放这一块的按钮；块体仍是一段逐行差异。
+   行号计数器挂在 .hunked 上，拆成多段 pre 之后编号仍然连着往下走。 */
+.hunked { counter-reset: diffline; }
+.hunked .patch { counter-reset: none; }
+.hunk-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 0 5px;
+  border-top: 1px dashed var(--line);
+}
+.hunked > .hunk:first-child .hunk-bar { margin-top: 0; padding-top: 2px; border-top: 0; }
+.hunk-name { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.hunk-gap { flex: 1; }
+.hunk-act { min-height: 19px; padding: 0 7px; font-size: 10px; }
+.hunk.is-staged .patch { opacity: 0.5; }
+
 /* 提交区：常驻在改动视图底部，结果条贴着按钮出现。 */
 .composer {
   display: flex;

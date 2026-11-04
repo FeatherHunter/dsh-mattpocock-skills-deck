@@ -16,7 +16,7 @@ import type { CommitInfo, FileChange, FileEntry, FirstScreen, Operation, PatchLi
 import { COPY } from '../data/copy'
 import { changeBadge, lineDelta, shortOid, splitPath, syncModel } from '../data/format'
 import type { ChangeTone, SyncModel } from '../data/format'
-import { samplePatch } from '../data/patches'
+import { patchHunksOf, samplePatch } from '../data/patches'
 import type { BranchPending, BranchRow, BranchSub, ChangesFilter, ChangesPendingKind, CommitForm, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
 import { headInfoOf, metadataOf, trackedChangesOf } from './session'
 import type { SessionBase } from './session'
@@ -80,12 +80,16 @@ export interface FileRowModel {
   fullPath: string
   badge: { letter: string; tone: BadgeTone }
   changeLabel: string | null
-  extraBadges: string[]
+  /** 行上的小标签：冲突、已暂存、未跟踪、已暂存几块。语气由这里给定，视图不再猜。 */
+  extraBadges: Array<{ text: string; tone: BadgeTone; title?: string }>
   delta: { added: string | null; deleted: string | null } | null
   conflict: boolean
   staged: boolean
   expanded: boolean
-  patch: PatchLine[] | null
+  /** 展开后先画的文件头几行（diff --git …）；没有可展示的补丁时为 null。 */
+  patchHead: PatchLine[] | null
+  /** 展开后按块画：每一块带自己的「暂存 / 取消暂存」能力。没有块时是空数组。 */
+  hunks: HunkModel[]
   patchNote: string | null
   canStage: boolean
   canUnstage: boolean
@@ -104,6 +108,19 @@ export interface FileRowModel {
   resolvable: boolean
   /** 这条行是改名后的新路径时，记着它原来的路径：读数与差异仍按旧路径取。 */
   renamedFrom: string | null
+}
+
+/**
+ * 展开区里的一块。逐块暂存按块给按钮，所以「这一块能不能点」在模型里就算好：
+ * 视图只负责画，不在 DOM 里重新判断忙碌、冲突或已暂存。
+ */
+export interface HunkModel {
+  /** 块在补丁里的顺序，从 0 开始；界面文案里显示成「第 N 块」要加一。 */
+  index: number
+  lines: PatchLine[]
+  staged: boolean
+  canStage: boolean
+  canUnstage: boolean
 }
 
 export interface GroupModel {
@@ -499,19 +516,47 @@ function fileRowOf(
   const badge = changeBadge(change)
   const { dir, name } = splitPath(path)
   const isUntracked = change === 'untracked'
+  const busy = state.busy !== null || state.reloading
   const expanded = state.openFile === path
   const patch = expanded && !isUntracked && !options.conflict ? samplePatch(path) : null
+  const split = patch === null ? null : patchHunksOf(patch)
+  // 整份已暂存的文件，每一块都算已暂存；未暂存的文件只看逐块记录。
+  const stagedIndexes = split === null
+    ? []
+    : options.staged
+      ? split.hunks.map((_, index) => index)
+      : (state.stagedHunks[path] ?? [])
+  const hunks: HunkModel[] = split === null ? [] : split.hunks.map((lines, index) => {
+    const stagedHere = stagedIndexes.includes(index)
+    return {
+      index,
+      lines,
+      staged: stagedHere,
+      canStage: !busy && !options.conflict && !options.staged && !stagedHere,
+      canUnstage: !busy && !options.conflict && stagedHere,
+    }
+  })
+  // 一行里只有一部分块进了索引：行上要写明「已暂存几块」，否则读者看不出这行动过。
+  const hunkProgress = split !== null && !options.staged && stagedIndexes.length > 0
+    ? { staged: stagedIndexes.length, total: split.hunks.length }
+    : null
   let patchNote: string | null = null
   if (expanded) {
     if (options.conflict) patchNote = '冲突文件在合并完成前没有单一基线，原型不展示差异。'
     else if (isUntracked) patchNote = '未跟踪文件还没有基线版本，原型不展示差异。'
     else if (patch === null) patchNote = '这个扩展名没有可展示的示例补丁。'
   }
-  const extraBadges: string[] = []
-  if (options.conflict) extraBadges.push('冲突')
-  else if (options.staged) extraBadges.push(COPY.changes.stagedBadge)
-  if (isUntracked) extraBadges.push(COPY.changes.untracked)
-  const busy = state.busy !== null || state.reloading
+  const extraBadges: Array<{ text: string; tone: BadgeTone; title?: string }> = []
+  if (options.conflict) extraBadges.push({ text: '冲突', tone: 'error' })
+  else if (options.staged) extraBadges.push({ text: COPY.changes.stagedBadge, tone: 'ok' })
+  if (isUntracked) extraBadges.push({ text: COPY.changes.untracked, tone: 'muted' })
+  if (hunkProgress !== null) {
+    extraBadges.push({
+      text: COPY.changes.hunkProgress(hunkProgress.staged, hunkProgress.total),
+      tone: 'ok',
+      title: COPY.changes.hunkProgressTitle(hunkProgress.staged, hunkProgress.total),
+    })
+  }
   return {
     path,
     dir,
@@ -524,7 +569,8 @@ function fileRowOf(
     conflict: options.conflict,
     staged: options.staged,
     expanded,
-    patch,
+    patchHead: split === null ? null : split.header,
+    hunks,
     patchNote,
     canStage: !busy && !options.conflict && !options.staged,
     canUnstage: !busy && !options.conflict && options.staged,

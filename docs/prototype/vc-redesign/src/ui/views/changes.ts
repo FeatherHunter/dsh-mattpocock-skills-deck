@@ -9,7 +9,7 @@
  * 「就近」是这一版的硬规则：行级动作的结果不放到页面底部的结果条里，
  * 而是紧贴着改动列表的顶端出现；确认卡紧贴着触发它的那一行出现。
  */
-import type { ChangesModel, ChangesPendingModel, ComposerModel, FileRowModel, GroupModel } from '../../domain/select'
+import type { ChangesModel, ChangesPendingModel, ComposerModel, FileRowModel, GroupModel, HunkModel } from '../../domain/select'
 import { COPY } from '../../data/copy'
 import { HANDOFF_ENTRY } from '../../domain/handoff'
 import type { CommitForm, ResultMessage } from '../../domain/session'
@@ -344,7 +344,9 @@ function renderFileRow(row: FileRowModel, model: ChangesModel): HTMLElement {
 
   if (row.extraBadges.length > 0) {
     const extras = h('span', { class: 'file-extras' })
-    for (const text of row.extraBadges) extras.append(chip(text, row.conflict ? 'error' : text === COPY.changes.stagedBadge ? 'ok' : 'muted', { small: true }))
+    for (const extra of row.extraBadges) {
+      extras.append(chip(extra.text, extra.tone, { small: true, ...(extra.title === undefined ? {} : { title: extra.title }) }))
+    }
     main.append(extras)
   }
 
@@ -394,11 +396,47 @@ function renderFileRow(row: FileRowModel, model: ChangesModel): HTMLElement {
   if (pendingHere && model.pending !== null) wrap.append(renderConfirmCard(model.pending))
   if (row.expanded) {
     const body = h('div', { class: 'file-detail' })
-    if (row.patch !== null) body.append(patchBlock(row.patch), h('div', { class: 'file-detail-note', text: COPY.changes.patchNote }))
-    else if (row.patchNote !== null) body.append(note(row.patchNote))
+    const hasPatch = row.hunks.length > 0 || (row.patchHead?.length ?? 0) > 0
+    if (hasPatch) {
+      // 逐块暂存：块头单独一行，按钮贴在块头上；行号由外层 .hunked 上的计数器统一往下数，
+      // 所以拆成多段 pre 之后编号仍然连着走。
+      const blocks = h('div', { class: 'hunked' })
+      if (row.patchHead !== null && row.patchHead.length > 0) blocks.append(patchBlock(row.patchHead))
+      for (const hunk of row.hunks) blocks.append(renderHunk(hunk, row))
+      body.append(blocks, h('div', { class: 'file-detail-note', text: COPY.changes.patchNote }))
+      if (row.hunks.length > 0) body.append(h('div', { class: 'file-detail-note', text: COPY.changes.hunkNote }))
+    } else if (row.patchNote !== null) {
+      body.append(note(row.patchNote))
+    }
     wrap.append(body)
   }
   return wrap
+}
+
+/**
+ * 一块差异。块头写「第 N 块」与它自己的状态，右侧只放这一块的按钮：
+ * 已暂存的块压暗、按钮换成「取消暂存这一块」；块多的时候读者一眼看得出哪几块已经进了索引。
+ */
+function renderHunk(hunk: HunkModel, row: FileRowModel): HTMLElement {
+  const copy = COPY.changes
+  const unstage = hunk.canUnstage
+  const label = unstage ? copy.hunkUnstage : copy.hunkStage
+  const bar = h('div', { class: 'hunk-bar' },
+    h('span', { class: 'hunk-name', text: copy.hunkTitle(hunk.index + 1) }),
+    hunk.staged ? chip(copy.hunkStaged, 'ok', { small: true }) : null,
+    h('span', { class: 'hunk-gap' }),
+    // 外形沿用行尾动作那颗小按钮（.row-act），只把高度与字号压到块头这一行的高度。
+    h('button', {
+      class: 'row-act hunk-act',
+      attrs: {
+        type: 'button',
+        disabled: !unstage && !hunk.canStage,
+        'data-focus-key': `hunk:${row.fullPath}:${hunk.index}`,
+        title: `${label}（${row.name} 共 ${row.hunks.length} 块）`,
+      },
+      dataset: { action: unstage ? 'unstage-hunk' : 'stage-hunk', path: row.fullPath, index: String(hunk.index) },
+    }, label))
+  return h('div', { class: `hunk${hunk.staged ? ' is-staged' : ''}` }, bar, patchBlock(hunk.lines))
 }
 
 /** 行内「更多」菜单：一张贴着行的竖排小卡片，条目由这一行能做什么决定。 */
