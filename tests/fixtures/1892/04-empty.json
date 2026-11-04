@@ -1,0 +1,23 @@
+{
+  "note": "空库：没有任何行。快照库读口回 null，但投影对空输入要给出确定的空形状。",
+  "repo": {
+    "backend": "github",
+    "refId": "acme/widgets",
+    "name": "acme/widgets",
+    "url": "https://github.com/acme/widgets"
+  },
+  "version": 0,
+  "rows": [],
+  "expected": {
+    "repository": {
+      "backend": "github",
+      "refId": "acme/widgets",
+      "name": "acme/widgets",
+      "url": "https://github.com/acme/widgets"
+    },
+    "maps": [],
+    "issues": [],
+    "thinTickets": [],
+    "deck": null
+  }
+}

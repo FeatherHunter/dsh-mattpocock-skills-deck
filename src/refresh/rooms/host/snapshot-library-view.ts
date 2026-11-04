@@ -5,6 +5,10 @@
  * 这一份管读方向（库里的投影 → tracker 的 Issue / 界面认的详情形状）。两边各自都不小，混在一个
  * 文件里会撞上「单文件 350 有效行」的门禁；而且读写互不依赖，分开之后谁改哪边一目了然。
  *
+ * #1892 起列表那一半（库里的行 → 容器树、子票、瘦身行的快照主体）搬进同目录的
+ * snapshot-view-projection.ts：它是纯投影，有独立的一套输入与排序约定，跟详情/评论的换算是两件事。
+ * 本文件把 snapshotOfProjection 留成薄转手，调用方的 import 路径不变。
+ *
  * 三条不能改的约定：
  *  1. 这一层只做形状搬运，不碰数据库、不发请求、不记时间：库给什么就搬什么，缺的字段不补假值。
  *  2. 「不知道」不许画成「没有」：正文、评论、评审这几组在三态里是 unknown 或没有组记录时，
@@ -12,72 +16,21 @@
  *  3. 评论的下一页只看组的完整度（truncated 才有下一页），游标用库里记的那个数；不要拿
  *     「这次取到几条」另算一遍，那样界面与库会各说一套。
  */
-import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
+import type { RepositoryRef } from '../../../tracker/contract/entities.js'
 import type {
   GroupState,
   IssueDetail,
-  ListIssue,
   ListIssueRef,
   ListProjection,
   SnapshotComment,
 } from '../../../workspace-snapshot/contract/types.js'
-import { assembleSnapshot } from '../../../host/tracker/snapshotAssemble.js'
+import { isoOf, projectSnapshotView } from './snapshot-view-projection.js'
 
-/** 毫秒转 ISO；null / 非有限数回 null。 */
-export function isoOf(value: unknown): string | null {
-  return (typeof value === 'number' && Number.isFinite(value)) ? new Date(value).toISOString() : null
-}
-
-function refOf(item: ListIssueRef): any {
-  const ref: any = { key: String(item.key), title: String(item.title || '') }
-  if (item.state === 'open' || item.state === 'closed') ref.state = item.state
-  if (item.type) ref.type = item.type
-  return ref
-}
-
-/**
- * 一行库记录 → tracker 契约里的 Issue 形状。
- *
- * body 这里一律给空串：正文属于详情（#1864），首屏容器树与胶囊不需要它；
- * 有了空 body，组装层解析地图/规格正文只会得到空区块，不会报错。
- * blockedBy 只在库里确实有这组记录时才出现：缺席表示「能力没有」，[] 表示「确认没有」。
- */
-export function issueOfRow(item: ListIssue): Issue {
-  const row = item.row
-  const effortId = String(item.effortId || '')
-  const issue: Issue = {
-    key: String(item.key),
-    // #1870：数字编号一并补上（键是纯数字时）。界面按 number 找票，索引（kernel/index-window-rules.ts
-    // 的 indexFromSnapshot）也只认 number —— 少了它，回放出来的整棵树在增量索引里等于一条都没有，
-    // 「从库里的数据立扫描起点」就永远立不起来（真接线门禁 verify-1870 的 I 段守这一条）。
-    ...(/^\d+$/.test(String(item.key)) ? { number: Number(item.key) } : null),
-    effortId,
-    type: (row.type === 'map' || row.type === 'spec') ? row.type : 'issue',
-    title: String(row.title || ''),
-    state: row.state === 'closed' ? 'closed' : 'open',
-    body: '',
-    url: String(row.url || ''),
-    createdAt: isoOf(row.createdAtMs) || '',
-    updatedAt: isoOf(row.updatedAtMs) || '',
-    closedAt: isoOf(row.closedAtMs),
-    parentKey: item.parents.length ? String(item.parents[0]) : null,
-  }
-  if (item.labels.length) issue.labels = item.labels.map((l) => ({ name: l.name, color: l.color || '', ...(l.description ? { description: l.description } : {}) }))
-  if (item.assignees.length) issue.assignees = item.assignees.map((a) => ({ login: a.login, ...(a.name ? { name: a.name } : {}), ...(a.avatarUrl ? { avatarUrl: a.avatarUrl } : {}) }))
-  if (item.groups.blockedBy !== null) issue.blockedBy = item.blockedBy.map((ref) => refOf(ref))
-  if (typeof row.isPullRequest === 'boolean') issue.isPullRequest = row.isPullRequest
-  if (typeof row.commentCount === 'number') issue.commentCount = row.commentCount
-  if (row.stateReason) issue.reason = row.stateReason
-  if (typeof item.mergedAtMs === 'number') issue.mergedAt = isoOf(item.mergedAtMs)
-  if (row.status) issue.status = row.status
-  if (row.statusVisible) issue.statusVisible = row.statusVisible
-  if (row.statusSource === 'visible' || row.statusSource === 'hidden' || row.statusSource === 'default') issue.statusSource = row.statusSource
-  return issue
-}
+export { isoOf, issueOfRow } from './snapshot-view-projection.js'
 
 /** 一次列表投影 → 与在线组装同形的快照主体（容器树、子票、瘦身行都在里面）。 */
 export function snapshotOfProjection(repo: RepositoryRef, projection: ListProjection): any {
-  return assembleSnapshot(repo, projection.issues.map(issueOfRow))
+  return projectSnapshotView({ repo, issues: projection.issues, version: projection.mergeVersion }).snapshot
 }
 
 /** 库里的一组三态 → 界面读得懂的三态（只留完整度、原因与时刻）。 */
