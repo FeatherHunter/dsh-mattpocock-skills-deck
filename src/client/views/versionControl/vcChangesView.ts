@@ -160,7 +160,10 @@ const vcChangesFileRowNode = function (h: any, t: any, row: any, ctx: any) {
   const handlers: any = ctx.handlers || {}
   const values: any = ctx.values || {}
   const onValue = function (field: string, value: any) { if (typeof handlers.onValue === 'function') handlers.onValue(field, value) }
-  const open = String(values.openPath || '') === path
+  // 展开状态按「分组 + 路径」记（#1860 D17）：同一个文件被暂存之后换了一组、补丁也换了一份，
+  //   若仍按裸路径记，那一行会保持展开却继续显示上一组读到的补丁。
+  const openKey = vcChangesDiffKeyOf(row)
+  const open = String(values.openPath || '') === openKey
   const menuOpen = String(values.menuPath || '') === path
   const primaryOp = vcChangesRowPrimaryOpOf(row)
   const menuOps: string[] = vcChangesRowMenuOpsOf(row)
@@ -246,7 +249,7 @@ const vcChangesFileRowNode = function (h: any, t: any, row: any, ctx: any) {
   // 展开块：这一行的补丁。读数没到就是「正在读」，读失败给重试，其余情形各说各的（见 vcChangeFileDiffOf）。
   if (open) {
     wrapKids.push(vcChangeFileDiffOf(h, t, {
-      path: path, read: diffs[vcChangesDiffKeyOf(row)] || null,
+      path: path, read: diffs[openKey] || null,
       onRetry: function () { if (typeof handlers.onDiffRetry === 'function') handlers.onDiffRetry(path, row) },
     }))
   }

@@ -2302,6 +2302,55 @@ async function runInteraction(context: ScenarioContext, page: PageHandle, raw: R
       (back ? '又展开了' : '没展开：' + again.detail) + '，逐行 ' + String(againCount) + ' 行（首次 ' + String(lineCount) + ' 行）')
   }
 
+
+  // #1860 D17：已暂存那一行要读「索引相对 HEAD」，与未暂存那一行份属两份补丁。
+  //   夹具里本来只有未暂存的改动，所以这里先真点一次「暂存」，把它变成已暂存行，再展开看补丁 ——
+  //   顺手把宿主修好之后一直没有真机点过的写电话（wf.gitChangesCheck / wf.gitChangesWrite）验掉。
+  // 只挑「已跟踪的改动文件」：未跟踪文件也能暂存，但那是另一回事（整份新增），不在这里验。
+  const stageBtn = await clickPage(page, raw, '[data-vc-file-group="unstaged"] [data-vc-file-row]:not([data-vc-file-change="untracked"]) [data-vc-file-op="stage-file"]')
+  facts.stageClick = stageBtn
+  const stagedRow = await waitFor(page, '[data-vc-file-group="staged"] [data-vc-file-open]', 15000)
+  add('interact-staged-row-appears', stagedRow, '真机上点「暂存」之后，文件行出现在「已暂存」组里',
+    stagedRow ? '出现了（' + stageBtn.detail + '）' : '15 秒内没出现：' + stageBtn.detail)
+  if (stagedRow) {
+    // 同一个文件在上一组里可能本来就开着（展开状态按路径记）：先读 aria-expanded，开着就别再点，
+    //   否则这一下是把同一个路径「收起」，看起来像「点不开」。
+    const stagedState = await evaluateThrough<string>(page, '(function () { var el = document.querySelector(' + JSON.stringify('[data-vc-file-group="staged"] [data-vc-file-open]') + '); return el ? String(el.getAttribute(' + JSON.stringify('aria-expanded') + ')) : ' + JSON.stringify('') + ' })()')
+    const stagedAlreadyOpen = stagedState.ok && stagedState.value === 'true'
+    const stagedOpen = stagedAlreadyOpen
+      ? { ok: true, detail: '这一行本来就开着' }
+      : await clickPage(page, raw, '[data-vc-file-group="staged"] [data-vc-file-open]')
+    const stagedBlock = await waitFor(page, '[data-vc-file-group="staged"] [data-vc-changes-diff]', 8000)
+    for (let i = 0; i < 40; i += 1) {
+      if (!(await exists(page, '[data-vc-file-group="staged"] [data-vc-changes-diff-state="loading"]'))) break
+      await sleep(200)
+    }
+    const stagedLines = await evaluateThrough<number>(page, 'document.querySelectorAll(' + JSON.stringify('[data-vc-file-group="staged"] [data-vc-diff-line]') + ').length')
+    const stagedCount = stagedLines.ok ? stagedLines.value : -1
+    add('interact-staged-diff', stagedBlock && stagedCount > 0, '已暂存那一行展开能读到它自己的补丁（索引相对 HEAD）',
+      stagedBlock ? '补丁逐行 ' + String(stagedCount) + ' 行（' + stagedOpen.detail + '）' : '没等到补丁：' + stagedOpen.detail)
+    const unstageBtn = await clickPage(page, raw, '[data-vc-file-group="staged"] [data-vc-file-op="unstage"]')
+    facts.unstageClick = unstageBtn
+    // 等它真的离开「已暂存」组（这一步要跑一次写电话 + 一次首屏重读，不是立刻到位）。
+    let left = false
+    for (let i = 0; i < 60; i += 1) {
+      if (!(await exists(page, '[data-vc-file-group="staged"] [data-vc-file-open]'))) { left = true; break }
+      await sleep(250)
+    }
+    const banner = await evaluateThrough<string>(page, scriptOf([
+      '(function () {',
+      '  var el = document.querySelector(' + JSON.stringify('[data-vc-file-result]') + ');',
+      '  if (!el) return ' + JSON.stringify('none') + ';',
+      '  var ok = String(el.getAttribute(' + JSON.stringify('data-vc-file-result-ok') + ') || ' + JSON.stringify('') + ');',
+      '  return ok + ' + JSON.stringify('｜') + ' + String(el.textContent || ' + JSON.stringify('') + ').slice(0, 160);',
+      '})()',
+    ]))
+    facts.unstageBanner = banner.ok ? banner.value : banner.error.message
+    add('interact-staged-unstage', left,
+      '再点「取消暂存」，这一行从已暂存组里退回去（夹具恢复原状，不留改动给下一轮）',
+      left ? '退回去了（' + unstageBtn.detail + '）' : '还留在已暂存组里；行级结果条：' + String(facts.unstageBanner))
+  }
+
   // #1860 D8：贮藏页的记录行挂出来就自动读文件清单，不点任何按钮应当看得到。
   const stashTab = await openTab(page, raw, 'stash')
   facts.stashTab = stashTab

@@ -354,15 +354,15 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
     // 展开 / 收起一行：收起只改 values，不再发电话；展开时这一路径已经有读数（读到或正在读）就复用，
     //   否则读一次。同一路径连点两下只会起一个 git 进程（第二下在 loading 里直接返回）。
     onOpen: function (path: any, row: any): void {
-      const key: string = String(path || '')
-      const open: boolean = String(values.openPath || '') === key
-      handlers.onValue('openPath', open ? '' : key)
+      const bare: string = String(path || '')
+      // 展开状态与缓存键都用「分组 + 路径」（#1860 D17）：同一个文件换一组就是另一行、另一份补丁。
+      const diffKey: string = vcChangesDiffKeyOf(row || { path: bare })
+      const open: boolean = String(values.openPath || '') === diffKey
+      handlers.onValue('openPath', open ? '' : diffKey)
       if (open) return
-      // 缓存键带分组（#1860 D17）：已暂存与未暂存是两份补丁，别互相顶掉。
-      const diffKey: string = vcChangesDiffKeyOf(row || { path: key })
       const have: any = ((readsApi && readsApi.get && readsApi.get().diffs) || {})[diffKey]
       if (have && (have.state === 'ok' || have.state === 'loading')) return
-      handlers.diffLoad(key, row)
+      handlers.diffLoad(bare, row)
     },
     // 读这一行的补丁：先写「正在读」再发电话，回包按代际号落地（晚到的旧回包丢掉），换工作区后在飞的那一枪作废。
     diffLoad: function (path: any, row: any): any {
