@@ -13,6 +13,7 @@
 - 全链：`npm run verify:parallel` 共 **480 步**，集成分支口径**真红 0**，五条冒烟真红 0；票级分支上 `tests/verify-no-mixed-session.ts` 判红是结构性已知红（见第 5 节）。
 - 新增门禁：`tests/verify-closeout-acceptance.ts`（20 项断言，本矩阵自洽与文档真数）与 `tests/verify-closeout-log-trips.ts`（34 项断言，五类输入×五段日志），两扇都已登记完成证据并进链。
 - 四条维护者要求的联合门禁 `tests/verify-acceptance-four.ts`（27 项断言，走真实快照路径）已在链上并登记完成记录，作为本规格的总验收门禁随全链通过。
+  - 2026-11-04 #1870 补记：`verify-acceptance-four` 与 `verify-detail-incremental` 已随宿主详情合并退役（详情只写本地快照库），第 14/17/18 行的判据改由 `verify-1864-snapshot-detail`、`verify-1864-snapshot-detail-replay`、`verify-1866-write-receipt-replay`、`verify-1472-write-event-fetch` 与 `verify-retire-client-caches` 承担；收口矩阵 `tests/fixtures/1700/closeout-matrix.json` 是仍在对数的那一份。
 - 复审修复：code-review 两轴复审（spec 轴四条、standards 轴三条硬问题与四条判断项）之后的修复合入 `6d1125fd`、`8854af93`、`05eb9e50`；合入后暴露出两条由修复引入的真红，在 `271c2949` 一并修掉。集成分支最终裁决在 `271c2949`：`npm run verify:parallel` **480/480 步、真红 0、冒烟 5/5 真红 0**（并发假红 `verify-cap-fold-browser` 复跑转绿）。逐条见第 9 节。
 
 ## 2. 30 条验收逐条结论

@@ -81,7 +81,7 @@ const CHANNELS = [
   // 所以这一条通道现在横跨两个文件；次数仍是这条通道的总数，逐文件钉死会误判成「新开了一条通道」。
   { file: 'src/refresh/rooms/host/session-snapshot-cache.ts', extraFiles: ['src/refresh/rooms/host/snapshot-decoration.ts'], calls: 5 },
   { file: 'src/refresh/rooms/host/session-refresh-schedule.ts', calls: 4 },
-    { file: 'src/host/workspaceCwd.ts', calls: 1 },
+  { file: 'src/host/workspaceCwd.ts', calls: 1 },
 ]
 
 // #1427 起三份通道搬进宿主房：扫描面跟着扩到 src/refresh/rooms/host，旧根不动（两边都没有第二个字段名才绿）。

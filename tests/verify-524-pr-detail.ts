@@ -5,8 +5,10 @@
 // comment-thread-fetch.handleIssueDetail（本地快照库优先、库里没有才经会话 get），判据保持不变：
 // 标记对不对、失败是否如实、以及这一路一次外部命令都不发。
 //
-// 拉取请求的 isPullRequest / mergedAt / reviews 三格现在由快照行与读投影负责（库里的行组带着它们），
-// 详情回包本身只给详情页认的连接形状；这一条钉回包形状与失败口径，PR 标记那一半由快照行的门禁盯。
+// 拉取请求的 isPullRequest / mergedAt / reviews 三格不在这条宿主方法的回包里——#1444 把 wf.issueDetail
+// 接到它上面时就不再给这三格了（旧模块的那三格从来没到过界面，那个模块没有调用点）。界面读的是
+// 快照行（detailProjection 的 reviews、IssueDetail 的 fromPullRequest 回落到 snapIssue），
+// 那几格由详情落库之后的库行承担；这一条只钉回包形状与失败口径，不假装回包里有它们。
 //
 // 运行：node --import ./scripts/ts-hook.mts tests/verify-524-pr-detail.ts
 import path from 'node:path'
@@ -84,7 +86,7 @@ async function main() {
     const h = mod.createCommentThreads({ normCwd: async (c: any) => c, errText: (e: any) => String((e && e.message) || e), execProc: async () => ({}), setCache: () => {}, getCache: () => null })
     const r = await h.handleIssueDetail({ number: 7, cwd: 'cwd' })
     check(r && r.ok === false && r.error && r.error.kind === 'env', '没注入会话时如实回失败（不许假装成功）')
-    check(typeof h.fetchIssueDetailREST === 'undefined', 'REST 直取口已删（房间内部已有降级，不再留第二条真源）')
+    check(Object.keys(h).sort().join(',') === 'handleCommentIssue,handleIssueComments,handleIssueDetail', '详情这条宿主方法只交三件（没有第二条直取口，REST 降级只在房间内部）', Object.keys(h).sort().join(','))
   }
   if (fail) { console.log('\nRED #524 探针有失败（过 ' + pass + ' / 败 ' + fail + '）'); process.exit(1) }
   console.log('\nGREEN #524 探针全绿（' + pass + ' 项）')

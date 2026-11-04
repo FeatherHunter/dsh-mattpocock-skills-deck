@@ -59,7 +59,7 @@ export default {
     let repoRoots = {}           // 根路径按 cwd 缓存
     let _detectionService = null  // H1 #445 恒空留守：唯一裸引用是 wf.bind 处理器内无动作空检查（有无值行为一致）；真状态归 platformChannel 所有
     // H1 #445：原 259–491 行（注册表/平台/探测）已搬到 ./platformChannel.js。
-    let lastProbeAtByRepo: Record<string, number> = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
+    let lastProbeAtByRepo: Record<string, number> = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；整池重建不得动它 —— 否则会吞掉同窗口编辑）
     let lastIssueIndexByRepo: Record<string, Record<string, string>> = {}                          // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
     // #491 房外公共区埋点：宿主侧日志上下文（设计 #335 第 3 章房外行 + #489 白名单；房间目录文件一律不碰）。 fire 防火即发（只进队列就返回，不等写盘）；函数式字段在开关判断通过后才求值；isEnabled 供 P1 外层判断（权威仍是库体内兜底）。
     let logSwitchCache = false
@@ -107,7 +107,7 @@ export default {
     /** #1863：本地快照库门面（列表首屏回放与按批写库）；快照树只暴露契约，房间实现只有入口能深引。#1869：顺手把宿主的日志口塞进快照库，开库、租约、写入、损坏重建四族事件才真的发得出来（不塞就完全不记，与既有的可选注入口径一致）。 */ let _snapLibP: Promise<any> | null = null; function _snapLib(): Promise<any> { if (!_snapLibP) _snapLibP = import('../refresh/rooms/host/snapshot-library.js').then(function (m: any) { try { if (typeof m.setSnapshotLogSink === 'function' && logCtx && typeof logCtx.fire === 'function') m.setSnapshotLogSink(function (level: any, event: any, fields: any) { try { logCtx.fire(level, event, fields) } catch (eL) {} }) } catch (eS) {} return m }); return _snapLibP }
     let _issueListP: Promise<any> | null = null; function _issueList(): Promise<any> { if (!_issueListP) _issueListP = (async function(){ const mod = await import('../refresh/rooms/host/issue-list-fetch.js'); return mod.createIssueList({ getRepoKey: function(...args: any[]){ return getRepoKey.apply(null, args) }, setCache: setCache, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex, openSession: openSessionFor, onIssueRows: function (cwd: any, ref: any, rows: any[]) { return _snapLib().then(function (m: any) { return m.recordIssueRows({ workspaceRoot: cwd, backend: String((ref && ref.backend) || ''), repoIdentity: String((ref && ref.refId) || ''), rows: rows }) }) }, logCtx: logCtx, noteSnapshot: function (snap: any, cwd: any) { return (_notif().then(function (h: any) { return h.noteSnapshot(snap, cwd) }).catch(function () {})) } }) })(); return _issueListP }
     // #1870：旧的单票详情直取工厂（issue-detail-fetch）已退役；详情只走 comment-thread-fetch 那条宿主方法。
-    // #599：快照组装在 snapshotBuild.js（单票详情仍在 issueDetail.js）；两边共享的东西由这里组合后传进去 —— 同层互引门禁不许两个干活的文件互相引用，组合点落在入口（既有 25 条同形先例）。
+    // #1870：入口只剩「把各房的实现读进来、把共享件组合好传下去」这一件事；旧的快照组装与单票详情直取都已删除。
     async function normalizeBody(...args: any[]): Promise<any> { const h = await _mapBody(); return h.normalizeBody.apply(h, args) }
     async function parseMapBody(...args: any[]): Promise<any> { const h = await _mapBody(); return h.parseMapBody.apply(h, args) }
     async function parseProgress(...args: any[]): Promise<any> { const h = await _mapBody(); return h.parseProgress.apply(h, args) }

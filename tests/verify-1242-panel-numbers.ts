@@ -205,11 +205,6 @@ function makeExec(world: World) {
 }
 
 /**
- * 按仓库里的真实装配搭一份快照：
- * 注册表 → GitHub 房间 → 会话管线 → 快照组装；只把 gh 换成 makeExec 那个假函数。
- * 返回快照与旁证（发了哪些命令、有没有走到快照不该直调的那条执行口）。
- */
-/**
  * 搭一份面板真正用的取数电话（wf.mapTickets）：
  * 注册表 → GitHub 房间 → listSubIssues；只有 gh 是假的。
  * 这条电话不经过快照，是面板顶栏统计数字的首选来源。

@@ -11,12 +11,11 @@
  * 对「等不到就判还没答完」这条兜底来说，表现为每次未绑定工作区选后端就多留一个最长 30 秒的活计时器。
  * 这里把它收成一份：调用点只写 `timers: hostTimers(timer)`。
  *
- * 给谁用（宿主里要把 ctx.get('timer') 包成 OpContext.timers 的每一处，共六处调用点）：
- *   src/host/platformChannel.js 的 getTimers 与兜底二联的 ctx2、
- *   src/refresh/rooms/host/comment-thread-fetch.js 的 opCtx、
- *   src/host/workspaceCwd.js 的 opCtxFor、
- *   src/refresh/rooms/host/comment-thread-fetch.ts 的 ctxSel（旧快照组装 snapshot-build 已随 #1870 退役）、
- *   src/refresh/rooms/host/refresh-runtime.js 的 backendObj.timers。
+ * 给谁用（宿主里要把 ctx.get('timer') 包成 OpContext.timers 的每一处；2026-11-05 按实际 hostTimers( 调用清点，共四处）：
+ *   src/host/platformChannel.ts 的 getTimers 与兜底二联的 ctx2、
+ *   src/refresh/rooms/host/refresh-runtime.ts 的 backendObj.timers、
+ *   src/refresh/registry/deck-tool-bridge.ts 的 timers。
+ * （旧的 comment-thread-fetch / workspaceCwd / snapshot-build 三处随各自的取数迁移与 #1870 退役，不再自己拼上下文。）
  *
  * 依据（2026-10-14 从 DSH 自带的 @deepseek-ai/cordis-plugin-timer/src/index.ts 逐行核过）：
  *   · timeout(回调, 毫秒) 交回 ctx.effect() 的撤销器 —— 一支可调用的函数，没有 dispose 方法；
