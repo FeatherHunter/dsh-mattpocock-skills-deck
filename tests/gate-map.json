@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T12:03:34.666Z",
+  "generatedAt": "2026-11-04T12:11:33.539Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 553,
   "gateCount": 553,
@@ -4673,7 +4673,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 504,
+      "expectedAssertions": 520,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 35 条"
     },
     {
