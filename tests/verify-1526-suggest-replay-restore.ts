@@ -470,6 +470,14 @@ async function main() {
   global.PortalOverlay = function (props, children) { return React.createElement('div', props || {}, children) }
   const bubbleMod = await imp('src/client/statusbar/suggestBubble.ts')
   globalThis.SuggestBubble = bubbleMod.SuggestBubble
+  // #1879：挂载组件每次渲染都要问「这一帧该不该显示气泡」，判据住在相邻叶子 suggestGate.ts。
+  //   这一扇量的是历史重放补出，不量 deck 状态，所以给一组「deck 开着、建议开关是开」的真依赖。
+  globalThis.isDeckCapsuleFolded = function () { return false }
+  globalThis.deckSuggestOf = function () { return 'on' }
+  globalThis.isDeckClosed = function () { return false }
+  const gateMod = await imp('src/client/statusbar/suggestGate.ts')
+  globalThis.useSuggestBubbleGate = gateMod.useSuggestBubbleGate
+  globalThis.suggestBubbleVisibleOf = gateMod.suggestBubbleVisibleOf
 
   const sources = {}
   function sourceForSid(sid, entries) {

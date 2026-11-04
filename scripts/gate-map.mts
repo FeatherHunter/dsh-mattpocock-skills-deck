@@ -353,7 +353,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1612-settings-switches': 53,
   // 2026-10-29 #1641：设置页名单上还没打开过的工作区点开关也能存住（临时记录带 unopened 标记，
   // 认得出根的行行为不变，deck-state 与设置页渲染都把 listed 一路传到写口）；42 条是单跑实测得出的。
-  'verify-1641-listed-workspace-flags': 42,
+  // 2026-11-05 #1879：设置页多了第三颗「下一步建议」开关，名单行与兜底行各补一条「点它时传的 cwd 与 listed」，
+  // 再加一条「名单行画出了第三颗」，42 涨到 46。
+  'verify-1641-listed-workspace-flags': 46,
   // 2026-10-29 #1640：设置页名单上的临时记录在认出工作区根以后合并到根那一条（稀疏记录只存点过的格、
   // 合并按「格在不在」判点过、写成功才发 settings.merge 一行日志、两条触发路 load/root）；36 条是单跑实测得出的。
   'verify-1640-unopened-merge': 36,
@@ -574,6 +576,10 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 真实宿主那种只缺三格）、缺能力时切到日志包自带的 Node 服务并真实落盘（文件名与正文都不许出现 [object Object]、
   // 平台服务读写零调用）、能力齐全时仍用注入的假文件服务；单跑实测 20 条。
   'verify-1854-log-fs-port': 20,
+  // 2026-11-05 #1879：关掉整个 deck 后建议气泡还在、且没有独立开关——设置文件的 suggest 四档读写、
+  // deck-state 的读口写口、可见性判据四种组合，以及真挂 React 树走「只收起 / 只关开关 / 关整个 deck」
+  // 三条路（关 deck 时清缓存并写跨刷新关闭标记），外加「关掉建议开关不收走模型工具」；单跑实测 48 条。
+  'verify-1879-suggest-deck-gate': 48,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

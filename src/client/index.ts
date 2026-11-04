@@ -439,6 +439,8 @@ export default {
     // #1411：建议气泡的渲染与交互薄壳。排在订阅层之前 —— 订阅层拿到建议后直接渲染它。
     // ==== leaf:suggestBubble (spliced by build) ====
     // ==== leaf:suggestStream (spliced by build) ====
+    // #1879：气泡该不该显示的唯一判据，与「关掉 deck 时把屏上那组记为已跳过」的收尾（订阅层挂载组件调用它）。
+    // ==== leaf:suggestGate (spliced by build) ====
     // ==== leaf:capFold (spliced by build) ==== // ==== leaf:capFoldMachine (spliced by build) ====
     // ==== leaf:shownAttentionMount (spliced by build) ====
     // ==== leaf:deckDoor (spliced by build) ==== // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:logDangerConfirm (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====

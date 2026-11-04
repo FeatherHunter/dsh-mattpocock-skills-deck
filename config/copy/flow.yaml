@@ -234,6 +234,8 @@ zh:
   cfg.wsStatusBarTip: 胶囊状态栏：绿色是显示、灰色是收起，点一下切换。收起后状态栏只剩一条折叠条，蓝条黄条这类环境检查提示也一起不显示。
   cfg.wsDeckTools: deck 工具箱
   cfg.wsDeckToolsTip: deck 工具箱：绿色是打开、灰色是关闭，点一下切换。关闭后这个工作区的 deck 工具、胶囊状态栏和右侧面板三处一起关，界面回到普通编码界面。
+  cfg.wsSuggest: 下一步建议
+  cfg.wsSuggestTip: 下一步建议：绿色是显示、灰色是不显示，点一下切换。关掉只是界面上不再冒那排建议气泡，模型照常可以给建议。
   cfg.wsPendingHint: 已存住，打开该工作区后生效
   cfg.updateManualTitle: 按钮装不了，用这条命令自己装
   cfg.updateCopy: 一键复制
@@ -495,6 +497,8 @@ en:
   cfg.wsStatusBarTip: Capsule status bar — green means shown, grey means collapsed. A click toggles it; when collapsed only a slim strip remains, and environment-check banners such as the blue and yellow bars are hidden as well.
   cfg.wsDeckTools: Deck tools
   cfg.wsDeckToolsTip: Deck tools — green means on, grey means off. A click toggles it; when off, this workspace's deck tools, capsule status bar and right-hand panel all close together and the usual coding view returns.
+  cfg.wsSuggest: Next-step suggestions
+  cfg.wsSuggestTip: Next-step suggestions — green means shown, grey means hidden. A click toggles it; when off the suggestion bubbles stay away, while the model can still offer them.
   cfg.wsPendingHint: Saved — takes effect after opening this workspace.
   cfg.updateManualTitle: Button install unavailable — run this command instead
   cfg.updateCopy: Copy command

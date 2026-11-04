@@ -108,11 +108,11 @@ async function main() {
     const mem = makeMemFs({})
     const r0 = await readLocalSettings('C:\\Users\\demo', mem.io)
     check(r0.ok === false && r0.reason === 'missing', '设置文件不在回 missing（不算错）', JSON.stringify(r0))
-    // #1612：工作区每条记录归一是四格（statusBar/deckTools 两个文字开关 + 两个旧布尔开关），往返逐字一致。
+    // #1612 起工作区每条记录里有文字开关，再加上两个旧布尔开关（#1879 又加了 suggest），往返逐字一致。
     const value = {
       version: 1,
       ui: { stateFilter: 'open', sortKey: 'updatedAt', sortDir: 'desc', labelClicks: {} },
-      workspaces: { 'D:\\ws\\demo': { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false } },
+      workspaces: { 'D:\\ws\\demo': { statusBar: 'hide', deckTools: 'on', suggest: 'on', noRepoDismissed: false, subwsMarkAutoShown: false } },
       debug: { enabled: true, sampleRate: 0.5 },
       templates: {},
     }

@@ -95,10 +95,13 @@ declare function setPresentationMap(modules: unknown): void;
 //   setDeckStatusBar / setDeckTools 写一个新值并广播，设置文件与胶囊状态由它们统一维护。
 //   #1641：第三个参数 listed 表示这一行来自工作区名单（不是拿当前目录凑出来的兜底行）——名单上的工作区
 //   可能还没打开过、认不出根，写口按列表里的路径先存一条临时记录。
+// #1879：第三颗开关「下一步建议气泡」与上面两颗同住 deck-state，读法写法同形（'on'|'off'，缺省 on）。
 declare function deckStatusBarOf(cwd: string): string;
 declare function deckToolsOf(cwd: string): string;
 declare function setDeckStatusBar(cwd: string, show: boolean, listed?: boolean): unknown;
 declare function setDeckTools(cwd: string, on: boolean, listed?: boolean): unknown;
+declare function deckSuggestOf(cwd: string): string;
+declare function setDeckSuggest(cwd: string, on: boolean, listed?: boolean): unknown;
 // #1654：这一行是不是还没点开过的工作区（内核认不出根就是没点开过）。真源在 kernel/deck-state.ts，
 //   这里只声明、不 import（与上面四个名字同例，构建时拼进同一个闭包）。
 declare function isWorkspaceUnopened(cwd: string): boolean;
@@ -366,10 +369,12 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                 // #653：这一组并进了不止一条目录才标一句（几条目录并在这里）；Hover 浮层给组里每条原样路径，不猜。
                 const mergedNote = row.merged ? tr('cfg.wsMergedCount', { n: row.members.length }) : ''
                 const hoverText = row.merged ? row.members.join(' ｜ ') : cwd
-                // #1612：两个开关的当前状态只认 deck-state 归一后的值——文件里缺省、旧字段迁移都由它兜住，这里不重新判定。
+                // #1612：两颗开关的当前状态只认 deck-state 归一后的值——文件里缺省、旧字段迁移都由它兜住，这里不重新判定。
+                // #1879：第三颗「下一步建议」同口径（绿 = on 显示、灰 = off 不显示），读数同样只从 deck-state 来。
                 const sbOn = deckStatusBarOf(cwd)==='show'
                 const toolsOn = deckToolsOf(cwd)==='on'
-                // #1654：还没点开过的工作区行，两个开关下面多一行小字。显隐只认两件事：这一行在名单上、内核认不出根。
+                const suggestOn = deckSuggestOf(cwd)==='on'
+                // #1654：还没点开过的工作区行，开关下面多一行小字。显隐只认两件事：这一行在名单上、内核认不出根。
                 //   名单外的兜底行（拿当前目录凑的那一行）即使认不出根也不显示；第一次打开并合并成功后根认出来了，这里自动消失。
                 const listed = listedOf(cwd)
                 let showPending = false
@@ -381,6 +386,8 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                     h(HoverTip, { content: srcTitle, maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
                     wsSwitchOf(cwd, sbOn, tr('cfg.wsStatusBar'), tr('cfg.wsStatusBarTip'), 'settings.workspaces.statusbar', setDeckStatusBar, listed),
                     wsSwitchOf(cwd, toolsOn, tr('cfg.wsDeckTools'), tr('cfg.wsDeckToolsTip'), 'settings.workspaces.decktools', setDeckTools, listed),
+                    // #1879：第三颗只关「下一步建议」气泡的开关，与上面两颗同处同形态；关掉后模型照常可以调用建议工具。
+                    wsSwitchOf(cwd, suggestOn, tr('cfg.wsSuggest'), tr('cfg.wsSuggestTip'), 'settings.workspaces.suggest', setDeckSuggest, listed),
                   ]),
                   showPending ? h('div',{ style:{ fontSize:10, color:'#8b8b95', textAlign:'right', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}, tr('cfg.wsPendingHint')) : null,
                 ])

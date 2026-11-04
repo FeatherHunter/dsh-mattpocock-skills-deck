@@ -78,7 +78,7 @@
     declare function viewFlagNormOf(...args: any[]): any;
     declare function viewFlagSeedValueOf(...args: any[]): any;
     declare const VIEW_FLAG_SEED_NAMES: any;
-    // #1612 两个文字开关（statusBar、deckTools）的名字表与允许值表住在 kernel/settings-view.js，
+    // #1612 与 #1879 的三个文字开关（statusBar、deckTools、suggest）的名字表与允许值表住在 kernel/settings-view.js，
     //   这里按仓里跨片规矩声明一句（实现只在拼好的闭包里有一份），用来判「这一笔在文件里写进去了没有」。
     declare function viewFlagIsTextNameOf(...args: any[]): any;
     declare function viewFlagTextValuesOf(...args: any[]): any;
@@ -300,7 +300,7 @@
           if (d.section === 'templates') { tplLegacyWriteAll(); continue }
           // 调试开关那一族兜底：把内存这一份（＝真值）写回旧键 dsws.debug 当秒显快照，理由见 settings-debug.js。
           if (d.section === 'debug') { settingsDebugLegacyWrite(); continue }
-          // #1612 的两个文字开关没有对应的旧 localStorage 键（旧版根本没有这两件事），也不再有旧字段可换算：
+          // #1612 与 #1879 的三个文字开关没有对应的旧 localStorage 键（旧版根本没有这几件事），也不再有旧字段可换算：
           //   写不进文件就留在队列里等下一趟（下一趟会再试），这里只补一行日志说明这一笔没落地。
           // #1642：文字开关这一笔没落成 —— 补一行 storage.fail，再记下是宿主不在、文件被拒还是写的过程中抛错。
           if (viewFlagIsTextNameOf(d.name)) { viewFlagLogDocFail(); viewFlagLogToggle(d.name, d.value, d.unopened === true, false, String(reason || 'write-error'), d.key || d.cwd); continue }

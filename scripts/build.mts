@@ -1069,6 +1069,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   //   订阅层那片再拼（状态栏要挂它导出的 SuggestStreamMount）。顺序反了闭包里会拿到未定义的自由变量。
   { id: 'suggestFacts', file: 'src/client/statusbar/suggestFacts.ts' },
   { id: 'suggestStream', file: 'src/client/statusbar/suggestStream.ts' },
+  // #1879：气泡该不该显示的唯一判据与关 deck 时的收尾。排在订阅层之后（订阅层的挂载组件调用它）。
+  { id: 'suggestGate', file: 'src/client/statusbar/suggestGate.ts' },
   { id: 'suggestTimeline', file: 'src/client/statusbar/suggestTimeline.ts' },
   { id: 'suggestEngine', file: 'src/client/statusbar/suggestEngine.ts' },
   // #1411：状态胶囊上方的下一步建议气泡。外观旋钮（含层级常量）先求值，样式叶子读它拼 CSS；
