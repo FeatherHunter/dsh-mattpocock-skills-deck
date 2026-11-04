@@ -219,22 +219,15 @@ export const IssueDetail = function (props: any): any {
       const SHOW_EFFORT_BADGE = false
       // effort 维度：详情页标出这张票属于哪个 effort（只在多 effort 仓库出现，单 effort 界面不变）
       const effortChip = (SHOW_EFFORT_BADGE && issueEffort && effortNamesOf(st).length > 1) ? h(Tip, { content: issueEffort }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': issueEffort, style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, issueEffort)) : null
-      // #693 正文格：**只有详情回来了才能说「无描述」**。详情没回来时说加载中，取不到时说「还没拿到」。
-      //   取数失败的失败原因与重试在页面顶部那条横幅上（这里不重复放一个按钮）。
-      // #1692：快照行上的正文曾被清理过（只删内容、留记号）而详情页又还没取回来时，说「未取（曾在某时）」，
-      //   不画「加载中」也不画「无描述」——那两句都会把「取过、后来清掉了」说成别的意思。
-      const evictedAtMs = (!detail && snapIssue && snapIssue.detailEvicted && typeof snapIssue.detailEvicted.lastKnownAtMs === 'number' && snapIssue.detailEvicted.lastKnownAtMs > 0) ? snapIssue.detailEvicted.lastKnownAtMs : 0
-      const evictedTime = evictedAtMs ? (function () { const ed = new Date(evictedAtMs); const epad = function (n: any) { return (n < 10 ? '0' : '') + n }; return epad(ed.getHours()) + ':' + epad(ed.getMinutes()) })() : ''
-      const bodySlot = detail
-        ? ((detail.body && String(detail.body).trim())
-            ? h('div', { style: { fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof mdToHtml === 'function' ? mdToHtml(detail.body, { st: st }) : String(detail.body)))
-            : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.noBody')))
-        : (evictedTime
-            ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.evictedAt', { time: evictedTime }))
-            : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)', display: 'flex', alignItems: 'center', gap: 6 } }, [
-                mode === 'err' ? null : h('div', { className: 'dsws-spinner', style: { width: 11, height: 11, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin ' + MOTION.inlineSpinnerMs + 'ms linear infinite' } }),
-                h('span', null, mode === 'err' ? tr('detail.bodyNotYet') : tr('list.loading')),
-              ]))
+      // #1864：正文格怎么画（确认没有 / 有正文 / 不知道带上次已知时刻 / 被淘汰 / 加载中）由投影判，
+      // 判据与文案住在 views/shared/detailProjection.ts；这里只把 proj.bodySlot 画出来。
+      const slot = proj.bodySlot || { kind: 'loading', caption: '' }
+      const bodySlot = slot.kind === 'text'
+        ? h('div', { style: { fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof mdToHtml === 'function' ? mdToHtml(slot.text, { st: st }) : String(slot.text)))
+        : h('div', { 'data-detail-body': slot.kind, style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)', display: 'flex', alignItems: 'center', gap: 6 } }, [
+            slot.kind === 'loading' ? h('div', { className: 'dsws-spinner', style: { width: 11, height: 11, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin ' + ((typeof MOTION === 'object' && MOTION) ? MOTION.inlineSpinnerMs : 700) + 'ms linear infinite' } }) : null,
+            h('span', null, String(slot.caption || '')),
+          ])
       const has = function (nm: any) { return labelArr.some(function (l: any) { return (l.name || l) === nm }) }
       const _isTriageLikeLocal = !labelArr.length || has('needs-triage')
       // #1595：这个假票对象会走行动作那条注入链（rowActionText 按 effort 取链接），必须带上本票所属 effort，否则多 effort 仓库里注入的链接会指到别的目录。
@@ -330,7 +323,7 @@ export const IssueDetail = function (props: any): any {
       const gateAttrs = { 'aria-disabled': gateDisabled ? 'true' : undefined, tabIndex: gateDisabled ? -1 : undefined }
       // #693 评论也只认详情那次取数：快照那一行可能不带评论，拿它当「没有评论」会说错话。
       // #1519：详情回包里的评论只有一种形状 —— GraphQL 连接 {nodes, pageInfo}。宿主
-      // src/refresh/rooms/host/comment-thread-fetch.ts 的 handleIssueDetail 与旧路 issue-detail-fetch.ts
+      // src/refresh/rooms/host/comment-thread-fetch.ts 的 handleIssueDetail（旧路 issue-detail-fetch 已随 #1870 退役）
       // 都按这个形状交回来。界面这边不再兼容数组：多留一条数组分支，只会让「宿主换了形状」这种错
       // 在界面被悄悄兜住、然后显示成「评论 (0)」——那正是 #1519 之前的样子。
       const rawComments = detail ? detail.comments : undefined
@@ -338,7 +331,10 @@ export const IssueDetail = function (props: any): any {
       // 名字沿用 rawComments：门禁 tests/verify-issue-comment.ts 会从构建产物里按这个名字切出判据求值。
       let canComment = !!rawComments && Array.isArray(rawComments.nodes)
       // #1694：从快照投影出来、或失败后保留的评论只读 —— 写评论仍要等这一趟详情取数成功。
-      if (proj.source !== 'live') canComment = false
+      // #1866：这条限制撤掉了。写评论改成「写回执先落库、界面再显示」之后，判据换成
+      // 「我们知不知道评论这件事」：live 详情照旧可写；从本地快照库读回来的详情，库里评论组
+      // 知道（完整或一部分）也可写。判据住在 views/shared/detailProjection.ts（proj.commentsAvailable）。
+      if (proj.source !== 'live' && proj.commentsAvailable !== true) canComment = false
       const commentsNodes = (proj.source !== 'none' && !!rawComments && Array.isArray(rawComments.nodes)) ? rawComments.nodes : []
       // #1783：快照投影里「评论未知」与「确实没有评论」是两件事。投影出来的详情没有 comments 字段时，
       // 说明这一行只带了正文、评论还没取过（GitLab 列表就是这样）；这时既不能说「评论 (0)」，也不能说「只读」。
@@ -354,7 +350,10 @@ export const IssueDetail = function (props: any): any {
       //   （手上根本没有这份数据），但那只是「还没拿到」，不是「不能评论」——
       //   拉取请求，或详情回来说这个后端不带评论能力，才算真只读。
       // #1783：评论未知时置灰只是「这一趟还没拿到」，不是「不能评论」，不许落成只读提示。
-      const readOnlyKnown = fromPullRequest || (!!detail && !canComment && !commentsUnknown)
+      // #1865：从本地快照库读回来的详情（fromSnapshot）评论是知道的（库里有那一组），但输入框
+      //   仍然要等这一趟详情取数成功才给（写评论是 #1866 的事）。这时也不许说「只读」——
+      //   后端明明能收评论，只是这一页的数据是上次的；顶上那句「上次数据（时间）」已经说清了。
+      const readOnlyKnown = fromPullRequest || (!!detail && !canComment && !commentsUnknown && detail.fromSnapshot !== true)
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, [
         // 顶部固定行（#565 粘性固定，随滚动保持可见；#763 单行逐字折叠：越窄越收，只剩图标，不放省略号）
         // 折叠顺序：返回按钮的字先收（返回列表→返回→只剩图标），再收面包屑，再收快照提示，
@@ -469,6 +468,8 @@ export const IssueDetail = function (props: any): any {
             ])
           })),
         ]) : null,
+        // #1864：被阻塞关系「不知道」时画一行说明；「确认没有」是整段不画。两者不能长得一样。
+        proj.relationsNotice ? h('div', { 'data-detail-relations': 'unknown', style: { padding: '6px 0', fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, proj.relationsNotice) : null,
       // comments（列表 + 输入区收进 views/IssueDetailComments.js，纯结构搬移，行为零变化）
       // #693：评论区也只喂详情那一份（快照那一行可能不带评论，喂进去会把「没拿到」画成「没有」）。
       h('div', { style: { padding: '8px 0 4px' } }, renderIssueDetailComments(h, st, issueNumber, detail, mode, commentsNodes, canComment, issueEffort, commentsUnknown)),

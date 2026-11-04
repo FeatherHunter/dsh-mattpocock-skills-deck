@@ -3,7 +3,6 @@
 // 门禁归属: src/tracker/ui-description.ts
 // 门禁归属: src/refresh/rooms/host/session-snapshot-cache.ts
 // 门禁归属: src/refresh/rooms/host/session-refresh-schedule.ts
-// 门禁归属: src/refresh/rooms/host/snapshot-build.ts
 // 门禁归属: src/host/workspaceCwd.ts
 // 门禁归属: src/tracker/rooms/gitlab/index.ts
 //
@@ -82,7 +81,6 @@ const CHANNELS = [
   // 所以这一条通道现在横跨两个文件；次数仍是这条通道的总数，逐文件钉死会误判成「新开了一条通道」。
   { file: 'src/refresh/rooms/host/session-snapshot-cache.ts', extraFiles: ['src/refresh/rooms/host/snapshot-decoration.ts'], calls: 5 },
   { file: 'src/refresh/rooms/host/session-refresh-schedule.ts', calls: 4 },
-  { file: 'src/refresh/rooms/host/snapshot-build.ts', calls: 1 },
   { file: 'src/host/workspaceCwd.ts', calls: 1 },
 ]
 

@@ -10,10 +10,14 @@
  *  1. 惰性装配：真的有人跑增量之前一个对象都不造（createPatchForHost 会连带造出取数三件套的依赖）。
  *  2. 闸的后端编号在**调用那一刻**读（backendIdOf），不在装配时读死：当前后端是会话读出来的，
  *     装配的时候常常还没有（还没读过就缺席，闸按未知后端处理）。
- *  3. 写回快照的两处（宿主缓存与磁盘缓存）各自包 try：这是后台补行，写盘失败只该让这一趟白干，
- *     不许把调用方的工具调用带崩。
+ *  3. 写回快照这一步包 try：这是后台补行，写回失败只该让这一趟白干，
+ *     不许把调用方的工具调用带崩（#1870 起只写宿主内存那一份，旧的整份磁盘快照已退役）。
  */
 import { createPatchForHost } from './refresh-assembly.js'
+// #1870：基线索引与索引扫描用的是同一份实现（kernel 那一份会把地图容器与地图子票一起算进来）。
+// 以前这里注入的是宿主入口手写的那一小段，它只遍历快照的 issues 数组：挂在 maps 下面的子票
+// 一个都不在其中，于是子票一有变化就被判成「多出一条票」，整池重建。判据一源，别再抄第二份。
+import { indexFromSnapshot } from '../../kernel/index-window-rules.js'
 
 /** 装配行级增量要的几样：宿主入口那一包依赖、闸、后端编号的读法、只读会话装配口、工作区短散列。 */
 export interface PatchWiringDeps {
@@ -40,9 +44,8 @@ export function createPatchWiring(deps: PatchWiringDeps): { patchOf: () => any }
         readSnapshot: function (cwd: any): any { try { const e: any = (typeof d.getCache === 'function') ? d.getCache(cwd) : null; return (e && e.snapshot) ? e.snapshot : null } catch (eR: any) { return null } },
         writeSnapshot: async function (cwd: any, snap: any): Promise<void> {
           try { if (typeof d.setCache === 'function') d.setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd }) } catch (eW: any) {}
-          try { const repo: any = await d.getRepoKey(cwd); if (repo && typeof d.writeDiskCache === 'function') await d.writeDiskCache(repo, snap) } catch (eD: any) {}
         },
-        indexOfSnapshot: function (snap: any): any { return (typeof d.issueIndexFromSnapshot === 'function') ? d.issueIndexFromSnapshot(snap) : {} },
+        indexOfSnapshot: function (snap: any): any { return indexFromSnapshot(snap) || {} },
         probeIndex: function (cwd: any, sinceIso: any): any { return (typeof d.fetchIssueIndex === 'function') ? d.fetchIssueIndex(cwd, sinceIso) : Promise.resolve({ ok: false }) },
         getRepoKey: function (cwd: any): any { return (typeof d.getRepoKey === 'function') ? d.getRepoKey(cwd) : Promise.resolve(null) },
         // #1446：闸按后端分桶算账，裁决也告诉它这是哪个后端（还没读过就缺席，闸按未知后端处理）。
@@ -50,6 +53,20 @@ export function createPatchWiring(deps: PatchWiringDeps): { patchOf: () => any }
         openSession: openSession, // #1444：薄行取数改走只读会话（取数文件不再经 send/runGh）
         // 与活跃集合、写事件白名单同一把短散列：不一致就会让探测这条路每一笔都被判「推迟」。
         workspaceKeyOf: workspaceKeyOf,
+        // #1866：写回执先提交进本地快照库，提交成功调用方才并进快照（界面才更新）。
+        // 库门面没注入或打不开时回「降级」：这一趟按老路继续（内存加磁盘），不假装写进了库；
+        // 门面在、但事务没提交（版本门丢弃或者写失败）时回 ok:false，调用方据此保持旧值。
+        recordWriteReceipt: async function (input: any): Promise<any> {
+          try {
+            const lib: any = (typeof d.getSnapshotLibrary === 'function') ? await d.getSnapshotLibrary() : null
+            if (!lib || typeof lib.recordWriteReceipt !== 'function') {
+              return { ok: true, degraded: true, rows: 0, mergeVersion: null, reason: 'library-unavailable' }
+            }
+            return await lib.recordWriteReceipt(input)
+          } catch (eR: any) {
+            return { ok: false, rows: 0, mergeVersion: null, reason: 'receipt-threw' }
+          }
+        },
         now: Date.now,
         logCtx: logCtx,
       })

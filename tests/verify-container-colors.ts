@@ -149,6 +149,13 @@ const STATUS_EXCEPTIONS = [
     reason: '评论提交触发限流的提示色：用琥珀和网络失败（红）区分开。',
   },
   {
+    // #1866：评论已经发出去、但没存进本地快照库时的那一句提示。它既不是失败（红）也不是成功，
+    // 用同一块区域的警示橙；与上面限流那条同一套底色与边框，位置不同（输入框上方）。
+    file: 'src/client/views/IssueDetailComments.ts',
+    segment: "rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.3)', color: '#f59e0b' } }, [",
+    reason: '评论发出去了但没存进本地快照库的警示句：提醒人这一条眼下看不到、下次刷新会重新取回。',
+  },
+  {
     file: 'src/client/views/ListTab.ts',
     segment: 'list.partial',
     reason: '健康检查结果不完整（list.partial）的琥珀小点：只在清单异常缺失时亮（缺未关闭票、列表触上限、REST 降级、计数冲突或缺失），悬停按 missingOpen 说缺几张未关闭票；「已关闭只装首页」不再算。结果状态提示。',
@@ -422,9 +429,11 @@ const STATUS_EXCEPTIONS = [
 //   #f59e0b/#0e8a16（改引像素皮肤令牌），白名单里这两条与落点一起删除：同值点 79→77、落点文件 32→30。
 // #1840：版本控制页签按定稿原型换深浅两套色板，深色主强调绿 #3fb950 与完成态绿同值，
 //   页签自带调色板登记进白名单：同值点 77→78、落点文件 30→31。
-// #1860：四页签外壳按定稿原型整页还原，原型深色皮肤的两条绿令牌（--accent / --ok）原样移植进
-//   vcProtoTokens.ts，白名单补两条：同值点 78→80、落点文件 31→32。
-const STATUS_REPO_HITS = 80
+// #1866 与 #1860 两处改动合流之后的白名单读数：
+//   #1866 在 IssueDetailComments.ts 里复用同一枚琥珀（同值点 +1，落点文件不变）；
+//   #1860 把原型深色皮肤的两条绿令牌移植进 vcProtoTokens.ts（同值点 +2、落点文件 +1）。
+//   合起来：同值点 78 → 81，落点文件 31 → 32。
+const STATUS_REPO_HITS = 81
 const STATUS_REPO_FILES = 32
 // 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [

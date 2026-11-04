@@ -20,7 +20,6 @@
 // 客户端段直接导真模块（store-derived、container-view、workRouteTable 三个都没有 import，无副作用）。
 // 纯内存、无落盘、可并发。
 //
-// 门禁归属: src/refresh/rooms/host/snapshot-build.ts
 // 门禁归属: src/client/kernel/store-derived.ts
 // 门禁归属: src/client/views/shared/workRouteTable.ts
 const path = require('path')
@@ -44,51 +43,10 @@ function issueOf(key: string, effortId: string, type: string, over?: any): any {
   }, over || {})
 }
 
-function sessionOf(world: any) {
-  const session: any = {
-    list: async () => ({ ok: true, data: world.issues || [] }),
-    listSubIssues: async (_ref: any, key: any) => ({ ok: true, data: (world.subs || {})[String(key)] || { items: [], total: 0, fetched: 0, capped: false, missing: [], dropped: [] } }),
-    listLabels: async () => ({ ok: true, data: world.labels || [] }),
-    getCurrentUser: async () => ({ ok: true, data: world.user || { login: 'me', name: '我', avatarUrl: 'https://a' } }),
-  }
-  return { session: session }
-}
-
-function openerOf(session: any) {
-  return async (cwd: any, opts?: any) => {
-    return { ok: true, backendId: 'markdown', budget: {}, call: (fn: any) => fn(session, { cwd: cwd, caller: 'refresh' }) }
-  }
-}
-
-function depsOf(build: any, session: any) {
-  const registry: any = {
-    select: async () => ({ backendId: 'markdown', source: 'matches' }),
-    describe: (handle: any, id: string) => ({ backend: id, refId: String((handle && handle.refId) || ''), name: id, url: '' }),
-    modules: () => [{ id: 'markdown' }],
-  }
-  return {
-    getRepoKey: async () => ({ owner: 'o', name: 'r' }),
-    runGh: () => { throw new Error('旧路 runGh 不该被调') },
-    execProc: () => { throw new Error('旧路 execProc 不该被调') },
-    fetchIssues: () => { throw new Error('旧路 fetchIssues 不该被调') },
-    fetchMapsDetailREST: () => { throw new Error('旧路 REST 降级不该被调') },
-    mapTicket: build.mapTicket, parseMapBody: build.parseMapBody,
-    computeLevels: build.computeLevels, groupTickets: build.groupTickets,
-    isRateLimitError: () => false,
-    getTrackerRegistry: async () => registry,
-    getPlatform: async () => ({}), getRepoRoot: async () => CWD,
-    getGhPath: () => 'gh', getGhLastError: () => null,
-    ctx: { get: () => null }, timer: { timeout: () => null },
-    openSession: openerOf(session),
-  }
-}
-
 async function main() {
   console.log('#1548 在办表地图行：显示完整、点击进容器详情、规格同修、普通行零回归')
-  const snapMod = await imp('src/refresh/rooms/host/snapshot-build.js')
-  const mb = (await imp('src/host/mapBody.js')).createMapBody()
-  const grp = (await imp('src/host/ticketGrouping.js')).createTicketGrouping()
-  const build = { mapTicket: mb.mapTicket, parseMapBody: mb.parseMapBody, computeLevels: grp.computeLevels, groupTickets: grp.groupTickets }
+  // #1870：旧的快照组装（snapshot-build）已退役；容器表由读投影那一份组装函数出（列表回放走的也是它）。
+  const asm = await imp('src/host/tracker/snapshotAssemble.js')
 
   const mapBody = '## Destination\n地图正文\n\n## Notes\n备注一行'
   const world = {
@@ -108,9 +66,18 @@ async function main() {
   }
 
   // ---- ① 快照容器表：地图与规格都在，身份三格齐全，普通票不进表 ----
-  const s = sessionOf(world)
-  const snap = await snapMod.createSnapshotBuilder(depsOf(build, s.session)).buildSnapshot(CWD)
-  check(snap && snap.ok === true, '快照回 ok:true（' + (snap && snap.ok) + '）')
+  // 世界里的行先按契约形状交给组装函数（子票挂到地图 '00' 名下）；这一趟不联网、不落库。
+  const mapRow0 = world.issues.find(function (i: any) { return i.effortId === 'demo' && i.key === '00' })
+  const specRow0 = world.issues.find(function (i: any) { return i.effortId === 'demo2' && i.key === '00' })
+  const childRow = world.subs['0'].items[0]
+  const rows = [
+    Object.assign({}, mapRow0, { number: 0 }),
+    Object.assign({}, specRow0, { number: 0 }),
+    world.issues.find(function (i: any) { return i.key === '01' }),
+    Object.assign({}, childRow, { parentKey: '00' }),
+  ]
+  const snap = asm.assembleSnapshot({ backend: 'markdown', refId: CWD, name: 'demo', url: '' }, rows)
+  check(snap && Array.isArray(snap.maps), '组装出容器表（maps 是数组）')
   const maps = snap.maps || []
   check(maps.length === 2, '容器表有地图与规格两行、普通票不进表（' + maps.length + ' 行）')
   const mapRow = maps.find(function (m: any) { return m && m.effortId === 'demo' })

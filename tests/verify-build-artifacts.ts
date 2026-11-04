@@ -236,10 +236,13 @@ console.log('\n四棵新树镜像校验（后缀换算 + 转译结果比对）')
   const hasTracker = fs.existsSync(path.resolve('package/tracker')) && fs.existsSync(path.resolve('package/tracker/index.js'))
   const hasDeck = fs.existsSync(path.resolve('package/deck/registration/agent-row.js'))
   const hasRefresh = fs.existsSync(path.resolve('package/refresh/contract/refresh-ports.js')) && fs.existsSync(path.resolve('package/refresh/kernel/host-budget.js'))
+  // #1863：刷新房的库回放适配深引快照库契约，快照树的包内镜像必须与 refresh 同深度存在（不是可选件）。
+  const hasWorkspaceSnapshot = fs.existsSync(path.resolve('package/workspace-snapshot/contract/index.js'))
   check(hasPlatform, 'package/lib 含 platform/ 目录及入口')
   check(hasTracker, 'package/tracker 含追踪器目录及入口（#1018 起追踪器住包内顶层，不在 package/lib 下）')
   check(hasDeck, 'package/deck 含工具目录及行模块入口（发布清单 ./tools 指到它）')
   check(hasRefresh, 'package/refresh 含契约与内核入口（#1425 起刷新新家进包）')
+  check(hasWorkspaceSnapshot, 'package/workspace-snapshot 含契约入口（#1863 起刷新房回放要深引它）')
 }
 // 4b) 四类落点之外没有产物（#1017 换守门对象）
 //   换掉的是什么：这一段原先守「package/shared 与 src/shared 逐字节一致 + 双向差集 0」。
@@ -281,7 +284,7 @@ console.log('\n四棵新树镜像校验（后缀换算 + 转译结果比对）')
   // .build/ 是第五类落点（2026-10-19 起共享层产物住 .build/shared/）。它按点开头目录的约定
   // 不进 B 段遍历，写进 inCategory 是为了让「它到底算不算合法落点」在代码里有明确答案，
   // 而不是靠遍历时那条 continue 顺带兜住。
-  const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'package/deck/', 'package/tracker/', 'package/refresh/', 'scripts/generated/', '.build/']
+  const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'package/deck/', 'package/tracker/', 'package/refresh/', 'package/workspace-snapshot/', 'scripts/generated/', '.build/']
   const CATEGORY_FILES = ['client.js', 'host.js']
   const SUBPKG_DIST_RE = /^packages\/[^/]+\/dist\//
   const IN_GIT_PRODUCT_EXCEPTIONS = ['scripts/generated/logKernel.derived.js', 'scripts/generated/updateClient.derived.js', 'scripts/generated/baseClient.derived.js']
@@ -355,7 +358,7 @@ console.log('\n四棵新树镜像校验（后缀换算 + 转译结果比对）')
   const tracked = execSync('git ls-files --cached', { encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean)
   const trackedProducts = tracked.filter((rel) => {
     if (IN_GIT_PRODUCT_EXCEPTIONS.includes(rel)) return false
-    if (CATEGORY_FILES.includes(rel) || rel.startsWith('package/lib/') || rel.startsWith('package/shared/') || rel.startsWith('package/deck/') || rel.startsWith('package/tracker/') || rel.startsWith('package/refresh/') || SUBPKG_DIST_RE.test(rel)) return true
+    if (CATEGORY_FILES.includes(rel) || rel.startsWith('package/lib/') || rel.startsWith('package/shared/') || rel.startsWith('package/deck/') || rel.startsWith('package/tracker/') || rel.startsWith('package/refresh/') || rel.startsWith('package/workspace-snapshot/') || SUBPKG_DIST_RE.test(rel)) return true
     if (rel.startsWith('src/') && /\.(js|mjs|cjs)$/.test(rel) && fs.existsSync(twinOf(path.resolve(rel)))) return true
     return false
   })
@@ -389,7 +392,7 @@ console.log('\n四棵新树镜像校验（后缀换算 + 转译结果比对）')
   }
   walkAll(process.cwd(), '')
   if (outside.length) console.log('    四类之外、又不在源码树里的产物:\n    ' + outside.join('\n    '))
-  check(outside.length === 0, '五类落点之外没有产物（五类：package/lib、package/shared、package/deck、package/tracker、package/refresh（#1425 起）、根 client.js/host.js、scripts/generated、packages/*/dist；另加 .build/，它按点开头目录的约定整目录跳过）')
+  check(outside.length === 0, '产物落点白名单之外没有产物（白名单：package/lib、package/shared、package/deck、package/tracker、package/refresh、package/workspace-snapshot（#1863 起）、根 client.js/host.js、scripts/generated、packages/*/dist；另加 .build/，它按点开头目录的约定整目录跳过）')
   const transitionalWithoutKnown = transitional.filter((rel) => KNOWN_PRODUCTS_OUT_OF_SCOPE.indexOf(rel) < 0)
   const knownPresent = transitional.length - transitionalWithoutKnown.length
   check(transitionalWithoutKnown.length <= TRANSITIONAL_PRODUCTS_MAX,
@@ -410,9 +413,9 @@ console.log('\n四棵新树镜像校验（后缀换算 + 转译结果比对）')
 // 4f) 动态导入可解析（#545：电话注册了但模块文件缺了，调用才失败；
 // 打包产物里每个相对导入在 package/ 内必须有对应文件，缺一个就红；
 // #1018 起包内有四棵产物树，审计范围跟着扩到 deck 与 tracker，否则新树漏文件看不见；
-// #1425 起第五棵 package/refresh 进包，审计范围跟着扩到它）
+// #1425 起第五棵 package/refresh 进包，审计范围跟着扩到它；#1863 起快照库树也随包分发，范围再加一棵）
 {
-  const roots = [path.resolve('package/lib'), path.resolve('package/shared'), path.resolve('package/deck'), path.resolve('package/tracker'), path.resolve('package/refresh')]
+  const roots = [path.resolve('package/lib'), path.resolve('package/shared'), path.resolve('package/deck'), path.resolve('package/tracker'), path.resolve('package/refresh'), path.resolve('package/workspace-snapshot')]
   const files = []
   const walk = (d) => {
     if (!fs.existsSync(d)) return
@@ -662,6 +665,7 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
     check(files.includes('deck'), 'package/package.json files 含 deck（#1018 起工具树进包）')
     check(files.includes('tracker'), 'package/package.json files 含 tracker（#1018 起追踪器树进包）')
     check(files.includes('refresh'), 'package/package.json files 含 refresh（#1425 起刷新新家进包）')
+    check(files.includes('workspace-snapshot'), 'package/package.json files 含 workspace-snapshot（#1863 起刷新房回放要用它）')
   } catch (e) {
     check(false, 'package/package.json files 读取失败: ' + e.message)
   }

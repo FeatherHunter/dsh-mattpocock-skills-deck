@@ -199,8 +199,6 @@ async function main() {
       groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
       getRepoRoot: async (c: string) => c,
       getRepoKey: async () => ({ owner: 'a', name: 'b' }),
-      readDiskCache: async () => null,
-      writeDiskCache: async () => {},
       adoptSnapshot: adopt,
       detectionExec: async () => ({ ok: false }),
       getGhPath: () => '',
@@ -230,14 +228,19 @@ async function main() {
     });
   }
 
-  // ---------- T5 重启：磁盘回放不联网 ----------
+  // ---------- T5 重启：从本地快照库回放，不联网（#1870 起旧的磁盘回放退役）----------
   {
     const fires: any[] = [];
     let detections = 0;
-    const disk = {
+    // 库里回放出来的那一份：与在线组装同形的最小白板（首屏只读库，不回放就不联网也铺得出来）。
+    const replay = {
+      ok: true,
       selection: { backendId: 'github', rev: 0 },
       generatedMs: Date.now() - 5000,
-      diskReplay: { schema: 4, source: 'disk', completeness: 'last-known', legacy: false },
+      maps: [],
+      issues: [],
+      thinTickets: [],
+      labels: [],
     };
     const deps: any = {
       canonicalKey: async (c: string) => c,
@@ -255,8 +258,11 @@ async function main() {
       groupTickets: () => ({}),
       getRepoRoot: async (c: string) => c,
       getRepoKey: async () => ({ owner: 'o', name: 'n' }),
-      readDiskCache: async () => disk,
-      writeDiskCache: async () => {},
+      getSnapshotLibrary: async () => ({
+        readSnapshotReplay: async () => ({ snapshot: replay, lastKnownAtMs: Date.now() - 5000 }),
+        recordIssueRows: async () => ({ ok: true }),
+        readSnapshotDiagnostics: async () => [],
+      }),
       adoptSnapshot: (s: any) => s,
       detectionExec: async () => { detections += 1; return { ok: false }; },
       getGhPath: () => null,
@@ -272,9 +278,11 @@ async function main() {
     const rv = out && out.diskReplay;
     fiveSegments('T5 重启', {
       input: !!req && !!req.fields && typeof req.fields.cwdHash === 'string',
-      reason: !!miss && !!miss.fields && miss.fields.reason === 'empty',
+      // #1870：库里有回放的那一趟根本没重建，就不该记 snapshot.cache.miss —— 这里反过来钉住「没有 miss」。
+      reason: !miss,
       external: detections === 0 && !!rv && finite(out.generatedMs),
-      state: !!out && out.fromCache === true && !!rv && rv.schema === 4 && rv.source === 'disk' && rv.completeness === 'last-known' && rv.legacy === false,
+      // 回放注记的字段名沿用 diskReplay（客户端按这个名字读「上次已知」），内容换成工作区快照库那一套。
+      state: !!out && out.fromCache === true && !!rv && rv.schema === 'snapshot-sqlite-v1' && rv.source === 'sqlite' && finite(rv.lastKnownAtMs),
       conclusion: !!out && out.fromCache === true && detections === 0,
     });
     check(detections === 0, 'T5 重启趟：回放不联网（外部调用 0 次，实得 ' + detections + '）');

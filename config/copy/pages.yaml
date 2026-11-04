@@ -37,6 +37,11 @@ zh:
   truth.paused: 自动刷新已暂停
   truth.notRefreshing: 未在刷新（同时活跃上限 2）
   truth.replayLastKnown: 上次已知（{time}）
+  truth.snapshotCorrupt: 本地快照已损坏，已整库重建；本机旧快照数据已清掉
+  truth.snapshotIdentity: 仓库身份变了，本地快照已重建
+  truth.snapshotSchema: 本地快照结构版本变了，已重建
+  truth.snapshotReadonly: 另一个窗口正在写这个工作区的快照，这里以只读显示
+  truth.snapshotLeaseLost: 写者租约丢了，这里已退回只读
   truth.lag: 数据可能落后 {min} 分钟
   truth.writing: 更新中
   truth.budgetGraphql: GraphQL 剩 {remaining}/{limit}
@@ -124,6 +129,11 @@ en:
   truth.paused: Auto refresh paused
   truth.notRefreshing: Not refreshing (concurrent active limit 2)
   truth.replayLastKnown: Last known ({time})
+  truth.snapshotCorrupt: "Local snapshot was corrupt and has been rebuilt from scratch; the old local snapshot data is gone"
+  truth.snapshotIdentity: The repository identity changed, so the local snapshot was rebuilt
+  truth.snapshotSchema: The local snapshot schema changed, so it was rebuilt
+  truth.snapshotReadonly: "Another window is writing this workspace's snapshot; this view is read-only"
+  truth.snapshotLeaseLost: The writer lease was lost; this view fell back to read-only
   truth.lag: Data may lag up to {min} min
   truth.writing: Updating
   truth.budgetGraphql: "GraphQL {remaining}/{limit} left"

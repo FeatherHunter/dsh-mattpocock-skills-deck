@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    // 快照库这一棵树的类型检查配置（#1861 / #1862）。口径与 src/refresh/tsconfig.json 一致：
+    // 目标保守到 ES2020，Node 宿主与浏览器闭包两边都跑得动；只检查不产出，真正的 JS 由
+    // scripts/build.mts 用 esbuild 转译到 .build/workspace-snapshot/。
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "strict": true,
+    // 本仓没有装 @types/node（口径见 src/host/tsconfig.json 与 scripts/node-ambient.d.ts）。
+    // 这一层要用 node:sqlite，所以在同目录的 node-ambient.d.ts 里只声明它用到的成员；
+    // node:fs / node:path 改由 runtime/node-builtins.ts 在运行时取，不进入类型程序，
+    // 这样刷新房间按字面量导入契约入口时，宿主里那批 @ts-expect-error 不会被顶掉。
+    // 只声明真正用到的成员，不引一整包 Node 类型把全局打开。
+    "types": [],
+    "skipLibCheck": true
+  },
+  // 通配圈住整棵树（含 contract/ 与 sources/）：新增文件自动进检查，不必再改配置。
+  // 「一个文件只属于一份配置」的覆盖对账由 scripts/typecheck.mts 负责。
+  "include": ["**/*.ts"]
+}

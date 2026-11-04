@@ -1,36 +1,28 @@
 /**
- * tests/verify-1692-disk-replay-eviction.ts —— 磁盘回放来源与按需细节淘汰门禁（#1692）
+ * tests/verify-1692-disk-replay-eviction.ts —— 磁盘快照退役与按需细节淘汰门禁（#1692 立，#1870 改题）
  *
- * 守什么：磁盘上的快照文件从此带格式版本与整仓级来源/完整度，旧文件照读并如实标「来源未知」；
- * 回放出来的内容降为「上次已知（某一刻）」；行上的按需细节（正文、评论、评审、子票清单）按条数与
- * 字节上限做 LRU 淘汰，只淘汰内容、留「曾取过」记号，行本身、父子边、依赖边、子票计数永不淘汰。
- *
- * 逐条对应票 #1692 的验收：
- *   A 磁盘格式：schema 4 写盘、来源/完整度由 merge 组戳聚合、来源种类超限塌成整仓级；
- *     旧格式（cacheFormat 3）照读并按「来源未知」回放，文件里已有的字段一个都不删；
- *     新增字段只走信封，不碰 snapshot.version/etag，也不碰合并协议 snapshot.merge 本身。
- *   B 淘汰：条数上限 200、字节上限 512KB 两个数只住 kernel/detail-eviction.ts；
- *     超条数淘汰最旧的、超字节同样停；淘汰后写 detailEvicted 记号（何时、哪几栏、上次已知时刻），
- *     骨架字段与地图行、子票计数、边一概不动（负例逐个断言）；本轮真拿到的行打新时间戳；
- *     已经没有内容可淘汰时原引用返回（二次跑零淘汰）。
- *   C 显示：面板提示行按 diskReplay.lastKnownAtMs 说「上次已知（HH:mm）」；详情页对已淘汰的行
+ * 文件名与在链上的位置保留（收口矩阵按名字引用它），但它现在守两件事：
+ *   A 整份磁盘快照退役（#1870）：旧的 .dsh-mattskillsdeck-cache/<owner>__<repo>.json 不再被读、
+ *     不再被写、不再被迁移；格式模块已删除；两条快照宿主方法与它们的装配处都不再引用那三个口。
+ *     旧 JSON 文件仍原地留在磁盘上——谁也不碰它，所以它的字节一个都不会变。
+ *   B 按需细节淘汰（#1692 的原有判据，随内存工作副本一起保留）：条数上限 200、字节上限 512KB
+ *     两个数只住 kernel/detail-eviction.ts；淘汰只删内容、留「曾取过」记号，行本身、父子边、
+ *     依赖边、子票计数永不淘汰。
+ *   C 显示（#1692 的原有判据）：面板按回放注记说「上次已知（HH:mm）」；详情页对已淘汰的行
  *     说「未取（曾在 HH:mm）」，不画成空白。
- *   D 接线：格式与淘汰收在 kernel 两个纯模块里，读盘/写盘/行级写回三处真的调它们；
- *     这一票没有新增任何 setInterval/setTimeout（清理挂在既有读写与刷新节拍上）。
+ *   D 接线：首屏与刷新的读写都经本地快照库门面；行级写回仍跑淘汰；没有新增定时器。
  *
- * 为什么用真模块跑：这一条守的是「文件里到底写了什么、回放时人看到什么」，换一种等价的格式
- * 实现而结论不变时不该误报。
+ * 原来的 A 段（磁盘格式 schema 4、来源聚合、旧格式照读）随 #1870 一起退役——那段判据守的
+ * 文件格式已经不存在了，留着重演它只会让人以为那份 JSON 还在被读。
  *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1692-disk-replay-eviction.ts
  */
-// 门禁归属: src/refresh/kernel/disk-snapshot-format.ts
 // 门禁归属: src/refresh/kernel/detail-eviction.ts
 // 门禁归属: src/refresh/rooms/host/git-execution.ts
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import * as path from 'node:path'
 import { printGateResult } from './lib/gate-result.ts'
-import * as disk from '../src/refresh/kernel/disk-snapshot-format.ts'
 import * as ev from '../src/refresh/kernel/detail-eviction.ts'
 import { truthNoticeLines } from '../src/client/views/shared/truthLines.ts'
 
@@ -112,65 +104,50 @@ function makeSnapshot(): any {
 }
 
 function main(): void {
-  console.log('磁盘回放来源与按需细节淘汰门禁（#1692）')
+  console.log('磁盘快照退役与按需细节淘汰门禁（#1692 / #1870）')
 
-  // ── A 磁盘格式：版本、来源、完整度、旧格式按未知、字段一个不删 ──
+  // ── A 整份磁盘快照退役（#1870）：旧 JSON 不读、不写、不迁、不删 ──
   {
-    check(disk.DISK_SNAPSHOT_SCHEMA === 4, 'A1 写盘格式版本是 4')
-    check(disk.DISK_SNAPSHOT_SCHEMA_LEGACY === 3, 'A2 升级前的旧格式版本是 3，读盘仍认')
-    check(disk.DISK_SOURCE_MAX_KINDS === 3, 'A3 一条快照里最多逐条记 3 种来源，超过就塌成整仓级')
-    check(disk.DISK_SOURCE_LEGACY === 'legacy-unknown' && disk.DISK_SOURCE_UNKNOWN === 'unknown', 'A4 「旧格式来源未知」与「没有来源」是两个词，不混用')
+    check(!existsSync(path.join(ROOT, 'src/refresh/kernel/disk-snapshot-format.ts')), 'A1 旧磁盘快照的格式模块已删除')
 
-    const snap = makeSnapshot()
-    const built = disk.buildDiskSnapshot(snap, CLOCK0)
-    check(built.cacheFormat === 4 && built.diskMeta && built.diskMeta.schema === 4, 'A5 落盘对象带 cacheFormat 4 与 diskMeta.schema 4')
-    check(built.diskMeta.source === 'graphql' && built.diskMeta.completeness === 'complete', 'A6 来源与完整度从 merge 组戳聚合出来（graphql / complete）')
-    check(built.diskMeta.writtenAtMs === CLOCK0, 'A7 回放用的「上次已知」时刻就是写盘那一刻')
-    check(built.diskMeta.groups === 3 && built.diskMeta.sources.join('|') === 'graphql', 'A8 组数与去重后的来源名单一起写进信封')
-    check(built.version === 7 && built.etag === 'etag-7', 'A9 新信封不碰 snapshot.version 与 etag（304 语义原样）')
-    check(built.merge === snap.merge && snap.merge.version === 7, 'A10 合并协议 snapshot.merge 的对象引用都不换')
+    const gitSrc = srcText('src/refresh/rooms/host/git-execution.ts')
+    check(!/readDiskCache|writeDiskCache|cacheFileName|readDiskSnapshot|buildDiskSnapshot/.test(gitSrc), 'A2 宿主执行层不再有读写旧 JSON 的函数')
 
-    const twoSource = disk.diskSourceOf({ merge: { groups: groupsOf([['row', 'graphql', 'complete'], ['body', 'rest', 'truncated']]) } })
-    check(twoSource.source === 'mixed', 'A11 两种来源混在一份里，整仓级来源记 mixed')
-    check(twoSource.sources.join('|') === 'graphql|rest' && twoSource.collapsed === false, 'A12 两种来源逐条记下来（排序稳定），没超限不塌缩')
-    check(twoSource.completeness === 'truncated', 'A13 完整度按最保守的来：有一组截断就记 truncated')
+    const snapshotHostModules = [
+      'src/refresh/rooms/host/session-snapshot-cache.ts',
+      'src/refresh/rooms/host/session-refresh-schedule.ts',
+      'src/refresh/rooms/host/issue-list-fetch.ts',
+      'src/refresh/rooms/host/issue-index-scan.ts',
+      'src/refresh/rooms/host/comment-thread-fetch.ts',
+      'src/refresh/rooms/host/patch-wiring.ts',
+      'src/host/index.ts',
+    ]
+    const dirty = snapshotHostModules.filter(function (rel) { return /readDiskCache|writeDiskCache|cacheFileName/.test(srcText(rel)) })
+    check(dirty.length === 0, 'A3 快照宿主方法与它们的装配处都不再引用旧的磁盘快照口', dirty)
 
-    const fourSource = disk.diskSourceOf({ merge: { groups: groupsOf([['row', 'a', 'complete'], ['body', 'b', 'complete'], ['labels', 'c', 'complete'], ['comments', 'd', 'complete']]) } })
-    check(fourSource.collapsed === true && fourSource.source === 'mixed' && fourSource.sources.join('|') === 'mixed', 'A14 来源种类超过上限时塌成单一整仓级来源，不逐条膨胀')
-    check(fourSource.completeness === 'complete', 'A15 塌缩来源不丢完整度')
+    // 全仓源码扫一遍：三个旧口与两个格式函数一个都不许留（命中就是还有人在读写那份 JSON）。
+    const offenders: string[] = []
+    const stack: string[] = [path.join(ROOT, 'src')]
+    let sourceChars = 0
+    while (stack.length) {
+      const dir = stack.pop() as string
+      for (const name of readdirSync(dir)) {
+        const full = path.join(dir, name)
+        if (statSync(full).isDirectory()) { stack.push(full); continue }
+        if (!/\.(ts|mts)$/.test(name)) continue
+        const txt = readFileSync(full, 'utf8')
+        sourceChars += txt.length
+        if (/readDiskCache|writeDiskCache|cacheFileName|buildDiskSnapshot|readDiskSnapshot/.test(txt)) {
+          offenders.push(path.relative(ROOT, full).replace(/\\/g, '/'))
+        }
+      }
+    }
+    check(offenders.length === 0, 'A4 全仓 src 里再没有旧的整份磁盘快照读写口', offenders)
+    check(sourceChars > 0 && !gitSrc.includes('__' + 'name.json'), 'A5 宿主执行层里再没有旧快照的文件名拼法')
 
-    const bare = disk.diskSourceOf({})
-    check(bare.source === 'unknown' && bare.completeness === 'unknown' && bare.groups === 0, 'A16 没有合并组戳时来源与完整度都记未知，不冒充完整')
-
-    const back = disk.readDiskSnapshot(built)
-    check(back.ok === true && back.legacy === false, 'A17 新格式读回成功，且不标 legacy')
-    check(back.snapshot.cacheFormat === undefined && back.snapshot.diskMeta === undefined, 'A18 读回的快照只摘掉 cacheFormat 与 diskMeta 两个信封键')
-    check(back.snapshot.issues.length === 1 && back.snapshot.issues[0].body === '完整正文', 'A19 读回后行上的正文原样还在')
-    check(back.snapshot.issues[0].comments.length === 1 && back.snapshot.issues[0].reviews.length === 1, 'A20 读回后评论与评审原样还在')
-    check(JSON.stringify(back.snapshot.merge) === JSON.stringify(snap.merge), 'A21 读回后合并状态一字不动')
-    check(back.snapshot.version === 7 && back.snapshot.etag === 'etag-7', 'A22 版本与 etag 从文件读回也不变')
-
-    const legacyRaw = Object.assign({}, snap, { cacheFormat: 3 })
-    const legacy = disk.readDiskSnapshot(legacyRaw)
-    check(legacy.ok === true && legacy.legacy === true, 'A23 旧格式（cacheFormat 3）照读，并标 legacy')
-    check(legacy.meta.source === 'legacy-unknown' && legacy.meta.completeness === 'unknown', 'A24 旧格式没有来源信息，按「来源未知 / 完整度未知」回放')
-    check(legacy.meta.writtenAtMs === snap.generatedMs, 'A25 旧格式的「上次已知」时刻取文件自己的 generatedMs')
-    check(legacy.snapshot.issues[0].body === '完整正文' && legacy.snapshot.issues[0].comments.length === 1, 'A26 旧格式文件里的字段一个都不删（正文与评论照旧）')
-    check(legacy.snapshot.merge && legacy.snapshot.merge.version === 7, 'A27 旧格式的合并状态也原样保留')
-    check(legacy.snapshot.cacheFormat === undefined && legacy.snapshot.diskMeta === undefined, 'A28 旧格式读回也只摘信封键')
-
-    check(disk.readDiskSnapshot(null).reason === 'not-object', 'A29 负例：不是对象的文件按 not-object 拒绝')
-    check(disk.readDiskSnapshot({ ok: false }).reason === 'not-ok', 'A30 负例：ok 不为真按 not-ok 拒绝')
-    check(disk.readDiskSnapshot({ ok: true, maps: {}, generatedMs: 1, cacheFormat: 4 }).reason === 'maps-not-array', 'A31 负例：maps 不是数组按 maps-not-array 拒绝')
-    check(disk.readDiskSnapshot({ ok: true, maps: [], generatedMs: 'x', cacheFormat: 4 }).reason === 'generatedMs-not-number', 'A32 负例：generatedMs 不是数按 generatedMs-not-number 拒绝')
-    check(disk.readDiskSnapshot({ ok: true, maps: [], generatedMs: 1, cacheFormat: 2 }).reason === 'schema-unreadable', 'A33 负例：不认识的格式版本按 schema-unreadable 拒绝')
-
-    const replayFields = disk.diskReplayFields(legacy.meta)
-    check(replayFields.diskReplay.legacy === true && replayFields.diskReplay.lastKnownAtMs === snap.generatedMs, 'A34 回放视图带 legacy 与「上次已知」时刻，交给界面用')
-    check(replayFields.diskReplay.source === 'legacy-unknown' && replayFields.diskReplay.schema === 3, 'A35 回放视图如实带来源与格式版本')
-
-    const diskSrc = srcText('src/refresh/kernel/disk-snapshot-format.ts')
-    check(diskSrc.indexOf('etag') < 0 && diskSrc.indexOf('snapshotVersion') < 0, 'A36 格式模块不参与内容散列/304 判定：源码里不出现 etag 与版本散列名字')
+    // 旧文件原地不动：本地快照库只认一个 .sqlite 文件，库路径从不指向那份 JSON。
+    const libPaths = srcText('src/workspace-snapshot/runtime/paths.ts')
+    check(libPaths.indexOf('.sqlite') >= 0 && libPaths.indexOf('.json') < 0, 'A6 本地快照库只认 .sqlite 一个文件，库路径不指向旧的 JSON（旧文件原地留着，谁也不碰）')
   }
 
   // ── B 按需细节淘汰：条数/字节上限、LRU、留记号、骨架不淘汰 ──
@@ -255,37 +232,44 @@ function main(): void {
     const zero = truthNoticeLines({ snapshot: { diskReplay: { lastKnownAtMs: 0 } } }, at)
     check(!zero.some(function (l: any) { return l.key === 'truth.replayLastKnown' }), 'C5 负例：回放时刻为 0（未知）时不说「上次已知」')
 
+    // #1864 起「已淘汰的内容怎么画」从详情页搬到了读投影（views/shared/detailProjection.ts）：
+    // 判据还在，只是换了个文件住；详情页仍负责把投影算出的正文格画出来。
     const detailSrc = srcText('src/client/views/IssueDetail.ts')
-    check(detailSrc.indexOf("tr('detail.evictedAt'") >= 0, 'C6 详情页对已淘汰的内容说「未取（曾在某时）」，不画成空白')
-    check(detailSrc.indexOf('snapIssue.detailEvicted') >= 0 && detailSrc.indexOf('lastKnownAtMs') >= 0, 'C7 详情页判断依据是行上的淘汰记号与上次已知时刻')
+    const detailProjSrc = srcText('src/client/views/shared/detailProjection.ts')
+    check(detailProjSrc.indexOf("tr('detail.evictedAt'") >= 0, 'C6 详情页对已淘汰的内容说「未取（曾在某时）」，不画成空白')
+    check(detailSrc.indexOf('proj.bodySlot') >= 0 && detailProjSrc.indexOf('snapIssue.detailEvicted') >= 0 && detailProjSrc.indexOf('lastKnownAtMs') >= 0,
+      'C7 详情页判断依据是行上的淘汰记号与上次已知时刻')
 
     const flow = srcText('config/copy/flow.yaml')
     check(flow.indexOf('detail.evictedAt') >= 0 && flow.indexOf('未取（曾在') >= 0, 'C8 词表两个语言都有「未取（曾在 {time}）」这一条')
     const pages = srcText('config/copy/pages.yaml')
     check(pages.indexOf('truth.replayLastKnown') >= 0 && pages.indexOf('上次已知（') >= 0, 'C9 词表两个语言都有「上次已知（{time}）」这一条')
+
+    // #1869 真机演练补：本地快照库自己报的开库诊断（损坏重建、只读）也要走这条状态行，
+    // 否则库坏了重建完，列表区只剩「加载中… 暂无」，谁也看不出本机数据被清掉。
+    const corruptDiag = truthNoticeLines({ snapshot: { snapshotDiagnostics: [{ code: 'corrupt-rebuilt', message: '本地快照已重建' }] } }, at)
+    check(corruptDiag.some(function (l: any) { return l.key === 'truth.snapshotCorrupt' }), 'C10 库损坏重建时状态行说「已整库重建」')
+    const readOnlyDiag = truthNoticeLines({ snapshot: { snapshotDiagnostics: [{ code: 'lease-held-readonly', message: '另一个窗口在写' }] } }, at)
+    check(readOnlyDiag.some(function (l: any) { return l.key === 'truth.snapshotReadonly' }), 'C11 只读租约时状态行说「以只读显示」')
+    check(!truthNoticeLines({ snapshot: { snapshotDiagnostics: [] } }, at).some(function (l: any) { return l.kind === 'snapshot' }), 'C12 负例：没有开库诊断时不说快照提示')
+    check(pages.indexOf('truth.snapshotCorrupt') >= 0 && pages.indexOf('本地快照已损坏') >= 0 && pages.indexOf('Local snapshot was corrupt') >= 0, 'C13 词表两个语言都有快照诊断这一组')
   }
 
-  // ── D 接线与「没新增定时器」 ──
+  // ── D 接线：新库是唯一持久副本，行级写回仍跑淘汰，且没新增定时器 ──
   {
-    const gitSrc = srcText('src/refresh/rooms/host/git-execution.ts')
-    check(gitSrc.indexOf('readDiskSnapshot(') >= 0, 'D1 读盘走 kernel 的 readDiskSnapshot，格式判据不散在宿主文件里')
-    check(gitSrc.indexOf('buildDiskSnapshot(') >= 0, 'D2 写盘走 kernel 的 buildDiskSnapshot')
-    check(gitSrc.split('evictDetailsInSnapshot(').length - 1 >= 2, 'D3 读与写两个拍子都调淘汰（同一份上限规则两处复用）')
-    check(gitSrc.indexOf('diskReplayFields(') >= 0, 'D4 回放视图由 kernel 生成后随快照交给界面')
-    check(gitSrc.indexOf('evicted: ev.stats.evicted, evictedBytes: ev.stats.evictedBytes') >= 0, 'D5 写盘把这次淘汰的条数与字节数回给调用方（供日志记）')
+    const cacheSrc = srcText('src/refresh/rooms/host/session-snapshot-cache.ts')
+    check(cacheSrc.indexOf('firstScreenFromLibrary') >= 0 && cacheSrc.indexOf('commitRows') >= 0, 'D1 首屏的读与写都经快照库门面：先读库回放，取回的行整批写库')
+    const refreshSrc = srcText('src/refresh/rooms/host/session-refresh-schedule.ts')
+    check(refreshSrc.indexOf('recordIssueRows') >= 0, 'D2 一轮刷新整批写进同一个库（先提交，再交给界面）')
 
     const rpSrc = srcText('src/refresh/rooms/host/row-patch.ts')
-    check(rpSrc.split('evictForWrite(merged.snapshot, got.rows)').length - 1 >= 2, 'D6 读事件与写事件两条写回路径都在写盘前跑淘汰')
-    check(rpSrc.indexOf('fields.evicted = e.evicted') >= 0 && rpSrc.indexOf('fields.evictedBytes') >= 0, 'D7 refresh.patch 日志带淘汰条数与字节数（只在真淘汰时出现）')
-
-    const cacheSrc = srcText('src/refresh/rooms/host/session-snapshot-cache.ts')
-    check(cacheSrc.indexOf("'snapshot.cache.hit'") >= 0 && cacheSrc.indexOf('rv.schema') >= 0 && cacheSrc.indexOf('rv.legacy') >= 0, 'D8 磁盘回放命中日志带格式版本、来源、完整度、是否旧格式')
+    check(rpSrc.split('evictForWrite(merged.snapshot, got.rows)').length - 1 >= 2, 'D3 读事件与写事件两条写回路径都在写回前跑淘汰')
+    check(rpSrc.indexOf('fields.evicted = e.evicted') >= 0 && rpSrc.indexOf('fields.evictedBytes') >= 0, 'D4 refresh.patch 日志带淘汰条数与字节数（只在真淘汰时出现）')
 
     const timerFiles = [
       'src/refresh/rooms/host/git-execution.ts',
       'src/refresh/rooms/host/row-patch.ts',
       'src/refresh/rooms/host/session-snapshot-cache.ts',
-      'src/refresh/kernel/disk-snapshot-format.ts',
       'src/refresh/kernel/detail-eviction.ts',
     ]
     let timerHits = 0
@@ -293,11 +277,11 @@ function main(): void {
       const t = srcText(timerFiles[i])
       timerHits += (t.match(/setInterval|setTimeout/g) || []).length
     }
-    check(timerHits === 0, 'D9 这一票没有新增定时器：格式/淘汰/读盘/写回/回放五处都不出现 setInterval/setTimeout')
+    check(timerHits === 0, 'D5 这一票没有新增定时器：写回/回放/淘汰几处都不出现 setInterval/setTimeout')
   }
 
   console.log('')
-  console.log(failed ? '存在失败 — ' + GATE + ' 未通过' : '全部通过 — 磁盘回放来源与按需细节淘汰门禁生效（' + total + ' 项断言）')
+  console.log(failed ? '存在失败 — ' + GATE + ' 未通过' : '全部通过 — 磁盘快照退役与按需细节淘汰门禁生效（' + total + ' 项断言）')
   printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)
 }

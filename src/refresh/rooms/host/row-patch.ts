@@ -77,6 +77,11 @@ interface PatchDeps {
   probeIndex?: (cwd: string, sinceIso: string) => any
   getRepoKey?: (cwd: string) => any
   openSession?: (cwd: string, opts?: any) => any
+  /**
+   * #1866：写回执先提交进本地快照库。写事件之后补行这条路会把它交给取数口；回 ok:false 时
+   * 这一行不并进快照（界面保持旧值），回 ok:true + degraded 表示库开不出来、按老路继续。
+   */
+  recordWriteReceipt?: (input: any) => any
   decide?: (req: any) => any
   now?: () => number
   hash8?: (s: string) => string
@@ -407,6 +412,10 @@ export function createPatch(deps?: PatchDeps | null): any {
    * 写回执这一路（allowNewRows）把列表里还没有的那几行按取回来的顺序追加到最后，
    * 并记进 changes.added。为什么并进列表而不是等整池：验收第 3 条就是「新建票不重启 DSH 也能看见」。
    *
+   * #1866：这一路是「写回执」，先提交再显示。取数口拿到的那几张票会先被提交进本地快照库
+   * （由接线处注入的 recordWriteReceipt 做，一次事务）；提交失败时这一趟按失败返回，行不并进快照，
+   * 界面保持旧值。失败不乐观更新，是这一条的要点。
+   *
    * 地图下面那一份（maps[].tickets）只并已有行：新行没有父信息，这里编一个父只会编错，
    * 等下一次整池统一挂上去。降级来源只补空缺，关系组一条不缩。派生值只处置 deck.partial
    * （counts 是整仓口径，红线不变）。
@@ -430,7 +439,7 @@ export function createPatch(deps?: PatchDeps | null): any {
     const startedGeneration = st.generation
     const startedMergeVersion: number = merger.mergeVersionOf(snap)
     // 只取这几条薄的（取数三件套在 ./thin-row-fetch.ts，依赖仍由这里注入）。
-    const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats }, cwd, repo, list)
+    const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats, receipt: d.recordWriteReceipt }, cwd, repo, list)
     if (!got.ok) {
       const pending = await rememberPending(cwd, snap, got.keys || list, got.reason)
       if (got.outcome === 'deferred') stats.deferred += 1; else stats.failed += 1

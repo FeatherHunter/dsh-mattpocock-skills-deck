@@ -63,7 +63,7 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
         const text = String(st.cmtDraft || '').trim()
         if (!text) return
         if (typeof submitIssueComment !== 'function') { st.cmtError = { kind: 'env' }; emit(st); return }
-        st.cmtSending = true; st.cmtError = null; st.cmtResult = null; emit(st)
+        st.cmtSending = true; st.cmtError = null; st.cmtResult = null; st.cmtNotStored = null; emit(st)
         const startedAt = Date.now()
         submitIssueComment(st, issueNumber, text, { effortId: _eff }).then(function (res: any) {
           st.cmtSending = false
@@ -79,6 +79,9 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
           st.cmtError = null
           st.cmtConfirm = { body: text, at: startedAt }
           st.cmtResult = { kind: 'ok', at: startedAt }
+          // #1866：后端写成功、本地快照库没存上。评论确实发出去了，所以不报失败（假失败同样骗人）；
+          //   但要明说「这一条眼下看不到」，免得人以为没发出去又发一遍。
+          st.cmtNotStored = (res && res.stored === false) ? { reason: String(res.storedReason || '') } : null
           emit(st)
           // 评论结果提示的停留时间：成功后绿闪亮这么久自己退掉；失败的红闪由上面那句注释说的规矩留着不动。
           try { setTimeout(function () { if (st.cmtResult && st.cmtResult.kind === 'ok' && st.cmtResult.at === startedAt) { st.cmtResult = null; try { emit(st) } catch (eR) {} } }, COMMENT_RESULT_FLASH_MS) } catch (eT) {}
@@ -201,6 +204,11 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
           : h('button', { type: 'button', onClick: _openLocal, className: 'dsws-hov', 'data-press': 'button', 'data-log': 'detail.cmt.authlink.local', style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.authFailCta'))
       })() : null,
           ]) : null,
+          // #1866：发出去但没存进本地库时的那一句（黄色，与红色失败分开）；改了草稿或重新发送就消失。
+          st.cmtNotStored ? h('div', { style: { marginBottom: 6, padding: '7px 9px', borderRadius: 6, fontSize: 11, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.3)', color: '#f59e0b' } }, [
+            Ic({ n: 'alert', size: 11 }),
+            h('span', null, tr('detail.cmtNotStored', { msg: String(st.cmtNotStored.reason || '') })),
+          ]) : null,
           h('textarea', {
             value: st.cmtDraft || '',
             placeholder: tr('detail.cmtPlaceholder'),
@@ -209,7 +217,7 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
             onKeyDown: function (ev: any) {
               if ((ev.metaKey || ev.ctrlKey) && ev.key === 'Enter') { try { ev.preventDefault() } catch (ePd) {} doSubmit() }
             },
-            onChange: function (ev: any) { st.cmtDraft = ev.target.value; st.cmtResult = null; emit(st) },
+            onChange: function (ev: any) { st.cmtDraft = ev.target.value; st.cmtResult = null; st.cmtNotStored = null; emit(st) },
             style: { width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 56, fontSize: 12, lineHeight: 1.5, padding: '7px 9px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'rgba(255,255,255,.03)', color: 'var(--dsw-alias-label-primary,#e6edf3)' }, // 焦点环走全局宿主环（#1387 第五条）：行内隐藏会盖住键盘焦点，删掉后落到宿主蓝内环。
           }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 } }, [

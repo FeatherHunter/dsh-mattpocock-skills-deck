@@ -190,7 +190,11 @@ async function loadDetailModule (): Promise<any> {
   const motionSrc = extractFn(bundle, 'const MOTION = {')
   // #1694：详情读投影的纯函数在产物里是函数声明（export function 拼进闭包后去掉了 export）。
   //   逐个从句柄切出真身，顺序按依赖先后拼；不塞桩，否则「上次数据先画/失败不清空」测的就不是真实现。
-  const projSrc = ['function readProjectionMode(', 'function projectionUsesSnapshot(', 'function hhmmOf(', 'function snapshotRowFor(', 'function lastKnownDetailAtMs(', 'function detailFromRow(', 'function knownBlockedNodes(', 'function rowHasDetail(', 'function detailViewFor(']
+  // #1864：正文格与关系区的判据（bodySlotOf / relationsUnknownOf / relationsNoticeOf）与把它们挂到
+  //   视图结果上的 withSlots 也按同一口径切真身；顺序按依赖先后拼。
+  // #1866：withSlots 多挂了一条评论可写判据（commentsAvailableOf），同样切真身 —— 塞一个恒真桩会让
+  //   「库里评论组不知道时不给输入框」这条判据在这扇门禁里测不到真实现。
+  const projSrc = ['function readProjectionMode(', 'function projectionUsesSnapshot(', 'function hhmmOf(', 'function snapshotRowFor(', 'function lastKnownDetailAtMs(', 'function detailFromRow(', 'function knownBlockedNodes(', 'function rowHasDetail(', 'function bodySlotOf(', 'function relationsUnknownOf(', 'function relationsNoticeOf(', 'function commentsAvailableOf(', 'function withSlots(', 'function detailViewFor(']
     .map(function (header) { return extractFn(bundle, header) }).join('\n')
   const dir = mkdtempSync(join(tmpdir(), 'dsws693-'))
   const code = shim + motionSrc + '\n' + projSrc + '\n' + foldHookSrc + '\n' + errViewSrc + '\n' + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'

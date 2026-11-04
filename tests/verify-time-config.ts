@@ -132,6 +132,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/registry/quota-sync-bridge.ts', access: 'QUOTA_SYNC_MAX_COOLDOWN_MS', gen: 'QUOTA_SYNC_MAX_COOLDOWN_MS', key: 'quotaSyncMaxCooldownMs' },
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'DECK_LOCAL_READ_TIMEOUT_MS', gen: 'DECK_LOCAL_READ_TIMEOUT_MS', key: 'deckLocalReadMs' },
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'SHELL_RESOLVE_TIMEOUT_MS', gen: 'SHELL_RESOLVE_TIMEOUT_MS', key: 'shellResolveMs' },
+  // #1864：详情在本地快照库里的新鲜度（config/ttl.yaml 的 issueDetailLocalTtlMs）。
+  { file: 'src/refresh/rooms/host/comment-thread-fetch.ts', access: 'ISSUE_DETAIL_LOCAL_TTL_MS', gen: 'ISSUE_DETAIL_LOCAL_TTL_MS', key: 'issueDetailLocalTtlMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'DEFER_EXPIRY_MS', gen: 'DEFER_EXPIRY_MS', key: 'deferExpiryMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
@@ -256,6 +258,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/client/kernel/api-handoff.ts', access: 'CLIENT_HANDOFF_DELAY_MS', gen: 'CLIENT_HANDOFF_DELAY_MS', key: 'clientHandoffDelayMs' },
   { file: 'src/client/views/primitives/Tip.ts', access: 'TIP_SHOW_DELAY_MS', gen: 'TIP_SHOW_DELAY_MS', key: 'tipShowDelayMs' },
   { file: 'src/client/views/primitives/Tip.ts', access: 'TIP_HIDE_DELAY_MS', gen: 'TIP_HIDE_DELAY_MS', key: 'tipHideDelayMs' },
+  // #1862 工作区快照库的单写者租约：心跳与过期两个时长，分别出自 config/intervals.yaml 与 config/ttl.yaml。
+  { file: 'src/workspace-snapshot/runtime/lease.ts', access: 'LEASE_HEARTBEAT_MS', gen: 'SNAPSHOT_LEASE_HEARTBEAT_MS', key: 'snapshotLeaseHeartbeatMs' },
+  { file: 'src/workspace-snapshot/runtime/lease.ts', access: 'LEASE_TTL_MS', gen: 'SNAPSHOT_LEASE_TTL_MS', key: 'snapshotLeaseTtlMs' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -432,6 +437,10 @@ const EXEMPTS: ExemptRow[] = [
   // #1829：改动页同步事实行的「远端跟踪分支更新于」，值来自首屏聚合读的快照，不是本文件决定的可调时长。
   { file: 'src/client/views/versionControl/vcRealModel.ts', name: 'basisMs', reason: '读数快照里的远端跟踪分支时刻（宿主首屏聚合读给），不是本文件决定的可调时长' },
   { file: 'src/client/views/ListTab.ts', name: 'atMs', reason: '透传 KPI 投影里的上次校准时刻（只用于格式化成 HH:mm），不是可调参数' },
+  // #1864：详情投影里的「上次已知时刻」与「按需细节被淘汰时的上次已知时刻」都是读钟记下来的值，
+  //   只用于格式化成 HH:mm 给界面看，调 YAML 改不了它们。
+  { file: 'src/client/views/shared/detailProjection.ts', name: 'atMs', reason: '详情回包里的上次已知时刻（读钟记下的值），只用于格式化成 HH:mm，不是可调参数' },
+  { file: 'src/client/views/shared/detailProjection.ts', name: 'evictedAtMs', reason: '按需细节被淘汰时行上记号里的上次已知时刻，只用于格式化成 HH:mm，不是可调参数' },
   // #1698：计数判定读钟、企业版能力探测时刻，都是读钟记下来的值，不是可调参数。
   { file: 'src/tracker/deck-counts.ts', name: 'nowMs', reason: '读钟时刻（Date.now 的注入口），用来标计数「什么时候校准的」，不是可调参数' },
   { file: 'src/tracker/rooms/github/routing/runtime-capability.ts', name: 'probedAtMs', reason: '探测发生的时刻（读钟记录，只用于在答案里标「何时探的」），不是可调参数' },
@@ -488,7 +497,6 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/notification-store.ts', name: 'nowMs', reason: '读钟函数（Date.now 的包法，测试可注入），不是可调参数' },
   // #1694：详情投影标「上次数据」用的是快照合并组里最大的那个时刻，是算出来的时刻，调 YAML 改不了它。
   { file: 'src/client/views/shared/detailProjection.ts', name: 'lastKnownAtMs', reason: '算出来的时刻（投影里取快照合并组最大的 atMs，界面格式化成 HH:mm），不是可调参数' },
-  { file: 'src/refresh/rooms/host/detail-snapshot-merge.ts', name: 'atMs', reason: '读钟时刻（nowOf() 取到的合并时刻，用于 generatedMs 与令牌起点），不是可调参数' },
   // #1696：地图子票首帧归一与补回住在 snapshotAssemble.ts，补回时刻写进 map.carry.at 供界面说「上次数据」。
   { file: 'src/host/tracker/snapshotAssemble.ts', name: 'nowMs', reason: '读钟时刻（补回上次已知子票时写进 map.carry.at，界面显示上次数据时间用），不是可调参数' },
   // —— 存量 JavaScript（覆盖率扫描从 .ts 扩到 .js 后新捞出来的）——
@@ -622,6 +630,9 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/quota-observer.ts', name: 'ageMs', reason: '算出来的时间差（距上次服务端读数多久），不是可调参数' },
   { file: 'src/refresh/rooms/host/quota-observer.ts', name: 'latencyMs', reason: '测量用耗时（操作收尾时算出来的这一笔花了多久），不是可调参数' },
   { file: 'src/refresh/rooms/host/quota-observer.ts', name: 'failsInWindow', reason: '计数（这一窗里失败几次），名字带 Window 但不是毫秒数' },
+  // #1862 工作区快照库：租约与开库诊断路径上的两个名字是读钟或测量值，不是可调时长。
+  { file: 'src/workspace-snapshot/runtime/lease.ts', name: 'nowMs', reason: '读钟时刻（调用方注入的时钟），抢租约与续租时写进 meta，不是可调参数' },
+  { file: 'src/workspace-snapshot/runtime/open.ts', name: 'elapsedMs', reason: '测量用局部变量（开库耗时），写进诊断日志，不是可调参数' },
 ]
 
 // 时间味判定，两类都认：

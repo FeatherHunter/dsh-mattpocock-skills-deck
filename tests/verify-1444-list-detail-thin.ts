@@ -20,6 +20,9 @@ let total = 0
 const check = (ok: any, msg: string) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const imp = (rel: string) => import(require('node:url').pathToFileURL(path.join(ROOT, rel)).href)
 const CWD = 'C:/ws/demo'
+const REPO_REF = 'o/r'
+// #1870：详情那段用到生产里的 comment-thread-fetch；在 main 里加载一次，助手函数要用。
+let mod: any = null
 
 // 契约票的最小形状：会话交回来的就是这一份（房间已经归一过，state 是小写）。
 function issueOf(n: number, over?: any): any {
@@ -51,7 +54,9 @@ function sessionOf(world: any) {
     },
     get: async (ref: any, key: any, opts: any, ctx: any) => {
       calls.get.push({ ref: ref, key: String(key), opts: opts, ctx: ctx })
-      const hit = (world.gets || {})[String(key)]
+      // 生产里详情按本地 Markdown 的补零键去问（'07'）；房间按数字归一，这里照房间的口径找。
+      const norm = /^0*\d+$/.test(String(key)) ? String(Number(key)) : String(key)
+      const hit = (world.gets || {})[norm]
       if (hit) return hit
       return { ok: false, error: { kind: 'notFound', message: '找不到 #' + key, raw: '' } }
     },
@@ -68,13 +73,28 @@ function sessionOf(world: any) {
   return { session: session, calls: calls }
 }
 function openerOf(session: any, backendId?: string) {
-  return async () => ({ ok: true, backendId: backendId || 'markdown', budget: {}, call: (fn: any) => fn(session, { cwd: CWD, caller: 'refresh' }) })
+  // #1870：详情那条宿主方法要 opened.repoRef（读路径不再自己 describe），这里与生产会话回包同形。
+  return async () => ({ ok: true, backendId: backendId || 'markdown', budget: {}, repoRef: { backend: backendId || 'markdown', refId: REPO_REF, name: REPO_REF, url: '' }, call: (fn: any) => fn(session, { cwd: CWD, caller: 'refresh' }) })
+}
+
+/**
+ * 生产里那条详情宿主方法（comment-thread-fetch）的假宿主：只替会话，其余都是真件。
+ * execProc 走到就算「有人绕开会话直调外部命令」，由调用方记账。
+ */
+function commentThreadsOf(opener: any, onExec: () => void) {
+  return mod.createCommentThreads({
+    normCwd: async (c: any) => c,
+    errText: (e: any) => String((e && e.message) || e),
+    execProc: async () => { onExec(); throw new Error('详情房不该直调外部命令') },
+    setCache: () => {}, getCache: () => null,
+    openSession: opener,
+  })
 }
 
 async function main() {
   console.log('刷新后台四条读路径经只读会话（#1444）')
   const listMod = await imp('src/refresh/rooms/host/issue-list-fetch.js')
-  const detailMod = await imp('src/refresh/rooms/host/issue-detail-fetch.js')
+  mod = await imp('src/refresh/rooms/host/comment-thread-fetch.js')
   const thinMod = await imp('src/refresh/rooms/host/thin-row-fetch.js')
   const win = await imp('src/refresh/kernel/index-window-rules.js')
   const contract = await imp('src/tracker/contract/pagination.js')
@@ -156,41 +176,34 @@ async function main() {
     check(failedIdx && failedIdx.ok === false && failedIdx.error.kind === 'network', '索引能力失败时回 {ok:false,error}（kind 原样）')
   }
 
-  // ---- ③ 详情：get + getDependencies，GraphQL 形状不变，失败如实 ----
+  // ---- ③ 详情：经会话 get，连接形状不变，失败如实 ----
+  // #1870：旧的单票详情直取模块（issue-detail-fetch.ts）退役，这一段改驱动生产里那条
+  // comment-thread-fetch.handleIssueDetail（库里有详情就先读库，没有才经会话 get）。
+  // isPullRequest / mergedAt / reviews 三格不再由详情回包给（改由快照行与读投影给），
+  // 这里只钉回包形状、评论一页与失败口径。
   {
-    const issue7 = issueOf(7, { comments: [{ author: { login: 'c1' }, authorAssociation: 'MEMBER', body: '评论', createdAt: '2026-09-02T00:00:00Z', updatedAt: '2026-09-02T00:00:00Z' }] })
+    const issue7 = issueOf(7, { blockedBy: [{ key: '1', title: '阻塞票', state: 'open' }], comments: [{ author: { login: 'c1' }, authorAssociation: 'MEMBER', body: '评论', createdAt: '2026-09-02T00:00:00Z', updatedAt: '2026-09-02T00:00:00Z' }] })
     const pr8 = issueOf(8, { isPullRequest: true, state: 'closed', mergedAt: '2026-09-03T00:00:00Z', reviews: [{ state: 'APPROVED', reviewer: { login: 'rv' }, submittedAt: '2026-09-03T00:00:00Z' }] })
     const world = { gets: { '7': { ok: true, data: issue7 }, '8': { ok: true, data: pr8 } } }
     const s = sessionOf(world)
-    let runGhCalls = 0
-    const detail = detailMod.createIssueDetail({
-      getRepoKey: async () => ({ owner: 'o', name: 'r' }),
-      runGh: () => { runGhCalls += 1; return { ok: false } },
-      openSession: openerOf(s.session),
-    })
-    const d7 = await detail.fetchIssueDetail(7, CWD)
+    let execCalls = 0
+    const detail = commentThreadsOf(openerOf(s.session), function () { execCalls += 1 })
+    const d7 = await detail.handleIssueDetail({ number: 7, cwd: CWD })
     check(d7 && d7.ok === true && d7.issue.number === 7 && d7.issue.state === 'OPEN', '详情回 {ok:true, issue}，状态仍大写')
     check(Array.isArray(d7.issue.labels.nodes) && d7.issue.labels.nodes[0].name === 'wayfinder:map' && d7.issue.assignees.nodes[0].login === 'me', 'labels/assignees 仍是 {nodes} 连接')
     check(d7.issue.comments.nodes.length === 1 && d7.issue.comments.pageInfo.hasNextPage === false, '评论仍是 {nodes, pageInfo}')
-    check(d7.issue.blockedBy.nodes[0].number === 1 && d7.issue.blockedBy.nodes[0].state === 'OPEN' && Array.isArray(d7.issue.blocking.nodes), '阻塞边仍是 {nodes:[{number,title,state}]}')
+    check(d7.issue.blockedBy.nodes[0].number === 1 && d7.issue.blockedBy.nodes[0].state === 'OPEN' && Array.isArray(d7.issue.blocking.nodes), '阻塞边仍是 {nodes:[{number,title,state}]}（这一趟 get 自带的那一份）')
     check(d7.issue.subIssues && d7.issue.subIssues.totalCount === 0 && Array.isArray(d7.issue.subIssues.nodes), 'subIssues 给空连接（子票清单仍由快照/地图那条路提供）')
     check(s.calls.get[0].opts && s.calls.get[0].opts.comments.first === 50 && s.calls.get[0].ctx.caller === 'refresh', 'get 只带一页 50 条评论与 caller=refresh')
-    check(s.calls.deps.length === 1, '阻塞边单独问一次 getDependencies')
-    check(runGhCalls === 0, '详情路径零 runGh（实发 ' + runGhCalls + ' 次）')
-    const d8 = await detail.fetchIssueDetail(8, CWD, { isPullRequest: true })
-    check(d8 && d8.ok === true && d8.issue.isPullRequest === true && d8.issue.mergedAt === '2026-09-03T00:00:00Z' && d8.issue.reviews[0].author.login === 'rv', '拉取请求字段照旧（isPullRequest/mergedAt/reviews.author）')
-    const dMiss = await detail.fetchIssueDetail(99, CWD)
+    check(s.calls.deps.length === 0, '详情不再单独问 getDependencies（入边来自这一趟 get 自带的那一份）')
+    check(execCalls === 0, '详情路径零外部命令（实发 ' + execCalls + ' 次）')
+    const d8 = await detail.handleIssueDetail({ number: 8, cwd: CWD })
+    check(d8 && d8.ok === true && d8.issue.number === 8 && d8.issue.state === 'CLOSED' && Array.isArray(d8.issue.comments.nodes), '拉取请求号照样打开（状态大写、评论连接在；PR 标记与评审留在快照行那一份）')
+    const dMiss = await detail.handleIssueDetail({ number: 99, cwd: CWD })
     check(dMiss && dMiss.ok === false && dMiss.error.kind === 'notFound', '单票未命中时回 {ok:false, kind:notFound}')
 
-    // 阻塞边那一问失败：详情不能崩，入边退回 get 自带的那一份。
-    const withBlocked = issueOf(10, { blockedBy: [{ key: '1', title: '自带入边', state: 'open' }] })
-    const s2 = sessionOf({ gets: { '10': { ok: true, data: withBlocked } }, depsFails: true })
-    const detail2 = detailMod.createIssueDetail({ getRepoKey: async () => ({ owner: 'o', name: 'r' }), openSession: openerOf(s2.session) })
-    const d10 = await detail2.fetchIssueDetail(10, CWD)
-    check(d10 && d10.ok === true && d10.issue.blockedBy.nodes[0].number === 1 && d10.issue.blocking.nodes.length === 0, 'getDependencies 失败只退化阻塞边，详情照常显示')
-
-    const openFail = detailMod.createIssueDetail({ getRepoKey: async () => ({ owner: 'o', name: 'r' }), openSession: async () => ({ ok: false, reason: 'no-backend' }) })
-    const dOpen = await openFail.fetchIssueDetail(7, CWD)
+    const openFail = commentThreadsOf(async () => ({ ok: false, reason: 'no-backend' }), function () {})
+    const dOpen = await openFail.handleIssueDetail({ number: 7, cwd: CWD })
     check(dOpen && dOpen.ok === false && dOpen.error.kind === 'env' && /no-backend/.test(dOpen.error.message), '开会话失败回 {ok:false, error:env}（上层照旧降级回缓存）')
   }
 
@@ -233,7 +246,8 @@ async function main() {
   // ---- ⑥ 静态：四条路径零直调 gh、零 gate.send，REST 导出已删 ----
   {
     const stripComments = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, '').split(/\r?\n/).map((l: string) => { const i = l.indexOf('//'); return i >= 0 ? l.slice(0, i) : l }).join('\n')
-    const files = ['issue-list-fetch.ts', 'issue-detail-fetch.ts', 'thin-row-fetch.ts']
+    // #1870：旧的单票详情直取模块已删，名单里换成生产里的详情宿主方法。
+    const files = ['issue-list-fetch.ts', 'comment-thread-fetch.ts', 'thin-row-fetch.ts']
     for (const name of files) {
       const src = stripComments(fs.readFileSync(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', name), 'utf8'))
       check(src.indexOf('runGh(') < 0, name + ' 里没有 runGh( 直调')
@@ -241,8 +255,7 @@ async function main() {
     }
     const list = listMod.createIssueList({ getRepoKey: async () => null, setCache: () => {}, issueIndexFromSnapshot: () => null, issueIndexChanged: () => false, rememberIssueIndex: () => {}, readDiskCache: async () => null })
     check(typeof list.fetchMapsDetailREST === 'undefined' && typeof list.fetchAllIssuesManual === 'undefined' && typeof list.fetchAllIndexManual === 'undefined', '地图 REST 兜底与两段手工分页已从回包删除')
-    const detail = detailMod.createIssueDetail({ getRepoKey: async () => null })
-    check(typeof detail.fetchIssueDetailREST === 'undefined', '详情 REST 直取口已从回包删除')
+    check(typeof mod.createIssueDetail === 'undefined' && typeof mod.createCommentThreads === 'function', '详情只剩生产里那一份宿主方法（旧的直取工厂已删）')
   }
 
   console.log('\n' + (failed ? '存在失败 — #1444 四条读路径门禁未通过' : '全部通过 — 四条读路径只走只读会话（' + total + ' 条断言）'))

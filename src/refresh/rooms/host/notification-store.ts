@@ -38,7 +38,7 @@ import {
 } from '../../kernel/notification-events.js'
 import type { NotificationEvent } from '../../kernel/notification-events.js'
 
-/** 事件文件名前缀：与快照的 owner__name.json 同目录、不同名，一眼能认出是事件库。 */
+/** 事件文件名前缀：与旧快照文件同目录、不同名，一眼能认出是事件库。 */
 const FILE_PREFIX = 'notification-events__'
 const FILE_SUFFIX = '.json'
 
@@ -104,7 +104,7 @@ export function createNotificationStore(deps: unknown) {
       if (!dir) return null
       const platform = (await Promise.resolve(typeof d.getPlatform === 'function' ? d.getPlatform() : null)) as any
       if (!platform || !platform.path || typeof platform.path.join !== 'function' || !platform.fs || typeof platform.fs.resolve !== 'function') return null
-      // 与快照的 owner__name.json 同一种命名：斜杠换成双下划线（单下划线留给名字里本来就有的字符）。
+      // 与旧快照文件同一种命名：斜杠换成双下划线（单下划线留给名字里本来就有的字符）。
       const name = FILE_PREFIX + repo.split('/').map(function (part: string) { return part.replace(/[^A-Za-z0-9._-]/g, '_') }).join('__') + FILE_SUFFIX
       return await platform.fs.resolve(platform.path.join(String(dir), name))
     } catch (e) { return null }

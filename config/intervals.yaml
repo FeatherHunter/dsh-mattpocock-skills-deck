@@ -115,6 +115,12 @@ intervals:
   # 陈旧判定（见 ttl 那一档的 buildLockStaleMs）按心跳的新鲜度来，所以这一档必须远小于那一档（#1365）。
   buildLockHeartbeatMs: 15000
 
+  # —— 工作区快照库的单写者租约（#1862，规格 #1861）——
+  # 写者每 5 秒续一次租约：这是「谁是这轮合并的唯一写者」的存活证明，只写 meta 一行、不出网。
+  # 与 ttl.yaml 的 snapshotLeaseTtlMs（15 秒）成对使用，那是一张租约多久没续可以被别人接手；
+  # 心跳必须远小于过期时间，否则一次卡顿就会把租约弄丢。
+  snapshotLeaseHeartbeatMs: 5000
+
   # —— 配额与限流诊断的判定窗（#1627）——
   # 同一限流类别的告警去重窗：60 秒。同一个 rateClass 60 秒内只写一条 quota.incident。
   quotaIncidentDedupeMs: 60000

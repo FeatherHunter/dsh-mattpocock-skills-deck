@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T19:17:42.961Z",
+  "generatedAt": "2026-11-04T20:04:55.647Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 554,
-  "gateCount": 554,
-  "attributedGates": 498,
+  "chainLength": 571,
+  "gateCount": 571,
+  "attributedGates": 515,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 96,
-  "smokeLength": 5,
-  "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 867,
+  "completionRecordedGates": 114,
+  "smokeLength": 8,
+  "smokeCompletionRecordedGates": 5,
+  "graphFileCount": 900,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -76,6 +76,8 @@
         "package/shared",
         "package/tracker",
         "package/tracker/index.js",
+        "package/workspace-snapshot",
+        "package/workspace-snapshot/contract/index.js",
         "scripts/generated/baseClient.derived.js",
         "scripts/generated/logKernel.derived.js",
         "scripts/generated/updateClient.derived.js",
@@ -100,6 +102,8 @@
         "package/refresh/kernel",
         "package/shared",
         "package/tracker",
+        "package/workspace-snapshot",
+        "package/workspace-snapshot/contract",
         "scripts/generated",
         "scripts/lib",
         "src",
@@ -114,7 +118,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 15 条；源码里的路径字面量 16 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 17 条；源码里的路径字面量 16 条"
     },
     {
       "step": "node tests/verify-build-cwd-products.ts",
@@ -803,6 +807,7 @@
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/gitlab/index.ts",
+        "src/workspace-snapshot",
         "tests/same-layer-baseline.json",
         "tests/tracker-room-imports.json"
       ],
@@ -823,13 +828,14 @@
         "src/tracker/contract",
         "src/tracker/registry",
         "src/tracker/rooms/gitlab",
+        "src/workspace-snapshot",
         "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 20 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 21 条"
     },
     {
       "step": "node tests/verify-gate-map.ts",
@@ -1444,7 +1450,6 @@
         "src/refresh/registry/deck-tool-bridge.ts",
         "src/refresh/rooms/host/comment-thread-fetch.ts",
         "src/refresh/rooms/host/refresh-runtime.ts",
-        "src/refresh/rooms/host/snapshot-build.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -1462,7 +1467,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 2 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 2 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1125-gate-coverage.ts",
@@ -1975,7 +1980,6 @@
         "src/host/mapTickets.ts",
         "src/host/ticketGrouping.ts",
         "src/refresh/rooms/host/session-opener.ts",
-        "src/refresh/rooms/host/snapshot-build.ts",
         "src/tracker/rooms/github"
       ],
       "dirs": [
@@ -1986,8 +1990,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 95,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+      "expectedAssertions": 28,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
       "step": "node tests/verify-1245-plan-resume.ts",
@@ -2967,7 +2971,7 @@
       "guards": [
         "src/refresh/kernel/index-window-rules.ts",
         "src/refresh/rooms/host",
-        "src/refresh/rooms/host/issue-detail-fetch.ts",
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/refresh/rooms/host/thin-row-fetch.ts",
         "src/tracker/contract/pagination.ts"
@@ -2982,24 +2986,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
-    },
-    {
-      "step": "node tests/verify-1444-snapshot.ts",
-      "file": "tests/verify-1444-snapshot.ts",
-      "guards": [
-        "src/host/mapBody.ts",
-        "src/host/ticketGrouping.ts",
-        "src/refresh/rooms/host/snapshot-build.ts"
-      ],
-      "dirs": [
-        "src/host",
-        "src/refresh/rooms/host"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-1446-backend-ledger.ts",
@@ -3989,19 +3975,17 @@
       "file": "tests/verify-1548-map-row-nav.ts",
       "guards": [
         "src/client/kernel/store-derived.ts",
-        "src/client/views/shared/workRouteTable.ts",
-        "src/refresh/rooms/host/snapshot-build.ts"
+        "src/client/views/shared/workRouteTable.ts"
       ],
       "dirs": [
         "src/client/kernel",
-        "src/client/views/shared",
-        "src/refresh/rooms/host"
+        "src/client/views/shared"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-1555-gitlab-claim-declaration.ts",
@@ -5421,7 +5405,6 @@
       "file": "tests/verify-1692-disk-replay-eviction.ts",
       "guards": [
         "src/refresh/kernel/detail-eviction.ts",
-        "src/refresh/kernel/disk-snapshot-format.ts",
         "src/refresh/rooms/host/git-execution.ts"
       ],
       "dirs": [
@@ -5431,8 +5414,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 85,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+      "expectedAssertions": 55,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-1706-gitlab-project.ts",
@@ -6396,6 +6379,335 @@
       "reason": "归属来自：静态 import 说明符 5 条"
     },
     {
+      "step": "node tests/verify-1862-snapshot-database.ts",
+      "file": "tests/verify-1862-snapshot-database.ts",
+      "guards": [
+        "src/workspace-snapshot"
+      ],
+      "dirs": [
+        "src/workspace-snapshot"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 28,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1862-snapshot-merge.ts",
+      "file": "tests/verify-1862-snapshot-merge.ts",
+      "guards": [
+        "src/workspace-snapshot"
+      ],
+      "dirs": [
+        "src/workspace-snapshot"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 18,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1863-snapshot-cold-start.ts",
+      "file": "tests/verify-1863-snapshot-cold-start.ts",
+      "guards": [
+        "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 35,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1863-snapshot-edges.ts",
+      "file": "tests/verify-1863-snapshot-edges.ts",
+      "guards": [
+        "src/workspace-snapshot"
+      ],
+      "dirs": [
+        "src/workspace-snapshot"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 27,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1863-snapshot-library-replay.ts",
+      "file": "tests/verify-1863-snapshot-library-replay.ts",
+      "guards": [
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 18,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1864-snapshot-detail-replay.ts",
+      "file": "tests/verify-1864-snapshot-detail-replay.ts",
+      "guards": [
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 35,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1864-snapshot-detail-view.ts",
+      "file": "tests/verify-1864-snapshot-detail-view.ts",
+      "guards": [
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/shared/detailProjection.ts"
+      ],
+      "dirs": [
+        "src/client/views",
+        "src/client/views/shared"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 25,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1864-snapshot-detail.ts",
+      "file": "tests/verify-1864-snapshot-detail.ts",
+      "guards": [
+        "src/workspace-snapshot"
+      ],
+      "dirs": [
+        "src/workspace-snapshot"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 47,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1865-snapshot-comments-replay.ts",
+      "file": "tests/verify-1865-snapshot-comments-replay.ts",
+      "guards": [
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/snapshot-library-view.ts",
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 53,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1865-snapshot-comments.ts",
+      "file": "tests/verify-1865-snapshot-comments.ts",
+      "guards": [
+        "src/workspace-snapshot"
+      ],
+      "dirs": [
+        "src/workspace-snapshot"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 46,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1866-write-receipt-replay.ts",
+      "file": "tests/verify-1866-write-receipt-replay.ts",
+      "guards": [
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/patch-wiring.ts",
+        "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/thin-row-fetch.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 27,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1866-write-receipt.ts",
+      "file": "tests/verify-1866-write-receipt.ts",
+      "guards": [
+        "src/refresh/rooms/host/snapshot-library-adapter.ts",
+        "src/refresh/rooms/host/snapshot-library.ts",
+        "src/workspace-snapshot/merge/paged.ts",
+        "src/workspace-snapshot/persistence/comment-write.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/workspace-snapshot/merge",
+        "src/workspace-snapshot/persistence"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 34,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1866-write-ui.ts",
+      "file": "tests/verify-1866-write-ui.ts",
+      "guards": [
+        "src/client/kernel/api-io.ts",
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/IssueDetailComments.ts",
+        "src/client/views/shared/detailProjection.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views",
+        "src/client/views/shared"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 19,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1867-snapshot-gitlab.ts",
+      "file": "tests/verify-1867-snapshot-gitlab.ts",
+      "guards": [
+        "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/snapshot-library-adapter.ts",
+        "src/refresh/rooms/host/snapshot-library-first-screen.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 51,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1868-snapshot-markdown.ts",
+      "file": "tests/verify-1868-snapshot-markdown.ts",
+      "guards": [
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/snapshot-library-adapter.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 44,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1869-ingest-crash.ts",
+      "file": "tests/verify-1869-ingest-crash.ts",
+      "guards": [
+        "src/refresh/rooms/host/snapshot-library.ts",
+        "src/workspace-snapshot/runtime/ingest.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/workspace-snapshot/runtime"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 13,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1869-offline-first-screen.ts",
+      "file": "tests/verify-1869-offline-first-screen.ts",
+      "guards": [
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/snapshot-library-first-screen.ts",
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 39,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1869-refresh-write.ts",
+      "file": "tests/verify-1869-refresh-write.ts",
+      "guards": [
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 18,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1869-snapshot-log.ts",
+      "file": "tests/verify-1869-snapshot-log.ts",
+      "guards": [
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 32,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1870-index-baseline.ts",
+      "file": "tests/verify-1870-index-baseline.ts",
+      "guards": [
+        "src/refresh/rooms/host/issue-index-scan.ts",
+        "src/refresh/rooms/host/issue-list-fetch.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 27,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
       "step": "node tests/verify-1879-suggest-deck-gate.ts",
       "file": "tests/verify-1879-suggest-deck-gate.ts",
       "guards": [
@@ -6571,7 +6883,7 @@
       "step": "node tests/verify-524-pr-detail.ts",
       "file": "tests/verify-524-pr-detail.ts",
       "guards": [
-        "src/refresh/rooms/host/issue-detail-fetch.ts"
+        "src/refresh/rooms/host/comment-thread-fetch.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host"
@@ -8805,24 +9117,6 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
-      "step": "node tests/verify-acceptance-four.ts",
-      "file": "tests/verify-acceptance-four.ts",
-      "guards": [
-        "src/client/views/shared/detailProjection.ts",
-        "src/refresh/rooms/host/detail-snapshot-merge.ts",
-        "src/refresh/rooms/host/row-patch.ts"
-      ],
-      "dirs": [
-        "src/client/views/shared",
-        "src/refresh/rooms/host"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": true,
-      "expectedAssertions": 27,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
-    },
-    {
       "step": "node tests/verify-attention-model.ts",
       "file": "tests/verify-attention-model.ts",
       "guards": [
@@ -9393,24 +9687,6 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
-      "step": "node tests/verify-detail-incremental.ts",
-      "file": "tests/verify-detail-incremental.ts",
-      "guards": [
-        "src/refresh/kernel/snapshot-merge.ts",
-        "src/refresh/rooms/host/comment-thread-fetch.ts",
-        "src/refresh/rooms/host/detail-snapshot-merge.ts"
-      ],
-      "dirs": [
-        "src/refresh/kernel",
-        "src/refresh/rooms/host"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": true,
-      "expectedAssertions": 31,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
-    },
-    {
       "step": "node tests/verify-detail-levels.ts",
       "file": "tests/verify-detail-levels.ts",
       "guards": [
@@ -9690,7 +9966,6 @@
         "config/intervals.yaml",
         "src/refresh/kernel/fallback-fetch-budget.ts",
         "src/refresh/kernel/host-budget.ts",
-        "src/refresh/rooms/host/issue-detail-fetch.ts",
         "src/refresh/rooms/host/issue-index-scan.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/refresh/rooms/host/probe-handler.ts",
@@ -9705,7 +9980,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 8 条"
+      "reason": "归属来自：源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-field-tri-state.ts",
@@ -10474,7 +10749,8 @@
         "src/deck",
         "src/host",
         "src/refresh",
-        "src/tracker"
+        "src/tracker",
+        "src/workspace-snapshot"
       ],
       "dirs": [
         "research",
@@ -10482,13 +10758,14 @@
         "src/deck",
         "src/host",
         "src/refresh",
-        "src/tracker"
+        "src/tracker",
+        "src/workspace-snapshot"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条"
     },
     {
       "step": "node tests/verify-log-exec-606.ts",
@@ -10531,7 +10808,8 @@
         "src/refresh/rooms/host/row-patch.ts",
         "src/refresh/rooms/host/write-event-fetch.ts",
         "src/tracker",
-        "src/tracker/rooms/markdown/label-colors.ts"
+        "src/tracker/rooms/markdown/label-colors.ts",
+        "src/workspace-snapshot"
       ],
       "dirs": [
         "src/client",
@@ -10542,13 +10820,14 @@
         "src/refresh/rooms/client",
         "src/refresh/rooms/host",
         "src/tracker",
-        "src/tracker/rooms/markdown"
+        "src/tracker/rooms/markdown",
+        "src/workspace-snapshot"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 10 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-log-selfmon.ts",
@@ -11202,7 +11481,6 @@
         "src/host/index.ts",
         "src/host/mapBody.ts",
         "src/host/ticketGrouping.ts",
-        "src/refresh/rooms/host/issue-detail-fetch.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/tracker/body-parse.ts",
         "src/tracker/kernel/grouping.ts",
@@ -11224,7 +11502,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-platform-contract.ts",
@@ -11916,19 +12194,17 @@
       "file": "tests/verify-single-read-source.ts",
       "guards": [
         "src/client/kernel/api-io.ts",
-        "src/client/views/shared/detailProjection.ts",
-        "src/refresh/rooms/host/detail-snapshot-merge.ts"
+        "src/client/views/shared/detailProjection.ts"
       ],
       "dirs": [
         "src/client/kernel",
-        "src/client/views/shared",
-        "src/refresh/rooms/host"
+        "src/client/views/shared"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 25,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+      "expectedAssertions": 23,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-skill-detail-stack.ts",
@@ -12098,10 +12374,13 @@
       "step": "node tests/verify-t1-getrepokey.ts",
       "file": "tests/verify-t1-getrepokey.ts",
       "guards": [
+        "docs/agents",
+        "docs/agents/workspace.yaml",
         "package/lib/index.js",
         "src/refresh/rooms/host/outbound-control.ts"
       ],
       "dirs": [
+        "docs/agents",
         "package/lib",
         "src/refresh/rooms/host"
       ],
@@ -12109,7 +12388,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
       "step": "node tests/verify-t1-initpublish.ts",
@@ -12310,7 +12589,7 @@
         "src/refresh/rooms/host/chain-backoff.ts",
         "src/refresh/rooms/host/chain-coalescing.ts",
         "src/refresh/rooms/host/check-chain-evaluation.ts",
-        "src/refresh/rooms/host/detail-snapshot-merge.ts",
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
         "src/refresh/rooms/host/gh-execution.ts",
         "src/refresh/rooms/host/host-attention.ts",
         "src/refresh/rooms/host/issue-index-scan.ts",
@@ -12347,6 +12626,8 @@
         "src/tracker/rooms/github/transport/client.ts",
         "src/tracker/rooms/gitlab/client.ts",
         "src/tracker/rooms/markdown/scratch-listing.ts",
+        "src/workspace-snapshot/runtime/lease.ts",
+        "src/workspace-snapshot/runtime/open.ts",
         "tests/verify-time-config.ts"
       ],
       "dirs": [
@@ -12388,13 +12669,14 @@
         "src/tracker/rooms/github/transport",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown",
+        "src/workspace-snapshot/runtime",
         "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 166 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 168 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -12518,7 +12800,6 @@
         "src/host/workspaceCwd.ts",
         "src/refresh/rooms/host/session-refresh-schedule.ts",
         "src/refresh/rooms/host/session-snapshot-cache.ts",
-        "src/refresh/rooms/host/snapshot-build.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/ui-description.ts"
       ],
@@ -12532,7 +12813,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
       "step": "node tests/verify-ui-feedback.ts",
@@ -13075,6 +13356,27 @@
       "gate": "smoke-comment-passthrough",
       "completionRecord": false,
       "expectedAssertions": 0
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-snapshot-github.test.ts",
+      "file": "tests/smoke-snapshot-github.test.ts",
+      "gate": "smoke-snapshot-github",
+      "completionRecord": true,
+      "expectedAssertions": 5
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-snapshot-gitlab.test.ts",
+      "file": "tests/smoke-snapshot-gitlab.test.ts",
+      "gate": "smoke-snapshot-gitlab",
+      "completionRecord": true,
+      "expectedAssertions": 5
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-snapshot-markdown.test.ts",
+      "file": "tests/smoke-snapshot-markdown.test.ts",
+      "gate": "smoke-snapshot-markdown",
+      "completionRecord": true,
+      "expectedAssertions": 5
     }
   ],
   "byDir": {
@@ -13150,6 +13452,7 @@
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-issue-body-script.ts",
+      "node tests/verify-t1-getrepokey.ts",
       "node tests/verify-wire-subissues-script.ts"
     ],
     "docs/architecture": [
@@ -13319,6 +13622,12 @@
     ],
     "package/tracker/contract": [
       "node tests/verify-labels-sync.ts"
+    ],
+    "package/workspace-snapshot": [
+      "node tests/verify-build-artifacts.ts"
+    ],
+    "package/workspace-snapshot/contract": [
+      "node tests/verify-build-artifacts.ts"
     ],
     "research": [
       "node tests/verify-gate-map.ts",
@@ -13596,6 +13905,7 @@
       "node tests/verify-1792-card-action-gate.ts",
       "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-1833-list-sticky.ts",
+      "node tests/verify-1866-write-ui.ts",
       "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
@@ -13750,6 +14060,8 @@
       "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-1833-list-sticky.ts",
       "node tests/verify-1837-skill-importance.ts",
+      "node tests/verify-1864-snapshot-detail-view.ts",
+      "node tests/verify-1866-write-ui.ts",
       "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -13852,11 +14164,12 @@
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1783-comments-projection.ts",
+      "node tests/verify-1864-snapshot-detail-view.ts",
+      "node tests/verify-1866-write-ui.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-907-chain-titles.ts",
-      "node tests/verify-acceptance-four.ts",
       "node tests/verify-bug-entry.ts",
       "node tests/verify-diagnostic-log-actions.ts",
       "node tests/verify-hovertip.ts",
@@ -14071,7 +14384,6 @@
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1439-panel-accounting.ts",
       "node tests/verify-1443-static-gate.ts",
-      "node tests/verify-1444-snapshot.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1456-handoff-claim-write.ts",
@@ -14294,7 +14606,6 @@
       "node tests/verify-budget-worstcase.ts",
       "node tests/verify-delta-patch.ts",
       "node tests/verify-delta-wiring.ts",
-      "node tests/verify-detail-incremental.ts",
       "node tests/verify-event-budget.ts",
       "node tests/verify-fallback-fetch-budget.ts",
       "node tests/verify-gate-accounting.ts",
@@ -14396,7 +14707,6 @@
       "node tests/verify-1444-chain.ts",
       "node tests/verify-1444-comments.ts",
       "node tests/verify-1444-list-detail-thin.ts",
-      "node tests/verify-1444-snapshot.ts",
       "node tests/verify-1446-backend-ledger.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1446-receipts.ts",
@@ -14414,7 +14724,6 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1505-chain-env-selection.ts",
       "node tests/verify-1519-detail-comments.ts",
-      "node tests/verify-1548-map-row-nav.ts",
       "node tests/verify-1555-session-uses-decision.ts",
       "node tests/verify-1581-session-locators.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
@@ -14435,6 +14744,19 @@
       "node tests/verify-1831-read-timeout.ts",
       "node tests/verify-1839-async-registry.ts",
       "node tests/verify-1852-async-gate-model.ts",
+      "node tests/verify-1863-snapshot-cold-start.ts",
+      "node tests/verify-1863-snapshot-library-replay.ts",
+      "node tests/verify-1864-snapshot-detail-replay.ts",
+      "node tests/verify-1865-snapshot-comments-replay.ts",
+      "node tests/verify-1866-write-receipt-replay.ts",
+      "node tests/verify-1866-write-receipt.ts",
+      "node tests/verify-1867-snapshot-gitlab.ts",
+      "node tests/verify-1868-snapshot-markdown.ts",
+      "node tests/verify-1869-ingest-crash.ts",
+      "node tests/verify-1869-offline-first-screen.ts",
+      "node tests/verify-1869-refresh-write.ts",
+      "node tests/verify-1869-snapshot-log.ts",
+      "node tests/verify-1870-index-baseline.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -14465,14 +14787,12 @@
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-998-half-open.ts",
-      "node tests/verify-acceptance-four.ts",
       "node tests/verify-attention-model.ts",
       "node tests/verify-backend-quota-model.ts",
       "node tests/verify-budget-page-upper-bound.ts",
       "node tests/verify-closeout-log-trips.ts",
       "node tests/verify-delta-patch.ts",
       "node tests/verify-delta-wiring.ts",
-      "node tests/verify-detail-incremental.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-fallback-fetch-budget.ts",
       "node tests/verify-gate-accounting.ts",
@@ -14493,7 +14813,6 @@
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-reply-envelope-parity.ts",
-      "node tests/verify-single-read-source.ts",
       "node tests/verify-snapshot-cache-first.ts",
       "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-t1-getrepokey.ts",
@@ -15090,6 +15409,26 @@
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-tracker-session.ts"
     ],
+    "src/workspace-snapshot": [
+      "node tests/verify-dependency-rules.ts",
+      "node tests/verify-1862-snapshot-database.ts",
+      "node tests/verify-1862-snapshot-merge.ts",
+      "node tests/verify-1863-snapshot-edges.ts",
+      "node tests/verify-1864-snapshot-detail.ts",
+      "node tests/verify-1865-snapshot-comments.ts",
+      "node tests/verify-log-count.ts",
+      "node tests/verify-log-fields.ts"
+    ],
+    "src/workspace-snapshot/merge": [
+      "node tests/verify-1866-write-receipt.ts"
+    ],
+    "src/workspace-snapshot/persistence": [
+      "node tests/verify-1866-write-receipt.ts"
+    ],
+    "src/workspace-snapshot/runtime": [
+      "node tests/verify-1869-ingest-crash.ts",
+      "node tests/verify-time-config.ts"
+    ],
     "tests": [
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-tools-matrix.ts",
@@ -15382,12 +15721,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 888,
-    "dirCount": 84,
-    "coveredFileCount": 888,
+    "fileCount": 923,
+    "dirCount": 92,
+    "coveredFileCount": 923,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 68,
+    "dedicatedDirCount": 72,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -15889,7 +16228,6 @@
       "src/refresh/kernel/chain-pruning.ts",
       "src/refresh/kernel/create-write-policy.ts",
       "src/refresh/kernel/detail-eviction.ts",
-      "src/refresh/kernel/disk-snapshot-format.ts",
       "src/refresh/kernel/failure-backoff.ts",
       "src/refresh/kernel/failure-window.ts",
       "src/refresh/kernel/fallback-fetch-budget.ts",
@@ -15927,13 +16265,11 @@
       "src/refresh/rooms/host/chain-step-rows.ts",
       "src/refresh/rooms/host/check-chain-evaluation.ts",
       "src/refresh/rooms/host/comment-thread-fetch.ts",
-      "src/refresh/rooms/host/detail-snapshot-merge.ts",
       "src/refresh/rooms/host/failure-segment-notes.ts",
       "src/refresh/rooms/host/gh-execution.ts",
       "src/refresh/rooms/host/gh-run-report.ts",
       "src/refresh/rooms/host/git-execution.ts",
       "src/refresh/rooms/host/host-attention.ts",
-      "src/refresh/rooms/host/issue-detail-fetch.ts",
       "src/refresh/rooms/host/issue-index-scan.ts",
       "src/refresh/rooms/host/issue-list-fetch.ts",
       "src/refresh/rooms/host/notification-store.ts",
@@ -15956,8 +16292,11 @@
       "src/refresh/rooms/host/session-opener.ts",
       "src/refresh/rooms/host/session-refresh-schedule.ts",
       "src/refresh/rooms/host/session-snapshot-cache.ts",
-      "src/refresh/rooms/host/snapshot-build.ts",
       "src/refresh/rooms/host/snapshot-decoration.ts",
+      "src/refresh/rooms/host/snapshot-library-adapter.ts",
+      "src/refresh/rooms/host/snapshot-library-first-screen.ts",
+      "src/refresh/rooms/host/snapshot-library-view.ts",
+      "src/refresh/rooms/host/snapshot-library.ts",
       "src/refresh/rooms/host/thin-row-fetch.ts",
       "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
       "src/refresh/rooms/host/work-route-readout.ts",
@@ -16276,7 +16615,42 @@
       "src/tracker/session/pipeline.ts",
       "src/tracker/session/repo-ref.ts",
       "src/tracker/tsconfig.json",
-      "src/tracker/ui-description.ts"
+      "src/tracker/ui-description.ts",
+      "src/workspace-snapshot/README.md",
+      "src/workspace-snapshot/contract/index.ts",
+      "src/workspace-snapshot/contract/types.ts",
+      "src/workspace-snapshot/merge/collection.ts",
+      "src/workspace-snapshot/merge/paged.ts",
+      "src/workspace-snapshot/merge/row.ts",
+      "src/workspace-snapshot/merge/scalar.ts",
+      "src/workspace-snapshot/merge/version-gate.ts",
+      "src/workspace-snapshot/model/types.ts",
+      "src/workspace-snapshot/node-ambient.d.ts",
+      "src/workspace-snapshot/persistence/actor-write.ts",
+      "src/workspace-snapshot/persistence/comment-write.ts",
+      "src/workspace-snapshot/persistence/database.ts",
+      "src/workspace-snapshot/persistence/fetch-cursor.ts",
+      "src/workspace-snapshot/persistence/issue-body-write.ts",
+      "src/workspace-snapshot/persistence/issue-edge-write.ts",
+      "src/workspace-snapshot/persistence/issue-groups-write.ts",
+      "src/workspace-snapshot/persistence/issue-identity-write.ts",
+      "src/workspace-snapshot/persistence/issue-row-write.ts",
+      "src/workspace-snapshot/persistence/issue-scalar-write.ts",
+      "src/workspace-snapshot/persistence/review-write.ts",
+      "src/workspace-snapshot/persistence/schema.ts",
+      "src/workspace-snapshot/projection/detail.ts",
+      "src/workspace-snapshot/projection/edges.ts",
+      "src/workspace-snapshot/projection/list.ts",
+      "src/workspace-snapshot/projection/members.ts",
+      "src/workspace-snapshot/runtime/ingest.ts",
+      "src/workspace-snapshot/runtime/lease.ts",
+      "src/workspace-snapshot/runtime/log.ts",
+      "src/workspace-snapshot/runtime/node-builtins.ts",
+      "src/workspace-snapshot/runtime/open-schema.ts",
+      "src/workspace-snapshot/runtime/open.ts",
+      "src/workspace-snapshot/runtime/paths.ts",
+      "src/workspace-snapshot/sources/README.md",
+      "src/workspace-snapshot/tsconfig.json"
     ],
     "guardedDirs": [
       "src",
@@ -16362,7 +16736,15 @@
       "src/tracker/rooms/gitlab",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
-      "src/tracker/session"
+      "src/tracker/session",
+      "src/workspace-snapshot",
+      "src/workspace-snapshot/contract",
+      "src/workspace-snapshot/merge",
+      "src/workspace-snapshot/model",
+      "src/workspace-snapshot/persistence",
+      "src/workspace-snapshot/projection",
+      "src/workspace-snapshot/runtime",
+      "src/workspace-snapshot/sources"
     ],
     "dedicatedDirs": [
       "src",
@@ -16432,7 +16814,11 @@
       "src/tracker/rooms/gitlab",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
-      "src/tracker/session"
+      "src/tracker/session",
+      "src/workspace-snapshot",
+      "src/workspace-snapshot/merge",
+      "src/workspace-snapshot/persistence",
+      "src/workspace-snapshot/runtime"
     ],
     "dirsWithoutDedicated": [
       {
@@ -16469,7 +16855,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 56
+        "fileCount": 57
       },
       {
         "path": "src/shared/command-cleanup",
@@ -16498,6 +16884,22 @@
       {
         "path": "src/tracker/rooms/github/channels",
         "fileCount": 7
+      },
+      {
+        "path": "src/workspace-snapshot/contract",
+        "fileCount": 2
+      },
+      {
+        "path": "src/workspace-snapshot/model",
+        "fileCount": 1
+      },
+      {
+        "path": "src/workspace-snapshot/projection",
+        "fileCount": 4
+      },
+      {
+        "path": "src/workspace-snapshot/sources",
+        "fileCount": 1
       }
     ],
     "ungated": [],

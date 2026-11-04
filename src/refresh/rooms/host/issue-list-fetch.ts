@@ -54,11 +54,19 @@ function sessionFail(reason: string, detail?: any): any {
   return fail('env', '只读会话不可用（' + reason + '）' + tail)
 }
 
-/** 由宿主给的 owner/name 拼会话要的仓库坐标；refId 是 GitHub 房间认的 'owner/name'。 */
+/**
+ * 仓库地址按后端自己的口径拼：GitHub 与 GitLab 的网页主机名不同，不许把一种地址冒充成另一种。
+ * 自建实例的域名宿主这里不知道；那种情况下会话回包里那份地址更准，调用方会优先用它。
+ */
+function repoUrlOf(backendId: string, refId: string): string {
+  return (backendId === 'gitlab' ? 'https://gitlab.com/' : 'https://github.com/') + refId
+}
+
+/** 由宿主给的 owner/name 拼会话要的仓库坐标；refId 是各后端认的 'owner/name'。 */
 function repoRefOf(repo: RepoKey | null, backendId: string): RepositoryRef | null {
   if (!repo || !repo.owner || !repo.name) return null
   const refId = String(repo.owner) + '/' + String(repo.name)
-  return { backend: backendId as any, refId: refId, name: refId, url: 'https://github.com/' + refId }
+  return { backend: backendId as any, refId: refId, name: refId, url: repoUrlOf(backendId, refId) }
 }
 
 /** 契约票 → 列表行（旧 gh 形状）。拉取请求行额外带 isPullRequest/mergedAt，界面靠它分流。 */
@@ -86,7 +94,7 @@ function sortRows(rows: any[]): any[] {
 }
 
 export function createIssueList(deps: any): any {
-  const { getRepoKey, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, readDiskCache, logCtx, noteSnapshot } = deps as any
+  const { getRepoKey, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, logCtx, noteSnapshot } = deps as any
 
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   function hash8(s: any): string { try { const t: string = String(s || ''); let h: number = 5381; for (let i: number = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e: any) { return '00000000' } }
@@ -104,7 +112,13 @@ export function createIssueList(deps: any): any {
     if (!opened || opened.ok !== true || typeof opened.call !== 'function') return sessionFail(String((opened && opened.reason) || 'open-failed'), opened && opened.detail)
     let repo: RepoKey | null = null
     try { repo = await Promise.resolve(getRepoKey(cwd)) } catch (e: any) { return sessionFail('解析仓库坐标失败', (e && e.message) || e) }
-    const ref = repoRefOf(repo, String(opened.backendId || ''))
+    const backendId: string = String(opened.backendId || '')
+    let ref = repoRefOf(repo, backendId)
+    // 会话是仓库身份的真源（GitLab 的宿主 getRepoKey 只认 GitHub 远端，会回 null）：同一个 refId
+    // 时优先用会话那份地址（自建实例的域名只有它知道）；GitHub 认不出 owner/name 时仍按老口径如实失败。
+    const sessionRef: RepositoryRef | null = (opened.repoRef && opened.repoRef.refId) ? opened.repoRef : null
+    if (ref && sessionRef && String(sessionRef.refId) === ref.refId) ref = sessionRef
+    if (!ref && sessionRef && backendId !== 'github') ref = sessionRef
     if (!ref) return fail('env', '无法解析 owner/repo')
     try {
       return await opened.call(async function (session: TrackerSession, ctx: OpContext): Promise<any> {
@@ -115,6 +129,20 @@ export function createIssueList(deps: any): any {
     }
   }
 
+  /**
+   * #1863：这一批列表读结果交给宿主写快照库（按组、分批）；写库失败不影响取数。
+   * 宿主没接钩子时整条关闭，老调用方行为一字不变。
+   */
+  async function recordRows(cwd: any, ref: RepositoryRef, rows: any[]): Promise<void> {
+    if (typeof deps.onIssueRows !== 'function' || !Array.isArray(rows) || !rows.length) return
+    // 拉取请求也交下去（#1870 更正）：库是工作区数据的权威副本，PR 是其中一种行——面板的拉取请求
+    // 页签读的就是它们（prIssuesOf）。从前这里滤掉，是因为「列表回包不收 PR」那条展示口径；
+    // 展示归展示，落库归落库：哪个后端不给 PR，交给适配层按 isPullRequest 有没有表达来处理。
+    const issues = rows.filter(function (x: any): boolean { return !!x && x.key != null })
+    if (!issues.length) return
+    try { await deps.onIssueRows(cwd, ref, issues) } catch (e: any) {}
+  }
+
   /** 地图票：只要带 wayfinder:map 且未关闭的票（旧 gh issue list 的两条筛，原样保留）。 */
   async function fetchMaps(cwd: any): Promise<any> {
     return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
@@ -123,6 +151,7 @@ export function createIssueList(deps: any): any {
         const err = (r && r.error) || {}
         return fail(String(err.kind || 'network'), err.message || '地图票读取失败')
       }
+      await recordRows(cwd, ref, r.data || [])
       // 与列表同一条口径：拉取请求不算地图（旧 gh issue list 本来就不返回 PR）。
       const maps = (r.data || []).filter(function (x: any): boolean { return !!x && x.isPullRequest !== true }).map(function (x: Issue): any {
         return {
@@ -145,9 +174,10 @@ export function createIssueList(deps: any): any {
         const err = (r && r.error) || {}
         return fail(String(err.kind || 'network'), err.message || '列表读取失败')
       }
-      // 旧 REST 的 jq 是 select(.pull_request == null)：拉取请求从来不进快照。
-      // 会话的 list 两张表都给，这里必须显式滤掉 —— 否则快照索引里有 PR、而 fetchIssueIndex
-      // 走的 listPage 只翻 repository.issues，每轮探测都会把 PR 当成「被删掉的票」→ 整池重建。
+      await recordRows(cwd, ref, r.data || [])
+      // 列表视图不收拉取请求（#1870 起口径是这样：PR 有自己的页签，读的是快照里的 PR 行）。
+      // 注意这与「写库」不是一回事：下面 recordRows 照旧把 PR 交给库（库是工作区的权威副本），
+      // 只有这个回包的 issues 数组不收它们。
       const rows = (r.data || []).filter(function (x: any): boolean { return !!x && x.isPullRequest !== true }).map(rowOf)
       return { ok: true, issues: sortRows(rows) }
     })
@@ -197,9 +227,14 @@ export function createIssueList(deps: any): any {
         round.correct(ticket, 1)
         const data: PageResult = page.data || { items: [], nextCursor: null, total: 0 }
         const items: Issue[] = Array.isArray(data.items) ? data.items : []
+        await recordRows(cwd, ref, items)
         for (let i = 0; i < items.length; i++) {
           const it: any = items[i]
           if (!it || it.key == null) continue
+          // #1870 防御：这份索引与快照里算出来的那份逐条比对（planDelta 用它判「有没有票被删掉」），
+          // 两边都不能有 PR —— 这一页只翻 repository.issues，PR 本来进不来；真混进来也别让它进索引，
+          // 否则下一趟整扫会把库里的 PR 行读成「这一条不见了」，整池重建停不下来。
+          if (it.isPullRequest === true) continue
           const key = String(it.key)
           // 窗口比对：since 之后动过的票才进这一趟的索引（与旧 gh api 的 since 参数同义）。
           if (useSince) {
@@ -220,10 +255,51 @@ export function createIssueList(deps: any): any {
   // ── 索引扫描入口（#1429）：窗口扫描与水印推进住同目录 issue-index-scan.ts（createIssueIndexScan，
   //   内含唯一一份窗口状态，不另起第二份）；这里只留同名转交字段（index.ts / probe-handler / 单测写法不变），
   //   仍走动态 import（宿主侧禁止静态引入新文件 D7，与既有范式一致）。
+  /**
+   * #1870：重启后的第一次扫描要的起点——库里那份工作区数据。
+   *
+   * 为什么在这里取而不在 issue-index-scan 里：只有这一层摸得到库门面，索引扫描那边只持有窗口状态，
+   * 不该为了开库再引一个依赖。
+   *
+   * 后端编号由调用方点名传进来（探针那一拍本来就已经知道这一轮是哪个后端），**不在这里开会话去问**：
+   * 开会话要过注册表选择与远端定位，可能真的花一条出站额度，而这条路上紧接着的取数还要再开一趟——
+   * 为了一个字符串多开一趟不划算。拿不到后端编号就回 null，调用方照旧整仓枚举（比猜一个后端、
+   * 开错库文件要好）。
+   *
+   * 回的是「库回放出来的整份快照」与行组最老的那一次取数时刻（oldestRowAtMs，见 SnapshotReplay
+   * 那个字段的注释：不能拿最新时刻顶替）。起点判据交给 kernel/index-window-rules.ts 的
+   * seedFromSnapshot —— 口径与从前读旧磁盘快照那一版完全一样，旧 JSON 一个字节都不碰。
+   */
+  async function readLibrarySnapshot(cwd: any, repo: any, backendId: any): Promise<{ snapshot: any; oldestRowAtMs: number } | null> {
+    if (typeof deps.getSnapshotLibrary !== 'function') return null
+    if (!repo || !repo.owner || !repo.name) return null
+    const backend: string = String(backendId || '')
+    if (!backend) return null
+    let lib: any = null
+    try { lib = await Promise.resolve(deps.getSnapshotLibrary()) } catch (e: any) { lib = null }
+    if (!lib || typeof lib.readSnapshotReplay !== 'function') return null
+    const refId: string = String(repo.owner) + '/' + String(repo.name)
+    try {
+      const replay: any = await lib.readSnapshotReplay({
+        workspaceRoot: cwd,
+        backend: backend,
+        repoIdentity: refId,
+        repo: { backend: backend, refId: refId, name: refId, url: '' },
+      })
+      if (!replay || !replay.snapshot) return null
+      return { snapshot: replay.snapshot, oldestRowAtMs: Number(replay.oldestRowAtMs) || 0 }
+    } catch (e: any) { return null }
+  }
+
   let _idxScanP: any = null
   function _idxScan(): Promise<any> {
     if (!_idxScanP) _idxScanP = import('./issue-index-scan.js').then(function (m: any) {
-      return m.createIssueIndexScan({ getRepoKey: getRepoKey, readDiskCache: readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso, budget) }, now: Date.now })
+      return m.createIssueIndexScan({
+        getRepoKey: getRepoKey,
+        fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso, budget) },
+        readLibrarySnapshot: readLibrarySnapshot,
+        now: Date.now,
+      })
     })
     return _idxScanP
   }

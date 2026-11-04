@@ -145,7 +145,7 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
   // #1295：再多记一个 specs —— 这一轮快照里认出几张「实施地图」（规格容器）。maps 是容器总数，
   //   maps 减 specs 就是「探索地图」的张数；面板的双轨分流一旦看起来不对，先拿这两个数对账：
   //   是这一轮就没认出来（specs=0），还是认出来了却没被列表画成蓝轨（渲染侧问题）。
-  //   注意老直连快照路（src/refresh/rooms/host/snapshot-build.ts）只认 wayfinder:map 标签、不产规格容器，
+  //   注意旧直连快照组装（snapshot-build，已随 #1870 退役）只认 wayfinder:map 标签、不产规格容器，
   //   那条路上 specs 恒 0 属正常，别据此判「一张规格都没认出来」。
   // 类型说明（#1155）：落盘那一步是接线处给的回调，它的返回形状在这一层表达不出来，
   // 所以按调用方传进来的类型原样还回去（运行时不碰，只是把类型跟过去）。

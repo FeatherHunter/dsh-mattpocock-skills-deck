@@ -200,7 +200,9 @@ console.log('== D R4：快照的短路路与 304 都要带权威 {selection, rev
       upcaseSnapStates: (s: any) => s,
       computeLevels: () => ({ byNumber: {}, byKey: {} }),
       groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
-      getRepoRoot: async () => 'D:\\ws', getRepoKey: async () => null,
+      getRepoRoot: async () => 'D:\\ws', // #1870：缓存兜底排在「库回放」之后，要走到那一步得先认出仓库身份（否则 GitHub 分支在「连仓库都
+      // 认不出」那一档就返回空快照了）；这份假仓库只为了让兜底路可达。
+      getRepoKey: async () => ({ owner: 'o', name: 'r' }),
       readDiskCache: async () => null, writeDiskCache: async () => {}, adoptSnapshot: (s: any) => s,
       detectionExec: async () => ({ stdout: '', stderr: '', code: 0 }), execProc: async () => ({ ok: false }),
       errText: () => '', DEFAULT_CWD: 'D:\\ws', hash8: (s: any) => String(s).slice(0, 8), logCtx: null,
@@ -323,9 +325,12 @@ const snapSrc = read('src/refresh/rooms/host/session-snapshot-cache.ts')
   // F2 短路路不再带上权威选择 —— 跑改坏的那一份，同一份现场就会把旧后端发出去
   // 合并 #1433 之后这一行只判 sameLayout（布局以这一轮为准：本轮没有布局就把缓存里那份旧答案抹掉，
   // 不再像 #683 早期那样用 !_layEarly 把旧答案留下）。反证的落点跟着真源走，形状不变。
+  // #1870：兜底那段（以及它里面这一句）搬到了 snapshot-library-first-screen.ts；反证改坏的是那一份。
+  const screenRel = 'refresh/rooms/host/snapshot-library-first-screen.ts'
+  const screenSrc = fs.readFileSync(path.join(ROOT, 'src', screenRel), 'utf8')
   const from2 = 'if (sameBackend && prevRev === nowRev && sameLayout) return s'
-  check(snapSrc.includes(from2), '反证 F2 的改法能在真源里落地（短路路永远返回缓存里那份、不带新选择）')
-  if (snapSrc.includes(from2)) {
+  check(screenSrc.includes(from2), '反证 F2 的改法能在真源里落地（兜底路永远返回缓存里那份、不带新选择）')
+  if (screenSrc.includes(from2)) {
     // 这一组跑的是把源文件**复制到临时目录**再改坏的一份。复制过去的那一份，它 import 的兄弟文件
     //   也在新目录里找 —— 所以那份 import 闭包必须一起带过去，否则这一组连求值都到不了，先在解析阶段就报
     //   ERR_MODULE_NOT_FOUND（那是夹具缺件，不是实现错）。
@@ -364,13 +369,21 @@ const snapSrc = read('src/refresh/rooms/host/session-snapshot-cache.ts')
       }
     }
     mirrorOne('refresh/rooms/host/session-snapshot-cache.ts')
+    // #1870：缓存兜底挪到「库回放」之后，这一份改坏了的模块不再在开头就短路返回，于是它会真的走到
+    // 在途去重那一步 —— 那一步的 import 是动态写的（import('../../../host/snapshotInflight.js')），
+    // 上面的静态 import 镜像扫不到它。把这一份也带过去，夹具才不会停在解析阶段。
+    mirrorOne('host/snapshotInflight.ts')
     const broken2 = path.join(mirror, 'refresh', 'rooms', 'host', 'session-snapshot-cache.mjs')
     // 快照源文件是 .ts（#1155 起带类型标注）：写进 .mjs 之前先按仓库自己的转译口径剥掉类型，否则这一份
     //   改坏了的源码会在解析阶段就 SyntaxError，反证根本跑不到比较那一步。转译参数只写在
     //   scripts/lib/transpile-unit.mts 那一份，这里取现成的，与生产侧同一套口径。
     const { TRANSPILE_OPTIONS } = await import('../scripts/lib/transpile-unit.mts')
     const broken2Src = (await import('esbuild')).transformSync(snapSrc, TRANSPILE_OPTIONS).code
-    fs.writeFileSync(broken2, broken2Src.replace(from2, 'return s'), 'utf8')
+    fs.writeFileSync(broken2, broken2Src, 'utf8')
+    // 反证改坏兜底那一份（镜像里与真源同相对路径），快照模块 import 的就是它。
+    const brokenScreen = path.join(mirror, 'refresh', 'rooms', 'host', 'snapshot-library-first-screen.ts')
+    const brokenScreenSrc = (await import('esbuild')).transformSync(screenSrc, TRANSPILE_OPTIONS).code
+    fs.writeFileSync(brokenScreen, brokenScreenSrc.replace(from2, 'return s'), 'utf8')
     const mod2 = await import(pathToFileURL(broken2).href)
     const cached = { ok: true, generatedMs: 1, maps: [], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
     const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }
@@ -379,7 +392,9 @@ const snapSrc = read('src/refresh/rooms/host/session-snapshot-cache.ts')
       getTrackerRegistry: async () => ({ get: () => null, modules: () => [], describe: () => null }), getPlatform: async () => ({ fs: {}, path: { join: () => '' }, getHome: async () => '' }),
       ctx: { get: () => undefined }, getCache: () => cache, setCache: (v: any) => { Object.assign(cache, v) }, CACHE_MS: 60000, cacheSnapshotIsCurrent: async () => false,
       upcaseSnapStates: (s: any) => s, computeLevels: () => ({ byNumber: {}, byKey: {} }), groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
-      getRepoRoot: async () => 'D:\\ws', getRepoKey: async () => null, readDiskCache: async () => null, writeDiskCache: async () => {}, adoptSnapshot: (s: any) => s,
+      getRepoRoot: async () => 'D:\\ws', // #1870：缓存兜底排在「库回放」之后，要走到那一步得先认出仓库身份（否则 GitHub 分支在「连仓库都
+      // 认不出」那一档就返回空快照了）；这份假仓库只为了让兜底路可达。
+      getRepoKey: async () => ({ owner: 'o', name: 'r' }), readDiskCache: async () => null, writeDiskCache: async () => {}, adoptSnapshot: (s: any) => s,
       detectionExec: async () => ({ stdout: '', stderr: '', code: 0 }), execProc: async () => ({ ok: false }), errText: () => '', DEFAULT_CWD: 'D:\\ws', hash8: (s: any) => s, logCtx: null,
     })
     const r = await h.handleSnapshot({ cwd: 'D:\\ws' })

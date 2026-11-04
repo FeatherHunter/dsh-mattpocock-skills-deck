@@ -5,8 +5,8 @@
  * 覆盖：
  *  - 特性 A：lastProbeAtByCwd/getProbeAt/touchProbeAt 在场；快照校验（ok/304）与 wf.probe 完成即走针；
  *    状态栏常驻时刻取快照的取数时刻（与右侧面板头部同源；2026-10-24 起探测时间不再画在胶囊上）
- *  - 特性 B：IndexedDB 磁盘层（dsws-cache/snapshots，不可用环境静默降级）；setCachedSnapshot 写穿透（内存+磁盘）；
- *    loadSnapshot 内存未命中先查磁盘，命中秒显（不出现可见加载态）且照常发起网络校验
+ *  - 特性 B（#1863 起改口径）：客户端不再有 IndexedDB 持久快照，只留内存 LRU 与在途请求；
+ *    loadSnapshot 只水合内存缓存，命中不出现可见加载态并照常发起网络校验（首屏的本地数据改由宿主从快照库回放）
  *  - 双产物一致：client.js 与 package/lib/client.js 均含上述接线
  *
  * 说明：这里全部是「产物里还在不在」的在场检查（原来逐条 indexOf 判子串，现在找不到时再按
@@ -77,24 +77,25 @@ for (const [name, src] of targets) {
   hasNot(src, 'getProbeAt(s.cwd)', name, '状态栏不再读探测时间')
   hasNot(src, 'timeOfMs(_probeMs)', name, '状态栏不再格式化探测时间')}
 
-console.log('\n2) 特性 B：IndexedDB 磁盘层 + 写穿透')
+console.log('\n2) 特性 B：客户端持久快照退役（#1863）')
 for (const [name, src] of targets) {
-  has(src, "'dsws-cache'", name, 'IDB 库名在场')
-  has(src, "'snapshots'", name, 'IDB 表名在场')
-  has(src, '!window.indexedDB', name, '不可用环境静默降级')
-  has(src, 'diskPutSnapshot(k, ent)', name, 'setCachedSnapshot 写穿透（内存+磁盘）')
-  has(src, 'SNAP_DISK_CAP = 24', name, '磁盘 LRU 上限 24')
+  // 反向断言锁住语义变更：GitHub 这一端不再产生第二份持久快照。改回 IndexedDB 会让同一屏出现两个本地数据源。
+  hasNot(src, "'dsws-cache'", name, '不再引用 IDB 库名 dsws-cache')
+  hasNot(src, "'snapshots'", name, '不再引用 IDB 表名 snapshots')
+  hasNot(src, 'window.indexedDB', name, '代码里不再碰 IndexedDB')
+  hasNot(src, 'diskPutSnapshot', name, '客户端持久快照的写入口已删除（#1870）')
+  hasNot(src, 'diskGetSnapshot', name, '客户端持久快照的读入口已删除（#1870）')
+  hasNot(src, 'SNAP_DISK_CAP', name, '磁盘 LRU 上限这一格已删除（#1870）')
 }
 
-console.log('\n3) 特性 B：loadSnapshot 读路径（内存未命中先查磁盘，命中不出现可见加载）')
+console.log('\n3) 特性 B：loadSnapshot 读路径（只水合内存，命中不出现可见加载）')
 for (const [name, src] of targets) {
-  has(src, 'let hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))', name, 'hasCache 可变（磁盘命中后更新）')
-  // #653 口径变更（本门禁同步改）：磁盘层读写都按工作区根键，子目录会话因此能秒显根会话已经写下的那份快照
-  has(src, "await diskGetSnapshot(wsKeyOf(st.cwd || ''))", name, '内存未命中先查磁盘（按工作区键）')
-  has(src, 'setCachedSnapshot(st.cwd, ent.snapshot)', name, '磁盘命中回填内存缓存')
-  has(src, "if (force && !silent && !hasCache) st.snapMode = 'loading'", name, '可见加载态仅限三层全未命中')
-  has(src, 'lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set', name, '磁盘条目恢复上次探测时间')
-  has(src, 'const doLoad = async function () {', name, 'doLoad 支持磁盘异步读')
+  has(src, 'let hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd))', name, 'hasCache 只看内存快照')
+  hasNot(src, 'await diskGetSnapshot(wsKeyOf', name, '内存未命中不再查磁盘')
+  hasNot(src, 'setCachedSnapshot(st.cwd, ent.snapshot)', name, '不再从磁盘条目回填内存缓存')
+  hasNot(src, 'lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set', name, '不再从磁盘条目恢复上次探测时间')
+  has(src, "if (force && !silent && !hasCache) st.snapMode = 'loading'", name, '可见加载态仍只在没有任何缓存时出现')
+  has(src, 'const doLoad = async function () {', name, 'doLoad 仍是异步装载函数')
 }
 
 console.log('\n=== 汇总：' + passed + ' PASS / ' + (failed ? 'FAIL' : '0 FAIL') + ' ===')

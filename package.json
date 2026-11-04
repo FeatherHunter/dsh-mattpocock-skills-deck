@@ -18,7 +18,7 @@
     "update:latest": "pnpm update dsh-plugin-update@^0.18.39 && node scripts/derive-update-from-package.mts && node scripts/build.mts",
     "prepare": "node scripts/build.mts",
     "test": "npm run typecheck && node scripts/build.mts && node scripts/verify-chain.ts && npm run test:smoke",
-    "smoke": "node --import ./scripts/ts-hook.mts tests/smoke-client.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-host-dispatch.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-render.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-naming-persistence.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-comment-passthrough.test.ts",
+    "smoke": "node --import ./scripts/ts-hook.mts tests/smoke-client.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-host-dispatch.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-render.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-naming-persistence.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-comment-passthrough.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-snapshot-github.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-snapshot-gitlab.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-snapshot-markdown.test.ts",
     "test:smoke": "node scripts/verify-chain.ts --script smoke",
     "test:nobuild": "node scripts/verify-chain.ts && npm run test:smoke",
     "verify:parallel": "node scripts/verify-parallel.mts --keep-going --json node_modules/.cache/dsh-verify-last.json",

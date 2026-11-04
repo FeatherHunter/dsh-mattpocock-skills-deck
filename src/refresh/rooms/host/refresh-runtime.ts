@@ -118,7 +118,7 @@ export function makeRefreshLoader(deps: any): () => Promise<any> {
  *   ctx            宿主上下文（写事件订阅要 ctx.on）
  *   logCtx         宿主日志出口（{ fire, isEnabled }）
  *   canonicalKey   会话目录 → 工作区键的既有出口（src/host/repoKeys.js 的 canonicalKey）
- *   execProc / getRepoKey / getCacheDir / readDiskCache / writeDiskCache / getTrackerRegistry / getPlatform
+ *   execProc / getRepoKey / getCacheDir / getTrackerRegistry / getPlatform
  *                  宿主既有出口，交给各件跑腿用
  *   trackerRegistry 可选：后端注册表（九个 deck 工具的壳要用它选后端）
  *   gate / ledger  可选：已经造好的闸与账本（门禁与单测里注入用）；不给就现场造

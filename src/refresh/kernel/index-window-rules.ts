@@ -46,6 +46,7 @@ type SnapshotItem = {
   number?: unknown
   state?: unknown
   updatedAt?: unknown
+  isPullRequest?: unknown
   tickets?: SnapshotItem[] | null | undefined
 }
 
@@ -135,7 +136,11 @@ function indexDiffers(before: IndexTable | null | undefined, after: IndexTable |
  *
  * 约定：issues、地图容器、地图子票三类一个都不能少，少算哪一条那条票的关闭与删除就永远检不出；反例是只读 issues 数组，地图子票的关闭会静默漏报。
  *
- * @param {object} snap 快照对象（磁盘缓存里的形状）
+ * 拉取请求不算在内（#1870）：远端索引的来源只翻 repository.issues，PR 从来不在里面。两边口径要一致——
+ * 多出 PR 的那些键会在逐条比对的地方（src/refresh/kernel/snapshot-diff.ts 的 planDelta，行级增量用它
+ * 判「有没有票被删掉」）被读成「这一条不见了」，于是本该只补几行的活变成整池重建。
+ *
+ * @param {object} snap 快照对象（库回放或在线组装那一份的形状）
  * @returns {object|null} 完整索引：编号 → '状态|更新时间'；取不出任何票时返回 null
  */
 function indexFromSnapshot(snap: SnapshotLike | null | undefined): IndexTable | null {
@@ -143,6 +148,7 @@ function indexFromSnapshot(snap: SnapshotLike | null | undefined): IndexTable | 
   const index: IndexTable = {}
   const put = function (item: SnapshotItem | null | undefined): void {
     if (!item || item.number === undefined || item.number === null) return
+    if (item.isPullRequest === true) return
     index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
   }
   if (Array.isArray(snap.issues)) snap.issues.forEach(put)

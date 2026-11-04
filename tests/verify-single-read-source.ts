@@ -16,7 +16,6 @@
  */
 // 门禁归属: src/client/views/shared/detailProjection.ts
 // 门禁归属: src/client/kernel/api-io.ts
-// 门禁归属: src/refresh/rooms/host/detail-snapshot-merge.ts
 
 import { readFileSync } from 'node:fs'
 import * as path from 'node:path'
@@ -114,14 +113,13 @@ check(stC.detailSeenAt && stC.detailSeenAt['\u0000' + 7] > 0, 'D4 成功取回�
 check(snapReloads === 1, 'D5 成功后触发一次静默快照刷新（宿主合并结果回到投影）', snapReloads)
 
 // ---------------------------------------------------------------------------
-// E 单一真源：产物里只有一份投影实现；详情合并只经 mergeSnapshot 写快照
+// E 单一真源：产物里只有一份投影实现（详情合并已随 #1870 退役，不再验它）
 // ---------------------------------------------------------------------------
 const bundle = readFileSync(path.join(ROOT, 'package/lib/client.js'), 'utf8')
 const viewDefs = (bundle.match(/function detailViewFor\(/g) || []).length
 check(viewDefs === 1, 'E1 构建产物里 detailViewFor 只有一份（界面读的是同一份投影）', viewDefs)
-const mergeSrc = readFileSync(path.join(ROOT, 'src/refresh/rooms/host/detail-snapshot-merge.ts'), 'utf8')
-check(mergeSrc.indexOf('merger.mergeSnapshot(') >= 0, 'E2 详情合并只经 kernel 的 mergeSnapshot 写快照')
-check((mergeSrc.match(/mergeSnapshot\(/g) || []).length === 1, 'E3 详情合并模块里只有一处合并入口（没有第二条写快照的路）')
+// #1870：宿主那份详情合并（detail-snapshot-merge）已退役——详情只写本地快照库，不再并进内存工作副本；
+// 这一条只留「界面读的是同一份投影」那半段。
 
 console.log('详情单一读来源门禁：' + (total - failed) + '/' + total + ' 通过')
 printGateResult(GATE, total, failed)

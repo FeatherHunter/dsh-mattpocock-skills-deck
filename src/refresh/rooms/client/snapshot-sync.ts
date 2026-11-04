@@ -27,7 +27,6 @@ declare const hydrateFromCache: any;
 declare const reportWorkspaceAttention: any;
 declare const getCachedSnapshot: any;
 declare const setCachedSnapshot: any;
-declare const diskGetSnapshot: any;
 declare const getProbeAt: any;
 declare const lastProbeAtByCwd: any;
 declare const getSnapshotVersion: any;
@@ -68,7 +67,6 @@ export const _snapInstallState: { handedOff: boolean } = { handedOff: false };
 const dswsLogHash = function (s: any): string { try { const t: string = String(s || ''); let h: number = 5381; for (let i: number = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8); } catch (e) { return '00000000'; } };
 const dswsScrubHits: Record<string, number> = {};
 const dswsScrubN: { n: number } = { n: 0 };
-const dswsDiskSnapHitN: { n: number } = { n: 0 }; // #498 磁盘快照命中采样计数（百一采样，只增不显）
 const dswsLogTrunc = function (s: any, n: number, field: any): string { try { const t: string = String(s || ''); if (t.length <= n) return t; try { const k: string = String(field || 'text') + ':T' + n; dswsScrubHits[k] = (dswsScrubHits[k] || 0) + 1; dswsScrubN.n += 1; if (dswsScrubN.n % 50 === 0 && isEnabled('debug')) log('debug', 'privacy.scrub', { field: String(field || 'text'), rule: 'T' + n, hit: true }); } catch (e) {} return t.slice(0, n); } catch (e) { return ''; } };
 const dswsDedupWin: { n: number } = { n: 0 };
 // #707 拆出：颜色小函数（hexA / darken）、数据层增量差异 diffSnapshots、高亮清除 scheduleFlashClear
@@ -177,33 +175,16 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
       emit(st);
       return Promise.resolve();
     }
-    // #58 先水合 per-cwd 缓存，实现秒开
+    // #58 先水合 per-cwd 内存缓存，实现秒开；#1863 起首屏的本地数据由宿主从快照库回放，客户端不再读 IndexedDB。
     hydrateFromCache(st);
     let hasCache: boolean = !!(st.snapshot || getCachedSnapshot(st.cwd));
-    // #327 特性 B · 多级缓存：内存未命中先查磁盘（IndexedDB）——命中即秒显旧数据，随后照常发起网络校验
-    //（不出现可见加载态；磁盘读约几十毫秒，先读后发请求的次序天然避免遮罩闪现）
-    if (!hasCache) {
-      try {
-        const ent: any = await diskGetSnapshot(wsKeyOf(st.cwd || ''));
-        if (ent && ent.snapshot && !st.snapshot && !getCachedSnapshot(st.cwd)) {
-          try {
-            setCachedSnapshot(st.cwd, ent.snapshot);
-            try { if (ent.lastProbeAt && ent.lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set(wsKeyOf(st.cwd), ent.lastProbeAt); } catch (ePA2) {}
-            hydrateFromCache(st);
-            emit(st);
-          } catch (eHyd2) {}
-          try { dswsDiskSnapHitN.n += 1; if (isEnabled('debug') && dswsDiskSnapHitN.n % 100 === 0) log('debug', 'client.snapshot.hit', { keyHash: dswsLogHash(wsKeyOf(st.cwd || '')), ageMs: Date.now() - ((ent && (ent.ts || (ent.snapshot && ent.snapshot.generatedMs))) || Date.now()), kind: 'disk' }); } catch (eL) {}
-          hasCache = !!(st.snapshot || getCachedSnapshot(st.cwd));
-        }
-      } catch (eDisk) {}
-    }
     try { if (!hasCache && !(st.snapshot || getCachedSnapshot(st.cwd))) log('info', 'client.snapshot.miss', { keyHash: dswsLogHash(wsKeyOf(st.cwd || '')), reason: 'empty' }); } catch (eL) {}
     // #776 只加日志不改行为：记下这次打开走缓存三选一的哪一支（有缓存还是现拉）。
     //   按需级，先判开关；每次取数一次，低频，不采样。
     try { if (isEnabled('debug')) log('debug', 'input.observe', { kind: 'cache-choice', count: hasCache ? 1 : 0, latencyMs: 0, keyHash: dswsLogHash(wsKeyOf(st.cwd || '')) }); } catch (eCc) {}
     st.snapLoading = true;
     // v1.5 T9：silent（后台静默刷新）不显示加载遮罩、不弹错误 toast
-    // #58 缓存优先：已有缓存（含磁盘命中）时不显示全屏 loading，静默刷新
+    // #58 缓存优先：已有内存缓存时不显示全屏 loading，静默刷新
     if (force && !silent && !hasCache) st.snapMode = 'loading';
     emit(st);
     const ver: any = (typeof getSnapshotVersion === 'function' ? getSnapshotVersion(st.cwd) : '') || (st.snapshot && st.snapshot.version) || '';

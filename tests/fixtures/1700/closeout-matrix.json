@@ -141,13 +141,13 @@
     {
       "id": 10,
       "phase": 2,
-      "title": "磁盘回放带 schema 版本与来源，旧格式缺来源按未知，回放完整度降为上次已知",
+      "title": "整份磁盘快照退役：旧 JSON 不读不写、快照库是唯一持久副本（#1870 改；原 #1692 的磁盘格式判据随退役移除）",
       "gate": [
         "verify-1692-disk-replay-eviction",
         "verify-1286-snapshot"
       ],
-      "negative": "旧盘缺来源仍标完整",
-      "drill": "重启演练：把真实快照 JSON 落盘再按磁盘回放路径读回，见收口记录第 6 节",
+      "negative": "旧 JSON 仍被读取或被写回",
+      "drill": "重启演练：1869-01 冷启动回放与 1869-03 库损坏重建（#1663 批次结果评论）",
       "result": "pass"
     },
     {
@@ -192,7 +192,7 @@
         "verify-rest-fallback-completion",
         "verify-rest-detail-completion",
         "verify-panel-snapshot-merge",
-        "verify-acceptance-four"
+        "verify-1864-snapshot-detail"
       ],
       "negative": "完整结果后接降级结果丢边",
       "drill": "降级演练：真实仓库完整读之后注入降级读结果，对比关系与已取细节条数，见收口记录第 6 节",
@@ -227,11 +227,11 @@
       "phase": 3,
       "title": "详情先显示上次内容，新响应增量合并，失败不清空，界面能分辨上次数据与时间",
       "gate": [
-        "verify-detail-incremental",
-        "verify-acceptance-four"
+        "verify-1864-snapshot-detail-replay",
+        "verify-retire-client-caches"
       ],
       "negative": "失败置空或整块替换",
-      "drill": "重启后进入详情：磁盘回放的详情行经投影仍显示上次内容，见收口记录第 6 节",
+      "drill": "重启后进入详情：库里有上次详情就直接交回上次内容（#1870 起不再有磁盘回放那一档），见收口记录第 6 节",
       "result": "pass"
     },
     {
@@ -239,8 +239,8 @@
       "phase": 3,
       "title": "详情与列表、地图互通：写回执合并后下一次探测内三处同帧一致，同工作区多会话同一业务状态",
       "gate": [
-        "verify-acceptance-four",
-        "verify-detail-incremental"
+        "verify-1472-write-event-fetch",
+        "verify-1866-write-receipt-replay"
       ],
       "negative": "关闭后列表状态不变",
       "drill": "写后回列表：真实票走写回执合并路径后同帧一致，见收口记录第 6 节",

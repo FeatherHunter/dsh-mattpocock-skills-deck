@@ -190,7 +190,7 @@
     // raw（后端原文，原样交出去让人自己判断；客户端自己发现的前置错误没有原文，给空串）。
     const dswsErrorKinds = ['env', 'auth', 'rate-limit', 'conflict', 'unsupported', 'not-found', 'network', 'parse']
     // 宿主老写法 → 八档。只登记 src/host 里确实还会送过来的那几个字面量
-    // （src/refresh/rooms/host/issue-detail-fetch.js 与 src/refresh/rooms/host/comment-thread-fetch.js）：'404' 与 'notFound' → not-found，
+    // （宿主详情那条 comment-thread-fetch 与它退役前的旧路同一个口径）：'404' 与 'notFound' → not-found，
     // 'rateLimit' → rate-limit；'env' / 'parse' / 'network' / 'unsupported' 与八档同名，直接透传、不必登记。
     // 'graphql' 是宿主那一层「GraphQL 回包里带着 errors、拿不到数据」的记号：宿主发出它之前，已经先把
     // 限流（isRateLimitError 分支）与找不到（not found 分支）两路分走了，剩下的就是「回包不是我们能用的
@@ -268,7 +268,7 @@
           if (snapMode) { if (!st.detailSeenAt) st.detailSeenAt = {}; st.detailSeenAt[cacheKey] = Date.now() }
           else { if (!st.issueCache) st.issueCache = {}; st.issueCache[cacheKey] = { ts: Date.now(), data: issue } }
           st.issueDetail = issue; st.issueMode = 'real'; st.issueError = null; emit(st)
-          // 宿主已把这次详情经合并服务写进快照；静默重取一次快照，让投影读到合并后的那一份。
+          // 宿主已把这次详情写进本地快照库；静默重取一次快照，让投影读到刚落库的那一份。
           if (snapMode && typeof loadSnapshot === 'function') { try { loadSnapshot(st, false, true) } catch (eS) {} }
           return { ok: true, issue: issue }
         }
@@ -383,7 +383,7 @@
         if (!res) return { ok: false, error: { kind: 'network', message: tr('err.snapshotEmpty'), raw: '' } }
         // #715：评论真写进远端之后，记下「这一行刚写过」的时刻 —— 列表那一行据此在合并窗口内显示
         //   「更新中」，窗口一过自动消失（窗口长度取自 host-budget.ts，标记本身不改状态也不改布局）。
-        if (res.ok === true) { try { if (typeof markRowWrite === 'function') markRowWrite(st, num, ciEffort) } catch (eW) {}; return { ok: true, comment: res.data != null ? res.data : (res.comment || null) } }
+        if (res.ok === true) { try { if (typeof markRowWrite === 'function') markRowWrite(st, num, ciEffort) } catch (eW) {}; return { ok: true, stored: res.stored !== false, storedReason: String(res.storedReason || ''), comment: res.data != null ? res.data : (res.comment || null) } }
         // #1111：跟踪器侧已经统一成八档（rate-limit / not-found 带连字符），直接透传就够；
         // dswsNormalizeError 是给宿主尚未迁移的通道留的兼容层（老写法 'rateLimit' / 'notFound' / '404'），
         // 认不出的档位才按 HTTP 码兜底 —— 客户端不再照着错误原文自己猜一遍。

@@ -187,6 +187,11 @@ interface ComposeOpts {
    * 所以上一份快照由调用方（房间里的内存缓存）显式传进来；不传时仍回落到本实例缓存，老调用方行为不变。
    */
   previousSnapshot?: unknown
+  /**
+   * #1863：这一趟列表工作集（开放池 + 开放容器的子票，含已关闭子票）刚取齐时回调一次，
+   * 宿主用它把整池写进快照库。回调同步返回、自己吞错，不许挡快照回包。
+   */
+  onRows?: (rows: Issue[]) => void
 }
 
 // 创建宿主编排器。
@@ -352,6 +357,8 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
           })
         }
       } catch (eL) {}
+      // #1863：整池（含已关闭子票）在这里交给宿主写库；放工作集之后、组装之前，拿到的是未装饰的原始行。
+      try { if (typeof o.onRows === 'function') o.onRows(workingSet.rows) } catch (eRows) {}
       const sourceComplete: boolean = !listFallback && !listTruncated && workingSet.subIssuesFailed === 0 && workingSet.subIssuesIncomplete === 0
 
       // #1696：组装出来的 map.tickets 是后端原始行，客户端首帧画不出关系与计数；这里统一归一化，
