@@ -94,8 +94,16 @@ export const vcStashAutoRunOf = function (deps: any): any {
       return Object.assign({}, cur || {}, { stash: fn(base) })
     })
   }
+  // #1860 D18：先把这一批**全部**标成「正在读」—— 十条的骨架同时出现，然后读一条填一条。
+  //   只在轮到某条时才标 loading 的话，后面的行还停在「点查看内容才给」，看起来像根本没动。
+  if (list.length > 0) {
+    apply(function (base: any) {
+      return list.reduce(function (acc: any, s: string): any {
+        return vcStashDetailPatch(acc, s, { selector: s, state: 'loading' })
+      }, base)
+    })
+  }
   const one = function (selector: string): any {
-    apply(function (base: any) { return vcStashDetailPatch(base, selector, { selector: selector, state: 'loading' }) })
     return Promise.resolve(vcStashWriteCallOf(d.call, d.cwd, { op: 'show', selector: selector }, '', '')).then(function (reply: any) {
       apply(function (base: any) { return vcStashApplyReply(base, reply, { quiet: true, selector: selector }) })
       return reply

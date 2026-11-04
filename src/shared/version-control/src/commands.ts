@@ -102,7 +102,7 @@ export const REV_PATTERN = /^[0-9a-fA-F]{4,64}$/
 /** 拼一条采集命令。opts.rev 给的是「看这一次提交改了什么」的提交号：
  *  只许传已经过 REV_PATTERN 校验的十六进制字符串（路径、分支名、选项一律不许从这里进 argv），
  *  校验由唯一的调用方（宿主 wf.gitDiff 电话）在拼之前完成。 */
-export function commandFor(key: CollectionKey, opts: { logCount?: number; logSkip?: number; useNulWorktrees?: boolean; patchPath?: string; rev?: string; logStats?: boolean }): CommandSpec {
+export function commandFor(key: CollectionKey, opts: { logCount?: number; logSkip?: number; useNulWorktrees?: boolean; patchPath?: string; rev?: string; logStats?: boolean; staged?: boolean }): CommandSpec {
   switch (key) {
     case 'status':
       // 注意：status 没有 --no-ext-diff（porcelain 输出不走外部 diff）；重命名显式开。
@@ -128,6 +128,11 @@ export function commandFor(key: CollectionKey, opts: { logCount?: number; logSki
     case 'patch': {
       const p = opts.patchPath === undefined ? '' : opts.patchPath
       if (opts.rev !== undefined) return { key, subcommand: 'show', args: ['show', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', '--format=', opts.rev, '--', p] }
+      // #1860 D17：未提交的改动分两组看，读法也要分开 ——
+      //   staged=true 取「索引相对 HEAD」，那才是「已暂存」那一行真正的改动；
+      //   默认仍是「工作区相对 HEAD」，与从前一字不差（既有调用与真机字节样本都按这个口径录的）。
+      //   为什么现在才分：两组都按 HEAD 取时，同一个文件在「已暂存」与「未暂存」两行里会看到同一份补丁。
+      if (opts.staged === true) return { key, subcommand: 'diff', args: ['diff', '--cached', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', 'HEAD', '--', p] }
       return { key, subcommand: 'diff', args: ['diff', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', 'HEAD', '--', p] }
     }
   }

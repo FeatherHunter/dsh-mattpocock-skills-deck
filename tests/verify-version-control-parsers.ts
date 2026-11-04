@@ -63,6 +63,11 @@ async function main() {
   check(JSON.stringify(commands.commandFor('diffFiles', {}).args) === JSON.stringify(['diff', '--numstat', '-z', '--no-ext-diff', '--find-renames', 'HEAD'])
     && JSON.stringify(commands.commandFor('patch', { patchPath: 'x.txt' }).args) === JSON.stringify(['diff', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', 'HEAD', '--', 'x.txt']),
     '不带 rev 的两条命令与从前一字不差（既有行为不变）')
+  // #1860 D17：已暂存那一组要单独一种读法 —— 索引相对 HEAD；默认那一条仍是工作区相对 HEAD。
+  const stagedPatch = commands.commandFor('patch', { patchPath: 'x.txt', staged: true }).args
+  check(JSON.stringify(stagedPatch) === JSON.stringify(['diff', '--cached', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', 'HEAD', '--', 'x.txt'])
+    && JSON.stringify(stagedPatch) !== JSON.stringify(commands.commandFor('patch', { patchPath: 'x.txt' }).args),
+    '已暂存的补丁读「索引相对 HEAD」（--cached HEAD），与未暂存那一条是不同的命令：' + stagedPatch.join(' '))
   // 反证：把外部给的值拼进选项（而不是作为独立元素）的旧写法，在「提交号必须独占一个元素」这条断言下当场判红。
   const splicedBuilder = (rev) => ['show', '--numstat', '-z', '--no-ext-diff', '--find-renames', '--format=' + rev]
   check(splicedBuilder(REV).indexOf(REV) < 0, '反证：把 rev 拼进 --format= 元素的旧写法必须判红（它拼出来的是 ' + splicedBuilder(REV).slice(-1)[0] + '）')

@@ -44,7 +44,8 @@ declare function vcWorktreesUiOf(ui: any): any
 declare function createWorktreesOpsOf(deps: any): any
 declare function vcFailureOf(reply: any): any
 // #1860 D7：改动页展开一行时按路径读一次工作区差异（不带提交号 = 相对 HEAD），读数住在 reads.diffs。
-declare function vcReadDiff(reads: any, call: any, cwd: any, path: any, untracked: any): any
+declare function vcReadDiff(reads: any, call: any, cwd: any, path: any, untracked: any, staged?: any, cacheKey?: any): any
+declare function vcChangesDiffKeyOf(row: any): string
 declare function vcApplyDiffReply(currentReads: any, nextReads: any): any
 declare function vcMarkDiffLoading(reads: any, key: any): any
 
@@ -357,7 +358,9 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
       const open: boolean = String(values.openPath || '') === key
       handlers.onValue('openPath', open ? '' : key)
       if (open) return
-      const have: any = ((readsApi && readsApi.get && readsApi.get().diffs) || {})[key]
+      // 缓存键带分组（#1860 D17）：已暂存与未暂存是两份补丁，别互相顶掉。
+      const diffKey: string = vcChangesDiffKeyOf(row || { path: key })
+      const have: any = ((readsApi && readsApi.get && readsApi.get().diffs) || {})[diffKey]
       if (have && (have.state === 'ok' || have.state === 'loading')) return
       handlers.diffLoad(key, row)
     },
@@ -365,9 +368,10 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
     diffLoad: function (path: any, row: any): any {
       const api: any = readsApi || {}
       if (typeof api.get !== 'function' || typeof api.set !== 'function') return Promise.resolve(null)
-      const key: string = String(path || '')
+      const key: string = vcChangesDiffKeyOf(row || { path: String(path || '') })
       api.set(vcMarkDiffLoading(api.get(), key))
-      return Promise.resolve(vcReadDiff(api.get(), call, cwd, key, row && row.untracked === true)).then(function (next: any) {
+      // staged 一路向宿主取「索引相对 HEAD」；未暂存一路仍是默认的「工作区相对 HEAD」。
+      return Promise.resolve(vcReadDiff(api.get(), call, cwd, String(path || ''), row && row.untracked === true, row && row.staged === true, key)).then(function (next: any) {
         api.set(function (cur: any) { return vcApplyDiffReply(cur, next) })
         return next
       })

@@ -17,6 +17,12 @@
 
 declare function vcChangesOpMetaOf(op: any): any
 declare function vcChangeFileDiffOf(h: any, t: any, o: any): any
+
+// 差异缓存的键（#1860 D17）：同一个文件可能同时出现在「已暂存」与「未暂存」两组里，两行的补丁是两回事，
+//   键必须带上是哪一组，否则两行会互相顶掉同一个读数。
+export const vcChangesDiffKeyOf = function (row: any): string {
+  return (row && row.staged === true ? 'staged:' : 'worktree:') + String((row && row.path) || '')
+}
 declare function vcChangesOpVerbKeyOf(op: any): string
 declare function vcChangesTargetOf(op: any, values: any, t: any): string
 declare function vcChangesRowKeyOf(op: any, payload: any): string
@@ -240,7 +246,7 @@ const vcChangesFileRowNode = function (h: any, t: any, row: any, ctx: any) {
   // 展开块：这一行的补丁。读数没到就是「正在读」，读失败给重试，其余情形各说各的（见 vcChangeFileDiffOf）。
   if (open) {
     wrapKids.push(vcChangeFileDiffOf(h, t, {
-      path: path, read: diffs[path] || null,
+      path: path, read: diffs[vcChangesDiffKeyOf(row)] || null,
       onRetry: function () { if (typeof handlers.onDiffRetry === 'function') handlers.onDiffRetry(path, row) },
     }))
   }

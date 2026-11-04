@@ -1054,7 +1054,7 @@ async function scenarioChangesDiff() {
       'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
       'wf.gitDiff': function (args) {
         const path = String((args || {}).path || '')
-        diffCalls.push({ path: path, untracked: (args || {}).untracked === true, cwd: String((args || {}).cwd || '') })
+        diffCalls.push({ path: path, untracked: (args || {}).untracked === true, staged: (args || {}).staged === true, cwd: String((args || {}).cwd || '') })
         if (path === 'n1.txt') return { ok: true, path: path, lines: [], truncated: false, reason: 'untracked-no-diff' }
         if (lines[path] === null || lines[path] === undefined) return { ok: false, error: { kind: 'env', message: '读不到这个文件的差异' } }
         return { ok: true, path: path, lines: lines[path], truncated: false, reason: 'ok' }
@@ -1100,7 +1100,9 @@ async function scenarioChangesDiff() {
   const sMain = m.q('[data-vc-file-open="s1.txt"]')
   if (sMain) await m.click(sMain)
   await waitFor(function () { return !!m.q('[data-vc-changes-diff="s1.txt"]') })
-  check(m.qa('[data-vc-changes-diff="s1.txt"] [data-vc-diff-line]').length === 3, 'T37k 已暂存的文件同样能展开看补丁（读的是相对 HEAD 的工作区差异）')
+  check(m.qa('[data-vc-changes-diff="s1.txt"] [data-vc-diff-line]').length === 3, 'T37k 已暂存的文件同样能展开看补丁')
+  check(diffCalls.some(function (c) { return c.path === 's1.txt' && c.staged === true }) && diffCalls.some(function (c) { return c.path === 'u1.txt' && c.staged === false }),
+    'T37k2 已暂存那一行带 staged=true 读「索引相对 HEAD」，未暂存那一行不带这一位（两行看的是各自那一半改动）')
 
   // 读失败那一支：另起一份宿主，只让 e1.txt 读不到，验「失败块 + 重试按钮 + 重试真的重发」。
   const failSnap = snapshotOf()
@@ -1208,6 +1210,31 @@ async function scenarioStashAutoDetail() {
   check(failCalls === before + 1 && !!b.q('[data-vc-stash-detail="stash@{0}"] [data-vc-stash-file]'),
     'T38g 点重试真的重发一枪，读回来之后失败块换成文件清单')
   await b.unmount()
+
+  // 骨架先出现、再一条条填（#1860 D18）：让宿主这一枪永不回包，看十条记录是不是**同时**标成正在读。
+  //   只在前一条读回来才标下一条的话，这里只会看到一条骨架。
+  const hangSnap = snapshotOf()
+  hangSnap.slices.stashes.data = { entries: entries }
+  const hangHost = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: hangSnap, readAtMs: NOW } },
+      'wf.gitStash': function (args) {
+        const op = String((args || {}).op || '')
+        if (op !== 'show') return { ok: true, op: op, entries: entries, recent: [] }
+        return new Promise(function () {})
+      },
+    },
+  })
+  const hangView = buildView(hangHost, null)
+  const h = mountOf(hangView, { st: { cwd: CWD } })
+  await React.act(async function () { h.root.render(React.createElement(hangView.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await h.click('[data-vc-tab="stash"]')
+  await React.act(async function () { await new Promise(function (r) { setTimeout(r, 300) }) })
+  const pending = h.qa('[data-vc-stash-detail-pending="loading"]').length
+  const inflight = hangHost.calls.filter(function (one) { return one.phone === 'wf.gitStash' && (one.args || {}).op === 'show' }).length
+  check(pending === 10 && inflight === 1, 'T38h 十条骨架同时出现、读的还是一条一条（骨架 ' + pending + ' 条、在途 ' + inflight + ' 枪）')
+  await h.unmount()
   await m.unmount()
 }
 // ---------------- 场景十三：提交区只有三块，提交选项收进底行菜单（#1860 D6） ----------------
