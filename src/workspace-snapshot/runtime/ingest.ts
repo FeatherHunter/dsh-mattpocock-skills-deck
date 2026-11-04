@@ -14,7 +14,7 @@
 // 具体列的写法在 persistence/issue-row-write.ts 与 persistence/issue-groups-write.ts；
 // 这里只负责事务、版本门、身份与盖章，方便一眼看清「一批要么全进、要么全不进」。
 import type { DatabaseSync } from 'node:sqlite'
-import type { GroupWrite, IssueWrite } from '../contract/types.js'
+import type { GroupWrite, IssueWrite, SyncBookkeeping, SyncBookkeepingWrite } from '../contract/types.js'
 import { decideRowMerge } from '../merge/row.js'
 import { normalizeStartMergeVersion, shouldDiscardBatch } from '../merge/version-gate.js'
 import { applyIssueEdges } from '../persistence/issue-edge-write.js'
@@ -26,6 +26,7 @@ import { applyIssueMergeInfo, applyIssueSubIssues } from '../persistence/issue-s
 import { applyIssueComments, applyCommentReceipt } from '../persistence/comment-write.js'
 import { applyIssueReviews } from '../persistence/review-write.js'
 import { readMergeVersion } from '../persistence/schema.js'
+import { applySyncBookkeepingRow, readSyncBookkeepingRow } from '../persistence/sync-bookkeeping.js'
 
 /** 各组在 issue_group 里的物理名字。组名是对外契约的一部分，不要在这里改成别的写法。 */
 const GROUP_ROW = 'row'
@@ -62,6 +63,11 @@ export interface IngestWritesResult {
   detail?: string
   /** 这一批里评论写回执落在第几位（#1866）；没表达过这一组时是空数组。 */
   commentPositions?: number[]
+  /**
+   * 这一批顺带写下的同步簿记（#1888）。只有调用方给了 batch.sync 才有 —— 给了就说明这一趟
+   * 行与簿记在同一个事务里，行写进去了，水印/世代号/待办也一定跟着写了。
+   */
+  sync?: SyncBookkeeping
 }
 
 /**
@@ -75,10 +81,13 @@ export function ingestWrites(
   writes: readonly IssueWrite[],
   rawStartMergeVersion: number,
   nowMs: number,
+  syncWrite?: SyncBookkeepingWrite | null,
 ): IngestWritesResult {
   const startMergeVersion = normalizeStartMergeVersion(rawStartMergeVersion)
   const expressed = collectExpressedGroups(writes)
-  if (expressed.length === 0) {
+  // 空批：没有行要写、也没有簿记要写，直接回当前版本。什么都不开事务 —— 白占一次写锁不说，
+  // 还会让别人的 startMergeVersion 误以为「有人提交过」。
+  if (expressed.length === 0 && !syncWrite) {
     return { committed: true, mergeVersion: readMergeVersion(db) }
   }
 
@@ -92,22 +101,46 @@ export function ingestWrites(
       return { committed: false, reason: 'stale' }
     }
 
-    const nextVersion = readMergeVersion(db) + 1
-    const commentPositions: number[] = []
-    const bumpChangeVersion = db.prepare('UPDATE issue SET last_change_version = ? WHERE effort_id = ? AND key = ?')
-    const clearTombstone = db.prepare('DELETE FROM issue_tombstone WHERE issue_id = (SELECT issue_id FROM issue WHERE effort_id = ? AND key = ?)')
-    for (const write of writes) {
-      const appliedPosition = applyIssueWrite(db, write, nowMs, nextVersion)
-      if (appliedPosition !== null) commentPositions.push(appliedPosition)
-      // 这一批写过哪张票，就把它的「最后变化版本」推到这个版本：变化集靠它回答「v12 之后变了哪几行」。
-      bumpChangeVersion.run(nextVersion, write.effortId, write.key)
-      // 重新出现的票把墓碑清掉——墓碑只表达「这一版里它不在」，不是永久判决。
-      clearTombstone.run(write.effortId, write.key)
+    // 世代门（#1888）：调用方发起这一趟时读到的世代号，与库里此刻的不一样，说明期间有更新的结果
+    // 先落了地。这一批（行与簿记）整批丢弃 —— 迟到的结果不许覆盖更新的结果。
+    const currentSync = readSyncBookkeepingRow(db)
+    if (syncWrite && syncWrite.expectedGeneration !== undefined && Number(syncWrite.expectedGeneration) !== currentSync.generation) {
+      db.exec('ROLLBACK')
+      return { committed: false, reason: 'stale', detail: 'generation' }
     }
-    db.prepare('UPDATE meta SET merge_version = ?, last_write_ms = ? WHERE id = 1')
-      .run(nextVersion, nowMs)
+
+    // 版本号只由「真的写了行」推进：只写簿记的那一趟不动 merge_version，否则每一拍探测都会让
+    // 别人手里的 startMergeVersion 提前过期。
+    let nextVersion = readMergeVersion(db)
+    const commentPositions: number[] = []
+    if (expressed.length > 0) {
+      nextVersion += 1
+      const bumpChangeVersion = db.prepare('UPDATE issue SET last_change_version = ? WHERE effort_id = ? AND key = ?')
+      const clearTombstone = db.prepare('DELETE FROM issue_tombstone WHERE issue_id = (SELECT issue_id FROM issue WHERE effort_id = ? AND key = ?)')
+      for (const write of writes) {
+        const appliedPosition = applyIssueWrite(db, write, nowMs, nextVersion)
+        if (appliedPosition !== null) commentPositions.push(appliedPosition)
+        // 这一批写过哪张票，就把它的「最后变化版本」推到这个版本：变化集靠它回答「v12 之后变了哪几行」。
+        bumpChangeVersion.run(nextVersion, write.effortId, write.key)
+        // 重新出现的票把墓碑清掉——墓碑只表达「这一版里它不在」，不是永久判决。
+        clearTombstone.run(write.effortId, write.key)
+      }
+      db.prepare('UPDATE meta SET merge_version = ?, last_write_ms = ? WHERE id = 1')
+        .run(nextVersion, nowMs)
+    }
+    // 簿记与行在同一个事务里提交：先写行、后写簿记，COMMIT 一落两者一起可见。
+    const appliedSync = applySyncBookkeepingRow(db, syncWrite, currentSync)
+    if (!appliedSync.committed) {
+      db.exec('ROLLBACK')
+      return { committed: false, reason: 'stale', detail: 'generation' }
+    }
     db.exec('COMMIT')
-    return { committed: true, mergeVersion: nextVersion, commentPositions }
+    return {
+      committed: true,
+      mergeVersion: nextVersion,
+      commentPositions,
+      ...(syncWrite ? { sync: appliedSync.state } : null),
+    }
   } catch (error) {
     try { db.exec('ROLLBACK') } catch { /* 事务可能已因约束错误自动回滚 */ }
     return {

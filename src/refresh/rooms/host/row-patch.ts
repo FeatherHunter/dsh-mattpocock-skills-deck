@@ -45,6 +45,8 @@ import * as merger from '../../kernel/snapshot-merge.js'
 import { fetchThinRows } from './thin-row-fetch.js'
 // #1692：按需细节的淘汰规则（上限、LRU 判据、淘汰后留什么记号）只住这一处；本文件只在写回前调它。
 import { evictDetailsInSnapshot } from '../../kernel/detail-eviction.js'
+// #1888：水印、世代号、待办三样搬进快照库的库级元信息，读写与「先落库、再显示」的次序收在 ./row-patch-state.ts。
+import { createPatchState, structureStamp, withState, type DeltaState } from './row-patch-state.js'
 
 /**
  * 合并版本门丢弃时的原因后缀：把拦下它的字段组名拼进既有 reason 值（例如 merge-stale:comments），
@@ -58,15 +60,7 @@ function staleSuffix(out: any): string {
   return ''
 }
 
-/** 快照里那份增量状态：水印、世代号、待办三件（待办只记票键，不记路径与命令）。 */
-interface DeltaState {
-  structureVersion?: number
-  watermarkMs: number
-  generation: number
-  pending: string[]
-  pendingAt: number
-  pendingReason: string
-}
+// 增量状态（DeltaState）的形状与读写都住在 ./row-patch-state.ts（#1888 起它来自库级元信息）。
 
 /** 建补行件的依赖：全部由宿主接线注入，本文件不 import 宿主其它模块，免得接出环。 */
 interface PatchDeps {
@@ -83,14 +77,16 @@ interface PatchDeps {
    */
   recordWriteReceipt?: (input: any) => any
   decide?: (req: any) => any
+  /**
+   * #1888：快照库那一道口（由 patch-wiring 注入，见 ./patch-library-ports.ts）。接了之后
+   * 差分基线、水印/世代号/待办、变化行的写入全部走库；没接时照旧只写宿主内存副本。
+   */
+  library?: any
   now?: () => number
   hash8?: (s: string) => string
   maxRows?: number
   workspaceKeyOf?: (cwd: string) => string
 }
-
-/** 这块状态存在快照的哪个字段下。 */
-export const DELTA_FIELD = 'delta'
 
 /**
  * 建一个行级补行的跑腿件。deps 全部由宿主接线时注入（本文件不 import 宿主其它模块，免得接出环）：
@@ -138,38 +134,18 @@ export function createPatch(deps?: PatchDeps | null): any {
     } catch (eL: any) { /* 日志不许把主流程带崩 */ }
   }
 
-  /** 快照里那份增量状态的形状。老快照没有这个字段 —— 那正是「旧结构」的判据。 */
-  function stateOf(snap: any): DeltaState {
-    const raw: any = (snap && typeof snap === 'object' && snap[DELTA_FIELD] && typeof snap[DELTA_FIELD] === 'object') ? snap[DELTA_FIELD] : null
-    const s: any = raw || {}
-    return {
-      structureVersion: (typeof s.structureVersion === 'number') ? s.structureVersion : undefined,
-      watermarkMs: Number(s.watermarkMs) || 0,
-      generation: Number(s.generation) || 0,
-      pending: Array.isArray(s.pending) ? s.pending.map(String).filter(Boolean) : [],
-      pendingAt: Number(s.pendingAt) || 0,
-      pendingReason: String(s.pendingReason || ''),
-    }
-  }
-
-  /** 把增量状态放回快照（其它字段一个字不动）。 */
-  function withState(snap: any, st: DeltaState): any {
-    const out: any = Object.assign({}, snap)
-    out[DELTA_FIELD] = {
-      structureVersion: delta.DELTA_STRUCTURE_VERSION,
-      watermarkMs: st.watermarkMs, generation: st.generation,
-      pending: st.pending, pendingAt: st.pendingAt, pendingReason: st.pendingReason,
-    }
-    return out
-  }
-
-  /** checkStructure 的入参：把「没有这个字段」与「字段是 0」分得开。 */
-  function structureStamp(st: DeltaState): any {
-    return (typeof st.structureVersion === 'number') ? { structureVersion: st.structureVersion } : {}
-  }
+  // #1888：水印、世代号、待办三样的读写与「先落库、再显示」的次序收在 ./row-patch-state.ts。
+  // 接了库就一切以库为准（读不出来按失败处理，绝不拿内存那份顶上）；没接库照旧读写快照的 delta 字段。
+  const store = createPatchState({
+    readSnapshot: d.readSnapshot,
+    writeSnapshot: d.writeSnapshot,
+    library: d.library,
+    now: now,
+    fire: fire,
+    noteStale: function (): void { stats.staleDropped += 1 },
+  })
 
   async function readSnap(cwd: any): Promise<any> { return await Promise.resolve(d.readSnapshot(cwd)) }
-  async function writeSnap(cwd: any, snap: any): Promise<any> { return await Promise.resolve(d.writeSnapshot(cwd, snap)) }
 
   /**
    * 这一轮真拿到的行键。淘汰规则据此给行打「刚取到」的时间戳，没拿到的行沿用旧戳。
@@ -198,61 +174,15 @@ export function createPatch(deps?: PatchDeps | null): any {
     return evictDetailsInSnapshot(snap, { nowMs: now(), freshKeys: freshKeysOf(rows) })
   }
 
-  /** 待办现在有几条（给界面与日志用）。 */
-  async function pendingCount(cwd: any): Promise<number> { return stateOf(await readSnap(cwd)).pending.length }
-
-  /** 把几条变化记进待办（去重、按编号排序、最多留 500 条）。 */
-  async function rememberPending(cwd: any, snap: any, keys: any, reason: any): Promise<number> {
-    const st: DeltaState = stateOf(snap)
-    const set: Record<string, boolean> = {}
-    st.pending.forEach(function (k: string): void { set[k] = true })
-    ;(keys || []).forEach(function (k: any): void { if (k) set[String(k)] = true })
-    st.pending = Object.keys(set).sort().slice(-500)
-    st.pendingAt = now()
-    st.pendingReason = String(reason || '')
-    await writeSnap(cwd, withState(snap, st))
-    return st.pending.length
-  }
-
-  /**
-   * 切进一个工作区时先过这里：有待办就回「要整池」并把待办清掉（定稿第十一章：切进工作区先清待办，
-   * 有待办就整池）。为什么清掉：这一趟整池会把整仓票号与行都重拿一遍，待办里那几条变化自然被覆盖，
-   * 留着只会让下一次又白整池一次。
-   */
-  async function enterWorkspace(cwd: any): Promise<any> {
-    const snap: any = await readSnap(cwd)
-    if (!snap) return { mode: 'rebuild', reason: 'no-baseline', pending: 0 }
-    const st: DeltaState = stateOf(snap)
-    if (!st.pending.length) return { mode: 'use-cache', reason: 'no-pending', pending: 0 }
-    const n = st.pending.length
-    st.pending = []
-    st.pendingAt = 0
-    st.pendingReason = ''
-    await writeSnap(cwd, withState(snap, st))
-    return { mode: 'rebuild', reason: 'pending-todo', pending: n }
-  }
+  // 待办、切工作区、整池结果这三样也收在 ./row-patch-state.ts（读写库级元信息）；名字保持不变，
+  // 调用方（run / 探针 / 写事件）不用改签名。
+  const pendingCount = store.pendingCount
+  const rememberPending = store.rememberPending
+  const enterWorkspace = store.enterWorkspace
+  const admitSnapshot = store.admitSnapshot
 
   // 取数三件套（thinArgs/rowOf/fetchThinRows）已搬至 ./thin-row-fetch.js（#1255）：只发请求、拼行，
   // 合并、水印、待办仍在这里。调用点在 run() 第 ⑧ 步。
-
-  /**
-   * 整池那边回来的结果要走这里：先问世代号还算不算数，再落盘。
-   * 这一条就是「迟到的整池结果不许覆盖更新的增量结果」在 JS 那一侧的落点 ——
-   * 整池发起时记着手里的 generation，回来时增量已经把世代推走了，这里把它丢掉（一个字段都不写）。
-   */
-  async function admitSnapshot(cwd: any, snap: any, startedGeneration: any): Promise<any> {
-    const cur: any = await readSnap(cwd)
-    const st: DeltaState = stateOf(cur)
-    const g: any = delta.admitResult(st.generation, startedGeneration)
-    if (!g.accept) {
-      stats.staleDropped += 1
-      fire('rebuild', g.reason, { keyHash: hash8(wsKeyOf(cwd)), watermark: 'held', pending: st.pending.length })
-      return { accepted: false, reason: g.reason, generation: st.generation }
-    }
-    const next = withState(snap, { watermarkMs: now(), generation: g.generation, pending: [], pendingAt: 0, pendingReason: '' })
-    await writeSnap(cwd, next)
-    return { accepted: true, reason: g.reason, generation: g.generation }
-  }
 
   /**
    * 跑一次行级增量。回哪一档都能被调用方当成一句话安排下一步：
@@ -274,8 +204,12 @@ export function createPatch(deps?: PatchDeps | null): any {
       const e: any = await enterWorkspace(cwd)
       if (e.mode === 'rebuild') { stats.rebuildNeeded += 1; fire('rebuild', e.reason, { keyHash: keyHash, pending: e.pending }); return e }
     }
-    // ③ 磁盘上那份是旧结构（或比本机制还新）：不许静默当新结构用，整池重建一次。
-    const st: DeltaState = stateOf(snap)
+    // ③ 状态从库里读（没接库时读快照的 delta）。读不出来就别往下走：这一趟按失败处理，
+    //    绝不拿内存那份顶上 —— 那正是「同一张票两个值」的来源。
+    const loaded: any = await store.load(cwd, snap)
+    if (!loaded) { stats.failed += 1; fire('failed', 'store-unavailable', { keyHash: keyHash }); return { mode: 'failed', reason: 'store-unavailable' } }
+    const st: DeltaState = loaded.state
+    // ④ 磁盘上那份是旧结构（或比本机制还新）：不许静默当新结构用，整池重建一次。
     const sv: any = delta.checkStructure(structureStamp(st))
     if (sv.action === 'rebuild') { stats.rebuildNeeded += 1; fire('rebuild', sv.reason, { keyHash: keyHash, pending: st.pending.length }); return { mode: 'rebuild', reason: sv.reason } }
     // ④ 没有可用水印：拿这份快照自己的生成时刻当起点（快照就是那一刻的真状态）。
@@ -300,11 +234,14 @@ export function createPatch(deps?: PatchDeps | null): any {
     const remote: any = await Promise.resolve(d.probeIndex(cwd, win.sinceIso))
     if (!remote || remote.ok !== true || !remote.index) { stats.failed += 1; fire('failed', 'probe-failed', { keyHash: keyHash }); return { mode: 'failed', reason: 'probe-failed', pending: st.pending.length } }
     // ⑥ 差分（纯逻辑在 delta.js）：「哪些行变了」与「该走哪条路」一次算清。
-    const plan: any = delta.planDelta(d.indexOfSnapshot(snap), remote.index, { full: win.full === true })
+    //    差分基线从库读（#1888）：库里的行才是唯一真相；没接库时仍从快照算（老调用方）。
+    const baseline: any = loaded.fromLibrary ? await store.baseline(cwd, true, snap) : d.indexOfSnapshot(snap)
+    const plan: any = delta.planDelta(baseline, remote.index, { full: win.full === true })
     if (plan.mode === 'rebuild') { stats.rebuildNeeded += 1; fire('rebuild', plan.reason, { keyHash: keyHash, changed: plan.changed.length, pending: st.pending.length }); return { mode: 'rebuild', reason: plan.reason, added: plan.added.length, removed: plan.removed.length } }
     if (plan.mode === 'nothing') {
       const wv: any = delta.watermarkAfter({ previousMs: st.watermarkMs || watermarkMs, scanStartedMs: scanStartedMs, outcome: 'not-need' })
-      await writeSnap(cwd, withState(snap, Object.assign({}, st, { watermarkMs: wv.watermarkMs })))
+      const written: any = await store.writeState(cwd, snap, Object.assign({}, st, { watermarkMs: wv.watermarkMs }), { watermarkMs: wv.watermarkMs, expectedGeneration: st.generation })
+      if (!written.ok) { stats.failed += 1; fire('failed', written.reason || 'store-write-failed', { keyHash: keyHash, pending: st.pending.length }); return { mode: 'failed', reason: written.reason || 'store-write-failed' } }
       stats.noChange += 1
       fire('nothing', wv.reason, { keyHash: keyHash, watermark: wv.advanced ? 'advanced' : 'held', pending: st.pending.length })
       return { mode: 'nothing', reason: wv.reason, watermarkMs: wv.watermarkMs }
@@ -316,26 +253,29 @@ export function createPatch(deps?: PatchDeps | null): any {
     //    要补的行超过预算剩余就整轮推迟 —— 水印不动、变化进待办，下一拍或整仓枚举再补，绝不超发。
     const roundBudget: any = o.fallbackBudget || null
     if (roundBudget && plan.changed.length > roundBudget.view().remaining) {
-      const pending = await rememberPending(cwd, snap, plan.changed, 'fallback-budget')
+      const pend: any = await rememberPending(cwd, snap, st, plan.changed, 'fallback-budget')
       stats.deferred += 1
-      fire('deferred', 'fallback-budget', { keyHash: keyHash, changed: plan.changed.length, watermark: 'held', pending: pending })
-      return { mode: 'deferred', reason: 'fallback-budget', pending: pending, keys: plan.changed }
+      fire('deferred', 'fallback-budget', { keyHash: keyHash, changed: plan.changed.length, watermark: 'held', pending: pend.pending })
+      return { mode: 'deferred', reason: 'fallback-budget', pending: pend.pending, keys: plan.changed }
     }
     const startedGeneration = st.generation
     // #1690：合并服务是唯一写入入口。起读时先记下当前合并版本，取数回来再过版本门；
     // 版本门与世代号是两扇门：世代号防「迟到的整池覆盖更新的增量」，合并版本号防「更旧的结果整份回退」。
-    const startedMergeVersion: number = merger.mergeVersionOf(snap)
+    // 起读版本也来自库（#1888）：行级增量写库时版本门比的就是它，与快照里那份内存版本无关。
+    const startedMergeVersion: number = loaded.mergeVersion
     const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats, budget: roundBudget }, cwd, repo, plan.changed)
     if (!got.ok) {
-      const pending = await rememberPending(cwd, snap, got.keys || plan.changed, got.reason)
+      const pend: any = await rememberPending(cwd, snap, st, got.keys || plan.changed, got.reason)
       if (got.outcome === 'deferred') stats.deferred += 1; else stats.failed += 1
-      fire(got.outcome === 'deferred' ? 'deferred' : 'failed', got.reason, { keyHash: keyHash, changed: plan.changed.length, watermark: 'held', pending: pending })
-      return { mode: got.outcome === 'deferred' ? 'deferred' : 'failed', reason: got.reason, pending: pending, keys: got.keys }
+      fire(got.outcome === 'deferred' ? 'deferred' : 'failed', got.reason, { keyHash: keyHash, changed: plan.changed.length, watermark: 'held', pending: pend.pending })
+      return { mode: got.outcome === 'deferred' ? 'deferred' : 'failed', reason: got.reason, pending: pend.pending, keys: got.keys }
     }
     // ⑨ 两扇门：世代号（迟到的整池结果不许覆盖更新的增量结果）与合并版本号（更旧的结果整份丢弃）。
     //    先读一遍最新快照再判，避免拿着过期的基线去合并。
     const latest: any = await readSnap(cwd)
-    const latestState: DeltaState = stateOf(latest)
+    const latestLoaded: any = await store.load(cwd, latest)
+    if (!latestLoaded) { stats.failed += 1; fire('failed', 'store-unavailable', { keyHash: keyHash }); return { mode: 'failed', reason: 'store-unavailable' } }
+    const latestState: DeltaState = latestLoaded.state
     const g: any = delta.admitResult(latestState.generation, startedGeneration)
     if (!g.accept) { stats.staleDropped += 1; fire('patch', g.reason, { keyHash: keyHash, changed: plan.changed.length, watermark: 'held' }); return { mode: 'stale-dropped', reason: g.reason } }
     // ⑩ 并进列表（唯一写入入口在 kernel/snapshot-merge.ts）：字段组级合并——位置不动、读路径不新增行、
@@ -351,10 +291,10 @@ export function createPatch(deps?: PatchDeps | null): any {
       return { mode: 'stale-dropped', reason: staleReason }
     }
     if (merged.missing.length) {
-      const pending = await rememberPending(cwd, latest, merged.missing, 'merge-missing')
+      const pend: any = await rememberPending(cwd, latest, latestState, merged.missing, 'merge-missing')
       stats.failed += 1
-      fire('failed', 'merge-missing', { keyHash: keyHash, changed: merged.missing.length, watermark: 'held', pending: pending })
-      return { mode: 'failed', reason: 'merge-missing', pending: pending, keys: merged.missing }
+      fire('failed', 'merge-missing', { keyHash: keyHash, changed: merged.missing.length, watermark: 'held', pending: pend.pending })
+      return { mode: 'failed', reason: 'merge-missing', pending: pend.pending, keys: merged.missing }
     }
     // ⑪ 派生值：进度环本地重算（客户端按行算）；**deck.counts 保持旧值并把 deck.partial 置真**
     //    —— 这条是红线：counts 是整仓口径，只有整池拿得到，本地硬算一个出来就是假数字。
@@ -376,7 +316,18 @@ export function createPatch(deps?: PatchDeps | null): any {
     const next = withState(Object.assign({}, ev.snapshot, {
       version: merged.version, generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
     }), nextState)
-    await writeSnap(cwd, next)
+    // ⑫ 先落库（变化行与簿记一个事务），成功之后才写宿主内存副本：库写失败时内存一个字节不改、
+    //    界面保持旧值（#1888 验收第 3 条）。库说这份结果已经过期时也不写，原样丢掉。
+    const committed: any = await store.commitChanges(cwd, {
+      rows: got.issues || [], snapshot: next, state: nextState,
+      startMergeVersion: startedMergeVersion, expectedGeneration: latestState.generation,
+    })
+    if (!committed.ok) {
+      const stale = committed.reason === 'stale'
+      const reason = stale ? 'stale-result' : (committed.reason || 'store-write-failed')
+      fire(stale ? 'patch' : 'failed', reason, { keyHash: keyHash, changed: merged.changes.updated.length, watermark: 'held' })
+      return { mode: stale ? 'stale-dropped' : 'failed', reason: reason }
+    }
     stats.patched += 1
     fire('patch', 'rows-changed', { keyHash: keyHash, changed: merged.changes.updated.length, queries: got.queries, watermark: wv.advanced ? 'advanced' : 'held', pending: nextState.pending.length, evicted: ev.stats.evicted, evictedBytes: ev.stats.evictedBytes })
     return {
@@ -394,12 +345,15 @@ export function createPatch(deps?: PatchDeps | null): any {
   async function preflight(cwd: any, keyHash: string): Promise<any> {
     const snap: any = await readSnap(cwd)
     if (!snap || !Array.isArray(snap.issues)) { stats.rebuildNeeded += 1; fire('rebuild', 'no-baseline', { keyHash: keyHash }); return { mode: 'rebuild', reason: 'no-baseline' } }
-    const st: DeltaState = stateOf(snap)
+    // 状态从库里读（#1888）；读不出来就按失败处理，不拿内存那份顶上。
+    const loaded: any = await store.load(cwd, snap)
+    if (!loaded) { stats.failed += 1; fire('failed', 'store-unavailable', { keyHash: keyHash }); return { mode: 'failed', reason: 'store-unavailable' } }
+    const st: DeltaState = loaded.state
     const sv: any = delta.checkStructure(structureStamp(st))
     if (sv.action === 'rebuild') { stats.rebuildNeeded += 1; fire('rebuild', sv.reason, { keyHash: keyHash, pending: st.pending.length }); return { mode: 'rebuild', reason: sv.reason, pending: st.pending.length } }
     const repo: any = await Promise.resolve(d.getRepoKey(cwd))
     if (!repo || !repo.owner || !repo.name) { stats.failed += 1; fire('failed', 'no-repo', { keyHash: keyHash }); return { mode: 'failed', reason: 'no-repo', pending: st.pending.length } }
-    return { snap: snap, st: st, repo: repo }
+    return { snap: snap, st: st, repo: repo, mergeVersion: loaded.mergeVersion, fromLibrary: loaded.fromLibrary }
   }
 
   /**
@@ -437,18 +391,21 @@ export function createPatch(deps?: PatchDeps | null): any {
     const st: DeltaState = pre.st
     const repo: any = pre.repo
     const startedGeneration = st.generation
-    const startedMergeVersion: number = merger.mergeVersionOf(snap)
+    // 起读版本来自库（#1888）：与窗口增量那条路同一个口径。
+    const startedMergeVersion: number = Number(pre.mergeVersion) || 0
     // 只取这几条薄的（取数三件套在 ./thin-row-fetch.ts，依赖仍由这里注入）。
     const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats, receipt: d.recordWriteReceipt }, cwd, repo, list)
     if (!got.ok) {
-      const pending = await rememberPending(cwd, snap, got.keys || list, got.reason)
+      const pend: any = await rememberPending(cwd, snap, st, got.keys || list, got.reason)
       if (got.outcome === 'deferred') stats.deferred += 1; else stats.failed += 1
-      fire(got.outcome === 'deferred' ? 'deferred' : 'failed', got.reason, { keyHash: keyHash, changed: list.length, watermark: 'held', pending: pending })
-      return { mode: got.outcome === 'deferred' ? 'deferred' : 'failed', reason: got.reason, pending: pending, keys: got.keys }
+      fire(got.outcome === 'deferred' ? 'deferred' : 'failed', got.reason, { keyHash: keyHash, changed: list.length, watermark: 'held', pending: pend.pending })
+      return { mode: got.outcome === 'deferred' ? 'deferred' : 'failed', reason: got.reason, pending: pend.pending, keys: got.keys }
     }
     // 世代号与合并版本门：这一份还算不算数。不算就整份丢掉，一个字段都不写。
     const latest: any = await readSnap(cwd)
-    const latestState: DeltaState = stateOf(latest)
+    const latestLoaded: any = await store.load(cwd, latest)
+    if (!latestLoaded) { stats.failed += 1; fire('failed', 'store-unavailable', { keyHash: keyHash }); return { mode: 'failed', reason: 'store-unavailable' } }
+    const latestState: DeltaState = latestLoaded.state
     const g: any = delta.admitResult(latestState.generation, startedGeneration)
     if (!g.accept) { stats.staleDropped += 1; fire('patch', g.reason, { keyHash: keyHash, changed: list.length, watermark: 'held' }); return { mode: 'stale-dropped', reason: g.reason } }
     // 写回执走同一条合并入口：允许新增行（新建票要立刻出现在列表里），已有行按字段组掩码合并，
@@ -463,10 +420,10 @@ export function createPatch(deps?: PatchDeps | null): any {
       return { mode: 'stale-dropped', reason: staleReason }
     }
     if (merged.missing.length) {
-      const pending = await rememberPending(cwd, latest, merged.missing, 'merge-missing')
+      const pend: any = await rememberPending(cwd, latest, latestState, merged.missing, 'merge-missing')
       stats.failed += 1
-      fire('failed', 'merge-missing', { keyHash: keyHash, changed: merged.missing.length, watermark: 'held', pending: pending })
-      return { mode: 'failed', reason: 'merge-missing', pending: pending, keys: merged.missing }
+      fire('failed', 'merge-missing', { keyHash: keyHash, changed: merged.missing.length, watermark: 'held', pending: pend.pending })
+      return { mode: 'failed', reason: 'merge-missing', pending: pend.pending, keys: merged.missing }
     }
     const derived: any = delta.derivedAfter('patch')
     const deck: any = Object.assign({}, (latest.deck && typeof latest.deck === 'object') ? latest.deck : {})
@@ -486,7 +443,14 @@ export function createPatch(deps?: PatchDeps | null): any {
     const next = withState(Object.assign({}, ev.snapshot, {
       version: merged.version, generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
     }), nextState)
-    await writeSnap(cwd, next)
+    // 行已经由写回执先落库；这里把这一趟的世代号与待办认进库，成功之后才写内存副本。
+    const written: any = await store.claimState(cwd, next, nextState, latestState.generation)
+    if (!written.ok) {
+      const stale = written.reason === 'stale'
+      const reason = stale ? 'stale-result' : (written.reason || 'store-write-failed')
+      fire(stale ? 'patch' : 'failed', reason, { keyHash: keyHash, changed: changedKeys.length, watermark: 'held' })
+      return { mode: stale ? 'stale-dropped' : 'failed', reason: reason, pending: nextState.pending.length }
+    }
     stats.patched += 1
     fire('patch', 'write-patch', { keyHash: keyHash, changed: changedKeys.length, queries: got.queries, watermark: 'held', pending: nextState.pending.length, evicted: ev.stats.evicted, evictedBytes: ev.stats.evictedBytes })
     return { mode: 'patch', reason: 'write-patch', rows: changedKeys, version: merged.version, snapshot: next, queries: got.queries, partial: deck.partial === true, generation: g.generation, watermarkMs: nextState.watermarkMs }
@@ -524,10 +488,13 @@ export function createPatch(deps?: PatchDeps | null): any {
     const win: any = d.windowRules.scanWindow(watermarkMs, scanStartedMs)
     const remote: any = await Promise.resolve(d.probeIndex(cwd, win.sinceIso))
     if (!remote || remote.ok !== true || !remote.index) { stats.failed += 1; fire('failed', 'probe-failed', { keyHash: keyHash }); return { mode: 'failed', reason: 'probe-failed', pending: st.pending.length } }
-    const plan: any = delta.planDelta(d.indexOfSnapshot(snap), remote.index, { full: win.full === true })
+    // 差分基线从库读（#1888）；没接库时仍从快照算（老调用方）。
+    const baseline: any = pre.fromLibrary ? await store.baseline(cwd, true, snap) : d.indexOfSnapshot(snap)
+    const plan: any = delta.planDelta(baseline, remote.index, { full: win.full === true })
     if (plan.mode === 'nothing') {
       const wv: any = delta.watermarkAfter({ previousMs: st.watermarkMs || watermarkMs, scanStartedMs: scanStartedMs, outcome: 'not-need' })
-      await writeSnap(cwd, withState(snap, Object.assign({}, st, { watermarkMs: wv.watermarkMs })))
+      const written: any = await store.writeState(cwd, snap, Object.assign({}, st, { watermarkMs: wv.watermarkMs }), { watermarkMs: wv.watermarkMs, expectedGeneration: st.generation })
+      if (!written.ok) { stats.failed += 1; fire('failed', written.reason || 'store-write-failed', { keyHash: keyHash, pending: st.pending.length }); return { mode: 'failed', reason: written.reason || 'store-write-failed' } }
       stats.noChange += 1
       fire('nothing', wv.reason, { keyHash: keyHash, watermark: wv.advanced ? 'advanced' : 'held', pending: st.pending.length })
       return { mode: 'nothing', reason: wv.reason, watermarkMs: wv.watermarkMs }
@@ -551,7 +518,7 @@ export function createPatch(deps?: PatchDeps | null): any {
     enterWorkspace: enterWorkspace,
     admitSnapshot: admitSnapshot,
     pendingCount: pendingCount,
-    state: async function (cwd: any): Promise<DeltaState> { return stateOf(await readSnap(cwd)) },
+    state: async function (cwd: any): Promise<DeltaState> { return await store.state(cwd) },
     threshold: { maxRows: maxRows },
     stats: function (): any { return Object.assign({}, stats) },
   }

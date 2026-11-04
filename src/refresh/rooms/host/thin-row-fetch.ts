@@ -180,5 +180,7 @@ export async function fetchThinRows(env: ThinFetchEnv, cwd: any, repo: any, keys
       return sessionFailure(list, 'receipt-not-committed:' + String((stored && stored.reason) || 'unknown'))
     }
   }
-  return { ok: true, rows: rows, queries: list.length }
+  // #1888：把取回来的 tracker 票一并交回去 —— 调用方要用它们把变化先写进快照库。
+  // rows 是界面认的那份行形状，issues 是库适配层认的契约票；两者同源、不是第二份真相。
+  return { ok: true, rows: rows, issues: issues, queries: list.length }
 }
