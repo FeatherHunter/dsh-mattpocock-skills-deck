@@ -313,6 +313,24 @@ export const truthNoticeLines = function (st: any, nowMs: any) {
   //   （budgetTierViewOf 给档位，展开看原始数字）。列表这一行只说数据为什么旧。
   return lines
 }
+/**
+ * #1890：wf.snapshotVersion 回包 → 环境检查页「能力诊断」里那一格读数。
+ *
+ * 为什么单列成纯函数：诊断读数要在不挂 React 的门禁里直接验（喂回包、看文字），
+ * 而且「回的版本能不能用」这条判据只能有一处：回包缺版本、版本不是非负整数、电话失败，
+ * 一律显示「—」，绝不编一个 0 —— 0 是一个合法的库版本，冒充 0 会让读者以为库刚重建过。
+ *
+ * 返回值里 version 是数字或 null，text 是页面上直接显示的那一格；backend / workspaceKey
+ * 原样带出来只为排查（页面上已有的后端行不在这里重复画）。
+ */
+export const snapshotVersionReadoutOf = function (reply: any) {
+  const version = (reply && typeof reply.version === 'number' && isFinite(reply.version) && reply.version >= 0)
+    ? Math.floor(reply.version)
+    : null
+  const backend = (reply && typeof reply.backend === 'string') ? reply.backend : ''
+  const workspaceKey = (reply && typeof reply.workspaceKey === 'string') ? reply.workspaceKey : ''
+  return { ok: version !== null, version: version, backend: backend, workspaceKey: workspaceKey, text: version === null ? '—' : String(version) }
+}
 // 行上那个「更新中」标记的窗口：一次写入成功之后，这一行在合并窗口内还算「正在更新」。
 // 窗口长度就是 host-budget.ts 的 PATCH_MERGE_WINDOW_MS（10 秒），这里不另写一个数字。
 export const truthWriteWindowOpen = function (atMs: any, nowMs: any) {

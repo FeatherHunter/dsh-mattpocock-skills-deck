@@ -187,6 +187,56 @@ export interface ListQuery {
 }
 
 /**
+ * 变化集里的墓碑行：某张票在第几个版本被确认不存在。
+ *
+ * 只带身份与删除时刻：界面拿它把对应的行拿掉，不需要墓碑自己的行字段（行还在库里，
+ * 但按定义它不在集合里）。deleted_at_ms 进回包只为排查，不参与界面判断。
+ */
+export interface ChangeSetTombstone {
+  effortId: string
+  key: string
+  deletedAtMs: number
+}
+
+/**
+ * 变化集查询（#1890）。从 sinceVersion 到当前版本，最多回 maxRows 行、最多允许落后 maxAgeMs。
+ *
+ * sinceMs 是客户端看到 sinceVersion 的时刻，由调用方如实交来：时间只用于「落后太久就整份重取」
+ * 这一档降级，不参与显示与新旧判断（规格 I3）。没带（0）时时间档不参与判断，行数上限照旧生效。
+ *
+ * maxRows / maxAgeMs 由调用方从中央时间参数传进来：快照库这一层不读配置，也不写死数字。
+ */
+export interface ChangeSetQuery {
+  sinceVersion: number
+  sinceMs?: number
+  maxRows: number
+  maxAgeMs: number
+}
+
+/** 回整份的原因代号。写进宿主回包，取值只许加、不许改字面。 */
+export type ChangeSetFullReason =
+  | 'no-baseline' // 客户端没给版本（或给的不是非负整数）：没有可比对的起点
+  | 'version-regressed' // 客户端的版本比库里当前版本大：文件被旧拷贝覆盖或库重建过
+  | 'rows-over-limit' // 变化的行与墓碑合计超过行数上限
+  | 'age-over-limit' // 客户端手上的版本比时间上限更旧
+
+/**
+ * 一次变化集读的结果。
+ *
+ * full 为真时只有版本与原因：changes / missing 一律是空数组，表示「这一趟不给变化集」，
+ * 调用方必须整份重取。不要把它当成「没有变化」——那是 full:false + 两个空数组。
+ * 本层不拼事故意不截断：超过上限时不会交回前 maxRows 行，交回半份增量比整份更糟。
+ */
+export interface ChangeSetProjection {
+  mergeVersion: number
+  generatedAtMs: number
+  full: boolean
+  reason: ChangeSetFullReason | null
+  changes: ListIssue[]
+  missing: ChangeSetTombstone[]
+}
+
+/**
  * 详情读的十组三态。没有出现的组在库里没有记录（从没取过），值给 null。
  *
  * 界面靠它区分「确认没有」与「不知道」：completeness 是 complete 且值为空 = 确认没有；

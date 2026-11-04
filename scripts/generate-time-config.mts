@@ -286,6 +286,10 @@ const KEYS: Array<[string, string, string]> = [
   ['snapshotPickedGuardMs', 'SNAPSHOT_PICKED_GUARD_MS', 'ttl'],
   // #1862：工作区快照库写者租约的有效期（心跳在 intervals 那档，这里是多久没续可以被接管）。
   ['snapshotLeaseTtlMs', 'SNAPSHOT_LEASE_TTL_MS', 'ttl'],
+  // #1890：变化集的两个降级阈值成对使用，住同一份文件、相邻两行。行数上限不是时间，
+  // 但它与「落后多久就回整份」是同一个决定的两半（任一越线都回整份），放进同一处才不会改一个漏一个。
+  ['snapshotChangesMaxRows', 'SNAPSHOT_CHANGES_MAX_ROWS', 'ttl'],
+  ['snapshotChangesMaxAgeMs', 'SNAPSHOT_CHANGES_MAX_AGE_MS', 'ttl'],
   ['planCursorTtlMs', 'PLAN_CURSOR_TTL_MS', 'ttl'],
   ['anchorWindowMs', 'ANCHOR_WINDOW_MS', 'ttl'],
   ['idempotencyLookbackMs', 'IDEMPOTENCY_LOOKBACK_MS', 'ttl'],

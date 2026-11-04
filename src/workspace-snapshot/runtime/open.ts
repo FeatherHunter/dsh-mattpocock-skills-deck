@@ -25,6 +25,8 @@ import type {
   WriteBatch,
 } from '../contract/types.js'
 import type {
+  ChangeSetProjection,
+  ChangeSetQuery,
   IssueDetailProjection,
   IssueDetailQuery,
   ListProjection,
@@ -47,6 +49,7 @@ import { applySyncBookkeepingRow, readSyncBookkeepingRow } from '../persistence/
 import { openWritableDatabase, describeError } from './open-schema.js'
 import { readListProjection } from '../projection/list.js'
 import { readIssueDetailProjection } from '../projection/detail.js'
+import { readChangeSetProjection } from '../projection/changes.js'
 import { ingestWrites } from './ingest.js'
 import { markMissingTickets } from './tombstone-write.js'
 import {
@@ -267,6 +270,10 @@ export function openWorkspaceSnapshot(
     readIssueDetail(query: IssueDetailQuery): IssueDetailProjection {
       ensureOpen()
       return readIssueDetailProjection(db, query, now())
+    },
+    readChangeSet(query: ChangeSetQuery): ChangeSetProjection {
+      ensureOpen()
+      return readChangeSetProjection(db, query, now())
     },
     rebuild(): void {
       ensureOpen()

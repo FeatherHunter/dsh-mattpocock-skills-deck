@@ -134,6 +134,10 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'SHELL_RESOLVE_TIMEOUT_MS', gen: 'SHELL_RESOLVE_TIMEOUT_MS', key: 'shellResolveMs' },
   // #1864：详情在本地快照库里的新鲜度（config/ttl.yaml 的 issueDetailLocalTtlMs）。
   { file: 'src/refresh/rooms/host/comment-thread-fetch.ts', access: 'ISSUE_DETAIL_LOCAL_TTL_MS', gen: 'ISSUE_DETAIL_LOCAL_TTL_MS', key: 'issueDetailLocalTtlMs' },
+  // #1890：变化集的两个降级阈值（config/ttl.yaml 里并排的两格）：行数上限与时间上限，
+  // 宿主两条新读口从这里取，不在代码里写第二份数字。
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', access: 'SNAPSHOT_CHANGES_MAX_ROWS', gen: 'SNAPSHOT_CHANGES_MAX_ROWS', key: 'snapshotChangesMaxRows' },
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', access: 'SNAPSHOT_CHANGES_MAX_AGE_MS', gen: 'SNAPSHOT_CHANGES_MAX_AGE_MS', key: 'snapshotChangesMaxAgeMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'DEFER_EXPIRY_MS', gen: 'DEFER_EXPIRY_MS', key: 'deferExpiryMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
@@ -641,6 +645,13 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'pendingAtMs', reason: '待办里记下的时刻（什么时候记下这条待办），库里的状态字段，不是可调参数' },
   { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'atMs', reason: '待办 JSON 里记下的时刻（与 pendingAtMs 同一件事的另一种写法），不是可调参数' },
   { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'fullEnumerationMs', reason: '上一次完整枚举发生在什么时候的时刻（库里的状态字段，用来判库有没有取全），不是可调参数' },
+  // #1890：变化集投影本身不读配置，两个上限都由宿主电话从中央时间参数传进来；sinceMs 是
+  //   客户端交上来的「上次看到该版本的时刻」，只参与降级判断，不是本文件决定的可调时长。
+  { file: 'src/workspace-snapshot/projection/changes.ts', name: 'maxAgeMs', reason: '透传参数：值由调用方从中央时间参数 snapshotChangesMaxAgeMs 传入，本文件不写数字' },
+  { file: 'src/workspace-snapshot/projection/changes.ts', name: 'sinceMs', reason: '调用方给的起点时刻（客户端上次看到该库版本的时刻），不是可调参数' },
+  // #1890：变化集读口把客户端交来的时刻归一成非负整数再往下传；两格都是同一个输入，不是两个参数。
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', name: 'rawSinceMs', reason: '客户端交来的原始时刻（参数原文），只做归一与校验，不是可调参数' },
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', name: 'sinceMs', reason: '归一之后的起点时刻（客户端上次看到该库版本的时刻），只参与降级判断，不是可调参数' },
 ]
 
 // 时间味判定，两类都认：

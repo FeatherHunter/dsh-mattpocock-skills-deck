@@ -870,7 +870,7 @@ async function main() {
   const eSettingsSrc = sourceText('tests/verify-settings-phones.ts')
   // 电话总数由 tests/verify-settings-phones.ts 钉住；别处加电话时这一条也要跟着改（#1776 M4b 加远端预检后 118 → 119；
   // #1806 的四条工作区电话在 2026-11-03 随身份记录机制撤掉，回到 119）。
-  check(eSettingsSrc.indexOf('nPhones === 119') >= 0, 'E9 宿主电话总数登记为一百一十九条（维护页三条、#1776 M4b 的远端预检电话算进去了；#1806 的四条工作区电话已撤）')
+  check(eSettingsSrc.indexOf('nPhones === 121') >= 0, 'E9 宿主电话总数登记为一百二十一条（维护页三条、#1776 M4b 的远端预检电话算进去了；#1806 的四条工作区电话已撤；#1890 加了版本查询与变化集两条）')
   const eTimeouts = fs.readFileSync(path.join(ROOT, 'config/timeouts.yaml'), 'utf8')
   check(/vcMaintenanceReadTimeoutMs: 30000/.test(eTimeouts) && /vcMaintenanceWriteTimeoutMs: 600000/.test(eTimeouts), 'E10 时间配置两条键带值（读 30 秒 / 写 10 分钟盖住整仓备份）')
   const eGen = sourceText('scripts/generate-time-config.mts')
