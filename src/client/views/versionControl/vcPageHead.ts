@@ -81,12 +81,18 @@ export const vcPageHeadNode = function (h: any, t: any, o: any) {
 
 // 分区：section.page-section 是「一段有标题的内容」，标题行可以带条数；危险区在类名上加 is-danger，
 // 并给 data-vc-danger-section=1，同时把 vc.shell.page.danger 写在标题旁——读者在展开之前就知道这段不安全。
+// 条数有两种给法，画在同一个位置：
+//   ① count：只给数字（原型里的 section-count 是纯数字时用它），0 与负数不画；
+//   ② countText：给已经带量词的一整句（例如「3 条本地分支」「2 个标签」），#1858 按原型 38 需要量词就用这一种。
+//      两种都传时以 countText 为准——它已经是读者要看到的那句话，数字不再拼一遍。
 export const vcPageSectionNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const danger = opts.danger === true
   const head: any[] = [h('h3', { key: 'title', className: 'section-title' }, t(String(opts.title || '')))]
+  const countText = opts.countText === undefined || opts.countText === null ? '' : String(opts.countText)
   const count = Number(opts.count || 0)
-  if (count > 0) head.push(h('span', { key: 'count', className: 'section-count' }, String(count)))
+  if (countText !== '') head.push(h('span', { key: 'count', className: 'section-count' }, t(countText)))
+  else if (count > 0) head.push(h('span', { key: 'count', className: 'section-count' }, String(count)))
   if (danger) head.push(h('span', { key: 'danger', className: 'section-danger' }, t('vc.shell.page.danger')))
   const kids: any[] = [h('div', { key: 'head', className: 'section-head' }, head)]
   if (opts.note) kids.push(h('p', { key: 'note', className: 'section-note' }, t(String(opts.note))))

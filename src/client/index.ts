@@ -60,6 +60,7 @@ declare const VC_STYLE_TEXT: any;
 declare const VC_SHELL_STYLE_TEXT: any;
 // #1829 阶段 4 重做页面的样式（页头、四个原语、管理索引、命令面板遮罩、分支浮层；另一个样式叶子，接缝不变）。
 declare const VC_PAGE_STYLE_TEXT: any;
+declare const VC_BRANCH_STYLE_TEXT: any;
 // #1860 主屏原型样式（身份行、四页签、四个一级页签的正文；从定稿原型 app.css 剪来，作用域仍是 [data-vc-shell]）。
 //   按真源分段拆成八份叶子，构建按 build.mts 同序拼进闭包；注入时同序拼成一段样式。
 declare const VC_PROTO_STYLE_TOKENS: any;
@@ -137,6 +138,10 @@ export default {
     // #1829 阶段 4：重做页面新增的样式叶子（页头、原语、管理索引、命令面板遮罩、分支浮层）。
     // ==== leaf:vcPageStyles (spliced by build) ====
     styles.insert(VC_PAGE_STYLE_TEXT)
+    // #1858：分支与标签页自己的样式（对象行三行结构、筛选与搜索、行尾动作、段内空态）。
+    //   只服务这一页；按票面边界不往上面那几份多页共用的样式文件里加。
+    // ==== leaf:vcBranchStyles (spliced by build) ====
+    styles.insert(VC_BRANCH_STYLE_TEXT)
     // #1860：主屏（身份行、四页签、四个一级页签正文）按定稿原型重做的样式；同一接缝，排在旧壳样式之后。
     //   原型样式按真源分段拆成八份叶子（每份都在 350 有效行以内），这里按 build.mts 同序拼接。
     // ==== leaf:vcProtoTokens (spliced by build) ====

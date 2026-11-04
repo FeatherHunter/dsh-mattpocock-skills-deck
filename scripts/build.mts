@@ -818,6 +818,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcStyles', file: 'src/client/views/versionControl/vcStyles.ts' }, // #851 版本管理页签的视觉语言（档案索引）：一段 CSS 文本，经同一个 styles.insert 接缝注入
   { id: 'vcShellStyles', file: 'src/client/views/versionControl/vcShellStyles.ts' }, // #1738 页面壳的视觉语言：深浅两套语义色、四档宽排布；同样走 styles.insert 接缝
   { id: 'vcPageStyles', file: 'src/client/views/versionControl/vcPageStyles.ts' }, // #1829 阶段 4：重做页面新增的样式（页头、分区/折叠/事实网格/对象行、管理索引卡、命令面板遮罩、分支浮层），仍走同一个 styles.insert 接缝
+  { id: 'vcBranchStyles', file: 'src/client/views/versionControl/vcBranchStyles.ts' }, // #1858：分支与标签页自己的样式（对象行三行结构、筛选与搜索、行尾动作、段内空态），排在本页视图叶子之前注入
   // #1860：主屏按定稿原型还原的样式（身份行、四页签、四个一级页签正文），按真源分段拆成八份叶子，
   //   每份都在 350 有效行以内；拼接顺序就是注入顺序，改动时两边一起改。
   { id: 'vcProtoTokens', file: 'src/client/views/versionControl/vcProtoTokens.ts' },

@@ -278,7 +278,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcMaintenancePageNode, { key: 'maintenance-cards', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1750 T15 维护页整仓重写（能力 5.11）正文；#1758 T22 维护页 11.4–11.11 正文；三块同一物理行：本文件贴着 350 有效行上限
   // 分支与标签页（#1746 T11；#1829 阶段 3 换成有状态组件叶子）：调用方把一份读数传进来才画，
   //   没传整块不出现，其它页渲染不变；筛选与搜索的组件状态在叶子内部，壳只往下递读数与处理函数。
-  if (page === 'branch-tags' && opts.branchBoard !== undefined) children.push(h(vcBranchPageOf, { key: 'branch-board', t: t, board: opts.branchBoard, confirm: opts.branchConfirm, result: opts.branchResult, onRetry: opts.onBranchRetry, nowMs: opts.nowMs }))
+  if (page === 'branch-tags' && opts.branchBoard !== undefined) children.push(h(vcBranchPageOf, { key: 'branch-board', t: t, board: opts.branchBoard, state: opts.branchState, error: opts.branchError, confirm: opts.branchConfirm, result: opts.branchResult, onRetry: opts.onBranchRetry, nowMs: opts.nowMs }))
   // 历史高级查询面板（#1745 T10）：提交历史页落 3.4 / 3.6 / 3.7 / 3.8 / 3.10 / 3.12 六组，
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
@@ -384,7 +384,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。
-    branchBoard: opts.branchBoard, branchConfirm: opts.branchConfirm, branchResult: opts.branchResult, onBranchRetry: opts.onBranchRetry,
+    branchBoard: opts.branchBoard, branchState: opts.branchState, branchError: opts.branchError, branchConfirm: opts.branchConfirm, branchResult: opts.branchResult, onBranchRetry: opts.onBranchRetry,
     // #1745：历史高级查询面板的输入与四态由调用方带着走（不传就是空的「还没跑」）。
     queries: opts.queries, inputs: opts.inputs,
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。

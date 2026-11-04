@@ -227,6 +227,10 @@ function entryOf(closureSrc: string): string {
     "    branchRetry: root.querySelectorAll('[data-vc-branch2-retry]').length,",
     "    branchEmpty: root.querySelectorAll('[data-vc-branch2-empty]').length,",
     "    branchOidsShown: (function () { const out = []; root.querySelectorAll('[data-vc-branch-row] .vcs-branch2-oid').forEach(function (el) { if (window.getComputedStyle(el).display !== 'none') out.push(String(el.textContent)); }); return out; })(),",
+    // #1858：正文三段的分区标题（分支 → 标签 → 上游跟踪）与段内事实格，按原型 38 的顺序与内容判。
+    "    branchSectionTitles: (function () { const s = root.querySelector('[data-vc-branch2]'); if (!s) return []; const out = []; s.querySelectorAll('.page-section .section-title').forEach(function (el) { out.push(String(el.textContent)) }); return out; })(),",
+    "    branchSectionCounts: (function () { const s = root.querySelector('[data-vc-branch2]'); if (!s) return []; const out = []; s.querySelectorAll('.page-section .section-count').forEach(function (el) { out.push(String(el.textContent)) }); return out; })(),",
+    "    branchFacts: (function () { const s = root.querySelector('[data-vc-branch2]'); if (!s) return []; const out = []; s.querySelectorAll('.fact-grid .fact-key').forEach(function (el) { out.push(String(el.textContent)) }); return out; })(),",
     // #1842 阶段 4：配置页与钩子页的结构读数（属性顺序即页面上从上到下的顺序）。
     "    cfgPageRead: (function () { const e = root.querySelector('[data-vc-config-page]'); return e ? e.getAttribute('data-vc-config-read') : null; })(),",
     "    cfgSections: (function () { const s = root.querySelector('[data-vc-config-page]'); if (!s) return []; return Array.prototype.map.call(s.children, function (el) { return String(el.className || el.tagName) }); })(),",
@@ -612,9 +616,16 @@ async function run(browser: any, env: any) {
         check(!!m && m.bodyPrimaries === 0 && m.primaries.length === 0, tag + '：正文里不再画能力行与 data-cap-primary（该页 ' + branchCaps.length + ' 条能力，主入口只在命令面板）')
         check(!!m && m.branchFilters.join(',') === 'all,current,unmerged' && m.branchQuery === true, tag + '：首屏有搜索框与三颗筛选胶囊（全部 / 当前分支 / 未并入当前分支）')
         check(!!m && m.branchScope === '3' && m.branchMerged === '1' && m.branchNotMerged === '2', tag + '：筛选计数与两张名单的条数对得上读数（显示 ' + (m && m.branchScope) + ' / 已并入 ' + (m && m.branchMerged) + ' / 没并入 ' + (m && m.branchNotMerged) + '）')
-        const head = m && m.branchOrder ? m.branchOrder.slice(0, 4).join(',') : ''
-        check(head === 'vcs-branch2-head,vcs-branch2-lede,vcs-branch2-boundary,vcs-branch2-cur', tag + '：首屏从上到下是页头 → 说明 → 只读边界 → 当前分支（实得 ' + head + '）')
-        check(!!m && m.branchOrder.indexOf('vcs-branch2-list') > 0 && m.branchOrder.indexOf('vcs-branch2-forms') > m.branchOrder.indexOf('vcs-tag-list'), tag + '：分支列表在标签之前、十条写动作收在页尾折叠区')
+        // #1858：页头交给页面壳（本页不重复画标题与导语），正文按原型 38 三段固定顺序：
+        //   分支（含筛选与搜索）→ 标签 → 上游跟踪；页尾是十条写动作的折叠区。
+        const titles = m && m.branchSectionTitles ? m.branchSectionTitles.join(',') : ''
+        check(titles === '分支,标签,上游跟踪', tag + '：正文三段从上到下是分支 → 标签 → 上游跟踪（实得 ' + titles + '）')
+        const counts = m && m.branchSectionCounts ? m.branchSectionCounts.join(',') : ''
+        check(counts === '3 条本地分支,2 个标签', tag + '：两段标题上的条数与读数一致（实得 ' + counts + '）')
+        const facts = m && m.branchFacts ? m.branchFacts.join(',') : ''
+        check(facts === '当前分支,上游,领先 / 落后,上游依据', tag + '：上游跟踪段是四条事实（实得 ' + facts + '）')
+        const firstThree = m && m.branchOrder ? m.branchOrder.slice(0, 3).join(',') : ''
+        check(firstThree === 'page-section,page-section,page-section' && m && m.branchOrder[m.branchOrder.length - 1] === 'vcs-branch2-forms', tag + '：三段正文之后收着写动作折叠区，页头不再由本页重复画（实得 ' + firstThree + ' / ' + (m && m.branchOrder[m.branchOrder.length - 1]) + '）')
         if (width === 300) check(!!m && m.branchOidsShown.length === 0, tag + '：300 宽把提交短号收起来，避免把行撑破')
         else check(!!m && m.branchOidsShown.length > 0, tag + '：' + width + ' 宽继续显示提交短号')
         check(!!m && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.clipped.join(',') || '无') + '）')
@@ -753,7 +764,18 @@ async function run(browser: any, env: any) {
     const mod: any = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/' + name + '.ts').replace(/\\/g, '/'))
     protoCss += (mod['VC_PROTO_STYLE_' + name.slice('vcProto'.length).toUpperCase()] || []).join('\n') + '\n'
   }
-  const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + String(stylesMod.VC_SHELL_STYLE_TEXT || '') + String(pageStylesMod.VC_PAGE_STYLE_TEXT || '') + protoCss
+  // #1858：分支与标签页自己的样式叶子（对象行三行结构、筛选与搜索、行尾动作、段内空态），
+  //   运行时由 index.ts 接在 vcPageStyles 之后注入；这里必须按同一顺序拼上，否则本页在四档宽下量出假溢出、假截断。
+  const branchStylesMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcBranchStyles.ts').replace(/\\/g, '/'))
+  // 样式叶子是「一条规则一个数组项」，运行时由 styles.insert 逐条注入。以前这里用 String(数组) 拼，
+  //   数组会被逗号连成一串：浏览器从第一条之后的每条规则都解析失败被丢弃，量尺量到的是「只有一半样式」的页面
+  //   （#1858 实测：.vcs-branch2 .obj-main 那条根本没进样式表，行内三行挤成一行，判据却照样放行）。
+  //   改成逐条换行拼接，与 styles.insert 的真实注入等价。
+  const joinRules = function (value: any): string {
+    if (Array.isArray(value)) return value.join('\n')
+    return String(value === undefined || value === null ? '' : value)
+  }
+  const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + joinRules(stylesMod.VC_SHELL_STYLE_TEXT) + '\n' + joinRules(pageStylesMod.VC_PAGE_STYLE_TEXT) + '\n' + joinRules(branchStylesMod.VC_BRANCH_STYLE_TEXT) + '\n' + protoCss
 
   // 悬停薄预设 Tip 在真机构建里是 leaf:tip（排在全部视图叶子之前），本闭包不拼 kernel 叶子，这里按契约给同形函数组件桩：
   // 只把触发节点原样渲染出来（真 Tip 额外挂悬停气泡，不影响布局量尺）。维护页与诊断页的禁用原因经它挂，缺了就会渲染抛错。
