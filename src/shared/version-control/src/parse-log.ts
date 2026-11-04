@@ -54,4 +54,40 @@ export function parseLog(stdout: string): LogResult {
   return { ok: true, commits: out }
 }
 
+/** 一个提交改了几个文件；列表行上的「N 个文件」用的就是它。 */
+export interface LogStatRecord {
+  oid: string
+  files: number
+}
+
+export type LogStatsResult = { ok: true; stats: LogStatRecord[] } | ParseFailure
+
+/**
+ * 解析 `git log --format=%H --shortstat`：每条提交先是一行完整哈希，随后（有改动时）一行
+ * 「 N file changed, …」或「 N files changed, …」。
+ *
+ * 两个必须照实说的边界：
+ *   · 合并提交默认不打 shortstat（git 不展开合并差异），这类提交在结果里没有记录，界面就不显示文件数；
+ *   · 空提交（--allow-empty）同样没有这一行，按「没有文件数」处理，不补 0——0 与「不知道」不是一回事。
+ */
+export function parseLogStats(stdout: string): LogStatsResult {
+  const lines = String(stdout).split('\n')
+  const out: LogStatRecord[] = []
+  let current = ''
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim()
+    if (line === '') continue
+    if (/^[0-9a-f]{40}$/.test(line) || /^[0-9a-f]{64}$/.test(line)) {
+      current = line
+      continue
+    }
+    const m = /^(\d+) files? changed/.exec(line)
+    if (!m) return fail('shortstat 行不是「N files changed」的形状')
+    if (current === '') return fail('shortstat 之前没有提交号')
+    out.push({ oid: current, files: Number(m[1]) })
+    current = ''
+  }
+  return { ok: true, stats: out }
+}
+
 export const PARSE_LOG_SOURCE = 'src/shared/version-control/src/parse-log.ts'

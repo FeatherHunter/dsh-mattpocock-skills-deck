@@ -211,6 +211,11 @@ export const vcHistoryRowNode = function (h: any, t: any, o: any) {
     width >= 460 ? h('span', { key: 'meta', className: 'commit-meta' }, [
       h('span', { key: 'author', className: 'commit-author', 'data-vc-history-author': '1' }, String(c.author || '')),
       h('span', { key: 'when', className: 'commit-when', 'data-vc-history-when': '1' }, vcCommitWhenText(t, opts.nowMs, c.authorDateMs)),
+      // 「N 个文件」按原型排在作者与时间后面。合并提交与空提交在 git 侧没有 shortstat，
+      // 这里就没有数字可写，宁可不画也不补 0——0 会被读成「这次提交什么都没改」。
+      typeof c.files === 'number' && c.files >= 0
+        ? h('span', { key: 'files', className: 'commit-files', 'data-vc-history-files': '1' }, t('vc.shell.history.filesCount', { n: String(c.files) }))
+        : null,
     ]) : null,
     h('span', { key: 'chev', className: 'commit-chevron', 'aria-hidden': 'true' }, vcPageIconOf(h, 'chevron', 12)),
   ]

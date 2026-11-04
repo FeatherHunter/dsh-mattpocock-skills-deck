@@ -102,7 +102,7 @@ export const REV_PATTERN = /^[0-9a-fA-F]{4,64}$/
 /** 拼一条采集命令。opts.rev 给的是「看这一次提交改了什么」的提交号：
  *  只许传已经过 REV_PATTERN 校验的十六进制字符串（路径、分支名、选项一律不许从这里进 argv），
  *  校验由唯一的调用方（宿主 wf.gitDiff 电话）在拼之前完成。 */
-export function commandFor(key: CollectionKey, opts: { logCount?: number; logSkip?: number; useNulWorktrees?: boolean; patchPath?: string; rev?: string }): CommandSpec {
+export function commandFor(key: CollectionKey, opts: { logCount?: number; logSkip?: number; useNulWorktrees?: boolean; patchPath?: string; rev?: string; logStats?: boolean }): CommandSpec {
   switch (key) {
     case 'status':
       // 注意：status 没有 --no-ext-diff（porcelain 输出不走外部 diff）；重命名显式开。
@@ -115,6 +115,10 @@ export function commandFor(key: CollectionKey, opts: { logCount?: number; logSki
     case 'log': {
       const n = opts.logCount === undefined ? 50 : opts.logCount
       const skip = opts.logSkip === undefined ? 0 : opts.logSkip
+      // 同一条命令的两种取法：默认取提交清单（NUL 分隔，parse-log 逐字段读）；
+      // logStats 只取「每条提交改了 N 个文件」，用 --shortstat 的普通文本，解析交给 parseLogStats。
+      // 单独成一种取法而不是给默认格式再加字段：默认那套的 NUL 分槽口径有门禁锁着，加字段会把它的 stride 弄乱。
+      if (opts.logStats === true) return { key, subcommand: 'log', args: ['log', '--no-decorate', '--format=%H', '--shortstat', '-n', String(n), '--skip=' + String(skip)] }
       return { key, subcommand: 'log', args: ['log', '--no-decorate', '-z', '--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%cI%x00%s%x00%P%x00', '-n', String(n), '--skip=' + String(skip)] }
     }
     case 'diffFiles':
