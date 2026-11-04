@@ -153,7 +153,7 @@ function textOf(e: unknown): string {
  * 不再徒劳重试（租约丢了要等重启或另一个写者退出）。
  */
 export async function recordIssueRows(input: RecordIssueRowsInput): Promise<RecordIssueRowsResult> {
-  const writes: IssueWrite[] = issueWritesOf(input.rows || [])
+  const writes: IssueWrite[] = issueWritesOf(input.rows || [], input.backend)
   if (!writes.length) return { ok: true, rows: 0, mergeVersion: null }
   const handle = await handleOf(input)
   if (!handle) return { ok: false, rows: 0, mergeVersion: null, reason: 'unavailable' }
@@ -231,7 +231,7 @@ export async function recordIssueDetail(input: RecordIssueDetailInput): Promise<
   if (!input.issue || input.issue.key == null) return { ok: true, mergeVersion: null }
   const handle = await handleOf(input)
   if (!handle) return { ok: false, mergeVersion: null, reason: 'unavailable' }
-  const writes: IssueWrite[] = [detailIssueWriteOf(input.issue)]
+  const writes: IssueWrite[] = [detailIssueWriteOf(input.issue, input.backend)]
   let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
   if (!result.committed && result.reason === 'stale') {
     result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
@@ -334,7 +334,7 @@ export async function recordWriteReceipt(input: WriteReceiptInput): Promise<Writ
   const operation = String(input.operation || 'write')
   const writes: IssueWrite[] = (Array.isArray(input.issues) ? input.issues : [])
     .filter((issue) => !!issue && issue.key != null)
-    .map((issue) => receiptIssueWriteOf(issue, operation))
+    .map((issue) => receiptIssueWriteOf(issue, operation, input.backend))
   if (!writes.length) return { ok: true, rows: 0, mergeVersion: null }
   const handle = await handleOf(input)
   if (!handle) return { ok: true, degraded: true, rows: 0, mergeVersion: null, reason: 'library-unavailable' }

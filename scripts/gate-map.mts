@@ -581,6 +581,10 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1866-write-receipt': 34,
   'verify-1866-write-receipt-replay': 27,
   'verify-1866-write-ui': 19,
+  // 2026-11-04 #1867：GitLab 支路接进同一套快照库。这一扇同时守四件事：GitLab 的列表批次经 composer
+  // 支路按组写库、断网重启后首屏从库铺出；详情与关系从库出且不再取数；GitLab 原生没有的三组写成
+  // 「不适用」而不是「确认没有」；仓库身份与地址按 GitLab 拼。条数按单跑实测登记（51 条）。
+  'verify-1867-snapshot-gitlab': 51,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

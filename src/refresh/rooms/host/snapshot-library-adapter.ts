@@ -57,6 +57,22 @@ function unknownGroup<T>(reason: string | null | undefined, source = SOURCE_LIST
   return { completeness: 'unknown' as const, reason: reason || 'not-expressed', source, operation }
 }
 
+/**
+ * GitLab 的能力差异：它原生没有「子票计数、评审、合并信息」这三组数据。
+ *
+ * 为什么必须在库里写成 unknown + not-applicable，而不是不写或写空值：
+ *  - 不写 = 从没取过，界面只能说「不知道」；
+ *  - 写 complete + 空值 = 「确认没有」，那是谎话（GitLab 不是「确认没有评审」，而是根本没有评审这回事）；
+ *  - unknown + not-applicable 才是准确的说法：这一组对这个后端不适用。
+ *
+ * 只补还没有表达过的组：将来 GitLab 真给出了合并时间或评审明细，真实的组会先生成，这里一个字节都不动。
+ */
+function applyGitlabCapabilityGaps(groups: IssueGroupsWrite, source: string, operation: string, withReview: boolean): void {
+  if (groups.subIssues === undefined) groups.subIssues = unknownGroup('not-applicable', source, operation)
+  if (groups.mergeInfo === undefined) groups.mergeInfo = unknownGroup('not-applicable', source, operation)
+  if (withReview && groups.review === undefined) groups.review = unknownGroup('not-applicable', source, operation) as IssueGroupsWrite['review']
+}
+
 function labelsOf(issue: Issue): SnapshotLabel[] {
   return (Array.isArray(issue.labels) ? issue.labels : [])
     .filter((item) => item && typeof item.name === 'string' && item.name)
@@ -167,8 +183,8 @@ function blockedByGroupOf(issue: Issue, source: string, operation: string): Issu
   return undefined
 }
 
-/** 一张票的组写入（列表电话）：只写这次真取到的那几组。 */
-export function issueWriteOf(issue: Issue): IssueWrite {
+/** 一张票的组写入（列表电话）：只写这次真取到的那几组；`backend` 用来标出后端能力差异。 */
+export function issueWriteOf(issue: Issue, backend = ''): IssueWrite {
   const groups: IssueGroupsWrite = { row: complete(issueRowValueOf(issue)) }
   if (Array.isArray(issue.labels)) groups.labels = complete(labelsOf(issue))
   if (Array.isArray(issue.assignees)) groups.assignees = complete(actorsOf(issue))
@@ -179,6 +195,7 @@ export function issueWriteOf(issue: Issue): IssueWrite {
   if (subIssues !== undefined) groups.subIssues = subIssues
   const mergeInfo = mergeInfoGroupOf(issue)
   if (mergeInfo !== undefined) groups.mergeInfo = mergeInfo
+  if (backend === 'gitlab') applyGitlabCapabilityGaps(groups, SOURCE_LIST, OPERATION_LIST, false)
   return { effortId: String(issue.effortId || ''), key: String(issue.key), groups }
 }
 
@@ -187,8 +204,10 @@ export function issueWriteOf(issue: Issue): IssueWrite {
  *
  * 正文按组写：complete + 空串 = 确认没有正文，完整取到的正文整组换掉。
  * 详情是完整行来源，所以行组、标签、指派都按 complete 写（缺的字段就是确认没有）。
+ *
+ * `backend` 只用于标记后端能力差异（今天只有 GitLab 的三组）；不给时行为与接线前一致。
  */
-export function detailIssueWriteOf(issue: Issue): IssueWrite {
+export function detailIssueWriteOf(issue: Issue, backend = ''): IssueWrite {
   const write = issueWriteOf(issue)
   write.groups.body = complete(typeof issue.body === 'string' ? issue.body : '', SOURCE_DETAIL, OPERATION_DETAIL)
   // 详情读结果里标签/指派是完整来源（有就给，没有就是确认没有）。
@@ -199,6 +218,7 @@ export function detailIssueWriteOf(issue: Issue): IssueWrite {
   const review = reviewsGroupOf(issue, SOURCE_DETAIL, OPERATION_DETAIL)
   if (review !== undefined) write.groups.review = review
   write.groups.row = complete(issueRowValueOf(issue), SOURCE_DETAIL, OPERATION_DETAIL)
+  if (backend === 'gitlab') applyGitlabCapabilityGaps(write.groups, SOURCE_DETAIL, OPERATION_DETAIL, true)
   return write
 }
 
@@ -311,11 +331,13 @@ function reviewsGroupOf(
  *
  * 拉取请求不进首屏，也不写库：面板快照从不展示 PR，写进去只会在回放时多出一批
  * 永远不该出现的行（组装层按 isPullRequest 区分但不过滤）。
+ *
+ * `backend` 用来告诉换算层这个后端的原生能力边界（今天只有 GitLab 的三组「不适用」）。
  */
-export function issueWritesOf(rows: Issue[]): IssueWrite[] {
+export function issueWritesOf(rows: Issue[], backend = ''): IssueWrite[] {
   return (Array.isArray(rows) ? rows : [])
     .filter((row) => row && row.key != null && row.isPullRequest !== true)
-    .map(issueWriteOf)
+    .map((row) => issueWriteOf(row, backend))
 }
 
 // #1866：写回执的来源与操作名单独一档，排查时一眼分得清「这条数据是写完读回来的」还是「列表取回来的」。
@@ -331,7 +353,7 @@ export const RECEIPT_SOURCE = 'refresh-write'
  * 什么不做：写回执不碰正文、评论、评审、子票计数、合并信息这几组 —— 那几样回执没表达，
  * 拿它去清空会把上一次详情取到的内容误删（「没表达」不等于「确认没有」，这是三态的总规矩）。
  */
-export function receiptIssueWriteOf(issue: Issue, operation: string): IssueWrite {
+export function receiptIssueWriteOf(issue: Issue, operation: string, backend = ''): IssueWrite {
   const write = issueWriteOf(issue)
   const groups: Record<string, { source?: string | null, operation?: string | null } | undefined> = write.groups as any
   for (const name of Object.keys(groups)) {
@@ -340,6 +362,7 @@ export function receiptIssueWriteOf(issue: Issue, operation: string): IssueWrite
     group.source = RECEIPT_SOURCE
     group.operation = operation
   }
+  if (backend === 'gitlab') applyGitlabCapabilityGaps(write.groups, RECEIPT_SOURCE, operation, false)
   return write
 }
 

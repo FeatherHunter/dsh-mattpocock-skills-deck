@@ -54,11 +54,19 @@ function sessionFail(reason: string, detail?: any): any {
   return fail('env', '只读会话不可用（' + reason + '）' + tail)
 }
 
-/** 由宿主给的 owner/name 拼会话要的仓库坐标；refId 是 GitHub 房间认的 'owner/name'。 */
+/**
+ * 仓库地址按后端自己的口径拼：GitHub 与 GitLab 的网页主机名不同，不许把一种地址冒充成另一种。
+ * 自建实例的域名宿主这里不知道；那种情况下会话回包里那份地址更准，调用方会优先用它。
+ */
+function repoUrlOf(backendId: string, refId: string): string {
+  return (backendId === 'gitlab' ? 'https://gitlab.com/' : 'https://github.com/') + refId
+}
+
+/** 由宿主给的 owner/name 拼会话要的仓库坐标；refId 是各后端认的 'owner/name'。 */
 function repoRefOf(repo: RepoKey | null, backendId: string): RepositoryRef | null {
   if (!repo || !repo.owner || !repo.name) return null
   const refId = String(repo.owner) + '/' + String(repo.name)
-  return { backend: backendId as any, refId: refId, name: refId, url: 'https://github.com/' + refId }
+  return { backend: backendId as any, refId: refId, name: refId, url: repoUrlOf(backendId, refId) }
 }
 
 /** 契约票 → 列表行（旧 gh 形状）。拉取请求行额外带 isPullRequest/mergedAt，界面靠它分流。 */
@@ -104,7 +112,13 @@ export function createIssueList(deps: any): any {
     if (!opened || opened.ok !== true || typeof opened.call !== 'function') return sessionFail(String((opened && opened.reason) || 'open-failed'), opened && opened.detail)
     let repo: RepoKey | null = null
     try { repo = await Promise.resolve(getRepoKey(cwd)) } catch (e: any) { return sessionFail('解析仓库坐标失败', (e && e.message) || e) }
-    const ref = repoRefOf(repo, String(opened.backendId || ''))
+    const backendId: string = String(opened.backendId || '')
+    let ref = repoRefOf(repo, backendId)
+    // 会话是仓库身份的真源（GitLab 的宿主 getRepoKey 只认 GitHub 远端，会回 null）：同一个 refId
+    // 时优先用会话那份地址（自建实例的域名只有它知道）；GitHub 认不出 owner/name 时仍按老口径如实失败。
+    const sessionRef: RepositoryRef | null = (opened.repoRef && opened.repoRef.refId) ? opened.repoRef : null
+    if (ref && sessionRef && String(sessionRef.refId) === ref.refId) ref = sessionRef
+    if (!ref && sessionRef && backendId !== 'github') ref = sessionRef
     if (!ref) return fail('env', '无法解析 owner/repo')
     try {
       return await opened.call(async function (session: TrackerSession, ctx: OpContext): Promise<any> {
