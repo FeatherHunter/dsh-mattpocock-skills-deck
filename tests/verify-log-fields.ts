@@ -114,7 +114,14 @@ const ALLOWED = {
   //   逐张发的，失败只跳过不抛；不记的话，事后分不清「这张地图下面怎么少了几张」是没拉、拉到一半还是后端
   //   不提供。失败清单只写「票号:错误档」，不记远端原文与正文。落点：src/host/tracker/snapshot.ts 的 composeSnapshot。
   'snapshot.workingSet': ['openContainers', 'subIssues', 'subIssuesFailed', 'subIssuesIncomplete', 'closedMapRows', 'closedMapSource', 'failed', 'latencyMs'],
-  // 2026-10-28（#1617）：删掉 `since`。逐版本核过发射行（从 #708 落地起直到今天）都只记三格，
+  // 2026-11-04（#1869）新增常驻 #150～#153 四族 `workspaceSnapshot.*`：面板 issue 数据的权威副本换成
+  //   本地 SQLite 快照库之后，「只看日志就能说出走到哪一步」全靠这四族。字段一律只记枚举、计数、耗时
+  //   与短散列（工作区根与仓库身份都是 hash，不记路径原文）；`detail` 只放一句话的失败说明。
+  //   落点：src/workspace-snapshot/runtime/open.ts、open-schema.ts、lease.ts、ingest.ts。
+  'workspaceSnapshot.open': ['backend', 'rootHash', 'repoHash', 'dbExisted', 'journalMode', 'mode', 'reason', 'mergeVersion'],
+  'workspaceSnapshot.lease': ['acquired', 'ownerHash', 'reason', 'nowMs'],
+  'workspaceSnapshot.ingest': ['committed', 'reason', 'writes', 'startMergeVersion', 'mergeVersion', 'elapsedMs', 'detail'],
+  'workspaceSnapshot.corrupt': ['stage', 'action', 'backupSuffix', 'oldBackend', 'oldRepoHash', 'detail'],  // 2026-10-28（#1617）：删掉 `since`。逐版本核过发射行（从 #708 落地起直到今天）都只记三格，
   //   附录里写的「since 增量起点」是设计稿口径、从未发射；白名单要按真实发射维护。这条事件现在
   //   由运行时采集断言「实得键集与白名单一字不差」，多一格少一格都会变红。
   'probe.eval': ['repoKeyHash', 'count', 'changed'],
@@ -727,6 +734,8 @@ function collectCalls() {
     .concat(listJsFiles(path.join(ROOT, 'src', 'deck'))).concat(listJsFiles(path.join(ROOT, 'src', 'tracker')))
     // #1426：刷新埋点跟着宿主房搬进 src/refresh/rooms/host/，扫描根一起跟上；旧根不动。
     .concat(listJsFiles(path.join(ROOT, 'src', 'refresh')))
+    // #1869：快照库这一棵树的四族 workspaceSnapshot.* 事件在这一票登记，扫描根跟上。
+    .concat(listJsFiles(path.join(ROOT, 'src', 'workspace-snapshot')))
   // 2026-10-20 #1294：locale.ts 的埋点走一个 localeLogEmit 发射壳 —— 它把级别、事件名、字段原样转给 log，
   //   只是晚一拍进微任务写（这份内核排在 kernel:log 之前，激活过程中就要注册语言）。壳名不补进扫描口径，
   //   上面两条 locale.registration* 就会被判成「全仓未找到」，白名单也收不到它们的字段。
@@ -734,7 +743,7 @@ function collectCalls() {
   // 为什么要收后者：gh.exec 的字段拼装搬进 client-support.ts 后只有一份，级别由 emitGhExec 的 level
   // 参数给（缺省 info，控制面没接上时 warn），事件名与字段仍在同一处，字段形状判据照样收得到。
   // 事件名那一位仍要求字面量，所以「误收别的调用」的风险与从前一样。
-  const mainRe = /(?:^|[^A-Za-z0-9_$])(?:log|fire|rlog|logEvent|backendLogEvent|roomLogEvent|localeLogEmit)\s*\(\s*(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?(['"](?:error|warn|info|debug)['"]|[A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*['"]([a-z][a-zA-Z0-9.]*?)['"]\s*,/g
+  const mainRe = /(?:^|[^A-Za-z0-9_$])(?:log|fire|rlog|logEvent|backendLogEvent|roomLogEvent|localeLogEmit|logSnapshot)\s*\(\s*(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?(['"](?:error|warn|info|debug)['"]|[A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*['"]([a-z][a-zA-Z0-9.]*?)['"]\s*,/g
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8')
     const rel = path.relative(ROOT, f)

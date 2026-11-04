@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T02:35:14.816Z",
+  "generatedAt": "2026-11-04T03:53:19.942Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 568,
-  "gateCount": 568,
-  "attributedGates": 512,
+  "chainLength": 569,
+  "gateCount": 569,
+  "attributedGates": 513,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 110,
+  "completionRecordedGates": 111,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 892,
@@ -6633,6 +6633,21 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-1869-snapshot-log.ts",
+      "file": "tests/verify-1869-snapshot-log.ts",
+      "guards": [
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 26,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -10673,7 +10688,8 @@
         "src/deck",
         "src/host",
         "src/refresh",
-        "src/tracker"
+        "src/tracker",
+        "src/workspace-snapshot"
       ],
       "dirs": [
         "research",
@@ -10681,13 +10697,14 @@
         "src/deck",
         "src/host",
         "src/refresh",
-        "src/tracker"
+        "src/tracker",
+        "src/workspace-snapshot"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条"
     },
     {
       "step": "node tests/verify-log-exec-606.ts",
@@ -10730,7 +10747,8 @@
         "src/refresh/rooms/host/row-patch.ts",
         "src/refresh/rooms/host/write-event-fetch.ts",
         "src/tracker",
-        "src/tracker/rooms/markdown/label-colors.ts"
+        "src/tracker/rooms/markdown/label-colors.ts",
+        "src/workspace-snapshot"
       ],
       "dirs": [
         "src/client",
@@ -10741,13 +10759,14 @@
         "src/refresh/rooms/client",
         "src/refresh/rooms/host",
         "src/tracker",
-        "src/tracker/rooms/markdown"
+        "src/tracker/rooms/markdown",
+        "src/workspace-snapshot"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 10 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-log-selfmon.ts",
@@ -14644,6 +14663,7 @@
       "node tests/verify-1866-write-receipt.ts",
       "node tests/verify-1867-snapshot-gitlab.ts",
       "node tests/verify-1868-snapshot-markdown.ts",
+      "node tests/verify-1869-snapshot-log.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -15305,7 +15325,9 @@
       "node tests/verify-1862-snapshot-merge.ts",
       "node tests/verify-1863-snapshot-edges.ts",
       "node tests/verify-1864-snapshot-detail.ts",
-      "node tests/verify-1865-snapshot-comments.ts"
+      "node tests/verify-1865-snapshot-comments.ts",
+      "node tests/verify-log-count.ts",
+      "node tests/verify-log-fields.ts"
     ],
     "src/workspace-snapshot/merge": [
       "node tests/verify-1866-write-receipt.ts"

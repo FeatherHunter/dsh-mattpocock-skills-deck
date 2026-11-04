@@ -91,6 +91,20 @@ interface HandleEntry {
 const handles = new Map<string, HandleEntry>()
 let leaseSeq = 0
 
+/**
+ * #1869：快照库四族事件（开库、租约、写入、损坏重建）的出口。宿主装配时塞进来，缺席就完全不记——
+ * 与仓库「可选注入 logEvent」的既有约定同一口径（快照树自己的 runtime/log.ts 就是这么写的）。
+ *
+ * 为什么由宿主注入而不是这里直接找日志库：刷新房在依赖方向上低于宿主，往上引会把装配关系反过来。
+ */
+export type SnapshotLogSink = (level: string, event: string, fields: Record<string, unknown>) => void
+let logSink: SnapshotLogSink | null = null
+
+/** 接上日志出口。传 null 关掉（门禁与测试用）。 */
+export function setSnapshotLogSink(sink: SnapshotLogSink | null): void {
+  logSink = sink
+}
+
 function cacheKeyOf(input: SnapshotLibraryKey): string {
   return [input.workspaceRoot, input.backend, input.repoIdentity].join('\u0000')
 }
@@ -120,6 +134,8 @@ async function handleOf(input: SnapshotLibraryKey): Promise<WorkspaceSnapshotHan
       repoIdentity: input.repoIdentity,
       leaseOwner: 'refresh-' + pid + '-' + leaseSeq,
       now: () => Date.now(),
+      // #1869：开库与后续写入的轨迹都走这一个口；没接时快照树自己就不记，一个字节都不会多写。
+      ...(logSink ? { logEvent: logSink as any } : null),
     })
   } catch (e) {
     return null
