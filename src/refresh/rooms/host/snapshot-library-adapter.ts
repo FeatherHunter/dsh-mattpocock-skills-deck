@@ -333,14 +333,18 @@ function reviewsGroupOf(
 /**
  * 一批列表读结果 → 一批组写入；空数组回空数组，调用方据此跳过开库。
  *
- * 拉取请求不进首屏，也不写库：面板快照从不展示 PR，写进去只会在回放时多出一批
- * 永远不该出现的行（组装层按 isPullRequest 区分但不过滤）。
+ * 拉取请求也写库（#1870 更正）。从前这里按「面板快照从不展示 PR」把它们滤掉——那个前提不成立：
+ * 组装层按 isPullRequest 分池但不过滤，PR 一直是快照里的一行，面板的拉取请求页签正是读这一行
+ * （prIssuesOf）。库成了显示的来源之后，滤掉它们等于让页签一个 PR 都看不见。
+ * 计算索引那两处（kernel/index-window-rules 的 indexFromSnapshot 与宿主入口的 issueIndexFromSnapshot）
+ * 另外把 PR 排除在外：远端索引的来源只翻 repository.issues，PR 不在其中，混进去会把每一轮探测
+ * 都判成「有票被删掉」。
  *
  * `backend` 用来告诉换算层这个后端的原生能力边界（今天只有 GitLab 的三组「不适用」）。
  */
 export function issueWritesOf(rows: Issue[], backend = ''): IssueWrite[] {
   return (Array.isArray(rows) ? rows : [])
-    .filter((row) => row && row.key != null && row.isPullRequest !== true)
+    .filter((row) => row && row.key != null)
     .map((row) => issueWriteOf(row, backend))
 }
 

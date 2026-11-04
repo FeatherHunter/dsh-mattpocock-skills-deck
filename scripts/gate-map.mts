@@ -545,7 +545,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 已关闭票在整池批次后仍在；第二扇守列表三条取数路径的写库钩子，以及「网络全断时首屏从库出」
   // （在线探测 / 磁盘缓存 / 当前用户 / 开会话 / 执行命令五处都计数为零）。
   'verify-1863-snapshot-library-replay': 18,
-  'verify-1863-snapshot-cold-start': 33,
+  'verify-1863-snapshot-cold-start': 35, // #1870：拉取请求也落库，补两条（库里七张票、首屏里也有那张 PR）
   // #1863 的边语义门禁是 #1862 建库时留下的测试文件；本票把父子边/阻塞边真正接进首屏，
   // 它开始参与完成证据对账，条数按单跑实测登记（27 条）。
   'verify-1863-snapshot-edges': 27,

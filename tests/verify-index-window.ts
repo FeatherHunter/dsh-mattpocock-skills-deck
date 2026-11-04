@@ -116,6 +116,10 @@ console.log('增量索引时间窗门禁（#indexWindow：只问变化，但不�
   check(idx['3'] === 'CLOSED|2026-09-11T04:54:07Z', '取基线：地图子票也在内（漏掉它就等于那条票的关闭永远查不出来）')
   check(indexFromSnapshot(null) === null, '取基线：空快照返回 null（调用方据此退回整扫）')
   check(indexFromSnapshot({}) === null, '取基线：没有票的快照返回 null')
+  // #1870：拉取请求不进这份索引。远端索引的来源只翻 repository.issues，PR 不在里面；
+  // 把快照里的 PR 算进来，每一轮探测都会判「有票被删掉」，整池重建就停不下来。
+  const withPr = indexFromSnapshot({ issues: [{ number: 1, state: 'OPEN', updatedAt: 't1' }, { number: 9, state: 'OPEN', updatedAt: 't9', isPullRequest: true }] })
+  check(!!withPr && Object.keys(withPr).length === 1 && withPr['9'] === undefined, '取基线：拉取请求不算进索引（远端索引本来就不含 PR）')
 }
 
 // ---------- 十、用快照给重启后的第一次扫描立起点 ----------

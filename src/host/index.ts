@@ -177,11 +177,14 @@ export default {
     }
 
     // H2 #446 留守：索引小函数留入口（H6 探测同步取值与同刻写表；file2 经显式参数复用同一份）。
+    // #1870：拉取请求不进这份索引。远端索引的来源只翻 repository.issues，PR 从来不在里面；
+    // 把快照里的 PR 算进来，每一轮探测都会把它们判成「被删掉的票」，于是本该补几行的活整池重建。
+    // 与 kernel/index-window-rules.ts 的 indexFromSnapshot 同一条口径，两处一起改。
     const issueIndexFromSnapshot = function (snap: any) {
       const index: Record<string, string> = {}
       const items = snap && Array.isArray(snap.issues) ? snap.issues : []
       items.forEach(function (item: any) {
-        if (item && item.number !== undefined && item.number !== null) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
+        if (item && item.number !== undefined && item.number !== null && item.isPullRequest !== true) index[String(item.number)] = String(item.state || '').toUpperCase() + '|' + String(item.updatedAt || '')
       })
       return index
     }

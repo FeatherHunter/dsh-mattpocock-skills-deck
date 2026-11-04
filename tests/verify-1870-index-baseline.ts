@@ -133,6 +133,18 @@ console.log('重启后的索引扫描起点门禁（#1870：基线来自本地�
   check(w.seen.libraryCalls === 1, 'G3 水印在内存里时不再问库')
 }
 
+// ---------- 八、拉取请求不进基线（远端索引的来源本来就不含 PR）----------
+{
+  const snapWithPr = { issues: [
+    { number: 1, state: 'OPEN', updatedAt: ISO_A },
+    { number: 9, state: 'OPEN', updatedAt: ISO_A, isPullRequest: true },
+  ] }
+  const w = build({ library: () => ({ snapshot: snapWithPr, lastKnownAtMs: GEN }), answer: () => ({}) })
+  const r = await w.scan.fetchIssueIndexWindowed(CWD)
+  check(r.ok === true && r.count === 1, 'H1 起点里不含拉取请求（库里有它，索引不该算它），实得 ' + r.count)
+  check(r.changed === false, 'H2 远端没回变化时不假报（PR 不会被判成「被删除」）')
+}
+
 console.log('')
 console.log(failed === 0 ? '全部通过（' + total + ' 项）' : ('失败 ' + failed + ' / ' + total + ' 项'))
 process.exit(failed === 0 ? 0 : 1)

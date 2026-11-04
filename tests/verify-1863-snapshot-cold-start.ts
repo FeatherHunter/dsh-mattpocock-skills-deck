@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     const spec200 = issue({ key: '200', type: 'spec', title: '规格：快照库' })
     const child6 = issue({ key: '6', title: '规格子票', parentKey: '200' })
     const lone7 = issue({ key: '7', title: '独立票', labels: [{ name: 'bug', color: 'd73a4a' }], assignees: [{ login: 'bob' }], status: 'In Progress', statusVisible: 'visible' })
-    const pr99 = issue({ key: '99', title: '拉取请求不该进库', isPullRequest: true })
+    const pr99 = issue({ key: '99', title: '拉取请求也在库里', isPullRequest: true })
     let allRows: Issue[] = [map100, child5, closed50, spec200, child6, lone7, pr99]
     const pages: Issue[][] = [[map100, child5, closed50], [spec200, child6, lone7]]
 
@@ -137,7 +137,11 @@ async function main(): Promise<void> {
     check(writes.length === 4 && writes.every((w: any) => w.ok === true), 'A4 四个批次（地图/全量/两页）都写库成功', writes)
 
     const replay0 = await readSnapshotReplay({ workspaceRoot: tempRoot, backend: 'github', repoIdentity: REPO.refId, repo: REPO })
-    check(replay0 !== null && replay0.rows === 6, 'A5 库里六张票（PR 已被钩子挡在库外）', replay0 && replay0.rows)
+    // #1870：拉取请求也在库里。从前这里按「面板快照从不展示 PR」把它们滤掉，而组装层其实照收，
+    // 面板的拉取请求页签读的正是这一行——滤掉之后，库成为显示来源就等于页签空了。
+    check(replay0 !== null && replay0.rows === 7, 'A5 库里七张票（拉取请求与工单一样落库）', replay0 && replay0.rows)
+    const replayPr = replay0 ? findIssue(replay0.snapshot, '99') : undefined
+    check(!!replayPr && replayPr.isPullRequest === true, 'A5b 拉取请求带着 isPullRequest 回放（页签靠它认出这是 PR）', replayPr)
     check(replay0 !== null && findContainer(replay0.snapshot, '100') !== undefined && findContainer(replay0.snapshot, '200') !== undefined,
       'A6 地图与规格两个容器都在库里')
     check(replay0 !== null && replay0.mergeVersion > 0, 'A7 合并版本号已推进')
@@ -186,6 +190,8 @@ async function main(): Promise<void> {
     check(!!(snap && typeof snap.diskReplay.lastKnownAtMs === 'number' && snap.diskReplay.lastKnownAtMs > 0),
       'B4 回包带上次已知时刻')
     check(!!findContainer(snap, '100') && !!findContainer(snap, '200'), 'B5 地图与规格容器树从库铺出')
+    const prView = findIssue(snap, '99')
+    check(!!prView && prView.isPullRequest === true, 'B5b 首屏里也有那张拉取请求（页签与详情都读得到它）', prView)
     const map100View = findContainer(snap, '100')
     check(!!findTicket(map100View, '5') && !!findTicket(map100View, '50'), 'B6 子票（含已关闭）挂在父容器下')
     const ticket5 = findTicket(map100View, '5')

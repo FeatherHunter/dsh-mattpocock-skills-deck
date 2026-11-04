@@ -135,9 +135,10 @@ export function createIssueList(deps: any): any {
    */
   async function recordRows(cwd: any, ref: RepositoryRef, rows: any[]): Promise<void> {
     if (typeof deps.onIssueRows !== 'function' || !Array.isArray(rows) || !rows.length) return
-    // 快照列表从来不收拉取请求（旧 REST 的 select(.pull_request == null)）。会话的 list 两张表都给，
-    // 钩子又挂在过滤之前，这里必须先滤一遍，否则 PR 会以「票」的身份进库、回放时混进首屏。
-    const issues = rows.filter(function (x: any): boolean { return !!x && x.isPullRequest !== true })
+    // 拉取请求也交下去（#1870 更正）：库是工作区数据的权威副本，PR 是其中一种行——面板的拉取请求
+    // 页签读的就是它们（prIssuesOf）。从前这里滤掉，是因为「列表回包不收 PR」那条展示口径；
+    // 展示归展示，落库归落库：哪个后端不给 PR，交给适配层按 isPullRequest 有没有表达来处理。
+    const issues = rows.filter(function (x: any): boolean { return !!x && x.key != null })
     if (!issues.length) return
     try { await deps.onIssueRows(cwd, ref, issues) } catch (e: any) {}
   }
