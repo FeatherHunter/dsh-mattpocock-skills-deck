@@ -2158,7 +2158,9 @@ const BACK_COUNT_SCRIPT = 'document.querySelectorAll(' + JSON.stringify('button[
 // #1860 D7：改动页的工作区文件行（未跟踪文件不适用——宿主对它们直接回「没有可比旧版本」，读不到逐行内容）。
 const CHANGES_FILE_ROW = '[data-vc-file-row]:not([data-vc-file-change="untracked"]) [data-vc-file-open]'
 // #1860 D15：读当前壳的皮肤并翻转宿主 body 上的主题属性（转完再转回来），用来验「不重挂也跟得上」。
-const SKIN_ATTR_SCRIPT = '(function () { var r = document.querySelector(' + JSON.stringify(VC_ROOT_SELECTOR) + ' [data-vc-shell]'); return r ? r.getAttribute(' + JSON.stringify('data-vc-skin') + ') : null })()'
+// 皮肤挂在壳根上，而 data-vc-shell 与 data-vc-root 是同一个节点（vcShellPages 里两枚属性一起写），
+//   所以这里直接按 [data-vc-shell] 找，不写成后代选择器。
+const SKIN_ATTR_SCRIPT = '(function () { var r = document.querySelector(' + JSON.stringify('[data-vc-shell]') + '); return r ? r.getAttribute(' + JSON.stringify('data-vc-skin') + ') : null })()'
 const SKIN_FLIP_SCRIPT = '(function () { var b = document.body; if (!b) return null; b.toggleAttribute(' + JSON.stringify('data-ds-dark-theme') + '); return b.hasAttribute(' + JSON.stringify('data-ds-dark-theme') + ') ? ' + JSON.stringify('dark') + ' : ' + JSON.stringify('light') + ' })()'
 const CHANGES_DIFF_BLOCK = '[data-vc-changes-diff]'
 const CHANGES_DIFF_LINES_SCRIPT = 'document.querySelectorAll(' + JSON.stringify('[data-vc-changes-diff] [data-vc-diff-line]') + ').length'
@@ -2246,6 +2248,12 @@ async function runInteraction(context: ScenarioContext, page: PageHandle, raw: R
   const fileRow = await clickPage(page, raw, CHANGES_FILE_ROW)
   facts.fileRowClick = fileRow
   const diffShown = await waitFor(page, CHANGES_DIFF_BLOCK, 8000)
+  // 差异块一挂出来就是「正在读」那一句，得等这一句换成补丁或某一种结论再数行数；
+  //   否则拍到的永远是加载中（第一轮真机就是这么拍的），断言会误判成「没有逐行差异」。
+  for (let i = 0; i < 40; i += 1) {
+    if (!(await exists(page, '[data-vc-changes-diff-state="loading"]'))) break
+    await sleep(200)
+  }
   const diffLines = await evaluateThrough<number>(page, CHANGES_DIFF_LINES_SCRIPT)
   const lineCount = diffLines.ok ? diffLines.value : -1
   add('interact-file-diff-open', diffShown && lineCount > 0, '点工作区里的文件行，这一行下面出现逐行差异',
@@ -2263,6 +2271,34 @@ async function runInteraction(context: ScenarioContext, page: PageHandle, raw: R
     add('interact-file-diff-cached', back && againCount === lineCount, '第三次展开仍是同一份补丁（收起不丢读数，不重读）',
       (back ? '又展开了' : '没展开：' + again.detail) + '，逐行 ' + String(againCount) + ' 行（首次 ' + String(lineCount) + ' 行）')
   }
+
+  // #1860 D8：贮藏页的记录行挂出来就自动读文件清单，不点任何按钮应当看得到。
+  const stashTab = await openTab(page, raw, 'stash')
+  facts.stashTab = stashTab
+  const stashFiles = await waitFor(page, '[data-vc-stash-detail-files]', 20000)
+  const stashProbe = (function (): string {
+    const q = function (sel: string): string { return JSON.stringify(sel) }
+    return '(function () { var page = document.querySelector(' + q('[data-vc-stash-page]') + ');' +
+      ' var det = document.querySelectorAll(' + q('[data-vc-stash-detail]') + ').length;' +
+      ' var pend = document.querySelector(' + q('[data-vc-stash-detail-pending]') + ');' +
+      ' var pendText = pend ? String(pend.textContent) : ' + JSON.stringify('') + ';' +
+      ' var kind = pend ? String(pend.getAttribute(' + q('data-vc-stash-detail-kind') + ') || ' + JSON.stringify('') + ') : ' + JSON.stringify('') + ';' +
+      ' var title = pend ? String(pend.getAttribute(' + q('title') + ') || ' + JSON.stringify('') + ') : ' + JSON.stringify('') + ';' +
+      ' var files = document.querySelectorAll(' + q('[data-vc-stash-file]') + ').length;' +
+      ' var res = document.querySelector(' + q('[data-vc-stash-result]') + ');' +
+      ' return { detailBlocks: det, pendingText: pendText, pendingKind: kind, pendingTitle: title, files: files, result: res ? String(res.getAttribute(' + q('data-vc-stash-result') + ')) : ' + JSON.stringify('null') + ', pendingFlag: page ? String(page.getAttribute(' + q('data-vc-stash-pending') + ')) : ' + JSON.stringify('') + ' }; })()'
+  })()
+  const probe1 = await evaluateThrough<Record<string, unknown>>(page, stashProbe)
+  facts.stashProbeAuto = probe1.ok ? probe1.value : probe1.error.message
+  const stashFileCount = await evaluateThrough<number>(page, 'document.querySelectorAll(' + JSON.stringify('[data-vc-stash-file]') + ').length')
+  add('interact-stash-auto-files', stashFiles && (stashFileCount.ok ? stashFileCount.value : 0) > 0,
+    '进贮藏页不点任何按钮，记录行下面就铺开了文件清单',
+    stashFiles ? '铺开了，文件 ' + String(stashFileCount.value) + ' 条' : '20 秒内没等到文件清单')
+  if (stashFiles) {
+    const shot = await captureScreenshot(context, page, 'interaction', 'stash-auto-files', '真机贮藏页自动读出的文件清单')
+    evidence.push(...shot.paths)
+  }
+  await openTab(page, raw, 'changes')
 
   // #1860 D15：皮肤跟着宿主的主题开关走。这里不经过宿主设置（那会重载客户端、把工作区绑定弄丢），
   //   只翻 body 上那个属性 —— 宿主切主题时做的也正是这件事。翻完等一帧再读 data-vc-skin。

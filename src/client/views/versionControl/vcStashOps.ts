@@ -99,6 +99,12 @@ export const vcStashAutoRunOf = function (deps: any): any {
     return Promise.resolve(vcStashWriteCallOf(d.call, d.cwd, { op: 'show', selector: selector }, '', '')).then(function (reply: any) {
       apply(function (base: any) { return vcStashApplyReply(base, reply, { quiet: true, selector: selector }) })
       return reply
+    }, function (err: any) {
+      // 电话本身被拒（宿主没接这一枪）也要落成「读失败」：不然这一行会一直转圈，人以为还在读。
+      apply(function (base: any) {
+        return vcStashDetailPatch(base, selector, { selector: selector, state: 'err', kind: 'throw', message: String((err && err.message) || err) })
+      })
+      return null
     })
   }
   return list.reduce(function (chain: any, selector: string): any {

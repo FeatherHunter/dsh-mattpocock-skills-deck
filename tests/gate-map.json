@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T05:28:57.449Z",
+  "generatedAt": "2026-11-04T07:23:42.540Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 553,
   "gateCount": 553,
@@ -12669,6 +12669,7 @@
       "step": "node tests/verify-version-control-host.ts",
       "file": "tests/verify-version-control-host.ts",
       "guards": [
+        "src/host/index.ts",
         "src/host/versionControl.ts",
         "tests/fixtures/version-control/live-819-review-shapes.json",
         "tests/fixtures/version-control/live-numstat-shapes.json",
@@ -12682,7 +12683,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-version-control-parsers.ts",

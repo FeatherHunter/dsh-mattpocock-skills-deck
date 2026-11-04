@@ -38,10 +38,13 @@ export const vcStashPathsBlockOf = function (h: any, t: any, detail: any, ctx: a
 /** 正在读或读失败：一句状态话贴在这条记录下面；失败补一颗重试，安静动作照旧挂着。 */
 export const vcStashPathsPendingOf = function (h: any, t: any, detail: any, ctx: any, quietActions: any[]): any {
   const failed: boolean = String(detail.state || '') === 'err'
+  const why: string = String(detail.message || '')
   const kids: any[] = [h('p', {
     key: 'note', className: 'stash-paths-note' + (failed ? ' is-error' : ''),
     'data-vc-stash-detail-pending': failed ? 'err' : 'loading',
+    'data-vc-stash-detail-kind': String(detail.kind || ''),
     role: failed ? 'alert' : 'status',
+    title: failed && why !== '' ? why : undefined,
   }, t(failed ? 'vc.stash.detail.error' : 'vc.stash.detail.loading'))]
   if (failed) {
     kids.push(h('button', {

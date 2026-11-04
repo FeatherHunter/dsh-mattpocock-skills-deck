@@ -67,15 +67,16 @@ export const vcChangeFileDiffOf = function (h: any, t: any, o: any) {
   const read = opts.read || null
   const path = String(opts.path || '')
   const kids: any[] = []
-  const note = function (key: string, attr: string, text: string) {
+  const note = function (key: string, attr: string, text: string, value?: string) {
     const attrs: any = { key: key, className: 'note file-detail-note' }
-    if (attr !== '') attrs[attr] = '1'
+    if (attr !== '') attrs[attr] = value === undefined ? '1' : value
     kids.push(h('p', attrs, text))
   }
   const state: string = read ? String(read.state || 'idle') : 'idle'
   const reason: string = read ? String(read.reason || '') : ''
   if (!read || state === 'idle' || state === 'loading') {
-    note('loading', 'data-vc-changes-diff-state', t('vc.shell.history.diffLoading'))
+    // 状态值原样写进属性（不是只有个标记）：真机那一轮要等「加载中」这一句换成结果再数行数。
+    note('loading', 'data-vc-changes-diff-state', t('vc.shell.history.diffLoading'), 'loading')
   } else if (state === 'err') {
     note('err', 'data-vc-changes-diff-error', t('vc.shell.history.diffError'))
     kids.push(h('button', {
