@@ -133,7 +133,12 @@ zh:
   vc.commit.msgPlaceholder: 第一行写摘要，空一行再写正文；支持多行与换行。
   vc.commit.msgHint: 说明会原样写进提交，换行保留。
   vc.commit.msgPreview: 预览
-  vc.commit.moreOptions: 更多提交选项（提交什么、模板、钩子与签名）
+  vc.commit.options: 提交选项
+  vc.commit.optionsHint: 提交什么、模板、钩子与签名都在这颗按钮里；原型提交区只有三块，这排选项收进菜单才不占行
+  vc.commit.planAll: 这次提交全部已跟踪改动（未暂存的一起提交）
+  vc.commit.planFixup: 这次提交是 {mode}，吸收进 {target}
+  vc.commit.planFixupNoTarget: 这次提交是 {mode}，还没选吸收目标
+  vc.commit.planSwitches: 提交时：{list}
   vc.commit.template: 套用提交说明模板
   vc.commit.templateHint: 模板来自这个仓库的 commit.template 配置：{path}
   vc.commit.templateMissing: 配置里的模板文件读不到（{path}），没有可以套用的内容
@@ -294,7 +299,12 @@ en:
   vc.commit.msgPlaceholder: Short summary on the first line, a blank line, then the body. Multiple lines are supported.
   vc.commit.msgHint: The message is written into the commit verbatim; line breaks are preserved.
   vc.commit.msgPreview: Preview
-  vc.commit.moreOptions: More commit options (what to commit, template, hooks and signing)
+  vc.commit.options: Commit options
+  vc.commit.optionsHint: What to commit, the template, hooks and signing live behind this button; the prototype composer has only three blocks, so these options sit in a menu instead of taking a row
+  vc.commit.planAll: This commit includes all tracked changes (unstaged ones too)
+  vc.commit.planFixup: This commit is a {mode} that will be absorbed into {target}
+  vc.commit.planFixupNoTarget: This commit is a {mode}, but no target is selected yet
+  vc.commit.planSwitches: "At commit time: {list}"
   vc.commit.template: Apply the commit message template
   vc.commit.templateHint: "The template comes from this repository's commit.template setting: {path}"
   vc.commit.templateMissing: The configured template file cannot be read ({path}); there is nothing to apply

@@ -18,7 +18,7 @@ declare function vcPageRegistryOf(): any[]
 declare function vcPageCapabilitiesOf(pageId: any): any[]
 declare function vcCapabilityOf(capId: any): any
 // 「本页负责的能力」列表（#1762 T26 从本文件拆到 vcCapabilityList.ts 以守住单文件行数上限）。
-declare function vcCapabilityListOf(h: any, t: any, o: any): any
+// #1860：能力清单叶子不再挂进页面体（文件与登记随后移除），这里不再声明。
 declare const VC_TAB_PAGES: string[]; declare const VC_MANAGE_PAGES: string[]; declare const VC_SIDE_PAGES: string[]
 declare const VC_SEARCH_PAGE: string; declare const VC_MANAGE_INDEX_PAGE: string
 declare const VC_MANAGE_SECTION_KEYS: Record<string, string>
@@ -129,23 +129,29 @@ export const vcPageTabsNode = function (h: any, t: any, o: any) {
     const id = VC_TAB_PAGES[i]
     const selected = id === opts.active
     const one: any = (opts.counts || {})[id] || {}; const known: boolean = one.state === 'ok' && typeof one.n === 'number'
+    // #1860 按定稿原型 62-changes-460.png：页签是「名字 + 数字 + 单位」三段，选中态是一条绿色下划线，
+    //   没有底色块。数字与单位分开画（原型 .tab-count > .count + .unit），读不到读数时只画「—」。
     tabs.push(h('button', {
       key: id,
       id: vcPagePrefixOf(opts.pagePrefix || '') + '-tab-' + id,
       type: 'button',
       role: 'tab',
-      className: 'vcs-tab',
+      className: 'tab' + (selected ? ' is-on' : ''),
       'data-vc-tab': id,
+      title: known ? t(VC_TAB_LABEL_KEYS[id]) + '：' + one.n + ' ' + t(VC_TAB_UNIT_KEYS[id]) : t(VC_TAB_LABEL_KEYS[id]),
       'aria-selected': selected ? 'true' : 'false',
       'aria-controls': 'vc-page-' + id,
       tabIndex: selected ? 0 : -1,
     }, [
-      h('span', { key: 'label', className: 'vcs-tab-label' }, t(VC_TAB_LABEL_KEYS[id])),
-      h('span', Object.assign({ key: 'n', className: 'vcs-tab-count', 'data-vc-tab-count-state': known ? 'ok' : 'unknown' }, known ? { 'data-vc-tab-count': String(one.n) } : {}), known ? t(VC_TAB_UNIT_KEYS[id], { n: one.n }) : '—'),
+      h('span', { key: 'label', className: 'tab-label' }, t(VC_TAB_LABEL_KEYS[id])),
+      h('span', Object.assign({ key: 'n', className: 'tab-count', 'data-vc-tab-count-state': known ? 'ok' : 'unknown' }, known ? { 'data-vc-tab-count': String(one.n) } : {}), known ? [
+        h('span', { key: 'n', className: 'count' }, String(one.n)),
+        h('span', { key: 'u', className: 'unit' }, t(VC_TAB_UNIT_KEYS[id])),
+      ] : [h('span', { key: 'unknown', className: 'count' }, '—')]),
     ]))
   }
-  return h('div', {
-    className: 'vcs-tabs',
+  return h('nav', {
+    className: 'views',
     role: 'tablist',
     'aria-label': t('vc.shell.tabs.label'),
     'data-vc-tabs': '1',
@@ -170,12 +176,8 @@ const vcOwnBodyOf = function (page: string, opts: any) {
 
 const vcPageNotesOf = function (h: any, t: any, page: string) {
   const notes: any[] = []
-  if (page === 'commits') {
-    notes.push(h('div', { key: 'graph', className: 'vcs-note vcs-note-graph', 'data-vc-note': '13.14' }, [
-      h('h4', { key: 't' }, t('vc.shell.commits.graphTitle')),
-      h('p', { key: 'n' }, t('vc.shell.commits.graphNote')),
-    ]))
-  }
+  // #1860：提交历史页不再有「13.14 图形历史浏览器落在本页」说明块（票面：删说明块、图形标题改原型文案）。
+  //   图形区块本身的标题在历史叶子里画成「图形化提交历史」。
   if (page === 'platform') {
     notes.push(h('div', { key: 'platform', className: 'vcs-note', 'data-vc-note': 'platform-pointer' }, t('vc.shell.platform.pointer')))
   }
@@ -195,10 +197,15 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   // #1829 阶段 4-A：页头整体交给 vcPageHead（标题行与导语两段），壳只保留页面顺序。
   // #1840：① 返回键的 data-log 由容器按返回目标传进来（backLog）；② 页头与正文拆成两块——
   //   页头固定占页面顶部，正文进 .vcs-page-scroll 拿原型的 10px/12px/18px 内边距（原型 .page-head / .page-scroll）。
+  // #1860 四个一级页签按原型从身份行下面直接铺正文：没有页头标题、没有导语、没有页内说明块。
+  //   二级页（管理九分区、搜索页等）仍是原来的页头 + 正文两段式，本票不动它们。
+  const isTabPage = VC_TAB_PAGES.indexOf(page) >= 0
+  // #1881：分支与标签页的页头不画「N 条能力」计数——那枚数字指向一份已经退役、不在页面上的清单。
+  //   其余页照旧；九张分区页要不要一起去留给 #1848，所以这里还留了一个可透传的开关。
   const head = Object.assign({}, vcPageHeadNode(h, t, {
-    page: page, back: opts.back === true, backLog: opts.backLog,
+    page: page, back: opts.back === true, backLog: opts.backLog, hideCount: opts.hideCount === true || page === 'branch-tags',
   }), { key: 'meta' })
-  children.push.apply(children, vcPageNotesOf(h, t, page))
+  if (!isTabPage) children.push.apply(children, vcPageNotesOf(h, t, page))
   // #1840 管理索引屏：页头之后整屏都是索引（说明句、九张卡、两条跨区入口、覆盖口径），
   //   不画分区正文、骨架与能力清单——索引本身不写仓库，也不在账本的 16 页里。
   if (page === VC_MANAGE_INDEX_PAGE) {
@@ -255,7 +262,8 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   } else if (page === 'stash' && typeof vcStashPageNode === 'function') {
     // #1751 贮藏页（域 7）：十条动作的入口、确认卡与最近丢弃都在叶子里；正文排在能力清单之前，
     //   首屏先看到贮藏记录本身，而不是「本页负责 N 条能力」的长清单（#1829 同一口径）。
-    children.push(Object.assign({}, vcStashPageNode(h, t, { seed: opts.seed, state: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), { key: 'stash-page' }))
+    // nowMs 让记录行的时间跟原型一样说相对时间；不传时页面叶子退回精确时刻（静态渲染用）。
+    children.push(Object.assign({}, vcStashPageNode(h, t, { seed: opts.seed, state: opts.stash, nowMs: opts.nowMs, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), { key: 'stash-page' }))
   } else if (!vcOwnBodyOf(page, opts)) {
     // 骨架自检：三种表单形态与四种状态各画一遍；各页正文由它自己的叶子画，主入口由下面的能力清单统一给。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
@@ -272,49 +280,48 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcMaintenancePageNode, { key: 'maintenance-cards', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1750 T15 维护页整仓重写（能力 5.11）正文；#1758 T22 维护页 11.4–11.11 正文；三块同一物理行：本文件贴着 350 有效行上限
   // 分支与标签页（#1746 T11；#1829 阶段 3 换成有状态组件叶子）：调用方把一份读数传进来才画，
   //   没传整块不出现，其它页渲染不变；筛选与搜索的组件状态在叶子内部，壳只往下递读数与处理函数。
-  if (page === 'branch-tags' && opts.branchBoard !== undefined) children.push(h(vcBranchPageOf, { key: 'branch-board', t: t, board: opts.branchBoard, confirm: opts.branchConfirm, result: opts.branchResult, onRetry: opts.onBranchRetry, nowMs: opts.nowMs }))
+  if (page === 'branch-tags' && opts.branchBoard !== undefined) children.push(h(vcBranchPageOf, { key: 'branch-board', t: t, board: opts.branchBoard, state: opts.branchState, error: opts.branchError, confirm: opts.branchConfirm, result: opts.branchResult, onRetry: opts.onBranchRetry, nowMs: opts.nowMs }))
   // 历史高级查询面板（#1745 T10）：提交历史页落 3.4 / 3.6 / 3.7 / 3.8 / 3.10 / 3.12 六组，
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
-  const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })); const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' })); if (page === 'diagnostics' && typeof vcMaintenanceDiagNode === 'function') { const maintDiagNode: any = h(vcMaintenanceDiagNode, { key: 'maintenance-diag', t: t, cwd: opts.cwd || '', call: opts.call || null }); children.push(Object.assign({}, maintDiagNode, { key: 'maintenance-diag' })) } // #1758 T22 诊断页 11.2–11.4 正文；#1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；判断与推入也并成一行（本文件贴着 350 有效行上限）。
+  // #1860：提交历史页的高级查询表单（git log --follow 等六组命令）整块退役；诊断页那四组仍保留。
+  const queryNode = page === 'diagnostics' ? vcQueryPageNode(h, t, opts) : null; if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })); const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' })); if (page === 'diagnostics' && typeof vcMaintenanceDiagNode === 'function') { const maintDiagNode: any = h(vcMaintenanceDiagNode, { key: 'maintenance-diag', t: t, cwd: opts.cwd || '', call: opts.call || null }); children.push(Object.assign({}, maintDiagNode, { key: 'maintenance-diag' })) } // #1758 T22 诊断页 11.2–11.4 正文；#1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；判断与推入也并成一行（本文件贴着 350 有效行上限）。
   // #1845：三个流程页的正文排在能力清单之前，读者先看到这一页要做什么，再看到「本页负责 N 条能力」的长清单。
   //   变基页先画变基正文（第一段「本次变基」按原型 48 打头），历史改写五条面板从壳根挪进来紧随其后。
   if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' })); if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(Object.assign({}, h(VC_UNDO_PANEL, { t: t, cwd: opts.cwd || '', state: opts.undo }), { key: 'undo-page' })); if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
-  // 任务页是流程页，能力账本里没有它的条目（162 条不变），不画能力清单，只画任务面板。
-  // #1829 改动页的能力清单不再排在这一段：它压到页尾（提交区之后），首屏留给统计卡与文件行。
-  if (page !== 'task' && page !== 'changes') children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
+  // 任务页是流程页，能力账本里没有它的条目（162 条不变），只画任务面板。
+  //   #1860：页面体里的能力清单整块退役，162 条主入口改由命令面板与管理索引承载（见票面第一节）。
   if (page === 'task' && typeof vcTaskPanelNode === 'function') children.push(Object.assign({}, vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), { key: 'task-body' }))
   // #1829 改动页首屏顺序（按定稿原型 62-changes-460.png）：统计卡与分组文件行 → 13 条动作面板（折叠）→ 提交区 → 能力清单。
   //   文件行与统计卡来自新叶子 vcChangesView；13 条动作面板保持原样（13 个 data-vc-changes-op 必须初始就在 DOM 里）。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesViewNode === 'function') {
     children.push(Object.assign({}, vcChangesViewNode(h, t, { changes: opts.changes, onOpenHandoff: opts.onOpenHandoff }), { key: 'changes-view' }))
   }
-  // #1829 改动页首屏顺序（按定稿原型 62-changes-460.png，票面验收④「提交面板不再排在文件列表和改动动作之前」）：
-  //   统计卡与分组文件行 → 13 条动作面板（折叠、默认收起，13 行仍在 DOM 里）→ 提交区 → 能力清单。
-  if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
-    children.push(h('details', { key: 'changes-more', className: 'vcs-more-actions', 'data-vc-more-actions': '1' }, [
-      h('summary', { key: 'summary', className: 'vcs-more-actions-title', 'data-log': 'vc.changes.more-actions', 'data-press': 'button' }, t('vc.changes.view.allActions')),
-      Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }),
-    ]))
-  }
+  // #1860：改动页不再出现「全部 13 条动作」折叠面板（原型首屏没有这一块）。那 13 条能力仍可从命令面板
+  //   按名称与编号进入；逐文件动作（暂存 / 取消暂存 / 丢弃 / 忽略 / 删除未跟踪）改画在文件行与行菜单上。
   if (page === 'changes' && opts.reads) {
     // #1743 域 2 提交区：按原型贴在文件行与动作面板之后；说明与选项展开，提交按钮固定在这块底部。
     children.push(Object.assign({}, vcCommitPageNode(h, t, {
       reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
       ops: opts.commitOps || null, targets: opts.commitTargets || [],
       panel: opts.commitPanel || null,
+      // #1860 原型提交区：已暂存个数与两个快捷入口（取消全部暂存 / 储藏）都从改动页读数里拿，
+      //   所以把整份改动模型与开放交接的回调一起递进去；拿不到时这两处只是不画，不影响提交本身。
+      changes: opts.changes, onStash: opts.onStash, onOpenHandoff: opts.onOpenHandoff,
     }), { key: 'commit' }))
   }
 
 
-  // 能力清单压到改动页最尾：162 条仍可到达、每条仍恰一个主入口，但不再占首屏（#1829）。
-  if (page === 'changes') children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
+  // #1860：四个一级页签的正文包进原型的外壳 .view.view-<page>（stats / 分组 / composer 都在这层里面），
+  //   其余页不包，保持原来的页头 + 滚动盒结构。
+  const scrollKids = isTabPage ? [h('div', { key: 'view', className: 'view view-' + page }, children)] : children
   return h('section', {
     id: 'vc-page-' + page,
-    className: 'vcs-page-body',
+    className: 'vcs-page-body' + (isTabPage ? ' panel-body' : ''),
     role: 'tabpanel',
     'data-vc-page-body': page,
-  }, [head, h('div', { key: 'scroll', className: 'vcs-page-scroll' }, children)])
+  // 四个页签不再套一层滚动盒：原型里 .view 是面板体的弹性子元素，滚动交给整页根节点（容器已按根节点记滚动位置）。
+  }, isTabPage ? scrollKids : [head, h('div', { key: 'scroll', className: 'vcs-page-scroll' }, scrollKids)])
 }
 
 export const vcShellPageNode = function (h: any, t: any, o: any) {
@@ -354,6 +361,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   children.push(keyed(vcIdentityRowNode(h, t, {
     branch: seed.branch || '', repo: seed.repoDisplay || '', worktreePath: seed.worktreePath || '', oid: seed.oid || '',
     remote: seed.remote || 'origin', when: readAt, basis: seed.basisWhen || '', ahead: seed.ahead, behind: seed.behind,
+    reasons: seed.reasons || [],
     detached: seed.detached === true, branchOpen: branchOpen, branchOverlayId: branchOverlayId,
     paletteOpen: paletteOpen, paletteId: paletteId, gearOpen: gearOpen, gearId: gearId, onOpenHandoff: opts.onOpenHandoff,
     secondary: secondary,
@@ -378,7 +386,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。
-    branchBoard: opts.branchBoard, branchConfirm: opts.branchConfirm, branchResult: opts.branchResult, onBranchRetry: opts.onBranchRetry,
+    branchBoard: opts.branchBoard, branchState: opts.branchState, branchError: opts.branchError, branchConfirm: opts.branchConfirm, branchResult: opts.branchResult, onBranchRetry: opts.onBranchRetry,
     // #1745：历史高级查询面板的输入与四态由调用方带着走（不传就是空的「还没跑」）。
     queries: opts.queries, inputs: opts.inputs,
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
@@ -392,7 +400,9 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   //   #1845 按定稿原型把五动作三段式放到读者先看到的位置）；壳根不再重复挂一份。
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   // 任务页把这块画进页面正文（见 vcPageBodyNode），这里不再重复挂一份。
-  if (page !== 'task' && opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
+  // #1860：四个页签按定稿原型铺满整屏，长任务区属于页签之外的宿主面板，页签上不再挂它；
+  //   其余页（二级页、任务页）保持原样。任务页自己的正文挂载在 vcPageBodyNode 里，不受影响。
+  if (page !== 'task' && VC_TAB_PAGES.indexOf(page) < 0 && opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
     children.push(keyed(vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), 'tasks'))
   }
   return h('div', {

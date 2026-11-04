@@ -48,13 +48,21 @@ export function renderWorktrees(
   } else if (rows.length === 0) {
     list.append(emptyState(COPY.worktrees.filterEmpty, null))
   } else {
-    for (const row of rows) list.append(renderRow(row, options.expandedPath === row.path, model.pending))
+    for (const row of rows) list.append(renderRow(row, options.expandedPath === row.path, model))
   }
   view.append(list)
+  // 「新建工作区」的表单从页底弹出、浮在列表上方：它不属于任何一行，
+  // 而面板不高时，把一整张表单塞进页面流里会把列表挤成零高。
+  if (model.create.open) view.append(renderCreateForm(model))
 
   // 交接入口常驻：异常为零时也可能有人想把整页状态交给 AI 从头理一遍，
   // 所以这里不按 aiEnabled 隐藏，只按有没有异常换一句标题。
   view.append(h('div', { class: 'wt-foot' },
+    h('button', {
+      class: `link-btn wt-create-open${model.create.open ? ' is-on' : ''}`,
+      attrs: { type: 'button', 'aria-expanded': model.create.open ? 'true' : 'false', 'data-focus-key': 'wt-create-open' },
+      dataset: { action: 'wt-create-open' },
+    }, COPY.worktrees.createOpen),
     handoffEntry(model.abnormalCount > 0 ? HANDOFF_ENTRY.worktrees : COPY.ai.cleanEntry, 'worktrees')))
   if (result !== null) view.append(resultBanner(result))
   return view
@@ -138,7 +146,7 @@ function filterChip(label: string, count: string, on: boolean, filter: WorktreeF
   h('span', { class: 'filter-count', text: count }))
 }
 
-function renderRow(row: WorktreeRowModel, expanded: boolean, pending: WorktreePending | null): HTMLElement {
+function renderRow(row: WorktreeRowModel, expanded: boolean, model: WorktreesModel): HTMLElement {
   const rowNode = h('div', {
     class: `wt-row${row.abnormal ? ' is-abnormal' : ''}${expanded ? ' is-open' : ''}`,
   })
@@ -182,7 +190,7 @@ function renderRow(row: WorktreeRowModel, expanded: boolean, pending: WorktreePe
 
   rowNode.append(h('div', { class: 'wt-main' }, nameRow, pathRow, stateRow), actions)
   const wrap = h('div', { class: 'wt-row-wrap' }, rowNode)
-  if (expanded) wrap.append(renderDetail(row, pending))
+  if (expanded) wrap.append(renderDetail(row, model.pending))
   return wrap
 }
 
@@ -212,6 +220,8 @@ function renderDetail(row: WorktreeRowModel, pending: WorktreePending | null): H
       if (state.detail === null) continue
       detail.append(fact(state.label, state.detail, false))
     }
+    // 已经设过稀疏检出的话，展开行里常驻一句当前规则；没设过就不占这一行。
+    if (row.sparseSummary !== null) detail.append(fact(COPY.worktrees.sparse, row.sparseSummary, false))
   }
 
   // 确认卡打开时收起三颗动作按钮与说明：同一行里同时留「取消/确认」和「解锁/移除」两套按钮，
@@ -238,6 +248,24 @@ function renderDetail(row: WorktreeRowModel, pending: WorktreePending | null): H
         focusKey: `wt-prune:${row.path}`,
       }))
     }
+    // 移动与稀疏检出改的是这一棵的路径与检出范围，都贴着这一行就地展开：
+    // 读者能一边看当前路径与规则，一边改，不用跳到别的页面。
+    actions.append(button({
+      label: COPY.worktrees.move,
+      kind: 'secondary',
+      size: 'sm',
+      action: 'wt-move-open',
+      dataset: { path: row.path },
+      focusKey: `wt-move-open:${row.path}`,
+    }))
+    actions.append(button({
+      label: COPY.worktrees.sparse,
+      kind: 'secondary',
+      size: 'sm',
+      action: 'wt-sparse-open',
+      dataset: { path: row.path },
+      focusKey: `wt-sparse-open:${row.path}`,
+    }))
     actions.append(button({
       label: COPY.worktrees.remove,
       kind: 'danger',
@@ -248,6 +276,9 @@ function renderDetail(row: WorktreeRowModel, pending: WorktreePending | null): H
     }))
     detail.append(actions)
   }
+
+  if (row.moveOpen) detail.append(renderMoveForm(row))
+  if (row.sparseOpen) detail.append(renderSparsePanel(row))
 
   if (pending !== null && pending.path === row.path) {
     detail.append(h('div', { class: `wt-confirm${pending.kind === 'remove' ? ' is-danger' : ' is-warn'}` },
@@ -271,6 +302,123 @@ function renderDetail(row: WorktreeRowModel, pending: WorktreePending | null): H
         }))))
   }
   return detail
+}
+
+/** 页底的「新建工作区」表单：目录 + 分支来源（新建分支 / 已有分支）。 */
+function renderCreateForm(model: WorktreesModel): HTMLElement {
+  const create = model.create
+  const pathInput = h('input', {
+    class: 'wt-input',
+    attrs: {
+      type: 'text',
+      id: 'wt-create-path',
+      placeholder: COPY.worktrees.createPathPlaceholder,
+      'aria-label': COPY.worktrees.createPath,
+      autocomplete: 'off',
+      spellcheck: 'false',
+      'data-field': 'wt-create-path',
+      'data-focus-key': 'wt-create-path',
+    },
+  })
+  pathInput.value = create.path
+  const branchInput = h('input', {
+    class: 'wt-input',
+    attrs: {
+      type: 'text',
+      id: 'wt-create-branch',
+      placeholder: COPY.worktrees.createBranchPlaceholder,
+      'aria-label': COPY.worktrees.createBranch,
+      autocomplete: 'off',
+      spellcheck: 'false',
+      'data-field': 'wt-create-branch',
+      'data-focus-key': 'wt-create-branch',
+    },
+  })
+  branchInput.value = create.branch
+
+  const mode = (value: 'new' | 'existing', label: string): HTMLElement => {
+    const on = create.mode === value
+    return h('button', {
+      class: `wt-mode${on ? ' is-on' : ''}`,
+      attrs: { type: 'button', 'aria-pressed': on ? 'true' : 'false', 'data-focus-key': `wt-mode:${value}` },
+      dataset: { action: 'wt-create-mode', mode: value },
+    }, label)
+  }
+
+  // 已有分支时给几条最近用过的候选：点一下填进输入框，仍然可以手改。
+  const recent = create.mode === 'existing' && create.branches.length > 0
+    ? h('div', { class: 'wt-recent' },
+      h('span', { class: 'wt-recent-lead', text: COPY.worktrees.createRecent }),
+      ...create.branches.map((name) => h('button', {
+        class: `wt-recent-chip${create.branch === name ? ' is-on' : ''}`,
+        attrs: { type: 'button', title: name, 'data-focus-key': `wt-branch:${name}` },
+        dataset: { action: 'wt-create-branch', value: name },
+      }, name)))
+    : null
+
+  return h('div', { class: 'wt-form wt-create', attrs: { role: 'group', 'aria-label': COPY.worktrees.createTitle } },
+    h('h4', { class: 'wt-form-title', text: COPY.worktrees.createTitle }),
+    h('div', { class: 'wt-field' },
+      h('label', { class: 'wt-field-k', text: COPY.worktrees.createPath, attrs: { for: 'wt-create-path' } }),
+      pathInput),
+    h('div', { class: 'wt-field' },
+      h('label', { class: 'wt-field-k', text: COPY.worktrees.createBranch, attrs: { for: 'wt-create-branch' } }),
+      h('div', { class: 'wt-modes', attrs: { role: 'group', 'aria-label': COPY.worktrees.createBranch } },
+        mode('new', COPY.worktrees.createModeNew),
+        mode('existing', COPY.worktrees.createModeExisting)),
+      branchInput,
+      recent),
+    h('p', { class: 'wt-form-hint', text: create.mode === 'new' ? COPY.worktrees.createHintNew : COPY.worktrees.createHintExisting }),
+    create.error === null ? null : h('p', { class: 'wt-form-error', attrs: { role: 'alert' }, text: create.error }),
+    h('div', { class: 'wt-form-actions' },
+      button({ label: COPY.worktrees.createCancel, kind: 'ghost', size: 'sm', action: 'wt-create-close', focusKey: 'wt-create-cancel' }),
+      button({ label: COPY.worktrees.createSubmit, kind: 'secondary', size: 'sm', action: 'wt-create-submit', focusKey: 'wt-create-submit' })))
+}
+
+/** 移动工作区：只填一个新目录，旧路径与新路径的关系写在提示里。 */
+function renderMoveForm(row: WorktreeRowModel): HTMLElement {
+  const input = h('input', {
+    class: 'wt-input',
+    attrs: {
+      type: 'text',
+      'aria-label': COPY.worktrees.moveLabel,
+      autocomplete: 'off',
+      spellcheck: 'false',
+      'data-field': 'wt-move',
+      'data-focus-key': `wt-move:${row.path}`,
+    },
+  })
+  input.value = row.moveDraft
+  return h('div', { class: 'wt-form wt-move', attrs: { role: 'group', 'aria-label': COPY.worktrees.moveTitle } },
+    h('h4', { class: 'wt-form-title', text: COPY.worktrees.moveTitle }),
+    h('label', { class: 'wt-field-k', text: COPY.worktrees.moveLabel }),
+    input,
+    h('p', { class: 'wt-form-hint', text: COPY.worktrees.moveHint }),
+    h('div', { class: 'wt-form-actions' },
+      button({ label: COPY.worktrees.createCancel, kind: 'ghost', size: 'sm', action: 'wt-move-close', focusKey: 'wt-move-cancel' }),
+      button({ label: COPY.worktrees.moveSubmit, kind: 'secondary', size: 'sm', action: 'wt-move-apply', focusKey: 'wt-move-apply' })))
+}
+
+/** 稀疏检出：勾顶层目录，勾上的才会检出到磁盘。 */
+function renderSparsePanel(row: WorktreeRowModel): HTMLElement {
+  const dirs = h('div', { class: 'wt-dirs', attrs: { role: 'group', 'aria-label': COPY.worktrees.sparseTitle } })
+  for (const dir of row.sparseDirs) {
+    const on = row.sparseSelected.includes(dir)
+    dirs.append(h('button', {
+      class: `wt-dir${on ? ' is-on' : ''}`,
+      attrs: { type: 'button', 'aria-pressed': on ? 'true' : 'false', title: on ? `不保留 ${dir}` : `保留 ${dir}`, 'data-focus-key': `wt-dir:${dir}` },
+      dataset: { action: 'wt-sparse-toggle', dir },
+    },
+    h('span', { class: 'wt-dir-box', attrs: { 'aria-hidden': 'true' }, text: on ? '✓' : '' }),
+    h('span', { class: 'mono', text: dir })))
+  }
+  return h('div', { class: 'wt-form wt-sparse', attrs: { role: 'group', 'aria-label': COPY.worktrees.sparseTitle } },
+    h('h4', { class: 'wt-form-title', text: COPY.worktrees.sparseTitle }),
+    h('p', { class: 'wt-form-hint', text: COPY.worktrees.sparseHint }),
+    dirs,
+    h('div', { class: 'wt-form-actions' },
+      button({ label: COPY.worktrees.sparseCancel, kind: 'ghost', size: 'sm', action: 'wt-sparse-close', focusKey: 'wt-sparse-cancel' }),
+      button({ label: COPY.worktrees.sparseSave, kind: 'secondary', size: 'sm', action: 'wt-sparse-save', focusKey: 'wt-sparse-save' })))
 }
 
 function pendingTitle(pending: WorktreePending): string {

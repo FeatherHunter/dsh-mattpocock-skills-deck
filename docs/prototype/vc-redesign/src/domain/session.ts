@@ -15,6 +15,9 @@
  * 后续接回宿主时替换的只是「谁去执行」，状态变化原样保留。
  */
 
+import { COPY } from '../data/copy'
+import { patchHunksOf, samplePatch } from '../data/patches'
+
 /** 结果出现的位置：这是「结果不能堆在页面底部」的具体落点。 */
 export type ResultSource = 'sync' | 'reload' | 'commit' | 'copy' | 'ai' | 'branch' | 'worktree' | 'changes' | 'stash' | 'history'
 /** 结果与「下一步」提示的四种语气；muted 表示没有紧迫性，不改变颜色语义。 */
@@ -22,6 +25,24 @@ export type Tone = 'ok' | 'warn' | 'error' | 'info' | 'muted'
 export type ViewId = 'changes' | 'commits' | 'worktrees' | 'stash'
 export type OpName = 'commit' | 'pull' | 'push' | 'fetch'
 export type ChangesFilter = 'all' | 'conflict' | 'staged' | 'unstaged'
+
+/**
+ * 这次提交是什么形态。四种形态都从同一个提交区发起，区别只在它怎么进入历史：
+ *   - commit：在历史最前面加一条新提交；
+ *   - amend：替换上一条提交（git commit --amend），提交号会变；
+ *   - fixup / squash：生成一条带 fixup! / squash! 前缀的提交，等下次整理历史时压回上一条。
+ * 为什么放在一次提交里而不是提交行菜单里：这四种形态都要填说明、都要用已暂存的内容，
+ * 只有「提交」这个动作能同时看见这两样；提交行菜单上是「不需要再写什么」的动作（还原、拣选、撤销）。
+ */
+export type CommitForm = 'commit' | 'amend' | 'fixup' | 'squash'
+
+/**
+ * 提交历史里搜索按什么找：
+ *   - message：按提交说明、作者、短号（git log --grep）；
+ *   - code：按这次提交改到的文件（git log -S / -G）。
+ * 两者共用同一个搜索框，所以做成框旁边的范围切换，不另开一屏。
+ */
+export type HistoryScope = 'message' | 'code'
 
 /** 原型模拟出来的本地提交：字段与真实 CommitInfo 对齐，差异只在 files 也带增删行数。 */
 export interface LocalCommit {
@@ -32,6 +53,11 @@ export interface LocalCommit {
   authorDateMs: number
   parents: string[]
   files: Array<{ path: string; added: number; deleted: number }>
+  /**
+   * 这条提交是怎么记下来的：修订、fixup、squash、跳过钩子、已签名、带签名行。
+   * 历史行上按这组标记补小字，读者不用点开详情才知道「这条是怎么来的」。
+   */
+  marks: string[]
 }
 
 export interface ResultMessage {
@@ -97,7 +123,7 @@ export interface StashPending {
  * 为什么放在状态里而不是视图里：确认卡开着的时候，列表的其它操作应当不可点，
  * 这条判定必须和「点击会不会生效」用同一份状态，不能视图自己记一个变量。
  */
-export type ChangesPendingKind = 'discard' | 'discard-all' | 'ignore' | 'delete-untracked' | 'resolve-ours' | 'resolve-theirs'
+export type ChangesPendingKind = 'discard' | 'discard-all' | 'ignore' | 'delete-untracked' | 'delete-tracked' | 'untrack' | 'resolve-ours' | 'resolve-theirs'
 
 export interface ChangesPending {
   kind: ChangesPendingKind
@@ -125,6 +151,20 @@ export interface SessionState {
   historyMergeOnly: boolean
   historyOpenOid: string | null
   historyOpenFile: string | null
+  /** 搜索范围：说明 / 代码变化。默认按说明找，与原来的行为一致。 */
+  historyScope: HistoryScope
+  /** 只看某个文件的历史：从提交详情的文件行发起，列表顶部可以点掉。 */
+  historyFileOnly: string | null
+  /** 提交详情里哪一行的「更多」菜单开着（单文件历史从这里进）。 */
+  historyFileMenu: string | null
+  /** 「比较两个引用」的两行表单，以及已经比过的一对引用。 */
+  compareOpen: boolean
+  compareFrom: string
+  compareTo: string
+  compare: { fromOid: string; fromShort: string; toOid: string; toShort: string } | null
+  /** 提交备注：oid → 备注正文。详情里正在编辑的那一份单独放在 noteDraft。 */
+  commitNotes: Record<string, string>
+  noteDraft: string
   localCommits: LocalCommit[]
   copiedPath: string | null
   demoWorktrees: boolean
@@ -141,17 +181,68 @@ export interface SessionState {
   hiddenWorktrees: string[]
   unlockedWorktrees: string[]
   prunedWorktrees: string[]
+  /** 新建工作区：页底那张表单开着没有、目录、分支来源与分支名，以及表单里的一条错误。 */
+  wtCreateOpen: boolean
+  wtCreatePath: string
+  wtCreateMode: 'new' | 'existing'
+  wtCreateBranch: string
+  wtCreateError: string | null
+  /** 原型里新建出来的工作区：接回宿主后它们来自一次真实的 git worktree add。 */
+  createdWorktrees: Array<{ path: string; branch: string }>
+  /** 已经移动过的工作区：原路径 → 新路径。其余动作仍按原路径认这一行。 */
+  movedWorktrees: Record<string, string>
+  /** 移动工作区：哪一行开着输入框、输入框里写的新目录。 */
+  wtMovePath: string | null
+  wtMoveDraft: string
+  /** 稀疏检出：哪一行开着折叠区、勾了哪些顶层目录，以及已经保存的规则。 */
+  wtSparsePath: string | null
+  wtSparseDirs: string[]
+  wtSparseRules: Record<string, string[]>
   /** 改动行的危险动作确认：丢弃、暂存忽略、删除未跟踪文件、解决冲突。 */
   changesPending: ChangesPending | null
   /** 哪一行的「更多」菜单被点开了：菜单紧贴这一行画，不再另开一层页面。 */
   openMenuPath: string | null
+  /** 哪一行正在改路径（改名与移动共用一张表单），以及表单里正在敲的新路径。 */
+  renamePath: string | null
+  renameDraft: string
+  /** 改过名的文件：旧路径 → 新路径。读数与差异仍按旧路径查，列表上按新路径画。 */
+  renames: Array<{ from: string; to: string }>
+  /**
+   * 逐块暂存：每个文件已经暂存了哪几块（按补丁里块的下标）。
+   * 整份文件的块全部暂完时，文件本身进「已暂存」，这里就不留它的记录。
+   */
+  stagedHunks: Record<string, number[]>
   /** 原型里「已经加入 .gitignore」的文件：接回宿主后它们会在下一次读取时从列表消失。 */
   ignored: string[]
   /** 储藏清单：按 git stash 的顺序，最近一条在最前面。 */
   stashes: StashEntry[]
   stashPending: StashPending | null
+  /** 「储藏」按钮的变体菜单：全部改动 / 连未跟踪一起 / 只储藏已暂存。 */
+  stashMenuOpen: boolean
+  /** 储藏记录行的「更多」菜单，以及「从这条记录建分支」的表单。 */
+  stashMenuId: string | null
+  stashBranchId: string | null
+  stashBranchDraft: string
+  /** 「清空全部记录」的确认卡开着没有。 */
+  stashClearPending: boolean
   /** 被「撤销这次提交」撤掉的那条提交：从历史里暂时隐去，改动回到「已暂存」。 */
   undoneOid: string | null
+  /**
+   * 被「修订上一条」替换掉的那条采集提交：新提交顶上来之后它从历史里隐去，总数不变。
+   * 与 undoneOid 分开记，是因为两者的总数口径不同：撤销少一条，修订一条换一条。
+   */
+  replacedOid: string | null
+  /** 提交区右侧「提交选项」展开区开着没有；默认收起，首屏与定稿截图一致。 */
+  commitOptionsOpen: boolean
+  commitForm: CommitForm
+  /** 内容来源：打开后把未暂存的改动一起提交（git commit -a）。 */
+  commitAllTracked: boolean
+  skipHooks: boolean
+  signCommit: boolean
+  signoff: boolean
+  /** 这一版说明是从 .gitmessage 套来的；撤销套用要恢复成套用之前写的内容。 */
+  templateApplied: boolean
+  messageBeforeTemplate: string
 }
 
 /**
@@ -176,9 +267,20 @@ export type Action =
   | { type: 'unstage-all' }
   | { type: 'filter'; filter: ChangesFilter }
   | { type: 'toggle-file'; path: string }
+  | { type: 'expand-file'; path: string }
+  | { type: 'stage-hunk'; path: string; index: number }
+  | { type: 'unstage-hunk'; path: string; index: number }
   | { type: 'message'; value: string }
   | { type: 'commit-start' }
   | { type: 'commit-finish' }
+  | { type: 'commit-options-toggle' }
+  | { type: 'commit-form'; form: CommitForm }
+  | { type: 'commit-all-tracked' }
+  | { type: 'skip-hooks' }
+  | { type: 'sign-commit' }
+  | { type: 'signoff' }
+  | { type: 'template-apply'; body: string }
+  | { type: 'template-undo' }
   | { type: 'op-start'; op: OpName }
   | { type: 'op-finish'; op: OpName; nowMs: number }
   | { type: 'reload-start' }
@@ -190,6 +292,16 @@ export type Action =
   | { type: 'history-open'; oid: string }
   | { type: 'history-open-file'; path: string }
   | { type: 'history-back' }
+  | { type: 'history-scope'; scope: HistoryScope }
+  | { type: 'history-file-only'; path: string | null }
+  | { type: 'history-file-menu'; path: string | null }
+  | { type: 'compare-open' }
+  | { type: 'compare-close' }
+  | { type: 'compare-draft'; which: 'from' | 'to'; value: string }
+  | { type: 'compare-apply' }
+  | { type: 'compare-end' }
+  | { type: 'note-draft'; value: string }
+  | { type: 'note-save' }
   | { type: 'result-clear' }
   | { type: 'copy'; path: string }
   | { type: 'ai-worktrees' }
@@ -208,11 +320,38 @@ export type Action =
   | { type: 'branch-delete'; name: string }
   | { type: 'wt-pending'; pending: WorktreePending | null }
   | { type: 'wt-apply' }
+  | { type: 'wt-create-open' }
+  | { type: 'wt-create-close' }
+  | { type: 'wt-create-path'; value: string }
+  | { type: 'wt-create-mode'; mode: 'new' | 'existing' }
+  | { type: 'wt-create-branch'; value: string }
+  | { type: 'wt-create-submit'; path?: string }
+  | { type: 'wt-move-open'; path: string }
+  | { type: 'wt-move-draft'; value: string }
+  | { type: 'wt-move-close' }
+  | { type: 'wt-move-apply' }
+  | { type: 'wt-sparse-open'; path: string }
+  | { type: 'wt-sparse-toggle'; dir: string }
+  | { type: 'wt-sparse-close' }
+  | { type: 'wt-sparse-save' }
   | { type: 'changes-pending'; pending: ChangesPending | null }
   | { type: 'changes-apply' }
   | { type: 'changes-open-menu'; path: string | null }
+  | { type: 'rename-open'; path: string }
+  | { type: 'rename-draft'; value: string }
+  | { type: 'rename-cancel' }
+  | { type: 'rename-apply' }
   | { type: 'demo-conflicts' }
-  | { type: 'stash-create' }
+  | { type: 'stash-create'; mode?: 'all' | 'untracked' | 'staged' }
+  | { type: 'stash-menu-toggle' }
+  | { type: 'stash-menu'; id: string | null }
+  | { type: 'stash-branch-open'; id: string }
+  | { type: 'stash-branch-draft'; value: string }
+  | { type: 'stash-branch-cancel' }
+  | { type: 'stash-branch-apply' }
+  | { type: 'stash-clear-open' }
+  | { type: 'stash-clear-cancel' }
+  | { type: 'stash-clear-apply' }
   | { type: 'stash-apply'; id: string }
   | { type: 'stash-pop'; id: string }
   | { type: 'stash-pending'; pending: StashPending | null }
@@ -261,6 +400,15 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
     historyMergeOnly: false,
     historyOpenOid: null,
     historyOpenFile: null,
+    historyScope: 'message',
+    historyFileOnly: null,
+    historyFileMenu: null,
+    compareOpen: false,
+    compareFrom: 'HEAD~1',
+    compareTo: 'HEAD',
+    compare: null,
+    commitNotes: {},
+    noteDraft: '',
     localCommits: [],
     copiedPath: null,
     demoWorktrees: false,
@@ -275,17 +423,78 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
     hiddenWorktrees: [],
     unlockedWorktrees: [],
     prunedWorktrees: [],
+    wtCreateOpen: false,
+    wtCreatePath: '',
+    wtCreateMode: 'new',
+    wtCreateBranch: '',
+    wtCreateError: null,
+    createdWorktrees: [],
+    movedWorktrees: {},
+    wtMovePath: null,
+    wtMoveDraft: '',
+    wtSparsePath: null,
+    wtSparseDirs: [],
+    wtSparseRules: {},
     changesPending: null,
     openMenuPath: null,
+    renamePath: null,
+    renameDraft: '',
+    renames: [],
+    stagedHunks: {},
     ignored: [],
     stashes: [],
     stashPending: null,
+    stashMenuOpen: false,
+    stashMenuId: null,
+    stashBranchId: null,
+    stashBranchDraft: '',
+    stashClearPending: false,
     undoneOid: null,
+    replacedOid: null,
+    commitOptionsOpen: false,
+    commitForm: 'commit',
+    commitAllTracked: false,
+    skipHooks: false,
+    signCommit: false,
+    signoff: false,
+    templateApplied: false,
+    messageBeforeTemplate: '',
   }
 }
 
 function unique(paths: string[]): string[] {
   return paths.filter((path, index) => paths.indexOf(path) === index)
+}
+
+/** 这个文件的一段示例补丁有几块；0 表示拆不出块（二进制、未知扩展名），这一行就不给「按块」按钮。 */
+function hunkCountOf(path: string): number {
+  const patch = samplePatch(path)
+  return patch === null ? 0 : patchHunksOf(patch).hunks.length
+}
+
+/** 去掉一个文件的逐块记录；本来就没有记录时返回原对象，省一次无谓的重画。 */
+function withoutHunks(records: Record<string, number[]>, path: string): Record<string, number[]> {
+  if (records[path] === undefined) return records
+  const next = { ...records }
+  delete next[path]
+  return next
+}
+
+/**
+ * 剪掉「已经不在未暂存列表里」的块记录。串在 reduce 的最后一步：
+ * 动作只要把这个文件移走（暂存、丢弃、删除、停止跟踪、改名、储藏），记录就跟着没。
+ */
+function pruneHunks(state: SessionState): SessionState {
+  const keys = Object.keys(state.stagedHunks)
+  if (keys.length === 0) return state
+  const kept: Record<string, number[]> = {}
+  let dropped = false
+  for (const key of keys) {
+    const blocks = state.stagedHunks[key]
+    if (blocks !== undefined && state.unstaged.includes(key)) kept[key] = blocks
+    else dropped = true
+  }
+  return dropped ? { ...state, stagedHunks: kept } : state
 }
 
 function withResult(state: SessionState, result: ResultMessage): SessionState {
@@ -352,12 +561,24 @@ function shortOid(): string {
   return out
 }
 
+/**
+ * 对外的状态入口：先跑动作，再把逐块记录修剪一遍。
+ *
+ * 逐块记录只对「未暂存」列表里的文件有意义——文件整份暂存、被丢弃、被删除、被改名之后，
+ * 记录必须一起消失，否则它下次回到「未暂存」时会带着上一次的块记忆。修剪集中在这一层，
+ * 而不是每个分支各写一遍：漏一个分支就是一条很难查出来的错状态。
+ */
 export function reduce(state: SessionState, action: Action, base: SessionBase): SessionState {
+  return pruneHunks(acted(state, action, base))
+}
+
+function acted(state: SessionState, action: Action, base: SessionBase): SessionState {
   switch (action.type) {
     case 'demo-worktrees':
       return { ...state, demoWorktrees: true }
     case 'view':
-      return { ...state, view: action.view }
+      // 换页签等于离开这次提交：展开区收起，不把盖在列表上的浮层带到别的页签去。
+      return { ...state, view: action.view, commitOptionsOpen: false }
     case 'tick':
       return { ...state }
     case 'stage': {
@@ -379,6 +600,78 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         unstaged: unique([...state.unstaged, action.path]),
       }
     }
+    /*
+     * 逐块暂存：块的下标按补丁里的顺序，已暂的块记在 stagedHunks 里。
+     * 整份文件的块都暂完才把它挪到「已暂存」——这也是 git 的行为：部分暂存的文件
+     * 在索引与工作区各有一份内容，列表上仍算「未暂存」。
+     */
+    case 'stage-hunk': {
+      if (state.busy !== null || state.reloading) return state
+      const { path, index } = action
+      if (state.conflicts.includes(path)) return state
+      if (state.staged.includes(path) || !state.unstaged.includes(path)) return state
+      const total = hunkCountOf(path)
+      if (total === 0 || index < 0 || index >= total) return state
+      const had = state.stagedHunks[path] ?? []
+      if (had.includes(index)) return state
+      const kept = [...had, index].sort((a, b) => a - b)
+      const name = nameOfPath(path)
+      const remaining = total - kept.length
+      if (remaining === 0) {
+        return withResult({
+          ...state,
+          staged: unique([...state.staged, path]),
+          unstaged: state.unstaged.filter((item) => item !== path),
+          stagedHunks: withoutHunks(state.stagedHunks, path),
+        }, {
+          tone: 'ok',
+          text: `已暂存 ${name} 的最后一块，整个文件进入「已暂存」。`,
+          detail: `它的 ${total} 块都进索引了，这一行从「未暂存」移到「已暂存」；提交时会带上这些块。`,
+          source: 'changes',
+        })
+      }
+      return withResult({
+        ...state,
+        stagedHunks: { ...state.stagedHunks, [path]: kept },
+      }, {
+        tone: 'ok',
+        text: `已暂存 ${name} 的第 ${index + 1} 块，还剩 ${remaining} 块。`,
+        detail: '这个文件要等所有块都暂存完，才会整行移到「已暂存」；现在它仍在「未暂存」里，行上标着已暂存几块。',
+        source: 'changes',
+      })
+    }
+    case 'unstage-hunk': {
+      if (state.busy !== null || state.reloading) return state
+      const { path, index } = action
+      const total = hunkCountOf(path)
+      if (total === 0 || index < 0 || index >= total) return state
+      // 整份已暂存的文件也可以逐块退回：这时先把「全部块都已暂存」展开成一份清单，再拿掉这一块。
+      const wholeStaged = state.staged.includes(path)
+      if (!wholeStaged && !state.unstaged.includes(path)) return state
+      const had = wholeStaged ? Array.from({ length: total }, (_, item) => item) : (state.stagedHunks[path] ?? [])
+      if (!had.includes(index)) return state
+      const left = had.filter((item) => item !== index)
+      const name = nameOfPath(path)
+      let next: SessionState = {
+        ...state,
+        stagedHunks: left.length === 0 ? withoutHunks(state.stagedHunks, path) : { ...state.stagedHunks, [path]: left },
+      }
+      if (wholeStaged) {
+        next = {
+          ...next,
+          staged: state.staged.filter((item) => item !== path),
+          unstaged: unique([...state.unstaged, path]),
+        }
+      }
+      return withResult(next, {
+        tone: 'info',
+        text: `已取消暂存 ${name} 的第 ${index + 1} 块。`,
+        detail: left.length === 0
+          ? '这个文件现在整份都在「未暂存」里，行上也就没有已暂存的块数了。'
+          : `还有 ${left.length} 块留在已暂存；这一行显示在「未暂存」里，并标着已暂存几块。`,
+        source: 'changes',
+      })
+    }
     case 'stage-all': {
       if (state.busy !== null || state.reloading) return state
       if (state.conflicts.length > 0) return state
@@ -386,53 +679,228 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
     }
     case 'unstage-all': {
       if (state.busy !== null || state.reloading) return state
-      return { ...state, unstaged: unique([...state.unstaged, ...state.staged]), staged: [] }
+      // 「全部取消暂存」等于 git reset：索引整个清空，逐块暂存过的文件也一起退回未暂存。
+      return { ...state, unstaged: unique([...state.unstaged, ...state.staged]), staged: [], stagedHunks: {} }
     }
     case 'filter':
       return { ...state, changesFilter: action.filter }
     case 'toggle-file':
       return { ...state, openFile: state.openFile === action.path ? null : action.path }
+    // 深链专用：把某一行「打开」，不因为已经打开就关掉（截图脚本要可以重复打开同一行）。
+    case 'expand-file':
+      return { ...state, openFile: action.path }
     case 'message':
       return { ...state, message: action.value }
     case 'commit-start':
       return enterBusy(state, 'commit')
-    case 'commit-finish': {
-      const staged = state.staged
-      const message = state.message.trim()
-      if (staged.length === 0 || message === '') {
-        return {
-          ...state,
-          busy: null,
-          result: { tone: 'error', text: staged.length === 0 ? '还没有暂存的文件，先暂存要提交的文件。' : '填写提交说明后即可提交。', detail: null, source: 'commit' },
-        }
+    case 'commit-options-toggle':
+      return { ...state, commitOptionsOpen: !state.commitOptionsOpen }
+    case 'commit-form': {
+      if (action.form === state.commitForm) return state
+      // 修订要改的是上一条提交的说明，所以切到「修订上一条」时把那条的说明填进输入框；
+      // 切回新提交时，只有输入框里还是那句原话才清掉，用户自己改过的内容一律保留。
+      const head = headInfoOf(base, state)
+      let message = state.message
+      if (action.form === 'amend' && head !== null && message.trim() === '') message = head.subject
+      else if (action.form === 'commit' && head !== null && message.trim() === head.subject.trim()) message = ''
+      return { ...state, commitForm: action.form, message, templateApplied: false }
+    }
+    case 'commit-all-tracked':
+      return { ...state, commitAllTracked: !state.commitAllTracked }
+    case 'skip-hooks':
+      return { ...state, skipHooks: !state.skipHooks }
+    case 'sign-commit':
+      return { ...state, signCommit: !state.signCommit }
+    case 'signoff':
+      return { ...state, signoff: !state.signoff }
+    case 'template-apply': {
+      if (state.templateApplied) return state
+      return {
+        ...state,
+        message: action.body,
+        messageBeforeTemplate: state.message,
+        templateApplied: true,
       }
-      const files = staged.map((path) => {
+    }
+    case 'template-undo':
+      if (!state.templateApplied) return state
+      return { ...state, message: state.messageBeforeTemplate, templateApplied: false }
+    case 'commit-finish': {
+      const form = state.commitForm
+      const head = headInfoOf(base, state)
+      const message = state.message.trim()
+      const alsoTracked = state.commitAllTracked ? trackedChangesOf(base, state) : []
+      const paths = unique([...state.staged, ...alsoTracked])
+      const remainingUnstaged = state.unstaged.filter((path) => alsoTracked.includes(path) === false)
+      const needsContent = form !== 'amend'
+      if (form === 'amend' && head === null) {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '历史里还没有可以修订的提交。',
+          detail: '「修订上一条」改的是当前分支最前面那条提交。面板没有读到它，先用「新提交」。',
+          source: 'commit',
+        })
+      }
+      if (needsContent && paths.length === 0) {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '还没有已暂存的文件，先暂存要提交的文件。',
+          detail: state.commitAllTracked ? '「把未暂存的改动也一起提交」已经打开，但工作区里没有未暂存的改动可以加进来。' : null,
+          source: 'commit',
+        })
+      }
+      if (form === 'commit' && message === '') {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '填写提交说明后即可提交。',
+          detail: null,
+          source: 'commit',
+        })
+      }
+      if (form === 'amend' && head !== null && message === '') {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '修订要有一条新的提交说明。',
+          detail: '修订会用输入框里的说明替换上一条提交的说明；不想改说明就先把原来的说明填回来。',
+          source: 'commit',
+        })
+      }
+      if (form === 'amend' && head !== null && paths.length === 0 && message === head.subject.trim()) {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '说明和内容都没有变化，不需要修订。',
+          detail: '修订会重写提交号。这一版说明与上一条完全相同，也没有新的已暂存文件。',
+          source: 'commit',
+        })
+      }
+      if ((form === 'fixup' || form === 'squash') && head === null) {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '历史里还没有可以压缩进去的提交。',
+          detail: 'fixup 与 squash 都是「把这次改动挂到上一条提交上」，没有上一条就无处可挂。',
+          source: 'commit',
+        })
+      }
+      const files = paths.map((path) => {
         const meta = metadataOf(base, path)
         return { path, added: meta?.addedLines ?? 0, deleted: meta?.deletedLines ?? 0 }
       })
+      const now = Date.now()
+      const oid = shortOid() + shortOid() + shortOid() + shortOid() + shortOid() + shortOid()
+      const short = oid.slice(0, 7)
+      const marks = marksOf(state, form)
+      const extraNotes = optionNotesOf(state)
+      const baseReset = {
+        busy: null as null,
+        staged: [] as string[],
+        unstaged: remainingUnstaged,
+        commitAllTracked: false,
+        skipHooks: false,
+        signCommit: false,
+        signoff: false,
+        templateApplied: false,
+        // 提交完成之后这次的选择已经用掉了：形态回到「新提交」，展开区收起
+        // （展开区里每一项都是「这一次提交」的设置，留着它只会让人以为还有效）。
+        commitForm: 'commit' as CommitForm,
+        commitOptionsOpen: false,
+      }
+
+      if (form === 'amend' && head !== null) {
+        const amended: LocalCommit = {
+          oid,
+          short,
+          subject: message,
+          author: '辰辰洋洋',
+          authorDateMs: now,
+          parents: head.parents,
+          files: mergeFiles(head.files, files),
+          marks,
+        }
+        const headIsLocal = state.localCommits.length > 0
+        // 上一条是采集来的提交时，把它从历史里隐去，让修订后的新提交顶上来；总数不变。
+        // 上一条本来就是原型里新建的提交时，直接原地换掉，不额外记替换关系。
+        const replacedOid = headIsLocal ? state.replacedOid : head.oid
+        const pushed = state.ahead === 0
+        return withResult({
+          ...state,
+          ...baseReset,
+          message: '',
+          replacedOid,
+          localCommits: headIsLocal ? [amended, ...state.localCommits.slice(1)] : [amended, ...state.localCommits],
+          ahead: pushed ? 1 : state.ahead,
+          behind: pushed ? state.behind + 1 : state.behind,
+        }, {
+          tone: 'warn',
+          text: paths.length === 0
+            ? `已修订 ${head.short} 的提交说明。`
+            : `已修订 ${head.short}：这条提交现在叫 ${short}。`,
+          detail: (paths.length === 0
+            ? `内容没有变，只改了说明。说明也是提交内容的一部分，所以提交号同样会变。`
+            : `上一条提交被这条替换掉，现在一共 ${amended.files.length} 个文件。提交号变了，历史里那条旧提交不再出现。`)
+            + (pushed ? '这条提交已经推送过，远端还指着旧提交，需要强推才能对齐。' : '这条提交还没有推送，远端不受影响。')
+            + extraNotes,
+          source: 'commit',
+        })
+      }
+
+      if (form === 'fixup' || form === 'squash') {
+        const target = head === null ? '' : head.subject
+        const prefix = form === 'fixup' ? 'fixup!' : 'squash!'
+        const commit: LocalCommit = {
+          oid,
+          short,
+          subject: `${prefix} ${target}`,
+          author: '辰辰洋洋',
+          authorDateMs: now,
+          parents: [head?.oid ?? ''],
+          files,
+          marks,
+        }
+        return withResult({
+          ...state,
+          ...baseReset,
+          ahead: state.ahead + 1,
+          localCommits: [commit, ...state.localCommits],
+        }, {
+          tone: 'ok',
+          text: form === 'fixup'
+            ? `已生成 fixup 提交 ${short}，指向 ${head?.short ?? ''}。`
+            : `已生成 squash 提交 ${short}，指向 ${head?.short ?? ''}。`,
+          detail: (form === 'fixup'
+            ? `说明写成「fixup! ${target}」，这次改动先挂在历史最前面。下次整理历史选「自动吸收 fixup」时，git 会把它压回目标提交，这条说明丢掉。`
+            : `说明写成「squash! ${target}」，这次改动先挂在历史最前面。下次整理历史选「自动吸收 fixup」时，它会和目标提交并成一条，两条说明都留着。`)
+            + extraNotes,
+          source: 'commit',
+        })
+      }
+
       const commit: LocalCommit = {
-        oid: shortOid() + shortOid() + shortOid() + shortOid() + shortOid() + shortOid(),
-        short: shortOid(),
+        oid,
+        short,
         subject: message,
         author: '辰辰洋洋',
-        authorDateMs: Date.now(),
+        authorDateMs: now,
         parents: [state.localCommits[0]?.oid ?? base.screen.commits[0]?.oid ?? ''],
         files,
+        marks,
       }
-      return {
+      return withResult({
         ...state,
-        busy: null,
-        staged: [],
+        ...baseReset,
         message: '',
         ahead: state.ahead + 1,
         localCommits: [commit, ...state.localCommits],
-        result: {
-          tone: 'ok',
-          text: `提交完成：${files.length} 个文件已进入历史。`,
-          detail: '这次提交只包含已暂存的文件。这份清单已经清空，可以接着暂存下一批。',
-          source: 'commit',
-        },
-      }
+      }, {
+        tone: 'ok',
+        text: alsoTracked.length > 0
+          ? `提交完成：${files.length} 个文件已进入历史，其中 ${alsoTracked.length} 个是刚刚一起暂存的。`
+          : `提交完成：${files.length} 个文件已进入历史。`,
+        detail: (alsoTracked.length > 0
+          ? '相当于 git commit -a：未暂存的改动先被暂存，再进入这次提交。未跟踪的新文件不算在内，仍然留在工作区。'
+          : '这次提交只包含已暂存的文件。这份清单已经清空，可以接着暂存下一批。')
+          + extraNotes,
+        source: 'commit',
+      })
     }
     case 'op-start':
       return enterBusy(state, action.op)
@@ -459,11 +927,96 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
     case 'history-merge-only':
       return { ...state, historyMergeOnly: !state.historyMergeOnly }
     case 'history-open':
-      return { ...state, historyOpenOid: action.oid, historyOpenFile: null }
+      // 打开一条提交时把它的备注读进编辑框：备注是这条提交的一部分，不另开一层。
+      return {
+        ...state,
+        historyOpenOid: action.oid,
+        historyOpenFile: null,
+        historyFileMenu: null,
+        noteDraft: state.commitNotes[action.oid] ?? '',
+      }
     case 'history-open-file':
       return { ...state, historyOpenFile: state.historyOpenFile === action.path ? null : action.path }
     case 'history-back':
-      return { ...state, historyOpenOid: null, historyOpenFile: null }
+      return { ...state, historyOpenOid: null, historyOpenFile: null, historyFileMenu: null }
+    case 'history-scope':
+      return state.historyScope === action.scope ? state : { ...state, historyScope: action.scope }
+    /*
+     * 单文件历史：从提交详情的文件行走过来，回到列表并只留下改过这个文件的提交。
+     * 筛选开着的时候比较结果先收起——「只看一个文件」和「比较两个引用」是两种读法，
+     * 同时开着会让列表既是过滤结果又是比较结果，读者分不清在看哪一种。
+     */
+    case 'history-file-only': {
+      if (action.path === null) return { ...state, historyFileOnly: null, historyFileMenu: null }
+      if (action.path === state.historyFileOnly) return { ...state, historyFileMenu: null }
+      const name = nameOfPath(action.path)
+      return withResult({
+        ...state,
+        historyFileOnly: action.path,
+        historyOpenOid: null,
+        historyOpenFile: null,
+        historyFileMenu: null,
+        compare: null,
+        compareOpen: false,
+      }, {
+        tone: 'info',
+        text: `现在只看 ${name} 的历史。`,
+        detail: '列表只留下改过这个文件的提交；列表顶上那枚「只看 …」标签可以点掉，回到全部历史。',
+        source: 'history',
+      })
+    }
+    case 'history-file-menu':
+      return { ...state, historyFileMenu: state.historyFileMenu === action.path ? null : action.path }
+    case 'compare-open':
+      // 两端默认给「上一条 → 最新」，这也是最常见的读法；评审要截别的组合再改。
+      return { ...state, compareOpen: !state.compareOpen }
+    case 'compare-close':
+      return { ...state, compareOpen: false }
+    case 'compare-draft':
+      return action.which === 'from' ? { ...state, compareFrom: action.value } : { ...state, compareTo: action.value }
+    case 'compare-apply': {
+      const from = resolveRef(base, state, state.compareFrom)
+      const to = resolveRef(base, state, state.compareTo)
+      if (from === null || to === null) {
+        return withResult(state, {
+          tone: 'error',
+          text: from === null ? `找不到「${state.compareFrom.trim()}」这个引用。` : `找不到「${state.compareTo.trim()}」这个引用。`,
+          detail: '可以写 HEAD、HEAD~2，或者列表里那条提交的短号；两端都要能对上一条提交。',
+          source: 'history',
+        })
+      }
+      if (from.oid === to.oid) {
+        return withResult(state, { tone: 'error', text: '两端是同一个提交，没有可比较的内容。', detail: '把其中一端换成更早的提交，或者写 HEAD~1。', source: 'history' })
+      }
+      return {
+        ...state,
+        compareOpen: false,
+        compare: { fromOid: from.oid, fromShort: from.short, toOid: to.oid, toShort: to.short },
+        result: null,
+      }
+    }
+    case 'compare-end':
+      return { ...state, compare: null }
+    case 'note-draft':
+      return { ...state, noteDraft: action.value }
+    case 'note-save': {
+      const oid = state.historyOpenOid
+      if (oid === null) return state
+      const text = state.noteDraft.trim()
+      const had = state.commitNotes[oid] !== undefined
+      if (text === '' && !had) {
+        return withResult(state, { tone: 'info', text: '备注是空的，没有保存。', detail: '写一两句再保存；备注挂在提交上，不改提交本身。', source: 'history' })
+      }
+      const notes = { ...state.commitNotes }
+      if (text === '') delete notes[oid]
+      else notes[oid] = text
+      return withResult({ ...state, commitNotes: notes, noteDraft: text }, {
+        tone: 'ok',
+        text: text === '' ? '已删除这条提交的备注。' : '已保存这条提交的备注。',
+        detail: '备注存在 refs/notes 里，跟着仓库走；它不改变提交本身，推送时也要另外推这份引用。',
+        source: 'history',
+      })
+    }
     case 'result-clear':
       return state.result === null ? state : { ...state, result: null }
     case 'copy':
@@ -509,10 +1062,156 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         hiddenWorktrees: hidden,
       }, { tone: 'ok', text: `已移除工作区：${pending.name}。`, detail: '分支与提交都还在仓库里。这一步只删掉了检出记录与工作目录。', source: 'worktree' })
     }
+    /*
+     * 新建工作区：页底一张表单，两种填法共用同一处——新建一条分支，或从本地已有分支里选一条。
+     * 表单里的错误留在表单下面（wtCreateError），不放到页面底部的结果条：
+     * 填错时要改的是这张表，提示得贴着它。
+     */
+    case 'wt-create-open':
+      return { ...state, wtCreateOpen: true, wtCreateError: null }
+    case 'wt-create-close':
+      return { ...state, wtCreateOpen: false, wtCreateError: null }
+    case 'wt-create-path':
+      return { ...state, wtCreatePath: action.value, wtCreateError: null }
+    case 'wt-create-mode':
+      return { ...state, wtCreateMode: action.mode, wtCreateBranch: '', wtCreateError: null }
+    case 'wt-create-branch':
+      return { ...state, wtCreateBranch: action.value, wtCreateError: null }
+    case 'wt-create-submit': {
+      const target = action.path ?? state.wtCreatePath.trim().replace(/\\/g, '/')
+      const branch = state.wtCreateBranch.trim()
+      if (target === '') return { ...state, wtCreateError: COPY.worktrees.createEmptyPath }
+      if (branch === '') {
+        return { ...state, wtCreateError: state.wtCreateMode === 'new' ? COPY.worktrees.createEmptyBranch : COPY.worktrees.createNoBranch }
+      }
+      if (state.wtCreateMode === 'existing' && !state.branches.some((row) => row.name === branch)) {
+        return { ...state, wtCreateError: COPY.worktrees.createNoBranch }
+      }
+      if (worktreePathsOf(base, state).includes(target)) return { ...state, wtCreateError: COPY.worktrees.createTaken }
+      const name = nameOfPath(target)
+      return withResult({
+        ...state,
+        createdWorktrees: [...state.createdWorktrees, { path: target, branch }],
+        wtCreateOpen: false,
+        wtCreateError: null,
+        wtCreatePath: '',
+        wtCreateBranch: '',
+      }, {
+        tone: 'ok',
+        text: COPY.worktrees.resultCreated(name, branch),
+        detail: state.wtCreateMode === 'new'
+          ? `git worktree add -b ${branch} ${target}：新建一条分支，并在新目录里检出它。接回宿主后这一步会真的建目录。`
+          : `git worktree add ${target} ${branch}：把已有分支检出到新目录；同一条分支不能在两处同时检出。`,
+        source: 'worktree',
+      })
+    }
+    case 'wt-move-open':
+      return { ...state, wtMovePath: action.path, wtMoveDraft: action.path, wtSparsePath: null, worktreePending: null }
+    case 'wt-move-draft':
+      return { ...state, wtMoveDraft: action.value }
+    case 'wt-move-close':
+      return { ...state, wtMovePath: null, wtMoveDraft: '' }
+    case 'wt-move-apply': {
+      const from = state.wtMovePath
+      if (from === null) return state
+      const target = state.wtMoveDraft.trim().replace(/\\/g, '/')
+      if (target === '') return withResult(state, { tone: 'error', text: COPY.worktrees.moveEmpty, detail: null, source: 'worktree' })
+      if (target === from) return withResult(state, { tone: 'warn', text: COPY.worktrees.moveSame, detail: null, source: 'worktree' })
+      if (worktreePathsOf(base, state).includes(target)) {
+        return withResult(state, { tone: 'error', text: COPY.worktrees.moveTaken, detail: '移动不会覆盖已有目录，git 会直接拒绝。', source: 'worktree' })
+      }
+      // 移动过的工作区仍按原路径认这一行，所以映射记在原路径上；再移一次就改同一条记录。
+      const key = Object.keys(state.movedWorktrees).find((old) => state.movedWorktrees[old] === from) ?? from
+      const name = nameOfPath(target)
+      return withResult({
+        ...state,
+        movedWorktrees: { ...state.movedWorktrees, [key]: target },
+        createdWorktrees: state.createdWorktrees.map((entry) => (entry.path === from ? { ...entry, path: target } : entry)),
+        wtMovePath: null,
+        wtMoveDraft: '',
+        worktreePending: null,
+      }, {
+        tone: 'ok',
+        text: `已把这个工作区移到 ${name}。`,
+        detail: `git worktree move：git 记录与磁盘上的目录一起改，旧路径 ${from} 不再属于任何工作区。`,
+        source: 'worktree',
+      })
+    }
+    case 'wt-sparse-open': {
+      const saved = state.wtSparseRules[action.path]
+      return {
+        ...state,
+        wtSparsePath: action.path,
+        wtSparseDirs: saved ?? sparseTopDirsOf(base),
+        wtMovePath: null,
+        worktreePending: null,
+      }
+    }
+    case 'wt-sparse-toggle': {
+      const has = state.wtSparseDirs.includes(action.dir)
+      return { ...state, wtSparseDirs: has ? state.wtSparseDirs.filter((dir) => dir !== action.dir) : [...state.wtSparseDirs, action.dir] }
+    }
+    case 'wt-sparse-close':
+      return { ...state, wtSparsePath: null, wtSparseDirs: [] }
+    case 'wt-sparse-save': {
+      const path = state.wtSparsePath
+      if (path === null) return state
+      const all = sparseTopDirsOf(base)
+      const dirs = all.filter((dir) => state.wtSparseDirs.includes(dir))
+      if (dirs.length === 0) return withResult(state, { tone: 'error', text: COPY.worktrees.sparseEmpty, detail: '全都不勾等于把工作区拆空，git 也会拒绝。', source: 'worktree' })
+      const name = nameOfPath(path)
+      const allKept = dirs.length === all.length
+      return withResult({
+        ...state,
+        wtSparseRules: { ...state.wtSparseRules, [path]: dirs },
+        wtSparsePath: null,
+        wtSparseDirs: [],
+      }, {
+        tone: 'ok',
+        text: allKept ? COPY.worktrees.sparseAll : COPY.worktrees.sparseSaved(dirs),
+        detail: allKept
+          ? `${name} 仍会检出全部目录，相当于没开稀疏检出。`
+          : `${name} 只会检出这几个顶层目录；没勾的目录不落到磁盘，改动仍然留在仓库里。`,
+        source: 'worktree',
+      })
+    }
     case 'changes-pending':
       return { ...state, changesPending: action.pending, openMenuPath: null }
     case 'changes-open-menu':
       return { ...state, openMenuPath: action.path, changesPending: null }
+    case 'rename-open':
+      // 改名与移动是同一张表单：改的是这条路径本身，所以贴着这一行展开，不做成整页。
+      return { ...state, openMenuPath: null, renamePath: action.path, renameDraft: action.path }
+    case 'rename-draft':
+      return { ...state, renameDraft: action.value }
+    case 'rename-cancel':
+      return { ...state, renamePath: null, renameDraft: '' }
+    case 'rename-apply': {
+      const from = state.renamePath
+      if (from === null) return state
+      const to = state.renameDraft.trim().replace(/\\/g, '/')
+      if (to === '') {
+        return withResult(state, { tone: 'error', text: COPY.changes.renameEmpty, detail: null, source: 'changes' })
+      }
+      if (to === from) {
+        return withResult(state, { tone: 'error', text: COPY.changes.renameSame, detail: null, source: 'changes' })
+      }
+      return withResult({
+        ...state,
+        staged: unique([...state.staged.filter((item) => item !== from), to]),
+        unstaged: state.unstaged.filter((item) => item !== from),
+        renames: [...state.renames.filter((entry) => entry.to !== from), { from, to }],
+        renamePath: null,
+        renameDraft: '',
+        openFile: state.openFile === from ? to : state.openFile,
+        openMenuPath: null,
+      }, {
+        tone: 'ok',
+        text: `已把 ${nameOfPath(from)} 改名为 ${nameOfPath(to)}。`,
+        detail: 'git mv 同时改磁盘上的名字并把这次改名暂存起来，所以它出现在「已暂存」里；提交之后新路径才进入历史。',
+        source: 'changes',
+      })
+    }
     case 'changes-apply': {
       const pending = state.changesPending
       if (pending === null) return state
@@ -565,6 +1264,34 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
             tone: 'warn',
             text: `已删除未跟踪文件 ${name}。`,
             detail: '它从来没有进过 git 历史，删除以后没有任何地方能找回。原型不会真的删磁盘上的文件。',
+            source: 'changes',
+          })
+        }
+        case 'delete-tracked': {
+          // 已跟踪文件删掉之后，这次删除本身是一条已暂存的改动：它要跟别的改动一起提交才进历史。
+          if (path === null || (!state.unstaged.includes(path) && !state.staged.includes(path))) return cleared
+          return withResult({
+            ...cleared,
+            staged: unique([...state.staged.filter((item) => item !== path), path]),
+            unstaged: state.unstaged.filter((item) => item !== path),
+            openFile: state.openFile === path ? null : state.openFile,
+          }, {
+            tone: 'warn',
+            text: `已删除 ${name}，这次删除已经暂存。`,
+            detail: '文件从磁盘与 git 索引里一起删掉。删除本身是一条已暂存的改动，和别的改动一起提交之后才会进历史；面板不能撤回这一步。',
+            source: 'changes',
+          })
+        }
+        case 'untrack': {
+          if (path === null || !state.unstaged.includes(path)) return cleared
+          return withResult({
+            ...cleared,
+            unstaged: state.unstaged.filter((item) => item !== path),
+            openFile: state.openFile === path ? null : state.openFile,
+          }, {
+            tone: 'info',
+            text: `已停止跟踪 ${name}，文件还在磁盘上。`,
+            detail: 'git rm --cached 只把它从索引里拿掉：文件不会消失，但下次提交之后 git 不再跟踪它的改动，别人拉取时也不会再拿到它。想让它以后不再出现，可以顺手把它加进 .gitignore。',
             source: 'changes',
           })
         }
@@ -724,14 +1451,33 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         source: 'branch',
       })
     }
+    /*
+     * 储藏有三种收法，git 的行为不一样，所以做成同一颗按钮下的三个变体：
+     *   all（默认）：只收已跟踪的改动，未跟踪的新文件留在工作区——这是 git stash 的默认行为；
+     *   untracked：连未跟踪的一起收走（git stash -u）；
+     *   staged：只收索引里的那一份（git stash push --staged），工作区里的改动仍在。
+     */
     case 'stash-create': {
       if (state.busy !== null || state.reloading) return state
       if (state.conflicts.length > 0) {
         return withResult(state, { tone: 'error', text: '有冲突文件时不能储藏。', detail: '储藏会把工作区恢复成上次提交时的样子，冲突文件没有可以安全恢复的版本。先解决冲突，再储藏剩下的改动。', source: 'changes' })
       }
-      const paths = unique([...state.staged, ...state.unstaged])
+      const mode = action.mode ?? 'all'
+      const isUntracked = (path: string): boolean => metadataOf(base, path)?.change === 'untracked'
+      const untracked = state.unstaged.filter(isUntracked)
+      const trackedUnstaged = state.unstaged.filter((path) => !isUntracked(path))
+      const paths = mode === 'staged'
+        ? state.staged
+        : mode === 'untracked'
+          ? unique([...state.staged, ...state.unstaged])
+          : unique([...state.staged, ...trackedUnstaged])
       if (paths.length === 0) {
-        return withResult(state, { tone: 'info', text: '工作区是干净的，没有可储藏的内容。', detail: null, source: 'changes' })
+        const empty = mode === 'staged'
+          ? { text: '索引里没有已暂存的文件，没有可储藏的内容。', detail: '「只储藏已暂存的改动」收的是索引里的那一份；先把要收的文件暂存起来。' }
+          : mode === 'untracked'
+            ? { text: '工作区是干净的，没有可储藏的内容。', detail: null }
+            : { text: '没有可储藏的内容。', detail: untracked.length > 0 ? `工作区里只有 ${untracked.length} 个未跟踪的新文件；默认储藏不收它们，要收就选「连未跟踪的文件一起储藏」。` : '工作区与索引都是干净的。' }
+        return withResult({ ...state, stashMenuOpen: false }, { tone: 'info', text: empty.text, detail: empty.detail, source: 'changes' })
       }
       const branchName = state.branches.find((row) => row.current)?.name ?? base.branch ?? 'detached'
       const message = state.message.trim() === '' ? `WIP on ${branchName}` : state.message.trim()
@@ -741,16 +1487,33 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         whenMs: Date.now(),
         paths,
       }
+      // 储藏走之后工作区剩下什么，按三种收法分别算：默认留下未跟踪的新文件；
+      // -u 什么都不留；--staged 把索引里的内容退回工作区，所以那些改动变成未暂存。
+      const resting = mode === 'staged'
+        ? unique([...state.unstaged, ...state.staged])
+        : mode === 'untracked' ? [] : untracked
+      const detail = mode === 'staged'
+        ? `只收走索引里的那一份：这 ${paths.length} 个文件的改动仍留在工作区，重新变成未暂存。`
+        : mode === 'untracked'
+          ? `储藏记录 ${entry.id} 里放着这些文件，包括 ${untracked.length} 个未跟踪的新文件。工作区恢复成上次提交时的样子。`
+          : untracked.length > 0
+            ? `储藏记录 ${entry.id} 里放着 ${paths.length} 个已跟踪文件；工作区里那 ${untracked.length} 个未跟踪的新文件没有一起收走，仍留在工作区。`
+            : `储藏记录 ${entry.id} 里放着这些文件。工作区与「已暂存」的清单都恢复成上次提交时的样子。`
       return withResult({
         ...state,
         stashes: [entry, ...state.stashes],
         staged: [],
-        unstaged: [],
+        unstaged: resting,
         message: '',
+        stashMenuOpen: false,
       }, {
         tone: 'ok',
-        text: `已储藏 ${paths.length} 个文件的改动。`,
-        detail: `储藏记录 ${entry.id} 里放着这些文件。工作区与「已暂存」的清单都恢复成上次提交时的样子，应用回工作区或弹出都能把它拿回来。`,
+        text: mode === 'staged'
+          ? `已储藏 ${paths.length} 个文件的已暂存内容。`
+          : mode === 'untracked'
+            ? `已储藏 ${paths.length} 个文件（其中 ${untracked.length} 个未跟踪）。`
+            : `已储藏 ${paths.length} 个文件的已跟踪改动。`,
+        detail,
         source: 'changes',
       })
     }
@@ -793,6 +1556,71 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         source: 'stash',
       })
     }
+    case 'stash-menu-toggle':
+      return { ...state, stashMenuOpen: !state.stashMenuOpen }
+    case 'stash-menu':
+      return { ...state, stashMenuId: action.id }
+    case 'stash-branch-open':
+      return { ...state, stashBranchId: action.id, stashBranchDraft: 'stash-branch', stashMenuId: null }
+    case 'stash-branch-draft':
+      return { ...state, stashBranchDraft: action.value }
+    case 'stash-branch-cancel':
+      return { ...state, stashBranchId: null, stashBranchDraft: '' }
+    case 'stash-branch-apply': {
+      if (state.busy !== null || state.reloading) return state
+      const id = state.stashBranchId
+      if (id === null) return state
+      const name = state.stashBranchDraft.trim()
+      if (name === '') {
+        return withResult(state, { tone: 'error', text: '先给分支起个名字。', detail: 'git stash branch 会新建一条分支，再把这条记录应用上去。', source: 'stash' })
+      }
+      if (state.branches.some((row) => row.name === name)) {
+        return withResult(state, { tone: 'error', text: `分支 ${name} 已经存在。`, detail: '换一个名字；这条记录还没有被用掉。', source: 'stash' })
+      }
+      const entry = state.stashes.find((row) => row.id === id)
+      if (entry === undefined) return { ...state, stashBranchId: null, stashBranchDraft: '' }
+      const head = headInfoOf(base, state)
+      const branch: BranchRow = {
+        name,
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        oidShort: head === null ? '' : head.short,
+        lastCommitMs: Date.now(),
+        subject: `从 ${id} 建的分支`,
+        mergedIntoCurrent: false,
+        current: true,
+      }
+      return withResult({
+        ...state,
+        // 建分支等于切过去：原来那条分支不再标成当前分支。
+        branches: [branch, ...state.branches.map((row) => ({ ...row, current: false }))],
+        stashes: state.stashes.filter((row) => row.id !== id),
+        unstaged: unique([...state.unstaged, ...entry.paths]),
+        stashBranchId: null,
+        stashBranchDraft: '',
+        stashMenuId: null,
+      }, {
+        tone: 'ok',
+        text: `已从 ${id} 建分支 ${name}，记录里的 ${entry.paths.length} 个文件回到工作区。`,
+        detail: 'git stash branch：新分支从储藏当时的提交开始，储藏内容直接落到工作区。这条记录已经用掉，不会留在清单里。',
+        source: 'stash',
+      })
+    }
+    case 'stash-clear-open':
+      return { ...state, stashClearPending: true, stashMenuId: null }
+    case 'stash-clear-cancel':
+      return { ...state, stashClearPending: false }
+    case 'stash-clear-apply': {
+      const count = state.stashes.length
+      if (count === 0) return { ...state, stashClearPending: false }
+      return withResult({ ...state, stashes: [], stashClearPending: false }, {
+        tone: 'warn',
+        text: `已清空 ${count} 条储藏记录。`,
+        detail: '记录里的改动不再存在，这一步不能撤回；工作区与提交历史都没有被改动。',
+        source: 'stash',
+      })
+    }
     case 'commit-undo': {
       if (state.busy !== null || state.reloading) return state
       const localHead = state.localCommits[0] ?? null
@@ -815,6 +1643,9 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         ...state,
         localCommits: localHead !== null ? state.localCommits.slice(1) : state.localCommits,
         undoneOid: localHead !== null ? state.undoneOid : action.oid,
+        // 撤销掉的如果是一条「修订」出来的提交，被它替掉的原提交要回到历史里：
+        // 撤销的意思是「这一步不算了」，原来那条提交本来就没有被真正删掉。
+        replacedOid: localHead !== null && state.localCommits.length === 1 ? null : state.replacedOid,
         staged: unique([...state.staged, ...files]),
         message: state.message.trim() === '' ? subject : state.message,
         ahead: pushed ? state.ahead : Math.max(0, state.ahead - 1),
@@ -881,4 +1712,129 @@ function changeSummary(base: SessionBase, path: string): string {
   return parts.join('，')
 }
 
-export { metadataOf, nameOfPath, changeSummary }
+/** 历史最前面那条提交要写作「修改对象」时用到的字段：本地新提交与采集提交取同一种形状。 */
+interface HeadInfo {
+  oid: string
+  short: string
+  subject: string
+  parents: string[]
+  files: Array<{ path: string; added: number; deleted: number }>
+}
+
+/**
+ * 稀疏检出能勾的顶层目录：取采集到的提交文件清单里出现过的一级目录。
+ * 原型没有目录树读数，用这个近似比写死一份清单更贴近仓库的真实形状。
+ */
+export function sparseTopDirsOf(base: SessionBase): string[] {
+  const dirs = new Set<string>()
+  for (const files of base.commitFiles.values()) {
+    for (const file of files) {
+      const first = file.path.split('/')[0]
+      if (first !== undefined && first !== '' && first !== file.path) dirs.add(first)
+    }
+  }
+  return [...dirs].sort()
+}
+
+/** 清单里现在登记着的全部工作区路径，已经算上新建与移动过的：用来挡「目录重名」。 */
+function worktreePathsOf(base: SessionBase, state: SessionState): string[] {
+  const raw = [
+    base.screen.identity.worktreePath,
+    ...base.screen.otherWorktrees.map((item) => item.path),
+    ...state.createdWorktrees.map((item) => item.path),
+  ]
+  return raw.filter((path) => path !== '').map((path) => state.movedWorktrees[path] ?? path)
+}
+
+/** 历史里能当「引用」用的那几条：本地新提交在前，采集提交在后，撤销与替换掉的不算。 */
+function refListOf(base: SessionBase, state: SessionState): Array<{ oid: string; short: string }> {
+  const local = state.localCommits.map((commit) => ({ oid: commit.oid, short: commit.short }))
+  const total = Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1))
+  const keep = Math.max(0, total - local.length)
+  const captured = base.screen.commits
+    .filter((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid)
+    .slice(0, keep)
+    .map((commit) => ({ oid: commit.oid, short: commit.short }))
+  return [...local, ...captured]
+}
+
+/**
+ * 把输入框里的一行字认成一条提交：HEAD、HEAD~2，或者列表里的短号（可以只写前几位）。
+ * 认不出时返回 null，由调用方把「找不到」原样说给用户，而不是悄悄当成 HEAD。
+ */
+function resolveRef(base: SessionBase, state: SessionState, text: string): { oid: string; short: string } | null {
+  const raw = text.trim()
+  if (raw === '') return null
+  const refs = refListOf(base, state)
+  const head = /^HEAD(?:~(\d+))?$/i.exec(raw)
+  if (head !== null) {
+    const back = head[1] === undefined ? 0 : Number(head[1])
+    return refs[back] ?? null
+  }
+  return refs.find((ref) => ref.oid.startsWith(raw) || ref.short === raw) ?? null
+}
+
+/**
+ * 上一条提交：优先看原型里新建的本地提交，其次看采集来的提交。
+ * 撤销或修订隐去的那一条不算——它已经不在历史里了。
+ */
+function headInfoOf(base: SessionBase, state: SessionState): HeadInfo | null {
+  const local = state.localCommits[0]
+  if (local !== undefined) {
+    return { oid: local.oid, short: local.short, subject: local.subject, parents: local.parents, files: local.files }
+  }
+  const captured = base.screen.commits.find((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid)
+  if (captured === undefined) return null
+  return {
+    oid: captured.oid,
+    short: captured.short,
+    subject: captured.subject,
+    parents: captured.parents,
+    files: base.commitFiles.get(captured.oid) ?? [],
+  }
+}
+
+/**
+ * 「把未暂存的改动也一起提交」能加进来的文件：已跟踪、且有未暂存改动的那几个。
+ * 未跟踪的新文件不算——git commit -a 也不收它们，这是常见误解，原型按 git 的实际行为画。
+ */
+function trackedChangesOf(base: SessionBase, state: SessionState): string[] {
+  return state.unstaged.filter((path) => metadataOf(base, path)?.change !== 'untracked')
+}
+
+/** 修订会把这次的已暂存文件并进上一条提交：同路径以新行数为准，顺序沿用上一条。 */
+function mergeFiles(
+  previous: Array<{ path: string; added: number; deleted: number }>,
+  added: Array<{ path: string; added: number; deleted: number }>,
+): Array<{ path: string; added: number; deleted: number }> {
+  const merged = previous.slice()
+  for (const file of added) {
+    const index = merged.findIndex((row) => row.path === file.path)
+    if (index === -1) merged.push(file)
+    else merged[index] = file
+  }
+  return merged
+}
+
+/** 历史行上那组小字：这条提交是怎么记下来的。 */
+function marksOf(state: SessionState, form: CommitForm): string[] {
+  const marks: string[] = []
+  if (form === 'amend') marks.push('修订')
+  if (form === 'fixup') marks.push('fixup')
+  if (form === 'squash') marks.push('squash')
+  if (state.skipHooks) marks.push('跳过钩子')
+  if (state.signCommit) marks.push('已签名')
+  if (state.signoff) marks.push('签名行')
+  return marks
+}
+
+/** 三个记录方式各自在结果里补一句，读者不用回看展开区才知道点没点对。 */
+function optionNotesOf(state: SessionState): string {
+  const notes: string[] = []
+  if (state.skipHooks) notes.push('这次跳过了 pre-commit 与 commit-msg 两个提交钩子，提交前的检查没有跑。')
+  if (state.signCommit) notes.push('这条提交带签名（原型模拟，没有真的调用本机密钥）。')
+  if (state.signoff) notes.push('说明末尾追加了一行 Signed-off-by: 辰辰洋洋 <chen@example.com>。')
+  return notes.length === 0 ? '' : ' ' + notes.join('')
+}
+
+export { metadataOf, nameOfPath, changeSummary, headInfoOf, trackedChangesOf }

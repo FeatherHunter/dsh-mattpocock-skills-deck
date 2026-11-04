@@ -26,8 +26,14 @@ const INDEX = pathToFileURL(resolve(ROOT, 'index.html')).href
  *   scrollTo 截图前先滚到某个位置：'bottom' 表示页面内容区滚到底，选择器表示把它滚进可视区；
  *   clicks  截图前依次点开的选择器：菜单、确认卡这类状态只能用点击造出来，光靠查询串复现不了；
  *   embed   嵌入模式（只留产品面板，用于文档内引用）；
- *   viewport 浏览器窗口尺寸，按内容高度微调，保证面板本体截图不变形。
+ *   viewport 浏览器窗口尺寸，按内容高度微调，保证面板本体截图不变形；
+ *            默认按宽度与 embed 推出来，展开区比列表高时（逐块暂存那三张）单独给一个高窗口。
  */
+const HUNK_ROW = '[data-action="toggle-file"][data-path="src/client/views/shared/workRouteTable.ts"]'
+// 列表里最新一条提交的完整提交号：打开详情截图要用它（深链按完整号匹配）。
+const HEAD_OID = 'e489673f240ed18a2e71bb6de5bfc635b2fed73c'
+const TALL = { width: 820, height: 1200 }
+
 const SHOTS = [
   { name: '37-manage-460', query: 'manage=1' },
   { name: '38-branch-tags-460', query: 'page=branch-tags' },
@@ -64,6 +70,60 @@ const SHOTS = [
   { name: '66-pull-confirm-460', query: 'confirm=1' },
   { name: '67-row-menu-460', query: '', clicks: ['.row-act.row-more'] },
   { name: '68-commit-menu-460', query: '', clicks: ['#tab-commits', '[data-action="commit-menu"]'] },
+  // 提交选项：形态、内容来源、说明模板、钩子与签名。三档宽 × 两套皮肤各一张，
+  // 展开区浮在提交区上方，文件列表保持原高。
+  { name: '69-commit-options-300', query: 'commitoptions=1', width: 300 },
+  { name: '70-commit-options-380', query: 'commitoptions=1', width: 380 },
+  { name: '71-commit-options-460', query: 'commitoptions=1' },
+  { name: '72-commit-options-light-300', query: 'commitoptions=1', width: 300, theme: 'light' },
+  { name: '73-commit-options-light-380', query: 'commitoptions=1', width: 380, theme: 'light' },
+  { name: '74-commit-options-light-460', query: 'commitoptions=1', theme: 'light' },
+  // 修订：说明预填上一条、作用对象写在形态下面，按钮字跟着变成「修订上一条提交」。
+  { name: '75-commit-amend-460', query: 'stageall=1&commitoptions=1&commitform=amend' },
+  // 修订执行完：结果条贴在提交区，页签条数不变（一条换一条）。
+  { name: '76-commit-amend-result-460', query: 'stageall=1&commitoptions=1&commitform=amend', clicks: [{ click: '[data-action="commit"]', wait: 1000 }] },
+  // fixup：说明由面板写成 fixup! …，输入框换成一行只读说明。
+  { name: '77-commit-fixup-460', query: 'stageall=1&commitoptions=1&commitform=fixup' },
+  // fixup 执行后：历史最前面多一条带 fixup 标记的提交。
+  { name: '78-commit-fixup-history-460', query: 'stageall=1&commitoptions=1&commitform=fixup', clicks: [{ click: '[data-action="commit"]', wait: 1000 }, '#tab-commits'] },
+  // 记录方式开着、展开区收起：跳过钩子与签名行以标签形式贴在提交按钮左边，
+  // 不用打开浮层就知道这一次提交会跳检查、带签名行。
+  { name: '79-commit-flags-460', query: 'noverify=1&signoff=1' },
+  { name: '80-commit-flags-light-300', query: 'noverify=1&signoff=1', width: 300, theme: 'light' },
+  // 已跟踪文件的行级动作：改名（贴行表单）、停止跟踪与删除（贴行确认卡）。
+  // 路径直接写原文：脚本用 URLSearchParams 拼查询串，会替我们正确转义；预先编码会被二次编码成 %252F。
+  { name: '81-rename-form-460', query: 'menu=src/client/views/shared/workRouteTable.ts', clicks: ['[data-action="rename-open"]'], scrollTo: '.rename-form' },
+  { name: '82-untrack-confirm-460', query: 'cpending=untrack&cpath=src/client/views/shared/workRouteTable.ts' },
+  { name: '83-delete-tracked-confirm-460', query: 'cpending=delete-tracked&cpath=src/client/views/shared/workRouteTable.ts' },
+  // 逐块暂存：展开一行后每一块右侧一颗按钮；暂存其中一块之后，这一行留在「未暂存」，
+  // 行上写出「已暂存 1/2 块」，已暂的那块压暗、按钮换成「取消暂存这一块」。
+  // 展开的一行比默认列表可视区高，这三张用高一点的窗口，把行头与两块一起截进来。
+  { name: '84-hunk-stage-460', query: 'expand=src/client/views/shared/workRouteTable.ts', scrollTo: HUNK_ROW, viewport: TALL },
+  { name: '85-hunk-partial-460', query: 'expand=src/client/views/shared/workRouteTable.ts', clicks: ['.hunk-act'], scrollTo: HUNK_ROW, viewport: TALL },
+  { name: '86-hunk-partial-light-380', query: 'expand=src/client/views/shared/workRouteTable.ts', clicks: ['.hunk-act'], width: 380, theme: 'light', scrollTo: HUNK_ROW, viewport: TALL },
+  // 历史页四条：按代码变化搜、只看某个文件、比较两个引用（表单与结果）、
+  // 提交详情里的文件行菜单（单文件历史的入口）与底部备注段。
+  { name: '87-commit-code-search-460', query: 'view=commits&hscope=code&q=gate-map' },
+  { name: '88-commit-file-only-460', query: 'view=commits&hfile=src/client/views/IssueDetail.ts' },
+  { name: '89-compare-form-460', query: 'view=commits&hcompare=1' },
+  { name: '90-compare-result-460', query: 'view=commits&hcompared=1' },
+  // 提交详情整页比默认列表高：这两张也用高窗口，从标题到备注一次截全，不截半截。
+  { name: '91-commit-file-menu-460', query: 'view=commits&open=' + HEAD_OID, clicks: ['.commit-file-more'], viewport: TALL },
+  { name: '92-commit-note-380-light', query: 'view=commits&open=' + HEAD_OID, width: 380, theme: 'light', viewport: { width: 760, height: 1200 } },
+  // 工作区页四条：新建（新建分支 / 已有分支两种填法）、移动、稀疏检出，以及新建之后的结果。
+  // 新建表单位于页底，展开行里的表单贴着第一行：都在面板内部，不指定 scrollTo，
+  // 免得 scrollIntoView 把外层页面一起滚上去、把面板标题截掉。
+  { name: '93-wt-create-460', query: 'view=worktrees&wtnew=1&wtnewpath=D:/repo/.worktrees/1800-new&wtnewbranch=ticket/1800-new' },
+  { name: '94-wt-create-existing-380-light', query: 'view=worktrees&wtnew=1&wtnewmode=existing&wtnewpath=D:/repo/.worktrees/1800-new&wtnewbranch=feat/version-control', width: 380, theme: 'light' },
+  { name: '95-wt-move-460', query: 'view=worktrees', clicks: ['.wt-row [data-action="wt-expand"]', '[data-action="wt-move-open"]'], viewport: TALL },
+  { name: '96-wt-sparse-460', query: 'view=worktrees', clicks: ['.wt-row [data-action="wt-expand"]', '[data-action="wt-sparse-open"]'], viewport: TALL },
+  { name: '97-wt-created-460', query: 'view=worktrees&wtnew=1&wtnewpath=D:/repo/.worktrees/1800-new&wtnewbranch=ticket/1800-new&wtnewsubmit=1' },
+  // 储藏四条：储藏方式的三种收法、默认收完之后未跟踪文件还在、记录行菜单、建分支表单、清空确认。
+  { name: '98-stash-variants-460', query: 'view=changes&stashmenu=1' },
+  { name: '99-stash-default-result-460', query: 'view=changes&stashmode=all&stashgo=1' },
+  { name: '100-stash-row-menu-460', query: 'view=stash&stashdemo=1', clicks: ['.stash-more'] },
+  { name: '101-stash-branch-form-380-light', query: 'view=stash&stashdemo=1', width: 380, theme: 'light', clicks: ['.stash-more', '.row-menu-item'] },
+  { name: '102-stash-clear-confirm-460', query: 'view=stash&stashdemo=1&stashclear=1' },
 ]
 
 async function main() {
@@ -78,9 +138,9 @@ async function main() {
       params.set(pair.slice(0, index), pair.slice(index + 1))
     }
     if (shot.embed === true) params.set('embed', '1')
-    const viewport = shot.embed === true
+    const viewport = shot.viewport ?? (shot.embed === true
       ? { width: 620, height: 1250 }
-      : { width: Math.max(760, width + 320), height: 940 }
+      : { width: Math.max(760, width + 320), height: 940 })
     const page = await browser.newPage({ viewport, deviceScaleFactor: 1 })
     page.on('pageerror', (error) => problems.push(shot.name + ' 页面异常：' + error.message))
     page.on('console', (message) => {
@@ -89,9 +149,12 @@ async function main() {
     await page.goto(INDEX + '?' + params.toString())
     await page.waitForSelector('.panel')
     await page.waitForTimeout(120)
-    for (const selector of shot.clicks ?? []) {
+    for (const step of shot.clicks ?? []) {
+      // 一步要么是选择器（点一下，等 150ms 让重画落定），要么是 { click, wait }：
+      // 提交这类动作有模拟往返，必须等结果条出来再截，否则截到的是「提交中…」。
+      const selector = typeof step === 'string' ? step : step.click
       await page.click(selector)
-      await page.waitForTimeout(150)
+      await page.waitForTimeout(typeof step === 'string' ? 150 : step.wait)
     }
     if (typeof shot.scrollTo === 'string') {
       await page.evaluate((target) => {

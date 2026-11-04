@@ -1,8 +1,10 @@
-// views/versionControl/vcHistoryGraph.ts —— 提交历史页的 13.14 图形化视图（#1829 阶段 3 从 vcHistory.ts 拆出）
+// views/versionControl/vcHistoryGraph.ts —— 提交历史页的 13.14 图形化视图（#1829 阶段 3 从 vcHistory.ts 拆出；#1860 按原型收口）
 // 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回闭包，跨叶用 declare。
 //
 // 为什么单开一叶：vcHistory.ts 已到文件粒度上限（每个源文件 350 有效行），图形视图这块的数据与画法
 //   与列表/详情互不依赖，拆出来以后三件事各占一份文件，谁再改哪一块都看得见边界。
+// #1860 收口：这块仍画在提交历史页的列表下方，标题就是「图形化提交历史」（词条 vc.shell.history.graphTitle），
+//   不再写「按父提交画连线……」那段长说明 —— 说明块已经随页壳的能力清单一起退役。
 // 车道规则：一行一笔提交，父提交连线落进车道；父提交不回本页或车道占满时不画连线，只报个数。
 //   300 宽放不下车道，退化成一句说明（门禁 Y7b 认这个退化）。
 
@@ -64,15 +66,13 @@ export const vcHistoryGraphOf = function (commits: any) {
 
 // 13.14 图形化历史：一行一笔提交，车道号只决定左侧标记的次序；父提交不在本页或车道占满时
 //   不画连线、只在下面报个数。300 宽放不下车道，退化成一句说明（门禁 Y7b 认这个退化）。
+//   data-vc-note="13.14" 是门禁认这块归属的标记（#1860 后说明块已从页壳退役，标记跟着块走）。
 export const vcHistoryGraphNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const width = vcHistoryWidthOf(opts.width)
   const graph = opts.graph || { rows: [], hiddenLanes: 0 }
   const rows = Array.isArray(graph.rows) ? graph.rows : []
-  const kids: any[] = [
-    h('h4', { key: 'title', className: 'vcs-hist-graph-title' }, t('vc.shell.history.graphTitle')),
-    h('p', { key: 'note', className: 'vcs-hist-graph-note' }, t('vc.shell.history.graphNote')),
-  ]
+  const kids: any[] = [h('h4', { key: 'title', className: 'vcs-hist-graph-title' }, t('vc.shell.history.graphTitle'))]
   if (graph.hiddenLanes > 0) {
     kids.push(h('p', { key: 'capped', className: 'vcs-hist-graph-capped', 'data-vc-graph-lanes-capped': '1' }, t('vc.shell.history.graphCapped', { n: graph.hiddenLanes })))
   }
@@ -92,6 +92,7 @@ export const vcHistoryGraphNode = function (h: any, t: any, o: any) {
     className: 'vcs-hist-graph',
     'data-vc-graph': '1',
     'data-vc-graph-source': 'panel',
+    'data-vc-note': '13.14',
     role: 'img',
     'aria-label': t('vc.shell.history.graphLabel'),
   }, kids)

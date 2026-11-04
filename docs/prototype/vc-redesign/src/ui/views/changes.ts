@@ -9,10 +9,10 @@
  * 「就近」是这一版的硬规则：行级动作的结果不放到页面底部的结果条里，
  * 而是紧贴着改动列表的顶端出现；确认卡紧贴着触发它的那一行出现。
  */
-import type { ChangesModel, ChangesPendingModel, FileRowModel, GroupModel } from '../../domain/select'
+import type { ChangesModel, ChangesPendingModel, ComposerModel, FileRowModel, GroupModel, HunkModel } from '../../domain/select'
 import { COPY } from '../../data/copy'
 import { HANDOFF_ENTRY } from '../../domain/handoff'
-import type { ResultMessage } from '../../domain/session'
+import type { CommitForm, ResultMessage } from '../../domain/session'
 import { icon, h } from '../dom'
 import { badgeLetter, button, chip, emptyState, note, patchBlock, resultBanner } from '../primitives'
 import { handoffEntry } from './handoff'
@@ -57,16 +57,33 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
 
   const composer = h('div', { class: 'composer' })
   if (result !== null && result.source === 'commit') composer.append(resultBanner(result))
-  const stashBtn = h('button', {
-    class: `link-btn${model.canStash ? '' : ' is-disabled'}`,
-    attrs: {
-      type: 'button',
-      'data-focus-key': 'stash-create',
-      title: model.canStash ? COPY.changes.stashHint : model.stashReason ?? COPY.changes.stashBlocked,
-      disabled: !model.canStash,
-    },
-    dataset: { action: 'stash-create' },
-  }, COPY.changes.stashAction)
+  // 「储藏」是一颗带箭头的拆分按钮：点主按钮收默认那一种（已跟踪的改动），
+  // 点箭头选另外两种收法（连未跟踪 / 只收已暂存）。三种收法收进去的东西不一样，
+  // 所以不合并成一个开关，也不另开一页。
+  const stashBtn = h('span', { class: 'stash-split' },
+    h('button', {
+      class: `link-btn${model.canStash ? '' : ' is-disabled'}`,
+      attrs: {
+        type: 'button',
+        'data-focus-key': 'stash-create',
+        title: model.canStash ? COPY.changes.stashHint : model.stashReason ?? COPY.changes.stashBlocked,
+        disabled: !model.canStash,
+      },
+      dataset: { action: 'stash-create' },
+    }, COPY.changes.stashAction),
+    h('button', {
+      class: `stash-caret${model.stashMenuOpen ? ' is-on' : ''}`,
+      attrs: {
+        type: 'button',
+        'aria-haspopup': 'true',
+        'aria-expanded': model.stashMenuOpen ? 'true' : 'false',
+        'aria-label': COPY.stash.variantsTitle,
+        title: model.canStash ? COPY.stash.variantsTitle : model.stashReason ?? COPY.changes.stashBlocked,
+        'data-focus-key': 'stash-variants',
+        disabled: !model.canStash,
+      },
+      dataset: { action: 'stash-menu-toggle' },
+    }, h('span', { class: 'stash-caret-glyph', attrs: { 'aria-hidden': 'true' }, text: '⌄' })))
   const stagedLine = h('div', { class: 'composer-head' },
     h('span', { class: 'composer-count' },
       h('span', { class: 'count', text: String(model.composer.stagedCount) }),
@@ -81,22 +98,29 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
         : null,
       stashBtn))
 
-  const textarea = h('textarea', {
-    class: 'commit-input',
-    attrs: {
-      id: 'commit-message',
-      rows: 2,
-      placeholder: model.composer.placeholder,
-      'data-field': 'message',
-      'data-focus-key': 'commit-message',
-      'aria-label': '提交说明',
-      'aria-describedby': 'commit-hint',
-    },
-  })
-  textarea.value = model.composer.message
+  // fixup 与 squash 的说明由面板自动写，输入框换成一行只读的自动说明；
+  // 别的形态仍然是可写的输入框，修订时里面预填上一条提交的说明。
+  const messageNode = model.composer.options.messageEditable
+    ? (() => {
+      const textarea = h('textarea', {
+        class: 'commit-input',
+        attrs: {
+          id: 'commit-message',
+          rows: 2,
+          placeholder: model.composer.placeholder,
+          'data-field': 'message',
+          'data-focus-key': 'commit-message',
+          'aria-label': '提交说明',
+          'aria-describedby': 'commit-hint',
+        },
+      })
+      textarea.value = model.composer.message
+      return textarea
+    })()
+    : renderAutoMessage(model.composer)
 
   const commitButton = button({
-    label: COPY.changes.commitLabel(model.composer.stagedCount),
+    label: model.composer.label,
     kind: 'primary',
     size: 'md',
     disabled: model.composer.disabled,
@@ -106,6 +130,23 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
     action: 'commit',
     focusKey: 'commit',
   })
+  // 「提交选项」的入口是贴在主按钮右边的一枚箭头：它属于这颗按钮，不新增一行、也不改首屏高度，
+  // 展开区里的形态、模板、钩子与签名只在点开之后出现。
+  // 展开区收起以后，跳过钩子 / 签名 / 签名行在别处看不出来：把它们的名字写进箭头自己的说明里，
+  // 读屏器停在箭头上就能听到「已开启：跳过钩子」，不用先把展开区点开。
+  const flagNames = model.composer.flags.map((flag) => flag.label).join('、')
+  const optionsToggle = h('button', {
+    class: 'commit-options-toggle' + (model.composer.optionsOpen ? ' is-on' : ''),
+    attrs: {
+      type: 'button',
+      'aria-expanded': model.composer.optionsOpen ? 'true' : 'false',
+      'aria-haspopup': 'true',
+      'aria-label': flagNames === '' ? COPY.commitOptions.triggerLabel : COPY.commitOptions.triggerLabel + '（已开启：' + flagNames + '）',
+      title: flagNames === '' ? COPY.commitOptions.triggerHint : COPY.commitOptions.triggerHint + '。已开启：' + flagNames,
+      'data-focus-key': 'commit-options',
+    },
+    dataset: { action: 'commit-options-toggle' },
+  }, h('span', { class: 'commit-options-caret', attrs: { 'aria-hidden': 'true' }, text: '⌄' }))
 
   // 提交区最后一行：左边是禁用原因或一句提示，右边是提交按钮，同一行、同一基线。
   // 原因与按钮说的是同一件事（为什么现在点不了），各占一行只会把提交区撑高、把列表压矮。
@@ -114,13 +155,155 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
     ? h('span', { class: 'hint-text', text: model.composer.hint })
     : h('span', { class: 'composer-reason', id: 'commit-reason' },
       icon('alert', 12), h('span', { text: model.composer.disabledReason }))
+  // 记录方式一开着就单独占一行，贴在提交按钮上方：跳过钩子会改变提交前检查，
+  // 不能只活在收起后的展开区里；塞进脚注那一行会和禁用原因抢宽度，窄档下两边都读不成句。
+  const flagNode = model.composer.flags.length === 0
+    ? null
+    : h('div', { class: 'composer-flags', attrs: { role: 'status', 'aria-label': '这次提交已打开的记录方式' } },
+      ...model.composer.flags.map((flag) => chip(flag.label, flag.label === COPY.commitOptions.skipHooks ? 'warn' : 'info', { small: true, title: flag.hint })))
   const foot = h('div', { class: 'composer-foot', id: 'commit-hint' },
     footLeft,
     handoffEntry(HANDOFF_ENTRY.changes, 'changes'),
-    commitButton)
-  composer.append(stagedLine, textarea, foot)
+    h('div', { class: 'commit-split' }, commitButton, optionsToggle))
+  composer.append(stagedLine, messageNode)
+  if (flagNode !== null) composer.append(flagNode)
+  composer.append(foot)
+  // 提交选项贴在提交区上方浮起来，不再挤占文件列表：它是一次临时选择（形态、模板、钩子、签名），
+  // 松开以后文件列表还是原来那么高。这和分支浮层、行菜单是同一种「贴触发点的浮层」。
+  if (model.composer.optionsOpen) composer.append(renderCommitOptions(model.composer))
+  // 储藏方式的菜单从箭头打开，浮在提交区上方；点外面或按 Esc 由 app.ts 统一收起。
+  if (model.stashMenuOpen) composer.append(renderStashMenu())
   view.append(filterRow, list, composer)
   return view
+}
+
+/**
+ * 储藏方式的三种收法。为什么不是三颗按钮：它们收的是同一件事的不同范围，
+ * 主按钮给默认那种（已跟踪的改动），另外两种收进箭头里，读者点之前就能看清区别。
+ */
+function renderStashMenu(): HTMLElement {
+  const item = (label: string, note: string, mode: 'all' | 'untracked' | 'staged'): HTMLElement =>
+    h('button', {
+      class: 'stash-opt',
+      attrs: { type: 'button', 'data-focus-key': `stash-mode:${mode}` },
+      dataset: { action: 'stash-create', mode },
+    },
+    h('span', { class: 'stash-opt-title', text: label }),
+    h('span', { class: 'stash-opt-note', text: note }))
+  return h('div', { class: 'stash-menu', attrs: { role: 'group', 'aria-label': COPY.stash.variantsTitle } },
+    h('div', { class: 'opt-head' },
+      h('span', { class: 'opt-title', text: COPY.stash.variantsTitle }),
+      h('button', {
+        class: 'opt-close',
+        attrs: { type: 'button', 'aria-label': '收起储藏方式', 'data-focus-key': 'stash-variants-close' },
+        dataset: { action: 'stash-menu-toggle' },
+      }, '×')),
+    h('p', { class: 'stash-menu-hint', text: COPY.stash.variantsHint }),
+    item(COPY.stash.variantAll, COPY.stash.variantAllNote, 'all'),
+    item(COPY.stash.variantUntracked, COPY.stash.variantUntrackedNote, 'untracked'),
+    item(COPY.stash.variantStaged, COPY.stash.variantStagedNote, 'staged'))
+}
+
+/**
+ * 提交选项展开区：形态、作用对象、内容来源、说明模板与三个记录方式。
+ *
+ * 为什么这六条都放在提交区而不是提交行菜单里：它们改的是「这次提交写什么、怎么记」，
+ * 而提交行菜单上的还原、拣选、撤销改的是「已经记下来的那条提交」。前者需要输入框与已暂存清单，
+ * 只有提交区同时看得见这两样；后者不需要再写什么，所以在行上就地做。
+ */
+function renderCommitOptions(composer: ComposerModel): HTMLElement {
+  const options = composer.options
+  const copy = COPY.commitOptions
+  const panel = h('div', { class: 'commit-options', attrs: { role: 'dialog', 'aria-label': copy.title } })
+  panel.append(h('div', { class: 'opt-head' },
+    h('span', { class: 'opt-title', text: copy.title }),
+    h('button', {
+      class: 'opt-close',
+      attrs: { type: 'button', 'aria-label': '收起提交选项', title: '收起提交选项', 'data-focus-key': 'commit-options-close' },
+      dataset: { action: 'commit-options-toggle' },
+    }, '×')))
+
+  const forms: Array<[CommitForm, string]> = [
+    ['commit', copy.form.commit],
+    ['amend', copy.form.amend],
+    ['fixup', copy.form.fixup],
+    ['squash', copy.form.squash],
+  ]
+  const seg = h('div', { class: 'opt-seg', attrs: { role: 'group', 'aria-label': copy.formKey } })
+  for (const [form, label] of forms) {
+    seg.append(h('button', {
+      class: 'opt-seg-btn' + (options.form === form ? ' is-on' : ''),
+      attrs: {
+        type: 'button',
+        'aria-pressed': options.form === form ? 'true' : 'false',
+        'data-focus-key': 'commit-form:' + form,
+        title: copy.formNote[form],
+      },
+      dataset: { action: 'commit-form', form },
+    }, label))
+  }
+  // 四组都按「左边一行术语、右边控件与一句后果」排；窄到 359 以下时自动改成上下两行。
+  const group = (key: string, control: HTMLElement, note: string | null): HTMLElement =>
+    h('div', { class: 'opt-line' },
+      h('span', { class: 'opt-key', text: key }),
+      h('div', { class: 'opt-body' },
+        control,
+        note === null ? null : h('p', { class: 'opt-note', text: note })))
+
+  panel.append(group(copy.formKey, seg,
+    options.form === 'commit' ? options.formNote : options.formNote + (options.target === null
+      ? ' ' + copy.targetNone
+      : ' ' + copy.target(options.target.short, options.target.subject))))
+
+  panel.append(group(copy.contentKey, optionSwitch({
+    label: copy.allTracked,
+    note: options.allTrackedCount === 0 ? copy.allTrackedEmpty : copy.allTrackedNote(options.allTrackedCount),
+    on: options.allTracked,
+    action: 'commit-all-tracked',
+    focusKey: 'commit-all-tracked',
+    disabled: options.allTrackedCount === 0 && options.allTracked === false,
+  }), options.allTrackedCount === 0
+    ? copy.allTrackedEmpty
+    : options.allTracked ? copy.allTrackedNote(options.allTrackedCount) : copy.contentNote))
+
+  panel.append(group(copy.messageKey, h('button', {
+    class: 'opt-link',
+    attrs: { type: 'button', 'data-focus-key': 'commit-template', title: copy.templateNote },
+    dataset: { action: options.templateApplied ? 'template-undo' : 'template-apply' },
+  }, options.templateApplied ? copy.templateApplied + ' · ' + copy.templateUndo : copy.templateApply), copy.templateNote))
+
+  panel.append(group(copy.recordKey, h('div', { class: 'opt-records' },
+    optionSwitch({ label: copy.skipHooks, note: copy.skipHooksNote, on: options.skipHooks, action: 'skip-hooks', focusKey: 'skip-hooks' }),
+    optionSwitch({ label: copy.signCommit, note: copy.signCommitNote, on: options.signCommit, action: 'sign-commit', focusKey: 'sign-commit' }),
+    optionSwitch({ label: copy.signoff, note: copy.signoffNote, on: options.signoff, action: 'signoff', focusKey: 'signoff' })), copy.recordNote))
+  return panel
+}
+
+/** 一个开关：方框 + 名字 + 一句「打开以后会怎样」，整行是一个按钮，键盘只停一次。 */
+function optionSwitch(item: { label: string; note: string; on: boolean; action: string; focusKey: string; disabled?: boolean }): HTMLElement {
+  return h('button', {
+    class: 'opt-check' + (item.on ? ' is-on' : '') + (item.disabled === true ? ' is-off' : ''),
+    attrs: {
+      type: 'button',
+      role: 'switch',
+      'aria-checked': item.on ? 'true' : 'false',
+      'data-focus-key': item.focusKey,
+      disabled: item.disabled === true,
+      title: item.note,
+    },
+    dataset: { action: item.action },
+  },
+  h('span', { class: 'opt-box', attrs: { 'aria-hidden': 'true' } }),
+  h('span', { class: 'opt-check-label', text: item.label }))
+}
+
+/** fixup / squash 形态下替代输入框的一行：写明说明会被自动写成什么，以及为什么不让人改。 */
+function renderAutoMessage(composer: ComposerModel): HTMLElement {
+  const copy = COPY.commitOptions
+  return h('div', { class: 'commit-auto', attrs: { id: 'commit-message' } },
+    h('span', { class: 'commit-auto-lead', text: copy.autoMessageLead }),
+    h('span', { class: 'commit-auto-text mono', text: composer.options.autoMessage ?? '' }),
+    h('span', { class: 'commit-auto-note', text: copy.autoMessageNote }))
 }
 
 function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
@@ -207,7 +390,9 @@ function renderFileRow(row: FileRowModel, model: ChangesModel): HTMLElement {
 
   if (row.extraBadges.length > 0) {
     const extras = h('span', { class: 'file-extras' })
-    for (const text of row.extraBadges) extras.append(chip(text, row.conflict ? 'error' : text === COPY.changes.stagedBadge ? 'ok' : 'muted', { small: true }))
+    for (const extra of row.extraBadges) {
+      extras.append(chip(extra.text, extra.tone, { small: true, ...(extra.title === undefined ? {} : { title: extra.title }) }))
+    }
     main.append(extras)
   }
 
@@ -253,14 +438,51 @@ function renderFileRow(row: FileRowModel, model: ChangesModel): HTMLElement {
   const wrap = h('div', { class: 'file-row-wrap' }, rowNode)
   // 菜单紧贴着发起它的那一行：不弹到页面另一头，也不盖住别的行。
   if (menuOpen) wrap.append(renderRowMenu(row, model))
+  if (model.rename !== null && model.rename.path === row.fullPath) wrap.append(renderRenameForm(model.rename))
   if (pendingHere && model.pending !== null) wrap.append(renderConfirmCard(model.pending))
   if (row.expanded) {
     const body = h('div', { class: 'file-detail' })
-    if (row.patch !== null) body.append(patchBlock(row.patch), h('div', { class: 'file-detail-note', text: COPY.changes.patchNote }))
-    else if (row.patchNote !== null) body.append(note(row.patchNote))
+    const hasPatch = row.hunks.length > 0 || (row.patchHead?.length ?? 0) > 0
+    if (hasPatch) {
+      // 逐块暂存：块头单独一行，按钮贴在块头上；行号由外层 .hunked 上的计数器统一往下数，
+      // 所以拆成多段 pre 之后编号仍然连着走。
+      const blocks = h('div', { class: 'hunked' })
+      if (row.patchHead !== null && row.patchHead.length > 0) blocks.append(patchBlock(row.patchHead))
+      for (const hunk of row.hunks) blocks.append(renderHunk(hunk, row))
+      body.append(blocks, h('div', { class: 'file-detail-note', text: COPY.changes.patchNote }))
+      if (row.hunks.length > 0) body.append(h('div', { class: 'file-detail-note', text: COPY.changes.hunkNote }))
+    } else if (row.patchNote !== null) {
+      body.append(note(row.patchNote))
+    }
     wrap.append(body)
   }
   return wrap
+}
+
+/**
+ * 一块差异。块头写「第 N 块」与它自己的状态，右侧只放这一块的按钮：
+ * 已暂存的块压暗、按钮换成「取消暂存这一块」；块多的时候读者一眼看得出哪几块已经进了索引。
+ */
+function renderHunk(hunk: HunkModel, row: FileRowModel): HTMLElement {
+  const copy = COPY.changes
+  const unstage = hunk.canUnstage
+  const label = unstage ? copy.hunkUnstage : copy.hunkStage
+  const bar = h('div', { class: 'hunk-bar' },
+    h('span', { class: 'hunk-name', text: copy.hunkTitle(hunk.index + 1) }),
+    hunk.staged ? chip(copy.hunkStaged, 'ok', { small: true }) : null,
+    h('span', { class: 'hunk-gap' }),
+    // 外形沿用行尾动作那颗小按钮（.row-act），只把高度与字号压到块头这一行的高度。
+    h('button', {
+      class: 'row-act hunk-act',
+      attrs: {
+        type: 'button',
+        disabled: !unstage && !hunk.canStage,
+        'data-focus-key': `hunk:${row.fullPath}:${hunk.index}`,
+        title: `${label}（${row.name} 共 ${row.hunks.length} 块）`,
+      },
+      dataset: { action: unstage ? 'unstage-hunk' : 'stage-hunk', path: row.fullPath, index: String(hunk.index) },
+    }, label))
+  return h('div', { class: `hunk${hunk.staged ? ' is-staged' : ''}` }, bar, patchBlock(hunk.lines))
 }
 
 /** 行内「更多」菜单：一张贴着行的竖排小卡片，条目由这一行能做什么决定。 */
@@ -274,6 +496,11 @@ function renderRowMenu(row: FileRowModel, model: ChangesModel): HTMLElement {
     }, label)
 
   if (row.canDiscard) menu.append(item(COPY.changes.menuDiscard, 'changes-pending', { kind: 'discard', path: row.fullPath }, true))
+  // 已跟踪文件的行级动作：改名、停止跟踪、删除。三者都只作用于这一行，
+  // 而且都不需要提交说明，所以和「丢弃修改」放在同一张菜单里。
+  if (row.canRename) menu.append(item(COPY.changes.menuRename, 'rename-open', { path: row.fullPath }))
+  if (row.canUntrack) menu.append(item(COPY.changes.menuUntrack, 'changes-pending', { kind: 'untrack', path: row.fullPath }))
+  if (row.canDeleteTracked) menu.append(item(COPY.changes.menuDeleteTracked, 'changes-pending', { kind: 'delete-tracked', path: row.fullPath }, true))
   if (row.canIgnore) menu.append(item(COPY.changes.menuIgnore, 'changes-pending', { kind: 'ignore', path: row.fullPath }))
   if (row.canDeleteUntracked) menu.append(item(COPY.changes.menuDelete, 'changes-pending', { kind: 'delete-untracked', path: row.fullPath }, true))
   if (row.resolvable) {
@@ -289,6 +516,31 @@ function renderRowMenu(row: FileRowModel, model: ChangesModel): HTMLElement {
   // 菜单是交互控件，拿掉 data-focus-key 之外的焦点逻辑由 app.ts 统一恢复。
   void model
   return menu
+}
+
+/** 改名与移动同一张表单：紧贴这一行展开，只填新路径，写清 git mv 会同时做哪两件事。 */
+function renderRenameForm(rename: { path: string; draft: string }): HTMLElement {
+  const copy = COPY.changes
+  const input = h('input', {
+    class: 'rename-input',
+    attrs: {
+      type: 'text',
+      value: rename.draft,
+      placeholder: copy.renamePlaceholder,
+      'data-field': 'rename',
+      'data-focus-key': 'rename-input',
+      autocomplete: 'off',
+      spellcheck: 'false',
+      'aria-label': copy.renameTitle,
+    },
+  })
+  return h('div', { class: 'rename-form', attrs: { role: 'group', 'aria-label': copy.renameTitle } },
+    h('h3', { class: 'rename-title', text: copy.renameTitle }),
+    input,
+    h('p', { class: 'rename-hint', text: copy.renameHint }),
+    h('div', { class: 'rename-actions' },
+      button({ label: copy.renameCancel, kind: 'ghost', size: 'sm', action: 'rename-cancel', focusKey: 'rename-cancel' }),
+      button({ label: copy.renameSubmit, kind: 'secondary', size: 'sm', action: 'rename-apply', focusKey: 'rename-apply' })))
 }
 
 /** 危险动作确认卡：紧贴触发行或分组标题，写清会动什么、丢什么、能不能撤回。 */

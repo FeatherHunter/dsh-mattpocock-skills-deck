@@ -7,6 +7,9 @@
 // 的屏幕因此也不需要再传 hideSub 把空行藏起来。
 // 文字形参一律收词条键：叶子内部统一过 t，调用方不自己拼文案，也不把中文写进组件。
 // 能力计数只在账本给出正数时出现；任务页与索引屏不在 16 页能力账本里，页头因此不画计数。
+// #1881 起页头多一个可选开关 hideCount：传 true 时连账本里有的正数也不画。第一个用它是分支与标签页——
+// 那枚「13 条能力」指向一份已经退役、不在页面上的清单；默认行为一个字不变，其余页面要不要一起收
+// 留给 #1848（它负责九张分区页的统一走查）。
 //
 // 图标：原型用内联 SVG（back / chevron），插件这边不再拿字符拼箭头——字符在不同字体下大小与基线
 // 都不一样，且读屏会把它念出来。vcPageIconOf 只给页头与骨架原语用，路径直接照抄原型 dom.ts。
@@ -15,9 +18,21 @@ declare const PAGE_COUNTS: Record<string, number>
 
 // 子节点允许数组、单个节点或空；这里统一成数组，原语就不必各写一份判空。
 // 注意空数组也要原样交回 h：React 对空数组与不传子节点的结果一致，不会多出空壳。
+// 调用方常常直接把页面自己的节点数组塞进来（section 的正文、obj-row 的两侧），这些节点大多没写 key；
+// 原语把它们摊进自己的 kids 数组时会触发 React「列表子节点缺唯一 key」的告警。这里统一补一个稳定的
+// 位置 key（只补缺的，已有 key 的不动），同一份子数组每次渲染顺序不变，key 也就不跳。
 const vcPageKidsOf = function (children: any): any[] {
   if (children === undefined || children === null || children === false) return []
-  return Array.isArray(children) ? children : [children]
+  const flat: any[] = []
+  const walk = function (one: any): void {
+    if (Array.isArray(one)) { one.forEach(walk); return }
+    flat.push(one)
+  }
+  walk(children)
+  return flat.map(function (node: any, i: number) {
+    if (node && typeof node === 'object' && !Array.isArray(node) && node.key === undefined) return Object.assign({}, node, { key: 'kid-' + i })
+    return node
+  })
 }
 
 // 原型里的两条图标路径（24×24 viewBox，描边 1.8、圆头圆角）。
@@ -60,7 +75,8 @@ export const vcPageHeadNode = function (h: any, t: any, o: any) {
   titleRow.push(h('h2', { key: 'title', className: 'vcs-page-title' }, t('vc.shell.page.' + page)))
   const count = Number(PAGE_COUNTS[page] || 0)
   // 任务页与未知页没有账本条目（undefined 经 Number 得 NaN），一律按 0 处理，不画空计数。
-  if (count > 0) titleRow.push(h('span', { key: 'count', className: 'vcs-page-count' }, t('vc.shell.page.caps', { n: count })))
+  // hideCount 是 #1881 的退出开关：只有显式 true 才收起，缺省与 false 都照旧画。
+  if (count > 0 && opts.hideCount !== true) titleRow.push(h('span', { key: 'count', className: 'vcs-page-count' }, t('vc.shell.page.caps', { n: count })))
   return h('div', { className: 'vcs-page-meta vcs-page-head', 'data-vc-page-head': page }, [
     h('div', { key: 'title-row', className: 'vcs-page-title-row' }, titleRow),
     h('p', { key: 'lede', className: 'vcs-page-lede' }, t('vc.shell.page.note.' + page)),
@@ -69,12 +85,18 @@ export const vcPageHeadNode = function (h: any, t: any, o: any) {
 
 // 分区：section.page-section 是「一段有标题的内容」，标题行可以带条数；危险区在类名上加 is-danger，
 // 并给 data-vc-danger-section=1，同时把 vc.shell.page.danger 写在标题旁——读者在展开之前就知道这段不安全。
+// 条数有两种给法，画在同一个位置：
+//   ① count：只给数字（原型里的 section-count 是纯数字时用它），0 与负数不画；
+//   ② countText：给已经带量词的一整句（例如「3 条本地分支」「2 个标签」），#1858 按原型 38 需要量词就用这一种。
+//      两种都传时以 countText 为准——它已经是读者要看到的那句话，数字不再拼一遍。
 export const vcPageSectionNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const danger = opts.danger === true
   const head: any[] = [h('h3', { key: 'title', className: 'section-title' }, t(String(opts.title || '')))]
+  const countText = opts.countText === undefined || opts.countText === null ? '' : String(opts.countText)
   const count = Number(opts.count || 0)
-  if (count > 0) head.push(h('span', { key: 'count', className: 'section-count' }, String(count)))
+  if (countText !== '') head.push(h('span', { key: 'count', className: 'section-count' }, t(countText)))
+  else if (count > 0) head.push(h('span', { key: 'count', className: 'section-count' }, String(count)))
   if (danger) head.push(h('span', { key: 'danger', className: 'section-danger' }, t('vc.shell.page.danger')))
   const kids: any[] = [h('div', { key: 'head', className: 'section-head' }, head)]
   if (opts.note) kids.push(h('p', { key: 'note', className: 'section-note' }, t(String(opts.note))))

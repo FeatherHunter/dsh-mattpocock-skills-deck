@@ -16,9 +16,9 @@ import type { CommitInfo, FileChange, FileEntry, FirstScreen, Operation, PatchLi
 import { COPY } from '../data/copy'
 import { changeBadge, lineDelta, shortOid, splitPath, syncModel } from '../data/format'
 import type { ChangeTone, SyncModel } from '../data/format'
-import { samplePatch } from '../data/patches'
-import type { BranchPending, BranchRow, BranchSub, ChangesFilter, ChangesPendingKind, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
-import { metadataOf } from './session'
+import { patchHunksOf, samplePatch } from '../data/patches'
+import type { BranchPending, BranchRow, BranchSub, ChangesFilter, ChangesPendingKind, CommitForm, HistoryScope, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
+import { headInfoOf, metadataOf, sparseTopDirsOf, trackedChangesOf } from './session'
 import type { SessionBase } from './session'
 
 export type BadgeTone = ChangeTone | 'warn' | 'error' | 'ok' | 'info' | 'muted'
@@ -80,12 +80,16 @@ export interface FileRowModel {
   fullPath: string
   badge: { letter: string; tone: BadgeTone }
   changeLabel: string | null
-  extraBadges: string[]
+  /** 行上的小标签：冲突、已暂存、未跟踪、已暂存几块。语气由这里给定，视图不再猜。 */
+  extraBadges: Array<{ text: string; tone: BadgeTone; title?: string }>
   delta: { added: string | null; deleted: string | null } | null
   conflict: boolean
   staged: boolean
   expanded: boolean
-  patch: PatchLine[] | null
+  /** 展开后先画的文件头几行（diff --git …）；没有可展示的补丁时为 null。 */
+  patchHead: PatchLine[] | null
+  /** 展开后按块画：每一块带自己的「暂存 / 取消暂存」能力。没有块时是空数组。 */
+  hunks: HunkModel[]
   patchNote: string | null
   canStage: boolean
   canUnstage: boolean
@@ -96,8 +100,27 @@ export interface FileRowModel {
   canDiscard: boolean
   canIgnore: boolean
   canDeleteUntracked: boolean
+  /** 已跟踪的文件才有这三个动作：删除、停止跟踪、改名。 */
+  canDeleteTracked: boolean
+  canUntrack: boolean
+  canRename: boolean
   /** 冲突行：可以按当前分支或对方的版本就地解决。 */
   resolvable: boolean
+  /** 这条行是改名后的新路径时，记着它原来的路径：读数与差异仍按旧路径取。 */
+  renamedFrom: string | null
+}
+
+/**
+ * 展开区里的一块。逐块暂存按块给按钮，所以「这一块能不能点」在模型里就算好：
+ * 视图只负责画，不在 DOM 里重新判断忙碌、冲突或已暂存。
+ */
+export interface HunkModel {
+  /** 块在补丁里的顺序，从 0 开始；界面文案里显示成「第 N 块」要加一。 */
+  index: number
+  lines: PatchLine[]
+  staged: boolean
+  canStage: boolean
+  canUnstage: boolean
 }
 
 export interface GroupModel {
@@ -105,6 +128,32 @@ export interface GroupModel {
   label: string
   emptyText: string
   rows: FileRowModel[]
+}
+
+/** 「提交选项」展开区要画的全部内容：形态、作用对象、内容来源、说明模板与三个记录方式。 */
+export interface CommitOptionsModel {
+  form: CommitForm
+  /** 当前形态的一句解释：选它会把这次提交变成什么。 */
+  formNote: string
+  /** 修订与 fixup / squash 的作用对象（上一条提交）；没有上一条时为 null。 */
+  target: { short: string; subject: string } | null
+  allTracked: boolean
+  /** 打开「把未暂存的改动也一起提交」会额外收进多少个文件。 */
+  allTrackedCount: number
+  skipHooks: boolean
+  signCommit: boolean
+  signoff: boolean
+  templateApplied: boolean
+  /** fixup / squash 的说明由面板写成 fixup! / squash!，这时输入框不参与填写。 */
+  autoMessage: string | null
+  messageEditable: boolean
+}
+
+/** 一条「开着但收起后看不见」的记录方式：名字与原因一起做成一枚贴着提交按钮的小标签。 */
+export interface ComposerFlagModel {
+  label: string
+  /** 悬停时补一句后果，例如「提交前的检查不会跑」。 */
+  hint: string
 }
 
 export interface ComposerModel {
@@ -115,6 +164,16 @@ export interface ComposerModel {
   disabled: boolean
   disabledReason: string | null
   busy: boolean
+  /** 主按钮上的字：跟着提交形态变，读者不用打开展开区就知道这一下会做什么。 */
+  label: string
+  /**
+   * 已经打开、但收起展开区之后在别处看不出来的选项（跳过钩子、签名、签名行）。
+   * 这三项一旦打开就会改变这一次提交被怎么记下来，所以必须在按钮旁边就说出来；
+   * 形态、-a 与模板各自会改按钮文字或输入框，不用再列一遍。
+   */
+  flags: ComposerFlagModel[]
+  optionsOpen: boolean
+  options: CommitOptionsModel
 }
 
 /** 危险动作的确认卡：标题、后果、涉及范围与按钮文案都在这里一次算好，视图不再自己拼。 */
@@ -144,9 +203,13 @@ export interface ChangesModel {
   /** 储藏入口：工作区有改动、且没有冲突文件时才可用。 */
   canStash: boolean
   stashReason: string | null
+  /** 「储藏」右侧箭头打开的变体菜单（全部改动 / 连未跟踪 / 只储藏已暂存）。 */
+  stashMenuOpen: boolean
   /** 哪一行的「更多」菜单开着：菜单紧贴这一行画。 */
   openMenuPath: string | null
   pending: ChangesPendingModel | null
+  /** 哪一行正在改路径：表单贴在这一行下面，整张表只有一张。 */
+  rename: { path: string; draft: string } | null
   /** 加入 .gitignore 之后的一行说明：文件还在磁盘上，只是 git 不再跟踪。 */
   ignoredNote: string | null
 }
@@ -161,6 +224,12 @@ export interface CommitRowModel {
   filesCount: number
   group: string | null
   selected: boolean
+  /** 这条提交的来历：修订、fixup、squash、跳过钩子、已签名、签名行。 */
+  marks: string[]
+  /** 这条提交上写过备注：行上多一枚小标签，扫列表时就知道哪几条被注解过。 */
+  hasNote: boolean
+  /** 按代码变化搜时命中的那个文件：行上写出是哪一份改动对上了，省得逐条点开。 */
+  hitPath: string | null
 }
 
 export interface HistoryFileRowModel {
@@ -183,6 +252,27 @@ export interface CommitDetailModel {
   files: HistoryFileRowModel[]
   filesNote: string | null
   loading: boolean
+  /** 这条提交已经保存的备注；没有时是空字符串。 */
+  note: string
+  noteSaved: boolean
+  /** 哪一行的「更多」菜单开着（单文件历史从这里进）。 */
+  fileMenuPath: string | null
+}
+
+/** 比较两个引用的结果里的一行文件。 */
+export interface CompareFileModel {
+  path: string
+  dir: string
+  name: string
+  delta: { added: string | null; deleted: string | null }
+}
+
+export interface CompareModel {
+  from: string
+  to: string
+  files: CompareFileModel[]
+  summary: string
+  note: string
 }
 
 export interface HistoryModel {
@@ -193,6 +283,13 @@ export interface HistoryModel {
   query: string
   mergeOnly: boolean
   empty: boolean
+  /** 空态那句话随筛选条件变：搜说明、搜代码、只看一个文件，三种说法不一样。 */
+  emptyText: string
+  scope: HistoryScope
+  /** 只看某个文件时，列表顶上那行标签里的完整路径；没开时为 null。 */
+  fileOnly: string | null
+  compare: CompareModel | null
+  compareForm: { open: boolean; from: string; to: string }
   scopeText: string
   mergeOnlyText: string
 }
@@ -210,6 +307,16 @@ export interface WorktreeRowModel {
   /** 三个动作按钮各自是否应该出现；由行状态决定，不在视图里再判一遍。 */
   locked: boolean
   prunable: boolean
+  /** 展开区里开着哪一张就地表单：移动的输入框、稀疏检出的折叠区，同一时刻只开一个。 */
+  moveOpen: boolean
+  /** 移动输入框里的内容（这一行开着时才有意义）。 */
+  moveDraft: string
+  sparseOpen: boolean
+  /** 稀疏检出可以勾的顶层目录（全量），以及这一行当前勾了哪些。 */
+  sparseDirs: string[]
+  sparseSelected: string[]
+  /** 这一行已经保存的稀疏规则；没设过时为 null。 */
+  sparseSummary: string | null
 }
 
 export interface WorktreesModel {
@@ -224,6 +331,16 @@ export interface WorktreesModel {
   aiLabel: string
   aiEnabled: boolean
   pending: WorktreePending | null
+  /** 页底「新建工作区」表单：开没开、目录、分支来源、分支名与表单里的那条错误。 */
+  create: {
+    open: boolean
+    path: string
+    mode: 'new' | 'existing'
+    branch: string
+    error: string | null
+    /** 从已有分支里选时的候选：最近用过的几条，原型不在这里做搜索。 */
+    branches: string[]
+  }
 }
 
 /** 一条分支在列表里的样子：名字与当前标记之外只留判断要用的数字。 */
@@ -261,9 +378,13 @@ export interface StashRowModel {
   when: string
   paths: string[]
   filesCount: number
+  /** 这一行的「更多」菜单开着没有。 */
+  menuOpen: boolean
+  /** 这一行开着「从这条记录建分支」的输入框没有。 */
+  branchOpen: boolean
 }
 
-/** 储藏视图：没有需要二次确认的动作，只有丢弃记录要问一句。 */
+/** 储藏视图：没有需要二次确认的动作，只有丢弃记录与清空全部要问一句。 */
 export interface StashModel {
   rows: StashRowModel[]
   total: number
@@ -271,6 +392,11 @@ export interface StashModel {
   /** 正在等用户确认丢弃的那一条：确认卡出现在它的行下面。 */
   pending: { id: string; title: string; body: string } | null
   busy: boolean
+  /** 「清空全部记录」的确认卡：它是整页动作，卡片贴着列表标题行。 */
+  clearPending: boolean
+  /** 「从这条记录建分支」的表单：哪一条、输入框里写什么。 */
+  branchId: string | null
+  branchDraft: string
 }
 
 export interface BranchesModel {
@@ -445,24 +571,55 @@ function fileRowOf(
   path: string,
   options: { staged: boolean; conflict: boolean },
 ): FileRowModel {
-  const meta = metadataOf(base, path)
+  // 改过名的文件：列表上按新路径画，变更类型与增删行数仍按旧路径查，
+  // 否则改名之后这一行会突然变成「无法判定变更类型」、增删行数也没了。
+  const renamedFrom = state.renames.find((entry) => entry.to === path)?.from ?? null
+  const meta = metadataOf(base, renamedFrom ?? path)
   const change: FileChange = meta?.change ?? 'modified'
   const badge = changeBadge(change)
   const { dir, name } = splitPath(path)
   const isUntracked = change === 'untracked'
+  const busy = state.busy !== null || state.reloading
   const expanded = state.openFile === path
   const patch = expanded && !isUntracked && !options.conflict ? samplePatch(path) : null
+  const split = patch === null ? null : patchHunksOf(patch)
+  // 整份已暂存的文件，每一块都算已暂存；未暂存的文件只看逐块记录。
+  const stagedIndexes = split === null
+    ? []
+    : options.staged
+      ? split.hunks.map((_, index) => index)
+      : (state.stagedHunks[path] ?? [])
+  const hunks: HunkModel[] = split === null ? [] : split.hunks.map((lines, index) => {
+    const stagedHere = stagedIndexes.includes(index)
+    return {
+      index,
+      lines,
+      staged: stagedHere,
+      canStage: !busy && !options.conflict && !options.staged && !stagedHere,
+      canUnstage: !busy && !options.conflict && stagedHere,
+    }
+  })
+  // 一行里只有一部分块进了索引：行上要写明「已暂存几块」，否则读者看不出这行动过。
+  const hunkProgress = split !== null && !options.staged && stagedIndexes.length > 0
+    ? { staged: stagedIndexes.length, total: split.hunks.length }
+    : null
   let patchNote: string | null = null
   if (expanded) {
     if (options.conflict) patchNote = '冲突文件在合并完成前没有单一基线，原型不展示差异。'
     else if (isUntracked) patchNote = '未跟踪文件还没有基线版本，原型不展示差异。'
     else if (patch === null) patchNote = '这个扩展名没有可展示的示例补丁。'
   }
-  const extraBadges: string[] = []
-  if (options.conflict) extraBadges.push('冲突')
-  else if (options.staged) extraBadges.push(COPY.changes.stagedBadge)
-  if (isUntracked) extraBadges.push(COPY.changes.untracked)
-  const busy = state.busy !== null || state.reloading
+  const extraBadges: Array<{ text: string; tone: BadgeTone; title?: string }> = []
+  if (options.conflict) extraBadges.push({ text: '冲突', tone: 'error' })
+  else if (options.staged) extraBadges.push({ text: COPY.changes.stagedBadge, tone: 'ok' })
+  if (isUntracked) extraBadges.push({ text: COPY.changes.untracked, tone: 'muted' })
+  if (hunkProgress !== null) {
+    extraBadges.push({
+      text: COPY.changes.hunkProgress(hunkProgress.staged, hunkProgress.total),
+      tone: 'ok',
+      title: COPY.changes.hunkProgressTitle(hunkProgress.staged, hunkProgress.total),
+    })
+  }
   return {
     path,
     dir,
@@ -475,7 +632,8 @@ function fileRowOf(
     conflict: options.conflict,
     staged: options.staged,
     expanded,
-    patch,
+    patchHead: split === null ? null : split.header,
+    hunks,
     patchNote,
     canStage: !busy && !options.conflict && !options.staged,
     canUnstage: !busy && !options.conflict && options.staged,
@@ -484,7 +642,11 @@ function fileRowOf(
     canDiscard: !busy && !options.conflict && !options.staged && !isUntracked,
     canIgnore: !busy && !options.conflict && !options.staged && isUntracked,
     canDeleteUntracked: !busy && !options.conflict && !options.staged && isUntracked,
+    canDeleteTracked: !busy && !options.conflict && !options.staged && !isUntracked,
+    canUntrack: !busy && !options.conflict && !options.staged && !isUntracked,
+    canRename: !busy && !options.conflict && !options.staged && !isUntracked,
     resolvable: !busy && options.conflict,
+    renamedFrom,
   }
 }
 
@@ -525,6 +687,10 @@ function pendingOf(base: SessionBase, state: SessionState): ChangesPendingModel 
       return { kind: pending.kind, path, title: COPY.changes.confirmIgnoreTitle(name), body: COPY.changes.confirmIgnoreBody, meta: null, confirmLabel: COPY.changes.confirmIgnore, danger: false }
     case 'delete-untracked':
       return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTitle(name), body: COPY.changes.confirmDeleteBody, meta: null, confirmLabel: COPY.changes.confirmDelete, danger: true }
+    case 'delete-tracked':
+      return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTrackedTitle(name), body: COPY.changes.confirmDeleteTrackedBody, meta: metaText, confirmLabel: COPY.changes.confirmDeleteTracked, danger: true }
+    case 'untrack':
+      return { kind: pending.kind, path, title: COPY.changes.confirmUntrackTitle(name), body: COPY.changes.confirmUntrackBody, meta: null, confirmLabel: COPY.changes.confirmUntrack, danger: false }
     case 'resolve-ours':
       return { kind: pending.kind, path, title: COPY.changes.confirmResolveOursTitle(name), body: COPY.changes.confirmResolveOursBody, meta: null, confirmLabel: COPY.changes.confirmResolve, danger: true }
     case 'resolve-theirs':
@@ -575,11 +741,59 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
     return group.rows.length > 0
   })
 
+  // 提交选项：这一块的结论全部在模型里算好，视图只负责画。
+  // 为什么在这里算：主按钮的字、禁用原因、自动说明三处说的是同一件事（这一次会提交什么），
+  // 分在视图里各写一遍，改一处就会漏另一处。
+  const form = state.commitForm
+  const head = headInfoOf(base, state)
+  const alsoTracked = state.commitAllTracked ? trackedChangesOf(base, state) : []
+  const effectiveCount = state.staged.length + alsoTracked.length
+  const autoMessage = head === null || (form !== 'fixup' && form !== 'squash')
+    ? null
+    : (form === 'fixup' ? 'fixup! ' : 'squash! ') + head.subject
+
   const commitVerdict = verdictOf(screen, 'commit')
-  let disabledReason: string | null = commitVerdict.reason
-  if (state.staged.length === 0) disabledReason = COPY.changes.commitNoStaged
-  else if (state.conflicts.length > 0) disabledReason = COPY.block['conflicts-unresolved']
-  else if (state.message.trim() === '') disabledReason = COPY.changes.commitNoMessage
+  // judge() 只看首屏的已暂存计数，不知道「一起提交」与「修订」这两条路：
+  // 开了「一起提交」时已暂存可以是 0，选「修订」时也可以是 0。所以「还没有暂存的文件」
+  // 这一条交给下面按形态重算，其余阻断原因（冲突、进行中的合并、分离头指针）照旧听 judge 的。
+  let disabledReason: string | null = commitVerdict.reason === COPY.block['nothing-staged'] ? null : commitVerdict.reason
+  if (disabledReason === null) {
+    if (state.conflicts.length > 0) {
+      disabledReason = COPY.block['conflicts-unresolved']
+    } else if (form === 'amend') {
+      if (head === null) disabledReason = '历史里还没有可以修订的提交'
+      else if (state.message.trim() === '') disabledReason = COPY.changes.commitNoMessage
+      else if (effectiveCount === 0 && state.message.trim() === head.subject.trim()) disabledReason = '说明和内容都没有变化，不需要修订'
+    } else if (effectiveCount === 0) {
+      disabledReason = COPY.changes.commitNoStaged
+    } else if (form === 'commit' && state.message.trim() === '') {
+      disabledReason = COPY.changes.commitNoMessage
+    }
+  }
+
+  const commitLabel = form === 'amend'
+    ? COPY.commitOptions.labelAmend
+    : form === 'fixup'
+      ? COPY.commitOptions.labelFixup
+      : form === 'squash'
+        ? COPY.commitOptions.labelSquash
+        : COPY.changes.commitLabel(effectiveCount)
+  const commitHint = form === 'amend'
+    ? (effectiveCount === 0 ? '这次只改提交说明，内容沿用上一条提交。' : '这次会把已暂存的文件并进上一条提交，提交号会变。')
+    : form === 'fixup'
+      ? 'fixup 提交挂在历史最前面，等整理历史时压回上一条。'
+      : form === 'squash'
+        ? 'squash 提交挂在历史最前面，等整理历史时和上一条并成一条。'
+        : alsoTracked.length > 0
+          // 只写「未暂存的改动」会让人以为未跟踪的新文件也算进来：它们不在这一批里，必须点名。
+          ? '会先暂存这 ' + alsoTracked.length + ' 个已跟踪的改动；未跟踪的新文件不算。'
+          : COPY.changes.messageHint
+
+  // 三个记录方式各自会让这次提交按另一种方式被记下来，收起展开区之后就只剩这里能看见。
+  const recordFlags: ComposerFlagModel[] = []
+  if (state.skipHooks) recordFlags.push({ label: COPY.commitOptions.skipHooks, hint: COPY.commitOptions.skipHooksNote })
+  if (state.signCommit) recordFlags.push({ label: COPY.commitOptions.signCommit, hint: COPY.commitOptions.signCommitNote })
+  if (state.signoff) recordFlags.push({ label: COPY.commitOptions.signoff, hint: COPY.commitOptions.signoffNote })
 
   const changeCount = state.staged.length + state.unstaged.length
   return {
@@ -600,17 +814,35 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
     canDiscardAll: !busy && state.conflicts.length === 0 && state.unstaged.length > 0,
     canStash: !busy && state.conflicts.length === 0 && changeCount > 0,
     stashReason: state.conflicts.length > 0 ? COPY.block['conflicts-unresolved'] : null,
+    stashMenuOpen: state.stashMenuOpen,
     openMenuPath: state.openMenuPath,
     pending: pendingOf(base, state),
+    rename: state.renamePath === null ? null : { path: state.renamePath, draft: state.renameDraft },
     ignoredNote: state.ignored.length === 0 ? null : COPY.changes.ignoredNote(state.ignored.length),
     composer: {
       stagedCount: state.staged.length,
       message: state.message,
       placeholder: COPY.changes.messagePlaceholder,
-      hint: COPY.changes.messageHint,
+      hint: commitHint,
       disabled: busy || disabledReason !== null,
       disabledReason,
       busy: state.busy === 'commit',
+      label: commitLabel,
+      flags: recordFlags,
+      optionsOpen: state.commitOptionsOpen,
+      options: {
+        form,
+        formNote: COPY.commitOptions.formNote[form],
+        target: head === null ? null : { short: head.short, subject: head.subject },
+        allTracked: state.commitAllTracked,
+        allTrackedCount: trackedChangesOf(base, state).length,
+        skipHooks: state.skipHooks,
+        signCommit: state.signCommit,
+        signoff: state.signoff,
+        templateApplied: state.templateApplied,
+        autoMessage,
+        messageEditable: form === 'commit' || form === 'amend',
+      },
     },
   }
 }
@@ -634,6 +866,7 @@ interface HistoryEntry {
   parents: string[]
   files: Array<{ path: string; added: number; deleted: number }>
   local: boolean
+  marks: string[]
 }
 
 /**
@@ -650,11 +883,14 @@ function historyEntries(base: SessionBase, state: SessionState): HistoryEntry[] 
     parents: commit.parents,
     files: commit.files,
     local: true,
+    marks: commit.marks,
   }))
   const total = historyTotal(base, state)
   const keep = Math.max(0, total - local.length)
   const captured: HistoryEntry[] = base.screen.commits
-    .filter((commit: CommitInfo) => commit.oid !== state.undoneOid)
+    // 撤销掉的那一条与修订时被替换掉的那一条都不再出现在历史里：
+    // 前者总数少一条，后者由修订后的新提交顶上，总数不变。
+    .filter((commit: CommitInfo) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid)
     .slice(0, keep)
     .map((commit: CommitInfo) => ({
     oid: commit.oid,
@@ -665,6 +901,7 @@ function historyEntries(base: SessionBase, state: SessionState): HistoryEntry[] 
     parents: commit.parents,
     files: base.commitFiles.get(commit.oid) ?? [],
     local: false,
+    marks: [],
   }))
   return [...local, ...captured]
 }
@@ -674,18 +911,26 @@ function historyTotal(base: SessionBase, state: SessionState): number {
   return Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1))
 }
 
-function matchesQuery(entry: HistoryEntry, query: string): boolean {
-  if (query === '') return true
-  const needle = query.trim().toLowerCase()
-  if (needle === '') return true
-  return entry.subject.toLowerCase().includes(needle)
-    || entry.author.toLowerCase().includes(needle)
-    || entry.short.toLowerCase().includes(needle)
-}
-
 export function historyOf(base: SessionBase, state: SessionState, nowMs: number): HistoryModel {
   const entries = historyEntries(base, state)
-  const filtered = entries.filter((entry) => matchesQuery(entry, state.historyQuery) && (!state.historyMergeOnly || entry.parents.length > 1))
+  const needle = state.historyQuery.trim().toLowerCase()
+  const codeScope = state.historyScope === 'code'
+  // 按代码变化搜：这一版拿「这次提交改到的文件路径」当替身——原型没有真实补丁文本，
+  // 但行为与 git log -S 一致：在这条提交的改动里找，找不到就不算命中。
+  const hitOf = (entry: HistoryEntry): string | null => {
+    if (!codeScope || needle === '') return null
+    return entry.files.find((file) => file.path.toLowerCase().includes(needle))?.path ?? null
+  }
+  const matchesQuery = (entry: HistoryEntry): boolean => {
+    if (needle === '') return true
+    if (codeScope) return hitOf(entry) !== null
+    return entry.subject.toLowerCase().includes(needle)
+      || entry.author.toLowerCase().includes(needle)
+      || entry.short.toLowerCase().includes(needle)
+  }
+  const matchesFile = (entry: HistoryEntry): boolean =>
+    state.historyFileOnly === null || entry.files.some((file) => file.path === state.historyFileOnly)
+  const filtered = entries.filter((entry) => matchesFile(entry) && matchesQuery(entry) && (!state.historyMergeOnly || entry.parents.length > 1))
   let previousGroup = ''
   const rows: CommitRowModel[] = filtered.map((entry) => {
     const group = dayGroupLabel(nowMs, entry.authorDateMs)
@@ -701,6 +946,9 @@ export function historyOf(base: SessionBase, state: SessionState, nowMs: number)
       filesCount: entry.files.length,
       group: groupLabel,
       selected: state.historyOpenOid === entry.oid,
+      marks: entry.marks,
+      hasNote: state.commitNotes[entry.oid] !== undefined,
+      hitPath: hitOf(entry),
     }
   })
 
@@ -733,9 +981,42 @@ export function historyOf(base: SessionBase, state: SessionState, nowMs: number)
         files,
         filesNote: entry.files.length === 0 ? (merge ? COPY.history.filesEmptyMerge : COPY.history.filesEmpty) : null,
         loading: false,
+        note: state.commitNotes[entry.oid] ?? '',
+        noteSaved: state.commitNotes[entry.oid] !== undefined,
+        fileMenuPath: state.historyFileMenu,
       }
     }
   }
+
+  // 比较两个引用：原型只画后一个引用那条提交改到的文件，用来说明「比较结果落在哪」，
+  // 不计算两个引用之间真实的行级差异（那需要宿主算 diff）。
+  let compare: CompareModel | null = null
+  const compared = state.compare
+  if (compared !== null) {
+    const target = entries.find((entry) => entry.oid === compared.toOid)
+    const files: CompareFileModel[] = (target?.files ?? []).map((file) => {
+      const { dir, name } = splitPath(file.path)
+      return { path: file.path, dir, name, delta: lineDelta(file.added, file.deleted) }
+    })
+    const added = (target?.files ?? []).reduce((sum, file) => sum + file.added, 0)
+    const deleted = (target?.files ?? []).reduce((sum, file) => sum + file.deleted, 0)
+    const parts = [`${files.length} 个文件`]
+    if (added > 0) parts.push(`+${added}`)
+    if (deleted > 0) parts.push(`−${deleted}`)
+    compare = {
+      from: compared.fromShort,
+      to: compared.toShort,
+      files,
+      summary: parts.join('，'),
+      note: COPY.history.compareNote,
+    }
+  }
+
+  const emptyText = state.historyFileOnly !== null
+    ? COPY.history.emptyFileOnly(splitPath(state.historyFileOnly).name)
+    : codeScope && needle !== ''
+      ? COPY.history.emptyCode
+      : COPY.history.empty
 
   return {
     detail,
@@ -745,6 +1026,11 @@ export function historyOf(base: SessionBase, state: SessionState, nowMs: number)
     query: state.historyQuery,
     mergeOnly: state.historyMergeOnly,
     empty: rows.length === 0,
+    emptyText,
+    scope: state.historyScope,
+    fileOnly: state.historyFileOnly,
+    compare,
+    compareForm: { open: state.compareOpen, from: state.compareFrom, to: state.compareTo },
     scopeText: COPY.history.loadedCount(rows.length, historyTotal(base, state)),
     mergeOnlyText: COPY.history.mergeOnly,
   }
@@ -800,9 +1086,10 @@ function stateChipsOf(worktree: WorktreeInfo): { states: WorktreeRowModel['state
   return { states, abnormal }
 }
 
-function worktreeRowOf(state: SessionState, worktree: WorktreeInfo): WorktreeRowModel {
+function worktreeRowOf(base: SessionBase, state: SessionState, worktree: WorktreeInfo): WorktreeRowModel {
   const { dir, name } = splitPath(worktree.path)
   const chips = stateChipsOf(worktree)
+  const rule = state.wtSparseRules[worktree.path]
   return {
     path: worktree.path,
     dir,
@@ -815,7 +1102,20 @@ function worktreeRowOf(state: SessionState, worktree: WorktreeInfo): WorktreeRow
     copied: state.copiedPath === worktree.path,
     locked: worktree.locked,
     prunable: worktree.prunable,
+    moveOpen: state.wtMovePath === worktree.path,
+    moveDraft: state.wtMovePath === worktree.path ? state.wtMoveDraft : worktree.path,
+    sparseOpen: state.wtSparsePath === worktree.path,
+    sparseDirs: sparseTopDirsOf(base),
+    sparseSelected: state.wtSparsePath === worktree.path ? state.wtSparseDirs : (rule ?? []),
+    sparseSummary: rule === undefined ? null : COPY.worktrees.sparseCurrent(rule),
   }
+}
+
+/** 移动过的工作区：路径换成新的，其余字段（锁、可清除）仍按原记录算。 */
+function movedWorktreeOf(state: SessionState, item: WorktreeInfo): WorktreeInfo {
+  const to = state.movedWorktrees[item.path]
+  if (to === undefined) return item
+  return { ...item, path: to, display: splitPath(to).name }
 }
 
 /**
@@ -839,7 +1139,7 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
   const identity = base.screen.identity
   const current = identity.worktreePath === ''
     ? null
-    : worktreeRowOf(state, {
+    : worktreeRowOf(base, state, {
       path: identity.worktreePath,
       display: identity.worktreeDisplay,
       head: identity.oid ?? '',
@@ -853,12 +1153,27 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
       prunableUnknown: false,
     })
   const demo = state.demoWorktrees ? demoWorktreesOf(identity.worktreePath) : []
-  const othersRaw = [...base.screen.otherWorktrees.filter((item) => !item.current), ...demo]
+  // 原型里新建出来的工作区排在采集清单前面：刚建的那一棵要一眼看见。
+  const created: WorktreeInfo[] = state.createdWorktrees.map((entry) => ({
+    path: entry.path,
+    display: splitPath(entry.path).name,
+    head: identity.oid ?? '',
+    branch: entry.branch,
+    bare: false,
+    current: false,
+    locked: false,
+    lockReason: null,
+    lockUnknown: false,
+    prunable: false,
+    prunableUnknown: false,
+  }))
+  const othersRaw = [...created, ...base.screen.otherWorktrees.filter((item) => !item.current), ...demo]
     .filter((item) => !state.hiddenWorktrees.includes(item.path))
     .map((item) => applyWorktreeActions(state, item))
+    .map((item) => movedWorktreeOf(state, item))
   // 需要人工处理的工作区排在最前，其余保持 git 记录顺序（sort 在 ES2019 起稳定）。
   const others = othersRaw
-    .map((item) => worktreeRowOf(state, item))
+    .map((item) => worktreeRowOf(base, state, item))
     .sort((a, b) => Number(b.abnormal) - Number(a.abnormal))
   const abnormal = others.filter((row) => row.abnormal).length
   return {
@@ -871,6 +1186,20 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
     aiLabel: COPY.worktrees.ai,
     aiEnabled: abnormal > 0,
     pending: state.worktreePending,
+    create: {
+      open: state.wtCreateOpen,
+      path: state.wtCreatePath,
+      mode: state.wtCreateMode,
+      branch: state.wtCreateBranch,
+      error: state.wtCreateError,
+      // 已有分支的候选：最近用过的几条，当前分支不列（它已经在当前工作区里检出）。
+      branches: state.branches
+        .filter((row) => !row.current)
+        .slice()
+        .sort((a, b) => b.lastCommitMs - a.lastCommitMs)
+        .slice(0, 6)
+        .map((row) => row.name),
+    },
   }
 }
 
@@ -941,6 +1270,8 @@ export function stashOf(state: SessionState, nowMs: number): StashModel {
     when: timeText(nowMs, entry.whenMs),
     paths: entry.paths,
     filesCount: entry.paths.length,
+    menuOpen: state.stashMenuId === entry.id,
+    branchOpen: state.stashBranchId === entry.id,
   }))
   const pending = state.stashPending === null ? null : {
     id: state.stashPending.id,
@@ -953,6 +1284,9 @@ export function stashOf(state: SessionState, nowMs: number): StashModel {
     empty: rows.length === 0,
     pending,
     busy: state.busy !== null,
+    clearPending: state.stashClearPending,
+    branchId: state.stashBranchId,
+    branchDraft: state.stashBranchDraft,
   }
 }
 

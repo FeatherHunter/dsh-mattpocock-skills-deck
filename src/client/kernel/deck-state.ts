@@ -1,16 +1,19 @@
 /**
- * src/client/kernel/deck-state.ts — #1612 两个按工作区开关（状态栏胶囊 / deck 工具箱）的唯一读口与写口
+ * src/client/kernel/deck-state.ts — 按工作区三个开关（状态栏胶囊 / deck 工具箱 / 下一步建议气泡）的唯一读口与写口
+ * （前两个是 #1612，第三个是 #1879）
  *
  * 契约：本文件是内核模块（ESM 导出）；scripts/build.mts 构建时去掉每行行首 export 关键字，把声明体文本
  *   拼回 src/client/index.ts 里那一行 kernel:deckState 拼接标记处（apply 闭包内原位），与其它内核片同模式。
  *
- * 为什么单独一片：本票有四处要读同两个开关（状态栏胶囊、设置页工作区表、提示词注入、右侧面板打开口）。
- *   如果每处各判各的，就会出现「胶囊已经折叠、工具却还开着」这种谁也解释不了的错位；所以取值口径与两笔写
+ * 为什么单独一片：本票有四处要读同一组开关（状态栏胶囊、设置页工作区表、提示词注入、右侧面板打开口）。
+ *   如果每处各判各的，就会出现「胶囊已经折叠、工具却还开着」这种谁也解释不了的错位；所以取值口径与这几笔写
  *   都收在这里，调用方只问下面这几个名字。
  *
- * 语义（#1612 维护者拍板）：
+ * 语义（#1612 维护者拍板；第三格是 #1879）：
  *   · statusBar：'show' 显示胶囊；'hide' 折叠（缺省）。胶囊折叠时那颗胶囊换成折叠条，环境检查类横幅一起不显示。
  *   · deckTools：'on' 启用 deck（缺省）；'off' 关闭 —— 该工作区工具、胶囊、右侧面板三处一起关。
+ *   · suggest：'on' 显示「下一步建议」气泡（缺省）；'off' 不显示 —— 只是界面不冒气泡，模型照常可以调用
+ *     suggest_next_steps。关掉不算跳过：气泡自己那颗叉与 Esc 才是「这一组不要了」。
  *   · 胶囊实际折没折 = deck 关了**或者** statusBar 是 hide：deck 关了就再没有地方显示胶囊。
  *   · 旧 localStorage 键与旧字段 bannerFolded 的迁移都已按维护者 2026-10-29 的要求删掉：客户端读口只认 statusBar；
  *     旧文件里「展开」那一种旧值由设置文件核在读取那一步换算成 show，这里拿到的是换算后的值（缺格按 hide）。
@@ -39,6 +42,8 @@ const DECK_TOOLS_ON = 'on'
 const DECK_TOOLS_OFF = 'off'
 const DECK_STATUS_BAR_SHOW = 'show'
 const DECK_STATUS_BAR_HIDE = 'hide'
+const DECK_SUGGEST_ON = 'on'
+const DECK_SUGGEST_OFF = 'off'
 
 // 读回来的一格先规整成文字再比：缺格、旧布尔值、别的东西一律当「说不清」，交给调用处按缺省走。
 const deckFlagText = function (v: any): any {
@@ -57,6 +62,13 @@ export const deckStatusBarOf = function (cwd: any): any {
     const v = deckFlagText(viewFlagOf(cwd, 'statusBar'))
     return (v === DECK_STATUS_BAR_SHOW) ? DECK_STATUS_BAR_SHOW : DECK_STATUS_BAR_HIDE
   } catch (e) { return DECK_STATUS_BAR_HIDE }
+}
+
+// 这个工作区的「下一步建议」气泡开没开：只认文件里写的 off，其余（缺格、读失败、别的东西）都按开算 ——
+//   缺省是「开」（保持 #1879 之前「deck 开着就显示」的行为），读失败时按开算也不会把用户没关的东西悄悄关掉。
+//   关掉只影响气泡显不显示，不影响模型能不能调用建议工具（那是宿主闸门的事，见 src/host/deckToolGate.ts）。
+export const deckSuggestOf = function (cwd: any): any {
+  try { return deckFlagText(viewFlagOf(cwd, 'suggest')) === DECK_SUGGEST_OFF ? DECK_SUGGEST_OFF : DECK_SUGGEST_ON } catch (e) { return DECK_SUGGEST_ON }
 }
 
 // deck 关了没有：关的是整个 deck（工具、胶囊、右侧面板三处一起关），所以这个判断比「胶囊折没折」更早。
@@ -115,6 +127,16 @@ export const setDeckStatusBar = function (cwd: any, show: any, listed: any): boo
   const next = (show === true) ? DECK_STATUS_BAR_SHOW : DECK_STATUS_BAR_HIDE
   let ok = false
   try { ok = (typeof setViewFlagValue === 'function') ? (setViewFlagValue(cwd, 'statusBar', next, listed === true) === true) : false } catch (e) { ok = false }
+  deckEmitWorkspace(cwd)
+  return ok
+}
+
+// 改「下一步建议气泡」：on 传 true 是显示、false 是不显示。返回值含义同上，listed 的含义也同上。
+//   这一笔不清理任何已交付的建议组：开关只是显示偏好，重新打开时当前最新一组照常出现（#1879 维护者拍板 Q2）。
+export const setDeckSuggest = function (cwd: any, on: any, listed: any): boolean {
+  const next = (on === true) ? DECK_SUGGEST_ON : DECK_SUGGEST_OFF
+  let ok = false
+  try { ok = (typeof setViewFlagValue === 'function') ? (setViewFlagValue(cwd, 'suggest', next, listed === true) === true) : false } catch (e) { ok = false }
   deckEmitWorkspace(cwd)
   return ok
 }

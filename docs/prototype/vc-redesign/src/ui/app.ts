@@ -11,7 +11,7 @@
  *
  * 所有会「看起来像真的写了仓库」的动作都在这里标了原型模拟：只改界面状态，不碰 git。
  */
-import { COPY } from '../data/copy'
+import { COMMIT_TEMPLATE, COPY } from '../data/copy'
 import { whenText } from '../data/format'
 import { buildPrototypeData } from '../data/screen'
 import type { PrototypeData } from '../data/screen'
@@ -23,6 +23,7 @@ import { panelModelOf } from '../domain/select'
 import type { PanelModel } from '../domain/select'
 import { MANAGE_PAGES, createPageState, reducePage, targetOfCapability } from '../domain/pages'
 import type { PageAction, PageId } from '../domain/pages'
+import { capabilityEntryOf } from '../data/capability-entries'
 import { CAPABILITIES } from '../data/capabilities.generated'
 import { PAGE_META } from '../data/pages-copy'
 import { clear, h, icon } from './dom'
@@ -239,9 +240,13 @@ export function mount(root: HTMLElement): void {
     if (target === 'view') {
       nextPages = reducePage(nextPages, { type: 'page-close-all' })
       state = reduce(state, { type: 'view', view: cap.target as 'changes' | 'commits' | 'worktrees' | 'stash' }, base)
+      // 四页签上的能力没有一条能高亮的行：落在提交选项里的那几条直接把展开区打开，
+      // 否则读者会落在一个没有变化、也没有高亮的页签上，以为跳错了地方。
+      const opensOptions = capabilityEntryOf(cap.id)?.form === '提交选项'
+      if (opensOptions && !state.commitOptionsOpen) state = reduce(state, { type: 'commit-options-toggle' }, base)
       nextPages = reducePage(nextPages, { type: 'palette-highlight', id: cap.id })
       pages = nextPages
-      render({ focusKey: 'tab-' + cap.target, scroll: null })
+      render({ focusKey: opensOptions ? 'commit-options' : 'tab-' + cap.target, scroll: null })
       return
     }
     nextPages = reducePage(nextPages, { type: 'page-open', page: target })
@@ -775,6 +780,14 @@ export function mount(root: HTMLElement): void {
         dispatch({ type: action, path }, { focusKey: `row:${path}` })
         return
       }
+      case 'stage-hunk':
+      case 'unstage-hunk': {
+        const path = el.dataset.path ?? ''
+        const index = Number(el.dataset.index)
+        if (!Number.isInteger(index)) return
+        dispatch({ type: action, path, index }, { focusKey: `hunk:${path}:${index}` })
+        return
+      }
       case 'stage-all':
         dispatch({ type: 'stage-all' }, { focusKey: 'stage-all' })
         return
@@ -786,15 +799,53 @@ export function mount(root: HTMLElement): void {
         runOp('commit')
         return
       }
+      case 'commit-options-toggle':
+        dispatch({ type: 'commit-options-toggle' }, { focusKey: 'commit-options', scroll: null })
+        return
+      case 'commit-form': {
+        const form = el.dataset.form
+        if (form !== 'commit' && form !== 'amend' && form !== 'fixup' && form !== 'squash') return
+        dispatch({ type: 'commit-form', form }, { focusKey: 'commit-form:' + form, scroll: null })
+        return
+      }
+      case 'commit-all-tracked':
+        dispatch({ type: 'commit-all-tracked' }, { focusKey: 'commit-all-tracked', scroll: null })
+        return
+      case 'skip-hooks':
+        dispatch({ type: 'skip-hooks' }, { focusKey: 'skip-hooks', scroll: null })
+        return
+      case 'sign-commit':
+        dispatch({ type: 'sign-commit' }, { focusKey: 'sign-commit', scroll: null })
+        return
+      case 'signoff':
+        dispatch({ type: 'signoff' }, { focusKey: 'signoff', scroll: null })
+        return
+      case 'template-apply':
+        dispatch({ type: 'template-apply', body: COMMIT_TEMPLATE }, { focusKey: 'commit-template', scroll: null })
+        return
+      case 'template-undo':
+        dispatch({ type: 'template-undo' }, { focusKey: 'commit-template', scroll: null })
+        return
       case 'changes-open-menu': {
         const path = el.dataset.path ?? ''
         const open = state.openMenuPath === path
         dispatch({ type: 'changes-open-menu', path: open ? null : path }, { focusKey: `row-more:${path}` })
         return
       }
+      case 'rename-open': {
+        // 菜单项点下去就换成表单：菜单自己收起，光标落在输入框里，读者可以直接改路径。
+        dispatch({ type: 'rename-open', path: el.dataset.path ?? '' }, { focusKey: 'rename-input', scroll: null })
+        return
+      }
+      case 'rename-cancel':
+        dispatch({ type: 'rename-cancel' }, { focusKey: lastFocusKey, scroll: null })
+        return
+      case 'rename-apply':
+        dispatch({ type: 'rename-apply' }, { focusKey: 'rename-apply', scroll: null })
+        return
       case 'changes-pending': {
         const kind = el.dataset.kind
-        if (kind !== 'discard' && kind !== 'discard-all' && kind !== 'ignore' && kind !== 'delete-untracked' && kind !== 'resolve-ours' && kind !== 'resolve-theirs') return
+        if (kind !== 'discard' && kind !== 'discard-all' && kind !== 'ignore' && kind !== 'delete-untracked' && kind !== 'delete-tracked' && kind !== 'untrack' && kind !== 'resolve-ours' && kind !== 'resolve-theirs') return
         const pendingKind: ChangesPendingKind = kind
         const path = el.dataset.path ?? null
         dispatch({ type: 'changes-pending', pending: { kind: pendingKind, path } }, { focusKey: 'changes-cancel', scroll: null })
@@ -806,8 +857,41 @@ export function mount(root: HTMLElement): void {
       case 'changes-apply':
         dispatch({ type: 'changes-apply' }, { focusKey: lastFocusKey, scroll: null })
         return
-      case 'stash-create':
+      case 'stash-create': {
+        // 主按钮收默认那一种；右侧箭头菜单里的两项各自带上收法。
+        const mode = el.dataset.mode
+        if (mode === 'untracked' || mode === 'staged') {
+          dispatch({ type: 'stash-create', mode }, { focusKey: 'stash-variants', scroll: null })
+          return
+        }
         dispatch({ type: 'stash-create' }, { focusKey: 'composer-links', scroll: null })
+        return
+      }
+      case 'stash-menu-toggle':
+        dispatch({ type: 'stash-menu-toggle' }, { focusKey: 'stash-variants', scroll: null })
+        return
+      case 'stash-menu':
+        dispatch({ type: 'stash-menu', id: el.dataset.id ?? '' }, { focusKey: `stash-more:${el.dataset.id ?? ''}`, scroll: null })
+        return
+      case 'stash-branch-open':
+        dispatch({ type: 'stash-branch-open', id: el.dataset.id ?? '' }, { focusKey: 'stash-branch', scroll: null })
+        return
+      case 'stash-branch-cancel': {
+        const id = state.stashBranchId ?? ''
+        dispatch({ type: 'stash-branch-cancel' }, { focusKey: `stash-more:${id}`, scroll: null })
+        return
+      }
+      case 'stash-branch-apply':
+        dispatch({ type: 'stash-branch-apply' }, { focusKey: 'stash-branch-apply', scroll: null })
+        return
+      case 'stash-clear-open':
+        dispatch({ type: 'stash-clear-open' }, { focusKey: 'stash-clear-cancel', scroll: null })
+        return
+      case 'stash-clear-cancel':
+        dispatch({ type: 'stash-clear-cancel' }, { focusKey: 'stash-clear-action', scroll: null })
+        return
+      case 'stash-clear-apply':
+        dispatch({ type: 'stash-clear-apply' }, { focusKey: 'stash-clear-action', scroll: null })
         return
       case 'stash-apply':
       case 'stash-pop': {
@@ -887,6 +971,41 @@ export function mount(root: HTMLElement): void {
       case 'history-merge-only':
         dispatch({ type: 'history-merge-only' }, { focusKey: 'history-merge' })
         return
+      case 'history-scope': {
+        const scope = el.dataset.scope
+        if (scope !== 'message' && scope !== 'code') return
+        dispatch({ type: 'history-scope', scope }, { focusKey: `history-scope:${scope}`, scroll: null })
+        return
+      }
+      case 'history-file-menu': {
+        const path = el.dataset.path ?? ''
+        // 同一个按钮开与关：reducer 按「还是这一行」判断，再点一次就收起来。
+        dispatch({ type: 'history-file-menu', path }, { focusKey: `file-more:${path}`, scroll: null })
+        return
+      }
+      case 'history-file-only': {
+        const path = el.dataset.path ?? ''
+        dispatch({ type: 'history-file-only', path }, { focusKey: 'history-query', scroll: null })
+        return
+      }
+      case 'history-file-only-clear':
+        dispatch({ type: 'history-file-only', path: null }, { focusKey: 'history-query', scroll: null })
+        return
+      case 'compare-open':
+        dispatch({ type: 'compare-open' }, { focusKey: 'compare-open', scroll: null })
+        return
+      case 'compare-close':
+        dispatch({ type: 'compare-close' }, { focusKey: 'compare-open', scroll: null })
+        return
+      case 'compare-apply':
+        dispatch({ type: 'compare-apply' }, { focusKey: 'compare-open', scroll: null })
+        return
+      case 'compare-end':
+        dispatch({ type: 'compare-end' }, { focusKey: 'compare-open', scroll: null })
+        return
+      case 'note-save':
+        dispatch({ type: 'note-save' }, { focusKey: 'note-save', scroll: null })
+        return
       case 'ai-worktrees':
         dispatch({ type: 'ai-worktrees' }, { focusKey: 'ai-worktrees' })
         return
@@ -934,6 +1053,52 @@ export function mount(root: HTMLElement): void {
         repaint({ focusKey: `wt-expand:${path}` })
         return
       }
+      // 新建工作区：页底表单，开、改、提交三者分开，错误留在表单里。
+      case 'wt-create-open':
+        dispatch({ type: 'wt-create-open' }, { focusKey: 'wt-create-path', scroll: null })
+        return
+      case 'wt-create-close':
+        dispatch({ type: 'wt-create-close' }, { focusKey: 'wt-create-open', scroll: null })
+        return
+      case 'wt-create-mode': {
+        const mode = el.dataset.mode === 'existing' ? 'existing' : 'new'
+        dispatch({ type: 'wt-create-mode', mode }, { focusKey: `wt-mode:${mode}`, scroll: null })
+        return
+      }
+      case 'wt-create-branch':
+        dispatch({ type: 'wt-create-branch', value: el.dataset.value ?? '' }, { focusKey: 'wt-create-branch', scroll: null })
+        return
+      case 'wt-create-submit':
+        dispatch({ type: 'wt-create-submit' }, { focusKey: 'wt-create-submit', scroll: null })
+        return
+      // 移动与稀疏检出都贴在展开行里，焦点回到发起它们的那颗按钮。
+      case 'wt-move-open': {
+        const path = el.dataset.path ?? ''
+        dispatch({ type: 'wt-move-open', path }, { focusKey: `wt-move:${path}`, scroll: null })
+        return
+      }
+      case 'wt-move-close':
+        dispatch({ type: 'wt-move-close' }, { focusKey: `wt-move-open:${expandedWorktree ?? ''}`, scroll: null })
+        return
+      case 'wt-move-apply':
+        dispatch({ type: 'wt-move-apply' }, { focusKey: 'wt-move-apply', scroll: null })
+        return
+      case 'wt-sparse-open': {
+        const path = el.dataset.path ?? ''
+        dispatch({ type: 'wt-sparse-open', path }, { focusKey: `wt-sparse-open:${path}`, scroll: null })
+        return
+      }
+      case 'wt-sparse-toggle': {
+        const dir = el.dataset.dir ?? ''
+        dispatch({ type: 'wt-sparse-toggle', dir }, { focusKey: `wt-dir:${dir}`, scroll: null })
+        return
+      }
+      case 'wt-sparse-close':
+        dispatch({ type: 'wt-sparse-close' }, { focusKey: `wt-sparse-open:${expandedWorktree ?? ''}`, scroll: null })
+        return
+      case 'wt-sparse-save':
+        dispatch({ type: 'wt-sparse-save' }, { focusKey: 'wt-sparse-save', scroll: null })
+        return
       case 'branch-open':
         dispatch({ type: 'branch-open' }, { focusKey: 'branch-query' })
         return
@@ -1153,13 +1318,27 @@ export function mount(root: HTMLElement): void {
     if (!(target instanceof HTMLTextAreaElement) && !(target instanceof HTMLInputElement)) return
     if (event instanceof InputEvent && event.isComposing) return
     const field = target.dataset.field
-    if (field === 'message') {
+    if (field === 'rename') {
+      dispatch({ type: 'rename-draft', value: target.value }, { focusKey: 'rename-input', scroll: null })
+    } else if (field === 'message') {
       const next = reduce(state, { type: 'message', value: target.value }, base)
       if (next === state) return
       state = next
       syncComposer()
     } else if (field === 'history-query') {
       dispatch({ type: 'history-query', value: target.value }, { focusKey: 'history-query' })
+    } else if (field === 'compare-from' || field === 'compare-to') {
+      dispatch({ type: 'compare-draft', which: field === 'compare-from' ? 'from' : 'to', value: target.value }, { focusKey: field })
+    } else if (field === 'note') {
+      dispatch({ type: 'note-draft', value: target.value }, { focusKey: 'note-input' })
+    } else if (field === 'wt-create-path') {
+      dispatch({ type: 'wt-create-path', value: target.value }, { focusKey: 'wt-create-path' })
+    } else if (field === 'wt-create-branch') {
+      dispatch({ type: 'wt-create-branch', value: target.value }, { focusKey: 'wt-create-branch' })
+    } else if (field === 'stash-branch') {
+      dispatch({ type: 'stash-branch-draft', value: target.value }, { focusKey: 'stash-branch' })
+    } else if (field === 'wt-move') {
+      dispatch({ type: 'wt-move-draft', value: target.value }, { focusKey: `wt-move:${expandedWorktree ?? ''}` })
     } else if (field === 'branch-query') {
       dispatch({ type: 'branch-query', value: target.value }, { focusKey: 'branch-query' })
     } else if (field === 'branch-draft') {
@@ -1192,7 +1371,9 @@ export function mount(root: HTMLElement): void {
       buttonEl.setAttribute('aria-busy', busy ? 'true' : 'false')
       buttonEl.title = current.disabledReason ?? ''
       const label = buttonEl.querySelector<HTMLElement>('.btn-label')
-      if (label !== null) label.textContent = busy ? COPY.busy.commit : COPY.changes.commitLabel(current.stagedCount)
+      // 按钮的字跟着提交形态与「一起提交」开关变，所以取模型里算好的那一个，
+      // 不能在这里按已暂存数重新拼一遍——那样一敲字就会退回「提交 N 个文件」。
+      if (label !== null) label.textContent = busy ? COPY.busy.commit : current.label
     }
 
     // 提交区最后一行里，左边那个位置在「一句提示」和「禁用原因」之间切换：
@@ -1257,6 +1438,19 @@ export function mount(root: HTMLElement): void {
       handoffKind = null
       handoffCopied = false
       repaint({ focusKey: `handoff-${previous}` })
+      return
+    }
+    // 提交选项盖在文件列表上，Esc 先收它：读者点开看一眼再想回去看文件时，
+    // 不该先去够那颗箭头。焦点回到箭头本身，下一次 Tab 仍然从这里往下走。
+    if (event.key === 'Escape' && state.commitOptionsOpen) {
+      event.preventDefault()
+      dispatch({ type: 'commit-options-toggle' }, { focusKey: 'commit-options' })
+      return
+    }
+    // 储藏方式也是一层贴箭头打开的浮层，Esc 先收它，焦点回到箭头。
+    if (event.key === 'Escape' && state.stashMenuOpen) {
+      event.preventDefault()
+      dispatch({ type: 'stash-menu-toggle' }, { focusKey: 'stash-variants' })
       return
     }
     if (event.key === 'Escape' && state.changesPending !== null) {
@@ -1341,6 +1535,14 @@ export function mount(root: HTMLElement): void {
       state = reduce(state, { type: 'branch-close' }, base)
       repaint({ focusKey: 'branch-open' })
     }
+    // 提交选项也是一层贴着的浮层：点它自己和那颗箭头以外的地方都收起，和行菜单同一套规矩。
+    if (state.commitOptionsOpen && target.closest('.commit-options') === null && target.closest('[data-action="commit-options-toggle"]') === null) {
+      dispatch({ type: 'commit-options-toggle' }, { focusKey: lastFocusKey })
+    }
+    // 储藏方式菜单同样按「点它自己和箭头以外的地方收起」处理。
+    if (state.stashMenuOpen && target.closest('.stash-menu') === null && target.closest('[data-action="stash-menu-toggle"]') === null) {
+      dispatch({ type: 'stash-menu-toggle' }, { focusKey: lastFocusKey, scroll: null })
+    }
     const insideTransient = target.closest('.row-menu, .row-more, .row-act, .commit-menu, .commit-more, .changes-confirm, .commit-confirm') !== null
     if (!insideTransient && (commitMenuOid !== null || commitConfirmOid !== null || state.openMenuPath !== null)) {
       commitMenuOid = null
@@ -1377,6 +1579,26 @@ export function mount(root: HTMLElement): void {
       const first = panelModelOf(base, state, Date.now()).worktrees.others.find((row) => row.abnormal)
       expandedWorktree = first === undefined ? null : first.path
     }
+    // 三张新表单的深链：新建（可连带提交）、移动、稀疏检出，截图不用手点。
+    if (params.get('wtnew') === '1') {
+      state = reduce(state, { type: 'wt-create-open' }, base)
+      const newPath = params.get('wtnewpath')
+      if (newPath !== null && newPath !== '') state = reduce(state, { type: 'wt-create-path', value: newPath }, base)
+      if (params.get('wtnewmode') === 'existing') state = reduce(state, { type: 'wt-create-mode', mode: 'existing' }, base)
+      const newBranch = params.get('wtnewbranch')
+      if (newBranch !== null && newBranch !== '') state = reduce(state, { type: 'wt-create-branch', value: newBranch }, base)
+      if (params.get('wtnewsubmit') === '1') state = reduce(state, { type: 'wt-create-submit' }, base)
+    }
+    const moveParam = params.get('wtmove')
+    if (moveParam !== null && moveParam !== '') {
+      expandedWorktree = moveParam
+      state = reduce(state, { type: 'wt-move-open', path: moveParam }, base)
+    }
+    const sparseParam = params.get('wtsparse')
+    if (sparseParam !== null && sparseParam !== '') {
+      expandedWorktree = sparseParam
+      state = reduce(state, { type: 'wt-sparse-open', path: sparseParam }, base)
+    }
     // 工作区动作的确认卡也留深链入口：评审要截「移除前确认」时不用先展开再点按钮。
     const wtPendingParam = params.get('wtpending')
     if (wtPendingParam === 'unlock' || wtPendingParam === 'prune' || wtPendingParam === 'remove') {
@@ -1397,7 +1619,7 @@ export function mount(root: HTMLElement): void {
       state = reduce(state, { type: 'changes-open-menu', path: menuPath }, base)
     }
     const changePending = params.get('cpending')
-    if (changePending === 'discard' || changePending === 'discard-all' || changePending === 'ignore' || changePending === 'delete-untracked' || changePending === 'resolve-ours' || changePending === 'resolve-theirs') {
+    if (changePending === 'discard' || changePending === 'discard-all' || changePending === 'ignore' || changePending === 'delete-untracked' || changePending === 'delete-tracked' || changePending === 'untrack' || changePending === 'resolve-ours' || changePending === 'resolve-theirs') {
       state = reduce(state, { type: 'changes-pending', pending: { kind: changePending, path: params.get('cpath') ?? null } }, base)
     }
     // 提交行的菜单与撤销确认：oid 由评审从页面上抄，深链不替他们猜。
@@ -1406,6 +1628,15 @@ export function mount(root: HTMLElement): void {
     if (params.get('commitconfirm') === '1' && commitMenuOid !== null) commitConfirmOid = commitMenuOid
     // 储藏记录用一条演示数据起底：真实仓库里没有储藏记录，也要能截到「应用回工作区 / 弹出 / 丢弃记录」这一页。
     if (params.get('stashdemo') === '1') state = reduce(state, { type: 'stash-create' }, base)
+    // 储藏这一组的三件事也给深链：收法菜单、从记录建分支、清空全部。
+    if (params.get('stashmenu') === '1') state = reduce(state, { type: 'stash-menu-toggle' }, base)
+    const stashMode = params.get('stashmode')
+    if ((stashMode === 'all' || stashMode === 'untracked' || stashMode === 'staged') && params.get('stashgo') === '1') {
+      state = reduce(state, { type: 'stash-create', mode: stashMode }, base)
+    }
+    const stashBranch = params.get('stashbranch')
+    if (stashBranch !== null && stashBranch !== '') state = reduce(state, { type: 'stash-branch-open', id: stashBranch }, base)
+    if (params.get('stashclear') === '1') state = reduce(state, { type: 'stash-clear-open' }, base)
     const stashPending = params.get('stashpending')
     if (stashPending === 'drop') {
       const stashId = params.get('stashid') ?? 'stash@{0}'
@@ -1435,12 +1666,45 @@ export function mount(root: HTMLElement): void {
     if (open !== null && open !== '') state = reduce(state, { type: 'history-open', oid: open }, base)
     const file = params.get('file')
     if (file !== null && file !== '') state = reduce(state, { type: 'history-open-file', path: file }, base)
+    // 历史页三件事的深链：搜索范围、只看某个文件、比较两个引用。
+    // 引用先写好再比，截图脚本不用先点开表单再敲字。
+    const hscope = params.get('hscope')
+    if (hscope === 'code' || hscope === 'message') state = reduce(state, { type: 'history-scope', scope: hscope }, base)
+    const hfile = params.get('hfile')
+    if (hfile !== null && hfile !== '') state = reduce(state, { type: 'history-file-only', path: hfile }, base)
+    if (params.get('hcompare') === '1') state = reduce(state, { type: 'compare-open' }, base)
+    const hfrom = params.get('hfrom')
+    if (hfrom !== null && hfrom !== '') state = reduce(state, { type: 'compare-draft', which: 'from', value: hfrom }, base)
+    const hto = params.get('hto')
+    if (hto !== null && hto !== '') state = reduce(state, { type: 'compare-draft', which: 'to', value: hto }, base)
+    if (params.get('hcompared') === '1') state = reduce(state, { type: 'compare-apply' }, base)
     const filter = params.get('filter')
     if (filter === 'conflict' || filter === 'staged' || filter === 'unstaged') {
       state = reduce(state, { type: 'filter', filter }, base)
     }
+    // 逐块暂存的按钮长在展开区里：?expand=<路径> 直接把那一行打开。
+    // 用 expand-file 而不是 toggle-file：同一张图重跑脚本时不能把已经打开的行又收起来。
+    const expandPath = params.get('expand')
+    if (expandPath !== null && expandPath !== '') state = reduce(state, { type: 'expand-file', path: expandPath }, base)
     const message = params.get('message')
     if (message !== null && message !== '') state = reduce(state, { type: 'message', value: message }, base)
+    // 提交选项的深链：评审要截「修订形态」「fixup 形态」时不用先点开再点三下。
+    // stageall 放在最前面：这两个形态要有已暂存的文件才点得动，截图脚本靠它把状态摆出来。
+    if (params.get('stageall') === '1') state = reduce(state, { type: 'stage-all' }, base)
+    if (params.get('commitoptions') === '1') state = reduce(state, { type: 'commit-options-toggle' }, base)
+    const commitFormParam = params.get('commitform')
+    if (commitFormParam === 'amend' || commitFormParam === 'fixup' || commitFormParam === 'squash' || commitFormParam === 'commit') {
+      state = reduce(state, { type: 'commit-form', form: commitFormParam }, base)
+      // 选了「修订 / fixup / squash」却看不到展开区，读者会以为没生效：顺手把提交选项打开。
+      if (commitFormParam !== 'commit' && !state.commitOptionsOpen) {
+        state = reduce(state, { type: 'commit-options-toggle' }, base)
+      }
+    }
+    if (params.get('commitall') === '1') state = reduce(state, { type: 'commit-all-tracked' }, base)
+    if (params.get('noverify') === '1') state = reduce(state, { type: 'skip-hooks' }, base)
+    if (params.get('sign') === '1') state = reduce(state, { type: 'sign-commit' }, base)
+    if (params.get('signoff') === '1') state = reduce(state, { type: 'signoff' }, base)
+    if (params.get('template') === '1') state = reduce(state, { type: 'template-apply', body: COMMIT_TEMPLATE }, base)
     // 拉取前的确认气泡只出现在「工作区有未提交改动」时，没有入口直接截到它；给评审留一个深链。
     if (params.get('confirm') === '1') {
       state = reduce(state, { type: 'pull-confirm-open', files: dirtyFiles(), dirtyCount: dirtyFiles().length }, base)
@@ -1473,7 +1737,15 @@ export function mount(root: HTMLElement): void {
       const cap = CAPABILITIES.find((item) => item.id === capParam)
       if (cap !== undefined) {
         const target = targetOfCapability(cap)
-        if (target !== 'view') pages = reducePage(pages, { type: 'page-open', page: target })
+        if (target !== 'view') {
+          pages = reducePage(pages, { type: 'page-open', page: target })
+        } else {
+          // 四页签上的能力：先切到它所在的页签；落在提交选项里的那几条把展开区一起打开。
+          state = reduce(state, { type: 'view', view: cap.target as 'changes' | 'commits' | 'worktrees' | 'stash' }, base)
+          if (capabilityEntryOf(cap.id)?.form === '提交选项' && !state.commitOptionsOpen) {
+            state = reduce(state, { type: 'commit-options-toggle' }, base)
+          }
+        }
         pages = reducePage(pages, { type: 'palette-highlight', id: cap.id })
       }
     }

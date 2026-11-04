@@ -9,6 +9,7 @@
  * 点开在行下面出现四段式确认卡（会动什么 / 不会动什么 / 可逆性与恢复路径 / 动词写后果），
  * 默认焦点在取消。整仓不可逆动作不直接执行，先跳到二级核对页。
  */
+import { allCapabilityEntries } from '../../data/capability-entries'
 import { CAPABILITIES } from '../../data/capabilities.generated'
 import type { Capability } from '../../data/capabilities.generated'
 import { h, icon } from '../dom'
@@ -266,9 +267,15 @@ function capConfirmCard(cap: Capability, secondStage = false): HTMLElement {
 /** 覆盖验收用的一句话：命令面板能搜到全部能力，页面清单能数清全部能力。 */
 export function coverageNote(): HTMLElement {
   const count = (placement: string): number => CAPABILITIES.filter((cap) => cap.placement === placement).length
+  const entries = allCapabilityEntries()
+  const tally = (status: string): number => entries.filter((entry) => entry.status === status).length
   return h('p', { class: 'coverage-note' },
     chip('覆盖口径', 'info', { small: true }),
     h('span', { text: '162 条能力全部有落点：命令面板可按名称与位置搜索，每个页面底部按 #1588 的编号逐条列出。六条没有面板入口的（发补丁邮件与平台五条）在「平台与边界」里逐条只读说明。' }),
+    h('span', {
+      text: '入口形态与落点逐条记在 capability-entries.md：已画 ' + tally('已画') + ' 条，本版补齐 ' + tally('本票已画')
+        + ' 条（提交区的形态、内容来源、说明模板、钩子与签名），另有 ' + tally('待画') + ' 条写明决定、留给后续切片。',
+    }),
     h('span', { class: 'coverage-count mono', text: '直 ' + count('直') + ' · 折 ' + count('折') + ' · 诊 ' + count('诊') + ' · 外 ' + count('外') }))
 }
 /**

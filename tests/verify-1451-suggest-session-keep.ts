@@ -145,6 +145,14 @@ async function main() {
   const bubbleMod = await imp('src/client/statusbar/suggestBubble.ts')
   // 取数层把建议气泡的渲染薄壳当相邻叶子的自由变量用（真机由构建闭包按次序拼进来）。
   globalThis.SuggestBubble = bubbleMod.SuggestBubble
+  // #1879：挂载组件每次渲染都要问「这一帧该不该显示气泡」，判据住在相邻叶子 suggestGate.ts。
+  //   这一扇量的是按会话保留与关闭，不量 deck 状态，所以给一组「deck 开着、建议开关是开」的真依赖。
+  globalThis.isDeckCapsuleFolded = function () { return false }
+  globalThis.deckSuggestOf = function () { return 'on' }
+  globalThis.isDeckClosed = function () { return false }
+  const gateMod = await imp('src/client/statusbar/suggestGate.ts')
+  globalThis.useSuggestBubbleGate = gateMod.useSuggestBubbleGate
+  globalThis.suggestBubbleVisibleOf = gateMod.suggestBubbleVisibleOf
 
   // ---------- ① 三个缓存纯函数的语义 ----------
   {

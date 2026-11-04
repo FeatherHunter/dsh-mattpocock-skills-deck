@@ -167,6 +167,12 @@ async function main() {
   const idxHead = leaf.vcPageHeadNode(h, trZh, { page: 'manage' })
   const idxKids: any[] = (idxHead && Array.isArray(idxHead.children)) ? idxHead.children : []
   check(idxKids.length === 2 && pick(idxHead, 'vcs-page-sub') === undefined && textOf(pick(idxHead, 'vcs-page-lede')) === trZh('vc.shell.page.note.manage'), 'C5 管理索引页头同样只有两段：没有空的种类/层级行，标题行之外只有那条管理索引导语（实得 ' + idxKids.length + ' 段）')
+  // #1881：hideCount 是页头的退出开关——只有显式 true 才收起「N 条能力」，缺省与 false 都照旧画
+  //   （分支与标签页用它：那枚数字指向一份已经退役、不在页面上的清单；其余页面要不要一起收留给 #1848）。
+  const hideHead = leaf.vcPageHeadNode(h, trZh, { page: 'changes', hideCount: true })
+  const hideRow: any[] = (hideHead && Array.isArray(hideHead.children) && Array.isArray(hideHead.children[0].children)) ? hideHead.children[0].children : []
+  const keepHead = leaf.vcPageHeadNode(h, trZh, { page: 'changes', hideCount: false })
+  check(hideRow.length === 1 && textOf(hideRow[0]) === trZh('vc.shell.page.changes') && pick(hideHead, 'vcs-page-count') === undefined && !!pick(keepHead, 'vcs-page-count'), 'C6 hideCount=true 时标题行只剩标题、不画能力计数；hideCount=false 照旧画（默认行为不变）')
 
   // ===== D 分区原语：section.page-section，危险区加 is-danger 与 data 标记，标题行给条数与危险提示 =====
   const sec = leaf.vcPageSectionNode(h, trZh, {

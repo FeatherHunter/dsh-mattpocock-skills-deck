@@ -25,6 +25,8 @@ export function vcCommitInitialState(): any {
   return {
     plan: commitPlanOf(null), message: '', state: 'idle',
     form: null, formProblem: '', decision: null, result: null, confirm: null,
+    // #1860 D6：提交选项菜单（提交什么、模板、钩子与签名）默认收起；原型提交区只有三块，没有第四行折叠。
+    menuOpen: false,
   }
 }
 
@@ -166,9 +168,14 @@ export const vcCommitOpsOf = function (deps: any) {
     return submit()
   }
   const clearResult = function (): any { setCommit({ result: null }) }
+  // #1860 D6：开合提交选项菜单。菜单里的每一次选择都保持菜单开着（连着调形态与目标才顺手），
+  //   只有再点一次这颗按钮、或按 Esc（委托层关浮层那一支）才收起。
+  const toggleMenu = function (): any { setCommit({ menuOpen: state().menuOpen !== true }) }
+  const closeMenu = function (): any { if (state().menuOpen === true) setCommit({ menuOpen: false }) }
   return {
     state: state, loadForm: loadForm, selectMode: selectMode, selectTarget: selectTarget,
     setMessage: setMessage, toggleOption: toggleOption, applyTemplate: applyTemplate,
     submit: submit, confirmNow: confirmNow, cancelConfirm: cancelConfirm, retry: retry, clearResult: clearResult,
+    toggleMenu: toggleMenu, closeMenu: closeMenu,
   }
 }

@@ -23,7 +23,7 @@ import { parseVersion, capabilityTierFor, capabilityAvailability } from '../shar
 import { parseStatus } from '../shared/version-control/src/parse-status.js'
 import { parseWorktrees } from '../shared/version-control/src/parse-worktrees.js'
 import { parseRefs } from '../shared/version-control/src/parse-refs.js'
-import { parseLog } from '../shared/version-control/src/parse-log.js'
+import { parseLog, parseLogStats } from '../shared/version-control/src/parse-log.js'
 import { parseDiffFiles } from '../shared/version-control/src/parse-diff-files.js'
 import { parseStashList } from '../shared/version-control/src/parse-stash.js'
 import { assemble } from '../shared/version-control/src/state.js'
@@ -98,6 +98,29 @@ export function createFirstScreenPhone(deps: any): any {
     })
   }
 
+  /**
+   * 给提交列表补上「改了 N 个文件」。
+   *
+   * 为什么单独跑一次而不是塞进历史那条命令：历史命令的 NUL 分槽口径被 parseLog 的门禁锁着，
+   * 往里加 --shortstat 会把字段 stride 弄乱。所以按「同一片数据、第二条只读取法」处理：
+   * 失败只是没有文件数（行上不显示），不让历史片跟着变红。
+   * 合并提交与空提交在 git 侧没有 shortstat，这里也就没有记录，界面不补 0。
+   */
+  async function attachFileCounts(exe: string, root: string, commits: any[]): Promise<void> {
+    if (!Array.isArray(commits) || commits.length === 0) return
+    const part: any = await readPart('读每个提交改了哪些文件这一步', function (): any {
+      return collect(exe, root, '读每个提交改了哪些文件这一步', (commandFor('log', { logCount: commits.length, logStats: true }) as any).args, parseLogStats)
+    })
+    if (part.ok !== true) return
+    const stats: any[] = part.value && Array.isArray(part.value.stats) ? part.value.stats : []
+    const byOid: Record<string, number> = {}
+    for (let i = 0; i < stats.length; i += 1) byOid[String(stats[i].oid)] = Number(stats[i].files)
+    for (let i = 0; i < commits.length; i += 1) {
+      const oid: string = String(commits[i].oid)
+      commits[i].files = Object.prototype.hasOwnProperty.call(byOid, oid) ? byOid[oid] : null
+    }
+  }
+
   /** 聚合一次七片。返回永远是 ok 快照；单片失败只体现在该片 state==='err'。 */
   async function handleGitFirstScreen(args: any): Promise<any> {
     const cwd: any = cwdOf(args)
@@ -138,6 +161,7 @@ export function createFirstScreenPhone(deps: any): any {
       let commits: any[] = []
       const bareLog: any = await readPart('读提交历史这一步', function (): any { return collect(exe, base.root, '读提交历史这一步', (commandFor('log', { logCount: logCount }) as any).args, parseLog) })
       if (bareLog.ok === true) commits = bareLog.value.commits
+      if (bareLog.ok === true) await attachFileCounts(exe, base.root, commits)
       put('history', bareLog.ok === true ? okSlice({ commits: commits, hasMore: commits.length >= logCount }) : errOfEnvelope(bareLog.error, '读提交历史这一步失败'))
       const asmBare: any = assemble({
         repoRoot: base.root, bare: true, statusHead: '', statusDetached: false, statusOid: null, statusUpstream: null,
@@ -172,6 +196,7 @@ export function createFirstScreenPhone(deps: any): any {
     const lg: any = hasHead === false
       ? { ok: true, value: { commits: [], hasMore: false } }
       : await readPart('读提交历史这一步', function (): any { return collect(exe, base.root, '读提交历史这一步', (commandFor('log', { logCount: logCount }) as any).args, parseLog) })
+    if (lg.ok === true && lg.value && Array.isArray(lg.value.commits)) await attachFileCounts(exe, base.root, lg.value.commits)
     const df: any = hasHead === true
       ? await readPart('读每个文件改了行数这一步', function (): any { return collect(exe, base.root, '读每个文件改了行数这一步', (commandFor('diffFiles', {}) as any).args, parseDiffFiles) })
       : { ok: true, value: { files: [] } }

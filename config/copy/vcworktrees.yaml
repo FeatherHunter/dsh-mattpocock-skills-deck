@@ -16,7 +16,7 @@
 zh:
   vc.wt.title: "工作树"
   vc.wt.count: "共 {n} 棵，当前这一棵在最前"
-  vc.wt.empty: "清单里只有当前这一棵工作树。新建一棵就能在这里看到并管理它。"
+  vc.wt.empty: 不存在其他工作区
   vc.wt.loading: "工作树清单读数更新中，旧读数不当新读数"
   vc.wt.error: "工作树清单读不出来"
   vc.wt.errorNext: "可以重试读数；一直失败就看这条原因：{why}"
@@ -24,6 +24,7 @@ zh:
   vc.wt.current: "当前"
   vc.wt.locked: "已锁定"
   vc.wt.prunable: "待清理"
+  vc.wt.prunableUnknown: "无法确认目录是否存在"
   vc.wt.lockUnknown: "锁定状态读不出"
   vc.wt.head: "提交"
   vc.wt.branch: "分支"
@@ -86,10 +87,10 @@ zh:
   vc.wt.action.list: "重新读清单"
   vc.wt.action.add: "新建工作树"
   vc.wt.action.add-branch: "用已有分支新建"
-  vc.wt.action.remove: "删除这棵工作树"
-  vc.wt.action.prune: "清理失效登记"
+  vc.wt.action.remove: 移除工作区
+  vc.wt.action.prune: 清除记录
   vc.wt.action.lock: "锁定"
-  vc.wt.action.unlock: "解锁"
+  vc.wt.action.unlock: 解除锁定
   vc.wt.action.move: "移动"
   vc.wt.action.sparse-list: "看稀疏检出"
   vc.wt.action.sparse-set: "写入稀疏检出规则"
@@ -98,9 +99,11 @@ zh:
   vc.wt.alt.9.6: "2.31 以下读不到锁定标记，按未知显示，锁定动作照常"
   vc.wt.alt.9.7: "2.17 以下先到终端移动目录，再跑 git worktree repair"
   vc.wt.alt.9.8: "2.25 以下到终端使用 git sparse-checkout"
-  vc.wt.notice: "这里列出主工作树之外的工作树。行内操作会先预检再执行；删除与清理不可撤销。"
-  vc.wt.noticeClose: "知道了"
-  vc.wt.noticeOpen: "显示说明"
+  vc.wt.notice: 这里列出当前 git 记录的其他工作区。未检出的本地分支不在这里。
+  vc.wt.noticeClose: 关闭这条说明
+  vc.wt.noticeCloseGlyph: "×"
+  vc.wt.noticeOpen: 显示工作区范围说明
+  vc.wt.noticeOpenGlyph: "?"
   vc.wt.currentTitle: "当前工作区"
   vc.wt.currentCopy: "复制当前工作区路径"
   vc.wt.headTitle: "其他工作区"
@@ -108,20 +111,25 @@ zh:
   vc.wt.headAlert: "其中 {n} 棵需要处理"
   vc.wt.filterAll: "全部"
   vc.wt.filterAbnormal: "需要处理"
-  vc.wt.filterEmpty: "没有需要处理的工作树。"
+  vc.wt.filterEmpty: 没有需要处理的工作区。
+  vc.wt.filterGroup: 按状态筛选工作区
+  vc.wt.noBranch: 无分支
+  vc.wt.emptyHint: 每个工作区都要单独检出。展开一行可以解锁、清除记录或移除。
   vc.wt.expand: "展开这棵工作树的详情与操作"
   vc.wt.factPath: "完整路径"
   vc.wt.factBranch: "分支"
   vc.wt.factHead: "当前提交"
   vc.wt.oidHint: "这棵工作树当前指向的提交短号"
+  vc.wt.chevronGlyph: "›"
   vc.wt.copyPath: "复制路径"
-  vc.wt.aiEntry: "工作区太乱？交给 AI 收尾"
+  vc.wt.aiEntry: 不想自己排查？交给 AI
+  vc.wt.aiEntryClean: 想把工作区从头理一遍？交给 AI
   vc.wt.moreActions: "全部工作树动作（新建、清理、锁定、移动、稀疏检出）"
 
 en:
   vc.wt.title: "Worktrees"
   vc.wt.count: "{n} in total, current one first"
-  vc.wt.empty: "Only the current worktree is listed. Create one and it shows up here."
+  vc.wt.empty: No other worktrees
   vc.wt.loading: "Refreshing the worktree list; old data is not treated as new data"
   vc.wt.error: "The worktree list cannot be read"
   vc.wt.errorNext: "Retry the read; if it keeps failing, the reason is: {why}"
@@ -129,6 +137,7 @@ en:
   vc.wt.current: "Current"
   vc.wt.locked: "Locked"
   vc.wt.prunable: "Prunable"
+  vc.wt.prunableUnknown: "Cannot tell whether the directory exists"
   vc.wt.lockUnknown: "Lock state unknown"
   vc.wt.head: "Commit"
   vc.wt.branch: "Branch"
@@ -191,10 +200,10 @@ en:
   vc.wt.action.list: "Refresh list"
   vc.wt.action.add: "New worktree"
   vc.wt.action.add-branch: "New worktree from an existing branch"
-  vc.wt.action.remove: "Remove this worktree"
-  vc.wt.action.prune: "Prune stale registrations"
+  vc.wt.action.remove: Remove worktree
+  vc.wt.action.prune: Clear record
   vc.wt.action.lock: "Lock"
-  vc.wt.action.unlock: "Unlock"
+  vc.wt.action.unlock: Unlock
   vc.wt.action.move: "Move"
   vc.wt.action.sparse-list: "Inspect sparse checkout"
   vc.wt.action.sparse-set: "Write sparse checkout rules"
@@ -203,9 +212,11 @@ en:
   vc.wt.alt.9.6: "Below 2.31 lock markers are unreadable; show unknown and keep the lock actions"
   vc.wt.alt.9.7: "Below 2.17 move the directory in a terminal, then run git worktree repair"
   vc.wt.alt.9.8: "Below 2.25 use git sparse-checkout in a terminal"
-  vc.wt.notice: "Worktrees other than the main worktree are listed here. Actions precheck before running; remove and prune cannot be undone."
-  vc.wt.noticeClose: "Got it"
-  vc.wt.noticeOpen: "Show the note"
+  vc.wt.notice: Other worktrees recorded by git. Local branches that are not checked out are not listed here.
+  vc.wt.noticeClose: Close this note
+  vc.wt.noticeCloseGlyph: "×"
+  vc.wt.noticeOpen: Show the worktree scope note
+  vc.wt.noticeOpenGlyph: "?"
   vc.wt.currentTitle: "Current workspace"
   vc.wt.currentCopy: "Copy the current workspace path"
   vc.wt.headTitle: "Other worktrees"
@@ -213,12 +224,17 @@ en:
   vc.wt.headAlert: "{n} need attention"
   vc.wt.filterAll: "All"
   vc.wt.filterAbnormal: "Needs attention"
-  vc.wt.filterEmpty: "No worktree needs attention."
+  vc.wt.filterEmpty: No worktree needs attention.
+  vc.wt.filterGroup: Filter worktrees by state
+  vc.wt.noBranch: No branch
+  vc.wt.emptyHint: Each worktree must be checked out separately. Expand a row to unlock it, clear its record, or remove it.
   vc.wt.expand: "Expand this worktree for details and actions"
   vc.wt.factPath: "Full path"
   vc.wt.factBranch: "Branch"
   vc.wt.factHead: "Current commit"
   vc.wt.oidHint: "Short commit this worktree points at"
+  vc.wt.chevronGlyph: "›"
   vc.wt.copyPath: "Copy path"
-  vc.wt.aiEntry: "Worktrees in a mess? Hand it to AI"
+  vc.wt.aiEntry: Rather not dig in yourself? Hand it to AI
+  vc.wt.aiEntryClean: Want to untangle these worktrees from scratch? Hand it to AI
   vc.wt.moreActions: "All worktree actions (create, prune, lock, move, sparse checkout)"

@@ -298,7 +298,7 @@ async function main() {
   // ── 第六件事之二：设置页渲染层按「这一行在不在名单上」传 listed ──
   console.log('')
   console.log('== 第六件事之二：设置页总览渲染时，名单行传 listed=true、拿当前目录凑的那一行传 false ==')
-  const uiWrites = { statusbar: [], decktools: [] }
+  const uiWrites = { statusbar: [], decktools: [], suggest: [] }
   const foldVerArgs = []
   const uiStubs = {
     h: hStub,
@@ -313,8 +313,11 @@ async function main() {
     getCachedSnapshot: function () { return null },
     deckStatusBarOf: function () { return 'hide' },
     deckToolsOf: function () { return 'on' },
+    // #1879：第三颗「下一步建议」开关与上面两颗同处同形态，读口给 on、写口记下调用。
+    deckSuggestOf: function () { return 'on' },
     setDeckStatusBar: function (cwd, next, listed) { uiWrites.statusbar.push({ cwd: cwd, next: next, listed: listed }) },
     setDeckTools: function (cwd, next, listed) { uiWrites.decktools.push({ cwd: cwd, next: next, listed: listed }) },
+    setDeckSuggest: function (cwd, next, listed) { uiWrites.suggest.push({ cwd: cwd, next: next, listed: listed }) },
     flash: function () {},
     copyText: function () {},
   }
@@ -327,14 +330,18 @@ async function main() {
   const listedTree = renderOverview('', ['D:\\ws\\other'])
   const barSwitch = findLogged(listedTree, 'settings.workspaces.statusbar')
   const toolSwitch = findLogged(listedTree, 'settings.workspaces.decktools')
+  const suggestSwitch = findLogged(listedTree, 'settings.workspaces.suggest')
   check(barSwitch.length === 1, '名单行画出了胶囊状态栏那颗开关（按 data-log 找得到，正是能点的那颗）。', String(barSwitch.length))
   check(toolSwitch.length === 1, '名单行画出了 deck 工具箱那颗开关。', String(toolSwitch.length))
-  uiWrites.statusbar.length = 0; uiWrites.decktools.length = 0; foldVerArgs.length = 0
+  check(suggestSwitch.length === 1, '名单行画出了第三颗「下一步建议」开关（#1879）。', String(suggestSwitch.length))
+  uiWrites.statusbar.length = 0; uiWrites.decktools.length = 0; uiWrites.suggest.length = 0; foldVerArgs.length = 0
   barSwitch[0].props.onClick({ preventDefault: function () {}, stopPropagation: function () {} })
   check(uiWrites.statusbar.length === 1 && uiWrites.statusbar[0].cwd === 'D:\\ws\\other' && uiWrites.statusbar[0].listed === true, '点名单行的胶囊状态栏开关时，写口收到名单上的路径与 listed=true。', JSON.stringify(uiWrites.statusbar))
   check(foldVerArgs.length === 1 && foldVerArgs[0] === 1, '点完把 foldVer 加一让这一组重画（开关颜色立刻跟上）。', JSON.stringify(foldVerArgs))
   toolSwitch[0].props.onClick({ preventDefault: function () {}, stopPropagation: function () {} })
   check(uiWrites.decktools.length === 1 && uiWrites.decktools[0].listed === true && uiWrites.decktools[0].next === false, '点名单行的 deck 工具箱开关时同样传 listed=true（原值 on 点一下变成关）。', JSON.stringify(uiWrites.decktools))
+  suggestSwitch[0].props.onClick({ preventDefault: function () {}, stopPropagation: function () {} })
+  check(uiWrites.suggest.length === 1 && uiWrites.suggest[0].cwd === 'D:\\ws\\other' && uiWrites.suggest[0].listed === true && uiWrites.suggest[0].next === false, '点名单行的下一步建议开关时同样传名单路径与 listed=true（原值 on 点一下变成关）。', JSON.stringify(uiWrites.suggest))
   // 名单空的时候拿当前目录凑一行：那一条不是名单上的工作区，必须传 false，否则会替用户猜出一条临时记录。
   const fallbackTree = renderOverview('D:\\ws\\current', [])
   const fallbackSwitch = findLogged(fallbackTree, 'settings.workspaces.statusbar')
@@ -342,6 +349,11 @@ async function main() {
   uiWrites.statusbar.length = 0
   fallbackSwitch[0].props.onClick({ preventDefault: function () {}, stopPropagation: function () {} })
   check(uiWrites.statusbar.length === 1 && uiWrites.statusbar[0].cwd === 'D:\\ws\\current' && uiWrites.statusbar[0].listed === false, '拿当前目录凑的那一行传 listed=false（不是名单行，不替用户猜临时记录）。', JSON.stringify(uiWrites.statusbar))
+  const fallbackSuggest = findLogged(fallbackTree, 'settings.workspaces.suggest')
+  uiWrites.suggest.length = 0
+  check(fallbackSuggest.length === 1, '名单外的兜底行也画出了第三颗开关（位置与另外两颗一致）。', String(fallbackSuggest.length))
+  if (fallbackSuggest.length === 1) fallbackSuggest[0].props.onClick({ preventDefault: function () {}, stopPropagation: function () {} })
+  check(uiWrites.suggest.length === 1 && uiWrites.suggest[0].cwd === 'D:\\ws\\current' && uiWrites.suggest[0].listed === false, '兜底行的第三颗开关同样传 listed=false。', JSON.stringify(uiWrites.suggest))
 
   console.log('')
   console.log('通过 ' + passed + ' 条，失败 ' + failed + ' 条。')

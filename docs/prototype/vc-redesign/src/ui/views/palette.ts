@@ -6,6 +6,7 @@
  * 选中后跳到负责这一条的页面，并把那一行高亮出来。它不执行任何写操作，
  * 也不替代各页面的入口；只是让「我知道有这条能力，但找不到它在哪」不再发生。
  */
+import { capabilityEntryOf } from '../../data/capability-entries'
 import { CAPABILITIES } from '../../data/capabilities.generated'
 import type { Capability } from '../../data/capabilities.generated'
 import { PAGE_META, PLACEMENT_LABEL, VIEW_LABEL, levelTone } from '../../data/pages-copy'
@@ -20,9 +21,18 @@ function locationOf(cap: Capability): string {
   return (meta === undefined ? cap.target : meta.title) + ' › ' + cap.entry
 }
 
+/** 一条能力在命令面板里的第二行：位置、入口形态与具体落点。台账里没有的条目退回能力账本的原话。 */
+function sublineOf(cap: Capability): string {
+  const entry = capabilityEntryOf(cap.id)
+  if (entry === undefined) return locationOf(cap) + ' · ' + cap.command
+  return locationOf(cap) + ' · ' + entry.form + ' · ' + entry.at
+}
+
 function matches(cap: Capability, query: string): boolean {
   if (query === '') return true
-  const hay = (cap.id + ' ' + cap.name + ' ' + cap.command + ' ' + cap.entry + ' ' + cap.domain + ' ' + locationOf(cap)).toLocaleLowerCase()
+  const entry = capabilityEntryOf(cap.id)
+  const hay = (cap.id + ' ' + cap.name + ' ' + cap.command + ' ' + cap.entry + ' ' + cap.domain + ' ' + locationOf(cap)
+    + ' ' + (entry === undefined ? '' : entry.form + ' ' + entry.at + ' ' + (entry.reason ?? ''))).toLocaleLowerCase()
   return hay.includes(query)
 }
 
@@ -41,7 +51,8 @@ export function renderPalette(state: PageState): HTMLElement {
     h('span', { class: 'palette-name', text: cap.name }),
     chip(cap.level, levelTone(cap.level) as 'muted' | 'info' | 'warn' | 'error', { small: true }),
     chip(PLACEMENT_LABEL[cap.placement] ?? cap.placement, 'muted', { small: true })),
-  h('span', { class: 'palette-row-sub', text: locationOf(cap) + ' · ' + cap.command })))
+  // 子行先写「在哪一页的哪个控件」，再写 git 命令：读者找入口时看前半句就够，命令留给核对。
+  h('span', { class: 'palette-row-sub', text: sublineOf(cap) })))
 
   const empty = hits.length === 0
     ? h('p', { class: 'palette-empty', text: '没有匹配的能力：换一个更短的关键字，或直接输入能力编号（例如 11.6）。' })
@@ -63,5 +74,5 @@ export function renderPalette(state: PageState): HTMLElement {
       h('div', { class: 'palette-foot' },
         h('span', { class: 'mono', text: '共 ' + CAPABILITIES.length + ' 条能力' }),
         h('span', { text: '匹配 ' + hits.length + ' 条' }),
-        h('span', { class: 'palette-hint', text: 'Enter 打开第一条 · Esc 关闭 · 选中后跳到对应页面并高亮' }))))
+        h('span', { class: 'palette-hint', text: 'Enter 打开第一条 · Esc 关闭 · 选中后跳到对应页面；四页签上的能力会切到那个页签，提交选项里的几条会直接把展开区打开' }))))
 }

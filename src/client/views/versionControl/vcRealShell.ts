@@ -22,6 +22,8 @@ declare function vcRealRemoteValuesOf(el: any): any
 declare function vcRealMigrateFieldsOf(rootEl: any, action: any): any
 declare function vcRealBranchFieldsOf(intent: any, current: any): any
 declare const VC_REAL_EXTRA_LINKS: string[]
+// #1860：四个一级页签的页 id 名单（vcShellPages 叶里定义），这里用它判断落点要不要保留来源页。
+declare const VC_TAB_PAGES: string[]
 // #1840：管理索引屏的页面 id。齿轮与身份行「管理」都跳到这一页，它是导航上的一站，不是浮层。
 declare const VC_MANAGE_INDEX_PAGE: string
 // #1846：全库搜索页的页面 id。在这一页上放大镜不弹命令面板，而是把焦点送回页面里那个输入框。
@@ -63,6 +65,9 @@ export const vcRealSelectCapOf = function (getNav: any, setNav: any): any {
       highlight: id,
       open: { branch: false, palette: false, gear: false, surface: '' },
     })
+    // #1860：落到四个一级页签上就按切页签处理——清掉来源页，一级页签不画返回键、也不进二级版式；
+    //   落到二级页（管理九分区、分支页等）时才保留来源，页头返回键才回得去。
+    if ((VC_TAB_PAGES || []).indexOf(page) >= 0) next.back = null
     setNav(next)
   }
 }
@@ -74,7 +79,12 @@ export const vcRealSelectCapOf = function (getNav: any, setNav: any): any {
 const VC_REAL_BRANCH_LANDING: any = {
   list: { page: 'branch-tags', sel: '[data-vc-branch-query]' },
   create: { page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="create"]' },
-  delete: { page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="delete"]' },
+  // #1881：页尾不再有删除按钮——删除分支收在每行的「⋯」菜单里。落点要绕开两件事：
+  //   ① 当前分支通常删不掉（宿主预检会 block），而 #1881 又把它排在第一行，所以排除带
+  //      data-vc-branch-is-current 的那一行；② 不要落在菜单开关上——vcRealFocusLandingOf 会先把菜单
+  //      展开再聚焦，落到 summary 上再按 Enter 反而把菜单关掉。直接落到菜单里的「删除分支」那一项，
+  //      读者按 Enter 就是执行。
+  delete: { page: 'branch-tags', sel: '[data-vc-branch-row]:not([data-vc-branch-is-current]) [data-vc-branch-menu] [data-vc-branch-action="delete"]' },
   merge: { page: 'conflicts', sel: '[data-vc-conflicts-op="merge"]' },
   rebase: { page: 'rebase', sel: '[data-vc-rebase-op="rebase-onto"]' },
 }
@@ -178,7 +188,10 @@ export const vcRealCallbacksOf = function (deps: any): any {
     },
     // Esc（规格第 343 行）：浮层开着先只关浮层；没有浮层而当前页有来源页时按 Esc 回来源页。
     //   回来源页后的滚动位置与筛选词由导航快照负责（vcRealNavBack 会把 pages 里存的那份带回来）。
+    //   #1860 D6：提交选项菜单也是浮层的一种，虽然它不在 nav.open 里（状态在 ui.commit.menuOpen），
+    //   所以先让提交动作层收一次菜单；菜单本来没开时它什么都不做。
     escape: function () {
+      if (actionsRef.current && typeof actionsRef.current.commitOps === 'function') actionsRef.current.commitOps().closeMenu()
       const cur: any = getNav()
       const open: any = (cur && cur.open) || {}
       if (open.branch === true || open.palette === true || open.gear === true) { setNav(vcRealNavCloseAll(cur)); return }
@@ -317,7 +330,7 @@ const VC_REAL_FOCUS_OPEN: any = { palette: '[data-vc-palette-input]', gear: '[da
 // 浮层关掉后焦点回哪颗固定触发钮：键盘打开时浏览器没把焦点给按钮，靠这一条兜底。
 const VC_REAL_FOCUS_TRIGGER: any = { palette: '[data-vc-search-entry]', gear: '[data-vc-gear-btn]', branch: '[data-vc-branch-btn]' }
 // 确认卡外层标记：各页自己的卡都算（壳原语卡带 data-vc-confirm，其余页各带自己的标记）。
-const VC_REAL_CONFIRM_CARD = '[data-vc-confirm], [data-vc-changes-confirm], [data-vc-conflicts-confirm], [data-vc-stash-confirm], [data-vc-sync-confirm], [data-vc-commit-confirm], [data-vc-sub-confirm], [data-vc-undo-confirm], [data-vc-rebase-confirm], [data-vc-rewrite-confirm], [data-vc-maint-confirm], [data-vc-migrate-confirm], [data-vc-diag-confirm], [data-vc-config-confirm], [data-vc-hooks-confirm], [data-vc-clone-confirm], [data-vc-remote-confirm]'
+const VC_REAL_CONFIRM_CARD = '[data-vc-confirm], [data-vc-file-confirm], [data-vc-changes-confirm], [data-vc-conflicts-confirm], [data-vc-stash-confirm], [data-vc-sync-confirm], [data-vc-commit-confirm], [data-vc-sub-confirm], [data-vc-undo-confirm], [data-vc-rebase-confirm], [data-vc-rewrite-confirm], [data-vc-maint-confirm], [data-vc-migrate-confirm], [data-vc-diag-confirm], [data-vc-config-confirm], [data-vc-hooks-confirm], [data-vc-clone-confirm], [data-vc-remote-confirm]'
 
 const vcRealFocusIn = function (node: any): void {
   if (node && typeof node.focus === 'function') node.focus({ preventScroll: true })

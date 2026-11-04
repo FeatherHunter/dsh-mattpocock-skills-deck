@@ -150,6 +150,10 @@ export const vcRealManagePropsOf = function (reads: any, ui: any, m: any): any {
   return {
     reads: vcRealManageShellReadsOf(reads, mm),
     branchBoard: vcBranchBoardOf(branches),
+    // #1858：读数的状态与失败原因也交给页面——「读失败」与「还没读到」要说得出差别，
+    //   有旧数据时页面才知道该标明「下面是上一次读到的」。
+    branchState: String((mm.branch && mm.branch.state) || ''),
+    branchError: (mm.branch && mm.branch.error) || null,
     branchConfirm: mm.branchConfirm || null,
     branchResult: mm.branchResult || null,
     platform: mm.platform || vcNewPlatformReads(),

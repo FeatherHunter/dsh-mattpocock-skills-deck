@@ -2,6 +2,7 @@
 "use strict";
 (() => {
   // docs/prototype/vc-redesign/src/data/copy.ts
+  var COMMIT_TEMPLATE = "<\u8FD9\u6B21\u6539\u4E86\u4EC0\u4E48\uFF1A\u4E00\u53E5\u8BDD\u8BF4\u6E05\u5BF9\u8C61\u4E0E\u52A8\u4F5C>\n\n<\u4E3A\u4EC0\u4E48\u6539\uFF1A\u539F\u6765\u54EA\u91CC\u4E0D\u5BF9\u3001\u8C01\u53D7\u5F71\u54CD>\n\n<\u600E\u4E48\u9A8C\u8BC1\uFF1A\u8DD1\u4E86\u54EA\u6761\u547D\u4EE4\u3001\u770B\u5230\u4EC0\u4E48\u7ED3\u679C>";
   var COPY = {
     frame: {
       kicker: "Prototype: version-control page",
@@ -129,10 +130,20 @@
       untracked: "\u672A\u8DDF\u8E2A",
       typeUnknown: "\u65E0\u6CD5\u5224\u5B9A\u53D8\u66F4\u7C7B\u578B",
       stagedBadge: "\u5DF2\u6682\u5B58",
+      hunkTitle: (index) => `\u7B2C ${index} \u5757`,
+      hunkStage: "\u6682\u5B58\u8FD9\u4E00\u5757",
+      hunkUnstage: "\u53D6\u6D88\u6682\u5B58\u8FD9\u4E00\u5757",
+      hunkStaged: "\u5DF2\u6682\u5B58",
+      hunkProgress: (staged, total) => `\u5DF2\u6682\u5B58 ${staged}/${total} \u5757`,
+      hunkProgressTitle: (staged, total) => `\u8FD9\u4E2A\u6587\u4EF6\u5171 ${total} \u5757\uFF0C\u5176\u4E2D ${staged} \u5757\u5DF2\u8FDB\u7D22\u5F15`,
+      hunkNote: "\u5757\u5934\u7684\u6309\u94AE\u53EA\u628A\u8FD9\u4E00\u5757\u653E\u8FDB\u7D22\u5F15\uFF0C\u522B\u7684\u5757\u7559\u5728\u5DE5\u4F5C\u533A\uFF1B\u6574\u4EFD\u6587\u4EF6\u7684\u5757\u5168\u90E8\u6682\u5B58\u5B8C\uFF0C\u8FD9\u4E00\u884C\u624D\u79FB\u5230\u300C\u5DF2\u6682\u5B58\u300D\u3002",
       menuMore: "\u66F4\u591A\u64CD\u4F5C",
       menuDiscard: "\u4E22\u5F03\u4FEE\u6539",
       menuIgnore: "\u52A0\u5165 .gitignore",
       menuDelete: "\u5220\u9664\u8FD9\u4E2A\u6587\u4EF6",
+      menuDeleteTracked: "\u5220\u9664\u5DF2\u8DDF\u8E2A\u7684\u6587\u4EF6",
+      menuUntrack: "\u505C\u6B62\u8DDF\u8E2A\uFF0C\u4FDD\u7559\u6587\u4EF6",
+      menuRename: "\u91CD\u547D\u540D\u6216\u79FB\u52A8",
       menuResolveOurs: "\u7528\u5F53\u524D\u5206\u652F\u7684\u7248\u672C\u89E3\u51B3",
       menuResolveTheirs: "\u7528\u5BF9\u65B9\u7684\u7248\u672C\u89E3\u51B3",
       discardAll: "\u4E22\u5F03\u5168\u90E8",
@@ -150,6 +161,19 @@
       confirmIgnoreBody: "\u6587\u4EF6\u4ECD\u5728\u78C1\u76D8\u4E0A\uFF0Cgit \u4ECE\u4E0B\u4E00\u6B21\u8BFB\u53D6\u8D77\u4E0D\u518D\u8DDF\u8E2A\u5B83\u3002\u5DF2\u7ECF\u63D0\u4EA4\u8FDB\u5386\u53F2\u7684\u5185\u5BB9\u4E0D\u53D7\u5F71\u54CD\u3002",
       confirmDeleteTitle: (name) => `\u5220\u9664\u672A\u8DDF\u8E2A\u6587\u4EF6 ${name}\uFF1F`,
       confirmDeleteBody: "\u8FD9\u4E2A\u6587\u4EF6\u4ECE\u6765\u6CA1\u6709\u8FDB\u8FC7 git \u5386\u53F2\uFF0C\u5220\u9664\u4EE5\u540E\u6CA1\u6709\u4EFB\u4F55\u5730\u65B9\u80FD\u627E\u56DE\u3002",
+      confirmDeleteTrackedTitle: (name) => `\u5220\u9664 ${name}\uFF1F`,
+      confirmDeleteTrackedBody: "\u6587\u4EF6\u4F1A\u4ECE\u78C1\u76D8\u4E0E git \u7D22\u5F15\u91CC\u4E00\u8D77\u5220\u6389\uFF0C\u8FD9\u6B21\u5220\u9664\u672C\u8EAB\u53D8\u6210\u4E00\u6761\u5DF2\u6682\u5B58\u7684\u6539\u52A8\uFF0C\u548C\u522B\u7684\u6539\u52A8\u4E00\u8D77\u63D0\u4EA4\u624D\u4F1A\u8FDB\u5386\u53F2\u3002",
+      confirmDeleteTracked: "\u786E\u8BA4\u5220\u9664",
+      confirmUntrackTitle: (name) => `\u505C\u6B62\u8DDF\u8E2A ${name}\uFF1F`,
+      confirmUntrackBody: "\u53EA\u628A\u6587\u4EF6\u4ECE git \u7D22\u5F15\u91CC\u62FF\u6389\uFF0C\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u539F\u6837\u4FDD\u7559\u3002\u4E0B\u6B21\u63D0\u4EA4\u4E4B\u540E\u5B83\u5C31\u4E0D\u518D\u88AB\u8DDF\u8E2A\uFF0C\u522B\u4EBA\u62C9\u53D6\u65F6\u4E5F\u4E0D\u4F1A\u518D\u62FF\u5230\u5B83\u3002",
+      confirmUntrack: "\u505C\u6B62\u8DDF\u8E2A",
+      renameTitle: "\u91CD\u547D\u540D\u6216\u79FB\u52A8",
+      renamePlaceholder: "\u65B0\u7684\u8DEF\u5F84\uFF0C\u4F8B\u5982 src/client/views/NewName.ts",
+      renameSubmit: "\u4FDD\u5B58\u65B0\u8DEF\u5F84",
+      renameCancel: "\u53D6\u6D88",
+      renameHint: "\u6574\u6761\u8DEF\u5F84\u90FD\u8981\u5199\u5168\uFF1B\u53EA\u6539\u6587\u4EF6\u540D\u65F6\uFF0C\u76EE\u5F55\u90E8\u5206\u7167\u6284\u3002git mv \u4F1A\u540C\u65F6\u6539\u78C1\u76D8\u4E0A\u7684\u540D\u5B57\u5E76\u628A\u8FD9\u6B21\u6539\u540D\u6682\u5B58\u8D77\u6765\u3002",
+      renameEmpty: "\u65B0\u8DEF\u5F84\u4E0D\u80FD\u4E3A\u7A7A\u3002",
+      renameSame: "\u65B0\u8DEF\u5F84\u548C\u539F\u6765\u4E00\u6837\uFF0C\u6CA1\u6709\u53EF\u6539\u7684\u3002",
       confirmResolveOursTitle: (name) => `\u7528\u5F53\u524D\u5206\u652F\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF1F`,
       confirmResolveOursBody: "\u5BF9\u65B9\u5206\u652F\u91CC\u7684\u6539\u52A8\u4F1A\u88AB\u4E22\u6389\uFF0C\u6587\u4EF6\u4F1A\u76F4\u63A5\u53D8\u4E3A\u5DF2\u6682\u5B58\u3002",
       confirmResolveTheirsTitle: (name) => `\u7528\u5BF9\u65B9\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF1F`,
@@ -161,11 +185,88 @@
       menuClose: "\u6536\u8D77\u83DC\u5355",
       menuOpen: "\u66F4\u591A\u64CD\u4F5C"
     },
+    /**
+     * 提交域的六个「提交形态与记录方式」入口。它们都属于「这次提交」，
+     * 所以全部收在提交按钮右边的「提交选项」展开区里，不占首屏。
+     * 文案里出现 git 参数的地方一律带一句人话解释，读者不用先去查 --no-verify 是什么。
+     */
+    commitOptions: {
+      triggerLabel: "\u63D0\u4EA4\u9009\u9879",
+      triggerHint: "\u63D0\u4EA4\u5F62\u6001\u3001\u5185\u5BB9\u6765\u6E90\u3001\u63D0\u4EA4\u8BF4\u660E\u6A21\u677F\u3001\u94A9\u5B50\u4E0E\u7B7E\u540D",
+      title: "\u63D0\u4EA4\u9009\u9879",
+      formKey: "\u63D0\u4EA4\u5F62\u6001",
+      form: {
+        commit: "\u65B0\u63D0\u4EA4",
+        amend: "\u4FEE\u8BA2\u4E0A\u4E00\u6761",
+        fixup: "fixup",
+        squash: "squash"
+      },
+      formNote: {
+        commit: "\u5728\u5386\u53F2\u6700\u524D\u9762\u52A0\u4E00\u6761\u65B0\u63D0\u4EA4\u3002",
+        amend: "\u66FF\u6362\u4E0A\u4E00\u6761\u63D0\u4EA4\uFF0C\u63D0\u4EA4\u53F7\u4F1A\u53D8\uFF1B\u5DF2\u7ECF\u63A8\u9001\u8FC7\u5C31\u8981\u5F3A\u63A8\u3002",
+        fixup: "\u5E26 fixup! \u524D\u7F00\uFF0C\u4E0B\u6B21\u6574\u7406\u5386\u53F2\u65F6\u538B\u56DE\u4E0A\u4E00\u6761\uFF0C\u8BF4\u660E\u4E22\u6389\u3002",
+        squash: "\u5E26 squash! \u524D\u7F00\uFF0C\u4E0B\u6B21\u6574\u7406\u5386\u53F2\u65F6\u5E76\u8FDB\u4E0A\u4E00\u6761\uFF0C\u8BF4\u660E\u4E00\u8D77\u7559\u4E0B\u3002"
+      },
+      target: (short, subject) => `\u4F5C\u7528\u5BF9\u8C61 ${short} ${subject}`,
+      targetNone: "\u8FD8\u6CA1\u6709\u53EF\u4EE5\u4FEE\u8BA2\u7684\u63D0\u4EA4\u3002",
+      contentKey: "\u5185\u5BB9\u6765\u6E90",
+      allTracked: "\u628A\u672A\u6682\u5B58\u7684\u6539\u52A8\u4E5F\u4E00\u8D77\u63D0\u4EA4",
+      allTrackedNote: (n) => `\u5148\u6682\u5B58\u8FD9 ${n} \u4E2A\u672A\u6682\u5B58\u7684\u6587\u4EF6\u518D\u63D0\u4EA4\uFF0C\u76F8\u5F53\u4E8E git commit -a\u3002\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u4E0D\u7B97\u3002`,
+      allTrackedEmpty: "\u6CA1\u6709\u672A\u6682\u5B58\u7684\u6539\u52A8\u53EF\u4EE5\u52A0\u8FDB\u6765\u3002",
+      contentNote: "\u53EA\u63D0\u4EA4\u5DF2\u6682\u5B58\u7684\u5185\u5BB9\uFF0C\u5176\u4F59\u6539\u52A8\u7559\u5728\u5DE5\u4F5C\u533A\u3002",
+      messageKey: "\u63D0\u4EA4\u8BF4\u660E",
+      templateApply: "\u5957\u7528 .gitmessage",
+      templateUndo: "\u64A4\u9500\u5957\u7528",
+      templateApplied: "\u5DF2\u5957\u7528 .gitmessage",
+      templateNote: "\u4E09\u6BB5\uFF1A\u6539\u4E86\u4EC0\u4E48\u3001\u4E3A\u4EC0\u4E48\u6539\u3001\u600E\u4E48\u9A8C\u8BC1\u3002\u539F\u578B\u7528\u4E00\u4EFD\u793A\u4F8B\u6A21\u677F\u3002",
+      templateEmpty: "\u8FD9\u4E2A\u4ED3\u5E93\u6CA1\u6709 .gitmessage\uFF0C\u5957\u4E0D\u4E86\u6A21\u677F\u3002",
+      recordKey: "\u8BB0\u5F55\u65B9\u5F0F",
+      recordNote: "\u4E09\u9879\u90FD\u53EA\u5F71\u54CD\u8FD9\u4E00\u6B21\u63D0\u4EA4\uFF0C\u63D0\u4EA4\u5B8C\u81EA\u52A8\u6062\u590D\u5173\u95ED\u3002",
+      skipHooks: "\u8DF3\u8FC7\u63D0\u4EA4\u94A9\u5B50",
+      skipHooksNote: "\u63D0\u4EA4\u524D\u7684\u68C0\u67E5\u4E0D\u4F1A\u8DD1\u3002",
+      signCommit: "\u7B7E\u540D\u63D0\u4EA4",
+      signCommitNote: "\u7528\u672C\u673A\u5BC6\u94A5\u7B7E\u540D\uFF0C\u63D0\u4EA4\u884C\u4E0A\u4F1A\u6807\u51FA\u6765\u3002",
+      signoff: "\u8FFD\u52A0\u7B7E\u540D\u884C",
+      signoffNote: "\u8BF4\u660E\u672B\u5C3E\u52A0\u4E00\u884C Signed-off-by\u3002",
+      autoMessageLead: "\u8BF4\u660E\u7531\u9762\u677F\u81EA\u52A8\u5199\u6210",
+      autoMessageNote: "\u8FD9\u6761\u63D0\u4EA4\u4E0D\u624B\u5199\u8BF4\u660E\uFF1B\u6574\u7406\u5386\u53F2\u65F6\uFF0Cgit \u6309\u524D\u7F00\u628A\u5B83\u538B\u56DE\u4E0A\u4E00\u6761\u3002",
+      labelAmend: "\u4FEE\u8BA2\u4E0A\u4E00\u6761\u63D0\u4EA4",
+      labelFixup: "\u751F\u6210 fixup \u63D0\u4EA4",
+      labelSquash: "\u751F\u6210 squash \u63D0\u4EA4"
+    },
     history: {
       searchPlaceholder: (loaded) => `\u5728\u5DF2\u52A0\u8F7D\u7684 ${loaded} \u6761\u63D0\u4EA4\u91CC\u7B5B\u9009`,
+      searchPlaceholderCode: "\u6309\u6587\u4EF6\u8DEF\u5F84\u641C\u8FD9\u6B21\u6539\u4E86\u4EC0\u4E48",
       mergeOnly: "\u53EA\u770B\u5408\u5E76",
       loadedCount: (loaded, total) => `\u5DF2\u52A0\u8F7D ${loaded} \u6761\uFF0C\u5171 ${total} \u6761`,
       empty: "\u5DF2\u52A0\u8F7D\u7684\u63D0\u4EA4\u91CC\u6CA1\u6709\u5339\u914D\u9879\u3002",
+      scopeLabel: "\u641C\u7D22\u8303\u56F4",
+      scopeMessage: "\u8BF4\u660E",
+      scopeCode: "\u4EE3\u7801\u53D8\u5316",
+      scopeMessageHint: "\u6309\u63D0\u4EA4\u8BF4\u660E\u3001\u4F5C\u8005\u6216\u77ED\u53F7\u627E",
+      scopeCodeHint: "\u6309\u8FD9\u6B21\u63D0\u4EA4\u6539\u5230\u7684\u6587\u4EF6\u627E",
+      emptyCode: "\u6CA1\u6709\u63D0\u4EA4\u6539\u5230\u5339\u914D\u8FD9\u4E9B\u6587\u5B57\u7684\u6587\u4EF6\u3002",
+      hitTag: "\u547D\u4E2D ",
+      emptyFileOnly: (name) => `\u6CA1\u6709\u63D0\u4EA4\u6539\u8FC7 ${name}\u3002`,
+      fileOnlyLead: "\u53EA\u770B",
+      fileOnlyClear: "\u4E0D\u518D\u53EA\u770B\u8FD9\u4E2A\u6587\u4EF6",
+      fileHistory: "\u770B\u8FD9\u4E2A\u6587\u4EF6\u7684\u5386\u53F2",
+      fileMenuOpen: "\u8FD9\u4E2A\u6587\u4EF6\u7684\u66F4\u591A\u64CD\u4F5C",
+      compareOpen: "\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528",
+      compareTitle: "\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528",
+      compareFrom: "\u4ECE",
+      compareTo: "\u5230",
+      compareHint: "\u53EF\u4EE5\u5199 HEAD\u3001HEAD~2\uFF0C\u4E5F\u53EF\u4EE5\u6284\u5217\u8868\u91CC\u7684\u77ED\u53F7\u3002",
+      compareApply: "\u6BD4\u8F83",
+      compareCancel: "\u53D6\u6D88",
+      compareEnd: "\u9000\u51FA\u6BD4\u8F83",
+      compareNote: "\u539F\u578B\u6309\u540E\u4E00\u4E2A\u5F15\u7528\u90A3\u6761\u63D0\u4EA4\u7684\u6587\u4EF6\u6E05\u5355\u793A\u610F\uFF0C\u4E0D\u8BA1\u7B97\u4E24\u4E2A\u5F15\u7528\u4E4B\u95F4\u771F\u5B9E\u7684\u884C\u7EA7\u5DEE\u5F02\u3002",
+      noteTitle: "\u63D0\u4EA4\u5907\u6CE8",
+      noteHint: "\u5907\u6CE8\u6302\u5728\u63D0\u4EA4\u4E0A\uFF0C\u4E0D\u6539\u63D0\u4EA4\u5185\u5BB9\uFF1B\u5B58\u5728 refs/notes \u91CC\uFF0C\u9ED8\u8BA4\u4E0D\u4F1A\u968F\u63D0\u4EA4\u4E00\u8D77\u63A8\u9001\u3002",
+      notePlaceholder: "\u7ED9\u8FD9\u6761\u63D0\u4EA4\u5199\u4E00\u53E5\u5907\u6CE8\uFF0C\u4F8B\u5982\u300C\u8FD9\u4E00\u7248\u4E3A\u4E86\u517C\u5BB9\u65E7\u6570\u636E\u300D",
+      noteSave: "\u4FDD\u5B58\u5907\u6CE8",
+      noteTag: "\u5907\u6CE8",
+      noteSaved: "\u5DF2\u6709\u5907\u6CE8",
       groupToday: "\u4ECA\u5929",
       groupYesterday: "\u6628\u5929",
       groupDate: (month, day) => `${month} \u6708 ${day} \u65E5`,
@@ -287,7 +388,43 @@
       resultUnlocked: (name) => `\u5DF2\u89E3\u9664\u5360\u7528\uFF1A${name}\u3002`,
       resultPruned: (name) => `\u5DF2\u6E05\u9664\u8BB0\u5F55\uFF1A${name}\u3002`,
       resultRemoved: (name) => `\u5DF2\u79FB\u9664\u5DE5\u4F5C\u533A\uFF1A${name}\u3002`,
-      ai: "\u8BA9 AI \u5904\u7406\u5F02\u5E38\u5DE5\u4F5C\u533A"
+      ai: "\u8BA9 AI \u5904\u7406\u5F02\u5E38\u5DE5\u4F5C\u533A",
+      createOpen: "\u65B0\u5EFA\u5DE5\u4F5C\u533A",
+      createTitle: "\u65B0\u5EFA\u5DE5\u4F5C\u533A",
+      createPath: "\u76EE\u5F55",
+      createPathPlaceholder: "\u4F8B\u5982 D:/repo/.worktrees/1800-new",
+      createBranch: "\u5206\u652F",
+      createBranchPlaceholder: "\u5206\u652F\u540D\uFF0C\u4F8B\u5982 ticket/1800-new",
+      createModeNew: "\u65B0\u5EFA\u5206\u652F",
+      createModeExisting: "\u5DF2\u6709\u5206\u652F",
+      createHintNew: "git worktree add -b <\u5206\u652F> <\u76EE\u5F55>\uFF1A\u65B0\u5EFA\u4E00\u6761\u5206\u652F\uFF0C\u5E76\u5728\u65B0\u76EE\u5F55\u91CC\u68C0\u51FA\u5B83\u3002",
+      createHintExisting: "git worktree add <\u76EE\u5F55> <\u5206\u652F>\uFF1A\u628A\u5DF2\u6709\u5206\u652F\u68C0\u51FA\u5230\u65B0\u76EE\u5F55\uFF1B\u540C\u4E00\u6761\u5206\u652F\u4E0D\u80FD\u5728\u4E24\u5904\u540C\u65F6\u68C0\u51FA\u3002",
+      createRecent: "\u6700\u8FD1\u7528\u8FC7\u7684\u5206\u652F",
+      createSubmit: "\u521B\u5EFA\u5DE5\u4F5C\u533A",
+      createCancel: "\u53D6\u6D88",
+      createEmptyPath: "\u5148\u586B\u4E00\u4E2A\u76EE\u5F55\uFF1A\u5DE5\u4F5C\u533A\u4F1A\u68C0\u51FA\u5230\u8FD9\u91CC\u3002",
+      createEmptyBranch: "\u5148\u586B\u4E00\u4E2A\u5206\u652F\u540D\u3002",
+      createNoBranch: "\u672C\u5730\u6CA1\u6709\u8FD9\u6761\u5206\u652F\uFF1B\u8981\u65B0\u5F00\u4E00\u6761\uFF0C\u5207\u5230\u300C\u65B0\u5EFA\u5206\u652F\u300D\u3002",
+      createTaken: "\u8FD9\u4E2A\u76EE\u5F55\u5DF2\u7ECF\u767B\u8BB0\u6210\u5DE5\u4F5C\u533A\u4E86\u3002",
+      resultCreated: (name, branch) => `\u5DF2\u65B0\u5EFA\u5DE5\u4F5C\u533A ${name}\uFF08\u5206\u652F ${branch}\uFF09\u3002`,
+      move: "\u79FB\u52A8",
+      moveTitle: "\u79FB\u52A8\u5DE5\u4F5C\u533A",
+      moveLabel: "\u65B0\u76EE\u5F55",
+      moveHint: "git worktree move\uFF1Agit \u8BB0\u5F55\u4E0E\u78C1\u76D8\u4E0A\u7684\u76EE\u5F55\u4E00\u8D77\u6539\u3002\u65B0\u4F4D\u7F6E\u4E0D\u80FD\u5DF2\u7ECF\u5B58\u5728\uFF0C\u4E5F\u4E0D\u80FD\u662F\u5F53\u524D\u5DE5\u4F5C\u533A\u3002",
+      moveSubmit: "\u4FDD\u5B58\u65B0\u76EE\u5F55",
+      moveEmpty: "\u65B0\u76EE\u5F55\u4E0D\u80FD\u4E3A\u7A7A\u3002",
+      moveTaken: "\u8FD9\u4E2A\u76EE\u5F55\u5DF2\u7ECF\u88AB\u522B\u7684\u5DE5\u4F5C\u533A\u5360\u4E86\u3002",
+      moveSame: "\u65B0\u76EE\u5F55\u548C\u73B0\u5728\u4E00\u6837\uFF0C\u6CA1\u6709\u53EF\u6539\u7684\u3002",
+      sparse: "\u7A00\u758F\u68C0\u51FA",
+      sparseTitle: "\u7A00\u758F\u68C0\u51FA",
+      sparseHint: "\u52FE\u4E0A\u7684\u9876\u5C42\u76EE\u5F55\u624D\u4F1A\u68C0\u51FA\u5230\u78C1\u76D8\uFF1B\u6CA1\u52FE\u7684\u76EE\u5F55\u4E0D\u51FA\u73B0\u5728\u8FD9\u4E2A\u5DE5\u4F5C\u533A\u91CC\uFF0C\u6539\u52A8\u4ECD\u7136\u7559\u5728\u4ED3\u5E93\u3002",
+      sparseEmpty: "\u81F3\u5C11\u8981\u4FDD\u7559\u4E00\u4E2A\u76EE\u5F55\u3002",
+      sparseNone: "\u5F53\u524D\u6CA1\u6709\u7A00\u758F\u89C4\u5219\uFF1A\u6240\u6709\u76EE\u5F55\u90FD\u4F1A\u68C0\u51FA\u3002",
+      sparseCurrent: (dirs) => `\u5F53\u524D\u89C4\u5219\uFF1A\u53EA\u4FDD\u7559 ${dirs.join("\u3001")}\u3002`,
+      sparseSaved: (dirs) => `\u5DF2\u4FDD\u5B58\u7A00\u758F\u89C4\u5219\uFF1A\u53EA\u4FDD\u7559 ${dirs.join("\u3001")}\u3002`,
+      sparseAll: "\u5DF2\u4FDD\u5B58\uFF1A\u6240\u6709\u9876\u5C42\u76EE\u5F55\u90FD\u4FDD\u7559\uFF0C\u7B49\u4E8E\u6CA1\u5F00\u7A00\u758F\u68C0\u51FA\u3002",
+      sparseSave: "\u4FDD\u5B58\u89C4\u5219",
+      sparseCancel: "\u53D6\u6D88"
     },
     /**
      * 储藏页签：git stash 的完整生命周期。文案只说用户能看见的两件事——
@@ -312,7 +449,31 @@
       showPaths: "\u770B\u770B\u8FD9\u4EFD\u8BB0\u5F55\u91CC\u6709\u54EA\u4E9B\u6587\u4EF6",
       hidePaths: "\u6536\u8D77\u6587\u4EF6\u6E05\u5355",
       boundary: "\u50A8\u85CF\u8BB0\u5F55\u53EA\u5728\u672C\u5730\uFF0C\u4E0D\u4F1A\u63A8\u9001\u3002\u5E94\u7528\u56DE\u5DE5\u4F5C\u533A\u65F6\u6309\u8BB0\u5F55\u91CC\u7684\u987A\u5E8F\u6062\u590D\u3002",
-      restoreNote: (n) => `\u5E94\u7528\u65F6\u4F1A\u6062\u590D ${n} \u4E2A\u6587\u4EF6\uFF0C\u5DF2\u5B58\u5728\u7684\u540C\u540D\u6539\u52A8\u4F1A\u88AB\u5408\u5E76\u6216\u63D0\u793A\u51B2\u7A81\u3002`
+      restoreNote: (n) => `\u5E94\u7528\u65F6\u4F1A\u6062\u590D ${n} \u4E2A\u6587\u4EF6\uFF0C\u5DF2\u5B58\u5728\u7684\u540C\u540D\u6539\u52A8\u4F1A\u88AB\u5408\u5E76\u6216\u63D0\u793A\u51B2\u7A81\u3002`,
+      variantsTitle: "\u50A8\u85CF\u65B9\u5F0F",
+      variantsHint: "\u4E09\u79CD\u6536\u6CD5\u6536\u8FDB\u53BB\u7684\u6587\u4EF6\u4E0D\u4E00\u6837\uFF0C\u6536\u5B8C\u5DE5\u4F5C\u533A\u5269\u4E0B\u4EC0\u4E48\u4E5F\u4E0D\u4E00\u6837\u3002",
+      variantAll: "\u50A8\u85CF\u5168\u90E8\u5DF2\u8DDF\u8E2A\u7684\u6539\u52A8",
+      variantAllNote: "git stash\uFF1A\u53EA\u6536\u5DF2\u8DDF\u8E2A\u7684\u6587\u4EF6\uFF0C\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u7559\u5728\u5DE5\u4F5C\u533A\u3002",
+      variantUntracked: "\u8FDE\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF",
+      variantUntrackedNote: "git stash -u\uFF1A\u65B0\u6587\u4EF6\u4E5F\u4E00\u8D77\u6536\u8D70\uFF0C\u5DE5\u4F5C\u533A\u53D8\u5E72\u51C0\u3002",
+      variantStaged: "\u53EA\u50A8\u85CF\u5DF2\u6682\u5B58\u7684\u6539\u52A8",
+      variantStagedNote: "git stash push --staged\uFF1A\u53EA\u6536\u7D22\u5F15\u91CC\u7684\u90A3\u4E00\u4EFD\uFF0C\u5DE5\u4F5C\u533A\u7684\u6539\u52A8\u4ECD\u7136\u5728\u3002",
+      menuMore: "\u8FD9\u6761\u8BB0\u5F55\u7684\u66F4\u591A\u64CD\u4F5C",
+      menuBranch: "\u4ECE\u8FD9\u6761\u8BB0\u5F55\u5EFA\u5206\u652F",
+      menuClose: "\u6536\u8D77\u83DC\u5355",
+      branchTitle: "\u4ECE\u8FD9\u6761\u8BB0\u5F55\u5EFA\u5206\u652F",
+      branchName: "\u5206\u652F\u540D",
+      branchHint: "git stash branch\uFF1A\u65B0\u5206\u652F\u4ECE\u50A8\u85CF\u5F53\u65F6\u7684\u63D0\u4EA4\u5F00\u59CB\uFF0C\u50A8\u85CF\u5185\u5BB9\u76F4\u63A5\u843D\u5230\u5DE5\u4F5C\u533A\uFF0C\u8FD9\u6761\u8BB0\u5F55\u968F\u4E4B\u7528\u6389\u3002",
+      branchApply: "\u5EFA\u5206\u652F\u5E76\u5E94\u7528",
+      branchEmpty: "\u5148\u7ED9\u5206\u652F\u8D77\u4E2A\u540D\u5B57\u3002",
+      branchTaken: (name) => `\u5206\u652F ${name} \u5DF2\u7ECF\u5B58\u5728\u3002`,
+      branchCreated: (name, id, n) => `\u5DF2\u4ECE ${id} \u5EFA\u5206\u652F ${name}\uFF0C\u8BB0\u5F55\u91CC\u7684 ${n} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002`,
+      clearAction: "\u6E05\u7A7A\u5168\u90E8\u8BB0\u5F55",
+      clearTitle: (n) => `\u6E05\u7A7A\u8FD9 ${n} \u6761\u50A8\u85CF\u8BB0\u5F55\uFF1F`,
+      clearBody: "\u8BB0\u5F55\u91CC\u7684\u6539\u52A8\u4F1A\u88AB\u4E00\u8D77\u5220\u6389\uFF0C\u4E0D\u80FD\u64A4\u56DE\uFF1B\u5DE5\u4F5C\u533A\u4E0E\u63D0\u4EA4\u5386\u53F2\u4E0D\u53D7\u5F71\u54CD\u3002",
+      clearConfirm: "\u786E\u8BA4\u6E05\u7A7A",
+      clearCancel: "\u53D6\u6D88",
+      cleared: (n) => `\u5DF2\u6E05\u7A7A ${n} \u6761\u50A8\u85CF\u8BB0\u5F55\u3002`
     },
     /**
      * AI 交接的全部文案。入口上的那几句故意写成问句：它们要让人意识到
@@ -529,6 +690,27 @@
   }
 
   // src/shared/version-control/src/rules.ts
+  var REASONS = {
+    ok: "ok",
+    "nothing-to-stage": "nothing-to-stage",
+    "nothing-staged": "nothing-staged",
+    "no-upstream": "no-upstream",
+    "upstream-gone": "upstream-gone",
+    "detached-head": "detached-head",
+    "conflicts-unresolved": "conflicts-unresolved",
+    "mid-merge": "mid-merge",
+    "mid-rebase": "mid-rebase",
+    "mid-cherry-revert": "mid-cherry-revert",
+    "dirty-tree": "dirty-tree",
+    "behind-remote": "behind-remote",
+    "basis-unknown": "basis-unknown",
+    "bare-repo": "bare-repo",
+    "unknown-operation": "unknown-operation"
+  };
+  var REASON_IDS = Object.keys(REASONS);
+  function decide(verdict, reasons) {
+    return { verdict, reasons: reasons.slice() };
+  }
   function midReasons(s) {
     const out = [];
     if (s.repo.merging) out.push("mid-merge");
@@ -537,48 +719,48 @@
     return out;
   }
   function judgeStage(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    if (s.unstagedCount === 0) return { verdict: "block", reasons: ["nothing-to-stage"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    if (s.unstagedCount === 0) return decide("block", ["nothing-to-stage"]);
     const mid = midReasons(s);
-    if (mid.length > 0) return { verdict: "warn", reasons: mid };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (mid.length > 0) return decide("warn", mid);
+    return decide("allow", ["ok"]);
   }
   function judgeCommit(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    if (s.conflictCount > 0) return { verdict: "block", reasons: ["conflicts-unresolved"] };
-    if (s.stagedCount === 0) return { verdict: "block", reasons: ["nothing-staged"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    if (s.conflictCount > 0) return decide("block", ["conflicts-unresolved"]);
+    if (s.stagedCount === 0) return decide("block", ["nothing-staged"]);
     const mid = midReasons(s);
-    if (s.identity.detached) return { verdict: "warn", reasons: ["detached-head"].concat(mid) };
-    if (mid.length > 0) return { verdict: "warn", reasons: mid };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (s.identity.detached) return decide("warn", ["detached-head", ...mid]);
+    if (mid.length > 0) return decide("warn", mid);
+    return decide("allow", ["ok"]);
   }
   function judgePull(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    if (s.identity.detached) return { verdict: "block", reasons: ["detached-head"] };
-    if (s.identity.sync === "no-upstream") return { verdict: "block", reasons: ["no-upstream"] };
-    if (s.identity.sync === "upstream-gone") return { verdict: "block", reasons: ["upstream-gone"] };
-    if (s.conflictCount > 0) return { verdict: "block", reasons: ["conflicts-unresolved"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    if (s.identity.detached) return decide("block", ["detached-head"]);
+    if (s.identity.sync === "no-upstream") return decide("block", ["no-upstream"]);
+    if (s.identity.sync === "upstream-gone") return decide("block", ["upstream-gone"]);
+    if (s.conflictCount > 0) return decide("block", ["conflicts-unresolved"]);
     const mid = midReasons(s);
-    if (mid.length > 0) return { verdict: "block", reasons: mid };
-    if (s.stagedCount > 0 || s.unstagedCount > 0) return { verdict: "warn", reasons: ["dirty-tree"] };
-    if (s.identity.basisMs === null) return { verdict: "warn", reasons: ["basis-unknown"] };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (mid.length > 0) return decide("block", mid);
+    if (s.stagedCount > 0 || s.unstagedCount > 0) return decide("warn", ["dirty-tree"]);
+    if (s.identity.basisMs === null) return decide("warn", ["basis-unknown"]);
+    return decide("allow", ["ok"]);
   }
   function judgePush(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    if (s.identity.detached) return { verdict: "block", reasons: ["detached-head"] };
-    if (s.identity.sync === "no-upstream") return { verdict: "block", reasons: ["no-upstream"] };
-    if (s.identity.sync === "upstream-gone") return { verdict: "block", reasons: ["upstream-gone"] };
-    if (s.conflictCount > 0) return { verdict: "block", reasons: ["conflicts-unresolved"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    if (s.identity.detached) return decide("block", ["detached-head"]);
+    if (s.identity.sync === "no-upstream") return decide("block", ["no-upstream"]);
+    if (s.identity.sync === "upstream-gone") return decide("block", ["upstream-gone"]);
+    if (s.conflictCount > 0) return decide("block", ["conflicts-unresolved"]);
     const mid = midReasons(s);
-    if (mid.length > 0) return { verdict: "block", reasons: mid };
-    if (s.identity.behind > 0) return { verdict: "block", reasons: ["behind-remote"] };
-    if (s.identity.basisMs === null) return { verdict: "warn", reasons: ["basis-unknown"] };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (mid.length > 0) return decide("block", mid);
+    if (s.identity.behind > 0) return decide("block", ["behind-remote"]);
+    if (s.identity.basisMs === null) return decide("warn", ["basis-unknown"]);
+    return decide("allow", ["ok"]);
   }
   function judgeFetch(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    return decide("allow", ["ok"]);
   }
   function judge(screen, op) {
     switch (op) {
@@ -593,7 +775,7 @@
       case "fetch":
         return judgeFetch(screen);
       default:
-        return { verdict: "block", reasons: ["unknown-operation"] };
+        return decide("block", ["unknown-operation"]);
     }
   }
 
@@ -3521,6 +3703,72 @@
     };
   }
 
+  // docs/prototype/vc-redesign/src/data/patches.ts
+  var TS_SAMPLE = [
+    { kind: "filehead", text: "diff --git a/src/client/views/shared/workRouteTable.ts b/src/client/views/shared/workRouteTable.ts" },
+    { kind: "hunk", text: "@@ -18,7 +18,7 @@ export const workRouteTableOf = function (rows) {" },
+    { kind: "context", text: "  const table = new Map()" },
+    { kind: "context", text: "  for (const row of rows) {" },
+    { kind: "del", text: "-    table.set(row.key, row.ticket)" },
+    { kind: "add", text: "+    table.set(row.key, row.ticket ?? row.fallback)" },
+    { kind: "context", text: "  }" },
+    { kind: "context", text: "  return table" },
+    { kind: "context", text: "}" },
+    // 第二个块：逐块暂存要有两块以上才验得出来，只有一块时「按块暂存」和「整个文件暂存」看不出区别。
+    { kind: "hunk", text: "@@ -42,4 +42,6 @@ export const headerOf = function (row) {" },
+    { kind: "context", text: "  if (!row) return null" },
+    { kind: "add", text: "+  const merged = Object.assign({}, row.fallback, row)" },
+    { kind: "add", text: "+  return merged.ticket ? merged : null" },
+    { kind: "context", text: "}" }
+  ];
+  var TS_SAMPLE_TWO = [
+    { kind: "filehead", text: "diff --git a/src/refresh/rooms/host/outbound-admission.ts b/src/refresh/rooms/host/outbound-admission.ts" },
+    { kind: "hunk", text: "@@ -41,6 +41,10 @@ export const admitOutbound = function (request) {" },
+    { kind: "context", text: "  if (!request.sessionId) return { ok: false, reason: 'no-session' }" },
+    { kind: "add", text: "+  if (request.retryOf) {" },
+    { kind: "add", text: "+    traces.push({ kind: 'retry', id: request.retryOf })" },
+    { kind: "add", text: "+  }" },
+    { kind: "context", text: "  const admitted = checkQuota(request)" },
+    { kind: "del", text: "-  return admitted ? allow(request) : deny(request)" },
+    { kind: "add", text: "+  return admitted ? allow(request) : deny(request, { retryable: true })" }
+  ];
+  var MARKDOWN_SAMPLE = [
+    { kind: "filehead", text: "diff --git a/docs/review/sample.md b/docs/review/sample.md" },
+    { kind: "hunk", text: "@@ -1,4 +1,6 @@" },
+    { kind: "context", text: "# \u8BC4\u5BA1\u8BB0\u5F55" },
+    { kind: "add", text: "+## \u7ED3\u8BBA" },
+    { kind: "add", text: "+\u4E24\u5904\u9700\u8981\u4EBA\u5DE5\u786E\u8BA4\u7684\u8FB9\u754C\u5DF2\u7ECF\u5217\u5728\u4E0B\u9762\u3002" },
+    { kind: "context", text: "" },
+    { kind: "context", text: "## \u8BC1\u636E" }
+  ];
+  var PNG_SAMPLE = [
+    { kind: "filehead", text: "Binary files a/docs/design/md-env-check-chain.png and b/docs/design/md-env-check-chain.png differ" },
+    { kind: "no-newline", text: "\u539F\u578B\u4E0D\u6E32\u67D3\u4E8C\u8FDB\u5236\u5DEE\u5F02\u3002" }
+  ];
+  function patchHunksOf(lines) {
+    const header = [];
+    const hunks = [];
+    let current = null;
+    for (const line of lines) {
+      if (line.kind === "hunk") {
+        current = [line];
+        hunks.push(current);
+        continue;
+      }
+      if (current === null) header.push(line);
+      else current.push(line);
+    }
+    return { header, hunks };
+  }
+  function samplePatch(path) {
+    if (path.endsWith(".ts") || path.endsWith(".mts") || path.endsWith(".tsx")) {
+      return path.includes("outbound-admission") ? TS_SAMPLE_TWO : TS_SAMPLE;
+    }
+    if (path.endsWith(".md")) return MARKDOWN_SAMPLE;
+    if (path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".webp")) return PNG_SAMPLE;
+    return null;
+  }
+
   // docs/prototype/vc-redesign/src/domain/session.ts
   function createSessionState(base, nowMs) {
     const conflicts = [];
@@ -3560,6 +3808,15 @@
       historyMergeOnly: false,
       historyOpenOid: null,
       historyOpenFile: null,
+      historyScope: "message",
+      historyFileOnly: null,
+      historyFileMenu: null,
+      compareOpen: false,
+      compareFrom: "HEAD~1",
+      compareTo: "HEAD",
+      compare: null,
+      commitNotes: {},
+      noteDraft: "",
       localCommits: [],
       copiedPath: null,
       demoWorktrees: false,
@@ -3574,16 +3831,68 @@
       hiddenWorktrees: [],
       unlockedWorktrees: [],
       prunedWorktrees: [],
+      wtCreateOpen: false,
+      wtCreatePath: "",
+      wtCreateMode: "new",
+      wtCreateBranch: "",
+      wtCreateError: null,
+      createdWorktrees: [],
+      movedWorktrees: {},
+      wtMovePath: null,
+      wtMoveDraft: "",
+      wtSparsePath: null,
+      wtSparseDirs: [],
+      wtSparseRules: {},
       changesPending: null,
       openMenuPath: null,
+      renamePath: null,
+      renameDraft: "",
+      renames: [],
+      stagedHunks: {},
       ignored: [],
       stashes: [],
       stashPending: null,
-      undoneOid: null
+      stashMenuOpen: false,
+      stashMenuId: null,
+      stashBranchId: null,
+      stashBranchDraft: "",
+      stashClearPending: false,
+      undoneOid: null,
+      replacedOid: null,
+      commitOptionsOpen: false,
+      commitForm: "commit",
+      commitAllTracked: false,
+      skipHooks: false,
+      signCommit: false,
+      signoff: false,
+      templateApplied: false,
+      messageBeforeTemplate: ""
     };
   }
   function unique(paths) {
     return paths.filter((path, index) => paths.indexOf(path) === index);
+  }
+  function hunkCountOf(path) {
+    const patch = samplePatch(path);
+    return patch === null ? 0 : patchHunksOf(patch).hunks.length;
+  }
+  function withoutHunks(records, path) {
+    if (records[path] === void 0) return records;
+    const next = { ...records };
+    delete next[path];
+    return next;
+  }
+  function pruneHunks(state) {
+    const keys = Object.keys(state.stagedHunks);
+    if (keys.length === 0) return state;
+    const kept = {};
+    let dropped = false;
+    for (const key of keys) {
+      const blocks = state.stagedHunks[key];
+      if (blocks !== void 0 && state.unstaged.includes(key)) kept[key] = blocks;
+      else dropped = true;
+    }
+    return dropped ? { ...state, stagedHunks: kept } : state;
   }
   function withResult(state, result) {
     return { ...state, result };
@@ -3646,11 +3955,14 @@
     return out;
   }
   function reduce(state, action, base) {
+    return pruneHunks(acted(state, action, base));
+  }
+  function acted(state, action, base) {
     switch (action.type) {
       case "demo-worktrees":
         return { ...state, demoWorktrees: true };
       case "view":
-        return { ...state, view: action.view };
+        return { ...state, view: action.view, commitOptionsOpen: false };
       case "tick":
         return { ...state };
       case "stage": {
@@ -3672,6 +3984,75 @@
           unstaged: unique([...state.unstaged, action.path])
         };
       }
+      /*
+       * 逐块暂存：块的下标按补丁里的顺序，已暂的块记在 stagedHunks 里。
+       * 整份文件的块都暂完才把它挪到「已暂存」——这也是 git 的行为：部分暂存的文件
+       * 在索引与工作区各有一份内容，列表上仍算「未暂存」。
+       */
+      case "stage-hunk": {
+        if (state.busy !== null || state.reloading) return state;
+        const { path, index } = action;
+        if (state.conflicts.includes(path)) return state;
+        if (state.staged.includes(path) || !state.unstaged.includes(path)) return state;
+        const total = hunkCountOf(path);
+        if (total === 0 || index < 0 || index >= total) return state;
+        const had = state.stagedHunks[path] ?? [];
+        if (had.includes(index)) return state;
+        const kept = [...had, index].sort((a, b) => a - b);
+        const name = nameOfPath(path);
+        const remaining = total - kept.length;
+        if (remaining === 0) {
+          return withResult({
+            ...state,
+            staged: unique([...state.staged, path]),
+            unstaged: state.unstaged.filter((item) => item !== path),
+            stagedHunks: withoutHunks(state.stagedHunks, path)
+          }, {
+            tone: "ok",
+            text: `\u5DF2\u6682\u5B58 ${name} \u7684\u6700\u540E\u4E00\u5757\uFF0C\u6574\u4E2A\u6587\u4EF6\u8FDB\u5165\u300C\u5DF2\u6682\u5B58\u300D\u3002`,
+            detail: `\u5B83\u7684 ${total} \u5757\u90FD\u8FDB\u7D22\u5F15\u4E86\uFF0C\u8FD9\u4E00\u884C\u4ECE\u300C\u672A\u6682\u5B58\u300D\u79FB\u5230\u300C\u5DF2\u6682\u5B58\u300D\uFF1B\u63D0\u4EA4\u65F6\u4F1A\u5E26\u4E0A\u8FD9\u4E9B\u5757\u3002`,
+            source: "changes"
+          });
+        }
+        return withResult({
+          ...state,
+          stagedHunks: { ...state.stagedHunks, [path]: kept }
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u6682\u5B58 ${name} \u7684\u7B2C ${index + 1} \u5757\uFF0C\u8FD8\u5269 ${remaining} \u5757\u3002`,
+          detail: "\u8FD9\u4E2A\u6587\u4EF6\u8981\u7B49\u6240\u6709\u5757\u90FD\u6682\u5B58\u5B8C\uFF0C\u624D\u4F1A\u6574\u884C\u79FB\u5230\u300C\u5DF2\u6682\u5B58\u300D\uFF1B\u73B0\u5728\u5B83\u4ECD\u5728\u300C\u672A\u6682\u5B58\u300D\u91CC\uFF0C\u884C\u4E0A\u6807\u7740\u5DF2\u6682\u5B58\u51E0\u5757\u3002",
+          source: "changes"
+        });
+      }
+      case "unstage-hunk": {
+        if (state.busy !== null || state.reloading) return state;
+        const { path, index } = action;
+        const total = hunkCountOf(path);
+        if (total === 0 || index < 0 || index >= total) return state;
+        const wholeStaged = state.staged.includes(path);
+        if (!wholeStaged && !state.unstaged.includes(path)) return state;
+        const had = wholeStaged ? Array.from({ length: total }, (_, item) => item) : state.stagedHunks[path] ?? [];
+        if (!had.includes(index)) return state;
+        const left = had.filter((item) => item !== index);
+        const name = nameOfPath(path);
+        let next = {
+          ...state,
+          stagedHunks: left.length === 0 ? withoutHunks(state.stagedHunks, path) : { ...state.stagedHunks, [path]: left }
+        };
+        if (wholeStaged) {
+          next = {
+            ...next,
+            staged: state.staged.filter((item) => item !== path),
+            unstaged: unique([...state.unstaged, path])
+          };
+        }
+        return withResult(next, {
+          tone: "info",
+          text: `\u5DF2\u53D6\u6D88\u6682\u5B58 ${name} \u7684\u7B2C ${index + 1} \u5757\u3002`,
+          detail: left.length === 0 ? "\u8FD9\u4E2A\u6587\u4EF6\u73B0\u5728\u6574\u4EFD\u90FD\u5728\u300C\u672A\u6682\u5B58\u300D\u91CC\uFF0C\u884C\u4E0A\u4E5F\u5C31\u6CA1\u6709\u5DF2\u6682\u5B58\u7684\u5757\u6570\u4E86\u3002" : `\u8FD8\u6709 ${left.length} \u5757\u7559\u5728\u5DF2\u6682\u5B58\uFF1B\u8FD9\u4E00\u884C\u663E\u793A\u5728\u300C\u672A\u6682\u5B58\u300D\u91CC\uFF0C\u5E76\u6807\u7740\u5DF2\u6682\u5B58\u51E0\u5757\u3002`,
+          source: "changes"
+        });
+      }
       case "stage-all": {
         if (state.busy !== null || state.reloading) return state;
         if (state.conflicts.length > 0) return state;
@@ -3679,53 +4060,204 @@
       }
       case "unstage-all": {
         if (state.busy !== null || state.reloading) return state;
-        return { ...state, unstaged: unique([...state.unstaged, ...state.staged]), staged: [] };
+        return { ...state, unstaged: unique([...state.unstaged, ...state.staged]), staged: [], stagedHunks: {} };
       }
       case "filter":
         return { ...state, changesFilter: action.filter };
       case "toggle-file":
         return { ...state, openFile: state.openFile === action.path ? null : action.path };
+      // 深链专用：把某一行「打开」，不因为已经打开就关掉（截图脚本要可以重复打开同一行）。
+      case "expand-file":
+        return { ...state, openFile: action.path };
       case "message":
         return { ...state, message: action.value };
       case "commit-start":
         return enterBusy(state, "commit");
+      case "commit-options-toggle":
+        return { ...state, commitOptionsOpen: !state.commitOptionsOpen };
+      case "commit-form": {
+        if (action.form === state.commitForm) return state;
+        const head = headInfoOf(base, state);
+        let message = state.message;
+        if (action.form === "amend" && head !== null && message.trim() === "") message = head.subject;
+        else if (action.form === "commit" && head !== null && message.trim() === head.subject.trim()) message = "";
+        return { ...state, commitForm: action.form, message, templateApplied: false };
+      }
+      case "commit-all-tracked":
+        return { ...state, commitAllTracked: !state.commitAllTracked };
+      case "skip-hooks":
+        return { ...state, skipHooks: !state.skipHooks };
+      case "sign-commit":
+        return { ...state, signCommit: !state.signCommit };
+      case "signoff":
+        return { ...state, signoff: !state.signoff };
+      case "template-apply": {
+        if (state.templateApplied) return state;
+        return {
+          ...state,
+          message: action.body,
+          messageBeforeTemplate: state.message,
+          templateApplied: true
+        };
+      }
+      case "template-undo":
+        if (!state.templateApplied) return state;
+        return { ...state, message: state.messageBeforeTemplate, templateApplied: false };
       case "commit-finish": {
-        const staged = state.staged;
+        const form = state.commitForm;
+        const head = headInfoOf(base, state);
         const message = state.message.trim();
-        if (staged.length === 0 || message === "") {
-          return {
-            ...state,
-            busy: null,
-            result: { tone: "error", text: staged.length === 0 ? "\u8FD8\u6CA1\u6709\u6682\u5B58\u7684\u6587\u4EF6\uFF0C\u5148\u6682\u5B58\u8981\u63D0\u4EA4\u7684\u6587\u4EF6\u3002" : "\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u540E\u5373\u53EF\u63D0\u4EA4\u3002", detail: null, source: "commit" }
-          };
+        const alsoTracked = state.commitAllTracked ? trackedChangesOf(base, state) : [];
+        const paths = unique([...state.staged, ...alsoTracked]);
+        const remainingUnstaged = state.unstaged.filter((path) => alsoTracked.includes(path) === false);
+        const needsContent = form !== "amend";
+        if (form === "amend" && head === null) {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u5386\u53F2\u91CC\u8FD8\u6CA1\u6709\u53EF\u4EE5\u4FEE\u8BA2\u7684\u63D0\u4EA4\u3002",
+            detail: "\u300C\u4FEE\u8BA2\u4E0A\u4E00\u6761\u300D\u6539\u7684\u662F\u5F53\u524D\u5206\u652F\u6700\u524D\u9762\u90A3\u6761\u63D0\u4EA4\u3002\u9762\u677F\u6CA1\u6709\u8BFB\u5230\u5B83\uFF0C\u5148\u7528\u300C\u65B0\u63D0\u4EA4\u300D\u3002",
+            source: "commit"
+          });
         }
-        const files = staged.map((path) => {
+        if (needsContent && paths.length === 0) {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u8FD8\u6CA1\u6709\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\uFF0C\u5148\u6682\u5B58\u8981\u63D0\u4EA4\u7684\u6587\u4EF6\u3002",
+            detail: state.commitAllTracked ? "\u300C\u628A\u672A\u6682\u5B58\u7684\u6539\u52A8\u4E5F\u4E00\u8D77\u63D0\u4EA4\u300D\u5DF2\u7ECF\u6253\u5F00\uFF0C\u4F46\u5DE5\u4F5C\u533A\u91CC\u6CA1\u6709\u672A\u6682\u5B58\u7684\u6539\u52A8\u53EF\u4EE5\u52A0\u8FDB\u6765\u3002" : null,
+            source: "commit"
+          });
+        }
+        if (form === "commit" && message === "") {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u540E\u5373\u53EF\u63D0\u4EA4\u3002",
+            detail: null,
+            source: "commit"
+          });
+        }
+        if (form === "amend" && head !== null && message === "") {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u4FEE\u8BA2\u8981\u6709\u4E00\u6761\u65B0\u7684\u63D0\u4EA4\u8BF4\u660E\u3002",
+            detail: "\u4FEE\u8BA2\u4F1A\u7528\u8F93\u5165\u6846\u91CC\u7684\u8BF4\u660E\u66FF\u6362\u4E0A\u4E00\u6761\u63D0\u4EA4\u7684\u8BF4\u660E\uFF1B\u4E0D\u60F3\u6539\u8BF4\u660E\u5C31\u5148\u628A\u539F\u6765\u7684\u8BF4\u660E\u586B\u56DE\u6765\u3002",
+            source: "commit"
+          });
+        }
+        if (form === "amend" && head !== null && paths.length === 0 && message === head.subject.trim()) {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u8BF4\u660E\u548C\u5185\u5BB9\u90FD\u6CA1\u6709\u53D8\u5316\uFF0C\u4E0D\u9700\u8981\u4FEE\u8BA2\u3002",
+            detail: "\u4FEE\u8BA2\u4F1A\u91CD\u5199\u63D0\u4EA4\u53F7\u3002\u8FD9\u4E00\u7248\u8BF4\u660E\u4E0E\u4E0A\u4E00\u6761\u5B8C\u5168\u76F8\u540C\uFF0C\u4E5F\u6CA1\u6709\u65B0\u7684\u5DF2\u6682\u5B58\u6587\u4EF6\u3002",
+            source: "commit"
+          });
+        }
+        if ((form === "fixup" || form === "squash") && head === null) {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u5386\u53F2\u91CC\u8FD8\u6CA1\u6709\u53EF\u4EE5\u538B\u7F29\u8FDB\u53BB\u7684\u63D0\u4EA4\u3002",
+            detail: "fixup \u4E0E squash \u90FD\u662F\u300C\u628A\u8FD9\u6B21\u6539\u52A8\u6302\u5230\u4E0A\u4E00\u6761\u63D0\u4EA4\u4E0A\u300D\uFF0C\u6CA1\u6709\u4E0A\u4E00\u6761\u5C31\u65E0\u5904\u53EF\u6302\u3002",
+            source: "commit"
+          });
+        }
+        const files = paths.map((path) => {
           const meta = metadataOf(base, path);
           return { path, added: meta?.addedLines ?? 0, deleted: meta?.deletedLines ?? 0 };
         });
-        const commit = {
-          oid: shortOid2() + shortOid2() + shortOid2() + shortOid2() + shortOid2() + shortOid2(),
-          short: shortOid2(),
-          subject: message,
-          author: "\u8FB0\u8FB0\u6D0B\u6D0B",
-          authorDateMs: Date.now(),
-          parents: [state.localCommits[0]?.oid ?? base.screen.commits[0]?.oid ?? ""],
-          files
-        };
-        return {
-          ...state,
+        const now = Date.now();
+        const oid = shortOid2() + shortOid2() + shortOid2() + shortOid2() + shortOid2() + shortOid2();
+        const short = oid.slice(0, 7);
+        const marks = marksOf(state, form);
+        const extraNotes = optionNotesOf(state);
+        const baseReset = {
           busy: null,
           staged: [],
+          unstaged: remainingUnstaged,
+          commitAllTracked: false,
+          skipHooks: false,
+          signCommit: false,
+          signoff: false,
+          templateApplied: false,
+          // 提交完成之后这次的选择已经用掉了：形态回到「新提交」，展开区收起
+          // （展开区里每一项都是「这一次提交」的设置，留着它只会让人以为还有效）。
+          commitForm: "commit",
+          commitOptionsOpen: false
+        };
+        if (form === "amend" && head !== null) {
+          const amended = {
+            oid,
+            short,
+            subject: message,
+            author: "\u8FB0\u8FB0\u6D0B\u6D0B",
+            authorDateMs: now,
+            parents: head.parents,
+            files: mergeFiles(head.files, files),
+            marks
+          };
+          const headIsLocal = state.localCommits.length > 0;
+          const replacedOid = headIsLocal ? state.replacedOid : head.oid;
+          const pushed = state.ahead === 0;
+          return withResult({
+            ...state,
+            ...baseReset,
+            message: "",
+            replacedOid,
+            localCommits: headIsLocal ? [amended, ...state.localCommits.slice(1)] : [amended, ...state.localCommits],
+            ahead: pushed ? 1 : state.ahead,
+            behind: pushed ? state.behind + 1 : state.behind
+          }, {
+            tone: "warn",
+            text: paths.length === 0 ? `\u5DF2\u4FEE\u8BA2 ${head.short} \u7684\u63D0\u4EA4\u8BF4\u660E\u3002` : `\u5DF2\u4FEE\u8BA2 ${head.short}\uFF1A\u8FD9\u6761\u63D0\u4EA4\u73B0\u5728\u53EB ${short}\u3002`,
+            detail: (paths.length === 0 ? `\u5185\u5BB9\u6CA1\u6709\u53D8\uFF0C\u53EA\u6539\u4E86\u8BF4\u660E\u3002\u8BF4\u660E\u4E5F\u662F\u63D0\u4EA4\u5185\u5BB9\u7684\u4E00\u90E8\u5206\uFF0C\u6240\u4EE5\u63D0\u4EA4\u53F7\u540C\u6837\u4F1A\u53D8\u3002` : `\u4E0A\u4E00\u6761\u63D0\u4EA4\u88AB\u8FD9\u6761\u66FF\u6362\u6389\uFF0C\u73B0\u5728\u4E00\u5171 ${amended.files.length} \u4E2A\u6587\u4EF6\u3002\u63D0\u4EA4\u53F7\u53D8\u4E86\uFF0C\u5386\u53F2\u91CC\u90A3\u6761\u65E7\u63D0\u4EA4\u4E0D\u518D\u51FA\u73B0\u3002`) + (pushed ? "\u8FD9\u6761\u63D0\u4EA4\u5DF2\u7ECF\u63A8\u9001\u8FC7\uFF0C\u8FDC\u7AEF\u8FD8\u6307\u7740\u65E7\u63D0\u4EA4\uFF0C\u9700\u8981\u5F3A\u63A8\u624D\u80FD\u5BF9\u9F50\u3002" : "\u8FD9\u6761\u63D0\u4EA4\u8FD8\u6CA1\u6709\u63A8\u9001\uFF0C\u8FDC\u7AEF\u4E0D\u53D7\u5F71\u54CD\u3002") + extraNotes,
+            source: "commit"
+          });
+        }
+        if (form === "fixup" || form === "squash") {
+          const target = head === null ? "" : head.subject;
+          const prefix = form === "fixup" ? "fixup!" : "squash!";
+          const commit2 = {
+            oid,
+            short,
+            subject: `${prefix} ${target}`,
+            author: "\u8FB0\u8FB0\u6D0B\u6D0B",
+            authorDateMs: now,
+            parents: [head?.oid ?? ""],
+            files,
+            marks
+          };
+          return withResult({
+            ...state,
+            ...baseReset,
+            ahead: state.ahead + 1,
+            localCommits: [commit2, ...state.localCommits]
+          }, {
+            tone: "ok",
+            text: form === "fixup" ? `\u5DF2\u751F\u6210 fixup \u63D0\u4EA4 ${short}\uFF0C\u6307\u5411 ${head?.short ?? ""}\u3002` : `\u5DF2\u751F\u6210 squash \u63D0\u4EA4 ${short}\uFF0C\u6307\u5411 ${head?.short ?? ""}\u3002`,
+            detail: (form === "fixup" ? `\u8BF4\u660E\u5199\u6210\u300Cfixup! ${target}\u300D\uFF0C\u8FD9\u6B21\u6539\u52A8\u5148\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\u3002\u4E0B\u6B21\u6574\u7406\u5386\u53F2\u9009\u300C\u81EA\u52A8\u5438\u6536 fixup\u300D\u65F6\uFF0Cgit \u4F1A\u628A\u5B83\u538B\u56DE\u76EE\u6807\u63D0\u4EA4\uFF0C\u8FD9\u6761\u8BF4\u660E\u4E22\u6389\u3002` : `\u8BF4\u660E\u5199\u6210\u300Csquash! ${target}\u300D\uFF0C\u8FD9\u6B21\u6539\u52A8\u5148\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\u3002\u4E0B\u6B21\u6574\u7406\u5386\u53F2\u9009\u300C\u81EA\u52A8\u5438\u6536 fixup\u300D\u65F6\uFF0C\u5B83\u4F1A\u548C\u76EE\u6807\u63D0\u4EA4\u5E76\u6210\u4E00\u6761\uFF0C\u4E24\u6761\u8BF4\u660E\u90FD\u7559\u7740\u3002`) + extraNotes,
+            source: "commit"
+          });
+        }
+        const commit = {
+          oid,
+          short,
+          subject: message,
+          author: "\u8FB0\u8FB0\u6D0B\u6D0B",
+          authorDateMs: now,
+          parents: [state.localCommits[0]?.oid ?? base.screen.commits[0]?.oid ?? ""],
+          files,
+          marks
+        };
+        return withResult({
+          ...state,
+          ...baseReset,
           message: "",
           ahead: state.ahead + 1,
-          localCommits: [commit, ...state.localCommits],
-          result: {
-            tone: "ok",
-            text: `\u63D0\u4EA4\u5B8C\u6210\uFF1A${files.length} \u4E2A\u6587\u4EF6\u5DF2\u8FDB\u5165\u5386\u53F2\u3002`,
-            detail: "\u8FD9\u6B21\u63D0\u4EA4\u53EA\u5305\u542B\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u3002\u8FD9\u4EFD\u6E05\u5355\u5DF2\u7ECF\u6E05\u7A7A\uFF0C\u53EF\u4EE5\u63A5\u7740\u6682\u5B58\u4E0B\u4E00\u6279\u3002",
-            source: "commit"
-          }
-        };
+          localCommits: [commit, ...state.localCommits]
+        }, {
+          tone: "ok",
+          text: alsoTracked.length > 0 ? `\u63D0\u4EA4\u5B8C\u6210\uFF1A${files.length} \u4E2A\u6587\u4EF6\u5DF2\u8FDB\u5165\u5386\u53F2\uFF0C\u5176\u4E2D ${alsoTracked.length} \u4E2A\u662F\u521A\u521A\u4E00\u8D77\u6682\u5B58\u7684\u3002` : `\u63D0\u4EA4\u5B8C\u6210\uFF1A${files.length} \u4E2A\u6587\u4EF6\u5DF2\u8FDB\u5165\u5386\u53F2\u3002`,
+          detail: (alsoTracked.length > 0 ? "\u76F8\u5F53\u4E8E git commit -a\uFF1A\u672A\u6682\u5B58\u7684\u6539\u52A8\u5148\u88AB\u6682\u5B58\uFF0C\u518D\u8FDB\u5165\u8FD9\u6B21\u63D0\u4EA4\u3002\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u4E0D\u7B97\u5728\u5185\uFF0C\u4ECD\u7136\u7559\u5728\u5DE5\u4F5C\u533A\u3002" : "\u8FD9\u6B21\u63D0\u4EA4\u53EA\u5305\u542B\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u3002\u8FD9\u4EFD\u6E05\u5355\u5DF2\u7ECF\u6E05\u7A7A\uFF0C\u53EF\u4EE5\u63A5\u7740\u6682\u5B58\u4E0B\u4E00\u6279\u3002") + extraNotes,
+          source: "commit"
+        });
       }
       case "op-start":
         return enterBusy(state, action.op);
@@ -3752,11 +4284,94 @@
       case "history-merge-only":
         return { ...state, historyMergeOnly: !state.historyMergeOnly };
       case "history-open":
-        return { ...state, historyOpenOid: action.oid, historyOpenFile: null };
+        return {
+          ...state,
+          historyOpenOid: action.oid,
+          historyOpenFile: null,
+          historyFileMenu: null,
+          noteDraft: state.commitNotes[action.oid] ?? ""
+        };
       case "history-open-file":
         return { ...state, historyOpenFile: state.historyOpenFile === action.path ? null : action.path };
       case "history-back":
-        return { ...state, historyOpenOid: null, historyOpenFile: null };
+        return { ...state, historyOpenOid: null, historyOpenFile: null, historyFileMenu: null };
+      case "history-scope":
+        return state.historyScope === action.scope ? state : { ...state, historyScope: action.scope };
+      /*
+       * 单文件历史：从提交详情的文件行走过来，回到列表并只留下改过这个文件的提交。
+       * 筛选开着的时候比较结果先收起——「只看一个文件」和「比较两个引用」是两种读法，
+       * 同时开着会让列表既是过滤结果又是比较结果，读者分不清在看哪一种。
+       */
+      case "history-file-only": {
+        if (action.path === null) return { ...state, historyFileOnly: null, historyFileMenu: null };
+        if (action.path === state.historyFileOnly) return { ...state, historyFileMenu: null };
+        const name = nameOfPath(action.path);
+        return withResult({
+          ...state,
+          historyFileOnly: action.path,
+          historyOpenOid: null,
+          historyOpenFile: null,
+          historyFileMenu: null,
+          compare: null,
+          compareOpen: false
+        }, {
+          tone: "info",
+          text: `\u73B0\u5728\u53EA\u770B ${name} \u7684\u5386\u53F2\u3002`,
+          detail: "\u5217\u8868\u53EA\u7559\u4E0B\u6539\u8FC7\u8FD9\u4E2A\u6587\u4EF6\u7684\u63D0\u4EA4\uFF1B\u5217\u8868\u9876\u4E0A\u90A3\u679A\u300C\u53EA\u770B \u2026\u300D\u6807\u7B7E\u53EF\u4EE5\u70B9\u6389\uFF0C\u56DE\u5230\u5168\u90E8\u5386\u53F2\u3002",
+          source: "history"
+        });
+      }
+      case "history-file-menu":
+        return { ...state, historyFileMenu: state.historyFileMenu === action.path ? null : action.path };
+      case "compare-open":
+        return { ...state, compareOpen: !state.compareOpen };
+      case "compare-close":
+        return { ...state, compareOpen: false };
+      case "compare-draft":
+        return action.which === "from" ? { ...state, compareFrom: action.value } : { ...state, compareTo: action.value };
+      case "compare-apply": {
+        const from = resolveRef(base, state, state.compareFrom);
+        const to = resolveRef(base, state, state.compareTo);
+        if (from === null || to === null) {
+          return withResult(state, {
+            tone: "error",
+            text: from === null ? `\u627E\u4E0D\u5230\u300C${state.compareFrom.trim()}\u300D\u8FD9\u4E2A\u5F15\u7528\u3002` : `\u627E\u4E0D\u5230\u300C${state.compareTo.trim()}\u300D\u8FD9\u4E2A\u5F15\u7528\u3002`,
+            detail: "\u53EF\u4EE5\u5199 HEAD\u3001HEAD~2\uFF0C\u6216\u8005\u5217\u8868\u91CC\u90A3\u6761\u63D0\u4EA4\u7684\u77ED\u53F7\uFF1B\u4E24\u7AEF\u90FD\u8981\u80FD\u5BF9\u4E0A\u4E00\u6761\u63D0\u4EA4\u3002",
+            source: "history"
+          });
+        }
+        if (from.oid === to.oid) {
+          return withResult(state, { tone: "error", text: "\u4E24\u7AEF\u662F\u540C\u4E00\u4E2A\u63D0\u4EA4\uFF0C\u6CA1\u6709\u53EF\u6BD4\u8F83\u7684\u5185\u5BB9\u3002", detail: "\u628A\u5176\u4E2D\u4E00\u7AEF\u6362\u6210\u66F4\u65E9\u7684\u63D0\u4EA4\uFF0C\u6216\u8005\u5199 HEAD~1\u3002", source: "history" });
+        }
+        return {
+          ...state,
+          compareOpen: false,
+          compare: { fromOid: from.oid, fromShort: from.short, toOid: to.oid, toShort: to.short },
+          result: null
+        };
+      }
+      case "compare-end":
+        return { ...state, compare: null };
+      case "note-draft":
+        return { ...state, noteDraft: action.value };
+      case "note-save": {
+        const oid = state.historyOpenOid;
+        if (oid === null) return state;
+        const text = state.noteDraft.trim();
+        const had = state.commitNotes[oid] !== void 0;
+        if (text === "" && !had) {
+          return withResult(state, { tone: "info", text: "\u5907\u6CE8\u662F\u7A7A\u7684\uFF0C\u6CA1\u6709\u4FDD\u5B58\u3002", detail: "\u5199\u4E00\u4E24\u53E5\u518D\u4FDD\u5B58\uFF1B\u5907\u6CE8\u6302\u5728\u63D0\u4EA4\u4E0A\uFF0C\u4E0D\u6539\u63D0\u4EA4\u672C\u8EAB\u3002", source: "history" });
+        }
+        const notes = { ...state.commitNotes };
+        if (text === "") delete notes[oid];
+        else notes[oid] = text;
+        return withResult({ ...state, commitNotes: notes, noteDraft: text }, {
+          tone: "ok",
+          text: text === "" ? "\u5DF2\u5220\u9664\u8FD9\u6761\u63D0\u4EA4\u7684\u5907\u6CE8\u3002" : "\u5DF2\u4FDD\u5B58\u8FD9\u6761\u63D0\u4EA4\u7684\u5907\u6CE8\u3002",
+          detail: "\u5907\u6CE8\u5B58\u5728 refs/notes \u91CC\uFF0C\u8DDF\u7740\u4ED3\u5E93\u8D70\uFF1B\u5B83\u4E0D\u6539\u53D8\u63D0\u4EA4\u672C\u8EAB\uFF0C\u63A8\u9001\u65F6\u4E5F\u8981\u53E6\u5916\u63A8\u8FD9\u4EFD\u5F15\u7528\u3002",
+          source: "history"
+        });
+      }
       case "result-clear":
         return state.result === null ? state : { ...state, result: null };
       case "copy":
@@ -3800,10 +4415,150 @@
           hiddenWorktrees: hidden
         }, { tone: "ok", text: `\u5DF2\u79FB\u9664\u5DE5\u4F5C\u533A\uFF1A${pending.name}\u3002`, detail: "\u5206\u652F\u4E0E\u63D0\u4EA4\u90FD\u8FD8\u5728\u4ED3\u5E93\u91CC\u3002\u8FD9\u4E00\u6B65\u53EA\u5220\u6389\u4E86\u68C0\u51FA\u8BB0\u5F55\u4E0E\u5DE5\u4F5C\u76EE\u5F55\u3002", source: "worktree" });
       }
+      /*
+       * 新建工作区：页底一张表单，两种填法共用同一处——新建一条分支，或从本地已有分支里选一条。
+       * 表单里的错误留在表单下面（wtCreateError），不放到页面底部的结果条：
+       * 填错时要改的是这张表，提示得贴着它。
+       */
+      case "wt-create-open":
+        return { ...state, wtCreateOpen: true, wtCreateError: null };
+      case "wt-create-close":
+        return { ...state, wtCreateOpen: false, wtCreateError: null };
+      case "wt-create-path":
+        return { ...state, wtCreatePath: action.value, wtCreateError: null };
+      case "wt-create-mode":
+        return { ...state, wtCreateMode: action.mode, wtCreateBranch: "", wtCreateError: null };
+      case "wt-create-branch":
+        return { ...state, wtCreateBranch: action.value, wtCreateError: null };
+      case "wt-create-submit": {
+        const target = action.path ?? state.wtCreatePath.trim().replace(/\\/g, "/");
+        const branch = state.wtCreateBranch.trim();
+        if (target === "") return { ...state, wtCreateError: COPY.worktrees.createEmptyPath };
+        if (branch === "") {
+          return { ...state, wtCreateError: state.wtCreateMode === "new" ? COPY.worktrees.createEmptyBranch : COPY.worktrees.createNoBranch };
+        }
+        if (state.wtCreateMode === "existing" && !state.branches.some((row) => row.name === branch)) {
+          return { ...state, wtCreateError: COPY.worktrees.createNoBranch };
+        }
+        if (worktreePathsOf(base, state).includes(target)) return { ...state, wtCreateError: COPY.worktrees.createTaken };
+        const name = nameOfPath(target);
+        return withResult({
+          ...state,
+          createdWorktrees: [...state.createdWorktrees, { path: target, branch }],
+          wtCreateOpen: false,
+          wtCreateError: null,
+          wtCreatePath: "",
+          wtCreateBranch: ""
+        }, {
+          tone: "ok",
+          text: COPY.worktrees.resultCreated(name, branch),
+          detail: state.wtCreateMode === "new" ? `git worktree add -b ${branch} ${target}\uFF1A\u65B0\u5EFA\u4E00\u6761\u5206\u652F\uFF0C\u5E76\u5728\u65B0\u76EE\u5F55\u91CC\u68C0\u51FA\u5B83\u3002\u63A5\u56DE\u5BBF\u4E3B\u540E\u8FD9\u4E00\u6B65\u4F1A\u771F\u7684\u5EFA\u76EE\u5F55\u3002` : `git worktree add ${target} ${branch}\uFF1A\u628A\u5DF2\u6709\u5206\u652F\u68C0\u51FA\u5230\u65B0\u76EE\u5F55\uFF1B\u540C\u4E00\u6761\u5206\u652F\u4E0D\u80FD\u5728\u4E24\u5904\u540C\u65F6\u68C0\u51FA\u3002`,
+          source: "worktree"
+        });
+      }
+      case "wt-move-open":
+        return { ...state, wtMovePath: action.path, wtMoveDraft: action.path, wtSparsePath: null, worktreePending: null };
+      case "wt-move-draft":
+        return { ...state, wtMoveDraft: action.value };
+      case "wt-move-close":
+        return { ...state, wtMovePath: null, wtMoveDraft: "" };
+      case "wt-move-apply": {
+        const from = state.wtMovePath;
+        if (from === null) return state;
+        const target = state.wtMoveDraft.trim().replace(/\\/g, "/");
+        if (target === "") return withResult(state, { tone: "error", text: COPY.worktrees.moveEmpty, detail: null, source: "worktree" });
+        if (target === from) return withResult(state, { tone: "warn", text: COPY.worktrees.moveSame, detail: null, source: "worktree" });
+        if (worktreePathsOf(base, state).includes(target)) {
+          return withResult(state, { tone: "error", text: COPY.worktrees.moveTaken, detail: "\u79FB\u52A8\u4E0D\u4F1A\u8986\u76D6\u5DF2\u6709\u76EE\u5F55\uFF0Cgit \u4F1A\u76F4\u63A5\u62D2\u7EDD\u3002", source: "worktree" });
+        }
+        const key = Object.keys(state.movedWorktrees).find((old) => state.movedWorktrees[old] === from) ?? from;
+        const name = nameOfPath(target);
+        return withResult({
+          ...state,
+          movedWorktrees: { ...state.movedWorktrees, [key]: target },
+          createdWorktrees: state.createdWorktrees.map((entry) => entry.path === from ? { ...entry, path: target } : entry),
+          wtMovePath: null,
+          wtMoveDraft: "",
+          worktreePending: null
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u628A\u8FD9\u4E2A\u5DE5\u4F5C\u533A\u79FB\u5230 ${name}\u3002`,
+          detail: `git worktree move\uFF1Agit \u8BB0\u5F55\u4E0E\u78C1\u76D8\u4E0A\u7684\u76EE\u5F55\u4E00\u8D77\u6539\uFF0C\u65E7\u8DEF\u5F84 ${from} \u4E0D\u518D\u5C5E\u4E8E\u4EFB\u4F55\u5DE5\u4F5C\u533A\u3002`,
+          source: "worktree"
+        });
+      }
+      case "wt-sparse-open": {
+        const saved = state.wtSparseRules[action.path];
+        return {
+          ...state,
+          wtSparsePath: action.path,
+          wtSparseDirs: saved ?? sparseTopDirsOf(base),
+          wtMovePath: null,
+          worktreePending: null
+        };
+      }
+      case "wt-sparse-toggle": {
+        const has = state.wtSparseDirs.includes(action.dir);
+        return { ...state, wtSparseDirs: has ? state.wtSparseDirs.filter((dir) => dir !== action.dir) : [...state.wtSparseDirs, action.dir] };
+      }
+      case "wt-sparse-close":
+        return { ...state, wtSparsePath: null, wtSparseDirs: [] };
+      case "wt-sparse-save": {
+        const path = state.wtSparsePath;
+        if (path === null) return state;
+        const all = sparseTopDirsOf(base);
+        const dirs = all.filter((dir) => state.wtSparseDirs.includes(dir));
+        if (dirs.length === 0) return withResult(state, { tone: "error", text: COPY.worktrees.sparseEmpty, detail: "\u5168\u90FD\u4E0D\u52FE\u7B49\u4E8E\u628A\u5DE5\u4F5C\u533A\u62C6\u7A7A\uFF0Cgit \u4E5F\u4F1A\u62D2\u7EDD\u3002", source: "worktree" });
+        const name = nameOfPath(path);
+        const allKept = dirs.length === all.length;
+        return withResult({
+          ...state,
+          wtSparseRules: { ...state.wtSparseRules, [path]: dirs },
+          wtSparsePath: null,
+          wtSparseDirs: []
+        }, {
+          tone: "ok",
+          text: allKept ? COPY.worktrees.sparseAll : COPY.worktrees.sparseSaved(dirs),
+          detail: allKept ? `${name} \u4ECD\u4F1A\u68C0\u51FA\u5168\u90E8\u76EE\u5F55\uFF0C\u76F8\u5F53\u4E8E\u6CA1\u5F00\u7A00\u758F\u68C0\u51FA\u3002` : `${name} \u53EA\u4F1A\u68C0\u51FA\u8FD9\u51E0\u4E2A\u9876\u5C42\u76EE\u5F55\uFF1B\u6CA1\u52FE\u7684\u76EE\u5F55\u4E0D\u843D\u5230\u78C1\u76D8\uFF0C\u6539\u52A8\u4ECD\u7136\u7559\u5728\u4ED3\u5E93\u91CC\u3002`,
+          source: "worktree"
+        });
+      }
       case "changes-pending":
         return { ...state, changesPending: action.pending, openMenuPath: null };
       case "changes-open-menu":
         return { ...state, openMenuPath: action.path, changesPending: null };
+      case "rename-open":
+        return { ...state, openMenuPath: null, renamePath: action.path, renameDraft: action.path };
+      case "rename-draft":
+        return { ...state, renameDraft: action.value };
+      case "rename-cancel":
+        return { ...state, renamePath: null, renameDraft: "" };
+      case "rename-apply": {
+        const from = state.renamePath;
+        if (from === null) return state;
+        const to = state.renameDraft.trim().replace(/\\/g, "/");
+        if (to === "") {
+          return withResult(state, { tone: "error", text: COPY.changes.renameEmpty, detail: null, source: "changes" });
+        }
+        if (to === from) {
+          return withResult(state, { tone: "error", text: COPY.changes.renameSame, detail: null, source: "changes" });
+        }
+        return withResult({
+          ...state,
+          staged: unique([...state.staged.filter((item) => item !== from), to]),
+          unstaged: state.unstaged.filter((item) => item !== from),
+          renames: [...state.renames.filter((entry) => entry.to !== from), { from, to }],
+          renamePath: null,
+          renameDraft: "",
+          openFile: state.openFile === from ? to : state.openFile,
+          openMenuPath: null
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u628A ${nameOfPath(from)} \u6539\u540D\u4E3A ${nameOfPath(to)}\u3002`,
+          detail: "git mv \u540C\u65F6\u6539\u78C1\u76D8\u4E0A\u7684\u540D\u5B57\u5E76\u628A\u8FD9\u6B21\u6539\u540D\u6682\u5B58\u8D77\u6765\uFF0C\u6240\u4EE5\u5B83\u51FA\u73B0\u5728\u300C\u5DF2\u6682\u5B58\u300D\u91CC\uFF1B\u63D0\u4EA4\u4E4B\u540E\u65B0\u8DEF\u5F84\u624D\u8FDB\u5165\u5386\u53F2\u3002",
+          source: "changes"
+        });
+      }
       case "changes-apply": {
         const pending = state.changesPending;
         if (pending === null) return state;
@@ -3856,6 +4611,33 @@
               tone: "warn",
               text: `\u5DF2\u5220\u9664\u672A\u8DDF\u8E2A\u6587\u4EF6 ${name}\u3002`,
               detail: "\u5B83\u4ECE\u6765\u6CA1\u6709\u8FDB\u8FC7 git \u5386\u53F2\uFF0C\u5220\u9664\u4EE5\u540E\u6CA1\u6709\u4EFB\u4F55\u5730\u65B9\u80FD\u627E\u56DE\u3002\u539F\u578B\u4E0D\u4F1A\u771F\u7684\u5220\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u3002",
+              source: "changes"
+            });
+          }
+          case "delete-tracked": {
+            if (path === null || !state.unstaged.includes(path) && !state.staged.includes(path)) return cleared;
+            return withResult({
+              ...cleared,
+              staged: unique([...state.staged.filter((item) => item !== path), path]),
+              unstaged: state.unstaged.filter((item) => item !== path),
+              openFile: state.openFile === path ? null : state.openFile
+            }, {
+              tone: "warn",
+              text: `\u5DF2\u5220\u9664 ${name}\uFF0C\u8FD9\u6B21\u5220\u9664\u5DF2\u7ECF\u6682\u5B58\u3002`,
+              detail: "\u6587\u4EF6\u4ECE\u78C1\u76D8\u4E0E git \u7D22\u5F15\u91CC\u4E00\u8D77\u5220\u6389\u3002\u5220\u9664\u672C\u8EAB\u662F\u4E00\u6761\u5DF2\u6682\u5B58\u7684\u6539\u52A8\uFF0C\u548C\u522B\u7684\u6539\u52A8\u4E00\u8D77\u63D0\u4EA4\u4E4B\u540E\u624D\u4F1A\u8FDB\u5386\u53F2\uFF1B\u9762\u677F\u4E0D\u80FD\u64A4\u56DE\u8FD9\u4E00\u6B65\u3002",
+              source: "changes"
+            });
+          }
+          case "untrack": {
+            if (path === null || !state.unstaged.includes(path)) return cleared;
+            return withResult({
+              ...cleared,
+              unstaged: state.unstaged.filter((item) => item !== path),
+              openFile: state.openFile === path ? null : state.openFile
+            }, {
+              tone: "info",
+              text: `\u5DF2\u505C\u6B62\u8DDF\u8E2A ${name}\uFF0C\u6587\u4EF6\u8FD8\u5728\u78C1\u76D8\u4E0A\u3002`,
+              detail: "git rm --cached \u53EA\u628A\u5B83\u4ECE\u7D22\u5F15\u91CC\u62FF\u6389\uFF1A\u6587\u4EF6\u4E0D\u4F1A\u6D88\u5931\uFF0C\u4F46\u4E0B\u6B21\u63D0\u4EA4\u4E4B\u540E git \u4E0D\u518D\u8DDF\u8E2A\u5B83\u7684\u6539\u52A8\uFF0C\u522B\u4EBA\u62C9\u53D6\u65F6\u4E5F\u4E0D\u4F1A\u518D\u62FF\u5230\u5B83\u3002\u60F3\u8BA9\u5B83\u4EE5\u540E\u4E0D\u518D\u51FA\u73B0\uFF0C\u53EF\u4EE5\u987A\u624B\u628A\u5B83\u52A0\u8FDB .gitignore\u3002",
               source: "changes"
             });
           }
@@ -4012,14 +4794,25 @@
           source: "branch"
         });
       }
+      /*
+       * 储藏有三种收法，git 的行为不一样，所以做成同一颗按钮下的三个变体：
+       *   all（默认）：只收已跟踪的改动，未跟踪的新文件留在工作区——这是 git stash 的默认行为；
+       *   untracked：连未跟踪的一起收走（git stash -u）；
+       *   staged：只收索引里的那一份（git stash push --staged），工作区里的改动仍在。
+       */
       case "stash-create": {
         if (state.busy !== null || state.reloading) return state;
         if (state.conflicts.length > 0) {
           return withResult(state, { tone: "error", text: "\u6709\u51B2\u7A81\u6587\u4EF6\u65F6\u4E0D\u80FD\u50A8\u85CF\u3002", detail: "\u50A8\u85CF\u4F1A\u628A\u5DE5\u4F5C\u533A\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u51B2\u7A81\u6587\u4EF6\u6CA1\u6709\u53EF\u4EE5\u5B89\u5168\u6062\u590D\u7684\u7248\u672C\u3002\u5148\u89E3\u51B3\u51B2\u7A81\uFF0C\u518D\u50A8\u85CF\u5269\u4E0B\u7684\u6539\u52A8\u3002", source: "changes" });
         }
-        const paths = unique([...state.staged, ...state.unstaged]);
+        const mode = action.mode ?? "all";
+        const isUntracked = (path) => metadataOf(base, path)?.change === "untracked";
+        const untracked = state.unstaged.filter(isUntracked);
+        const trackedUnstaged = state.unstaged.filter((path) => !isUntracked(path));
+        const paths = mode === "staged" ? state.staged : mode === "untracked" ? unique([...state.staged, ...state.unstaged]) : unique([...state.staged, ...trackedUnstaged]);
         if (paths.length === 0) {
-          return withResult(state, { tone: "info", text: "\u5DE5\u4F5C\u533A\u662F\u5E72\u51C0\u7684\uFF0C\u6CA1\u6709\u53EF\u50A8\u85CF\u7684\u5185\u5BB9\u3002", detail: null, source: "changes" });
+          const empty = mode === "staged" ? { text: "\u7D22\u5F15\u91CC\u6CA1\u6709\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\uFF0C\u6CA1\u6709\u53EF\u50A8\u85CF\u7684\u5185\u5BB9\u3002", detail: "\u300C\u53EA\u50A8\u85CF\u5DF2\u6682\u5B58\u7684\u6539\u52A8\u300D\u6536\u7684\u662F\u7D22\u5F15\u91CC\u7684\u90A3\u4E00\u4EFD\uFF1B\u5148\u628A\u8981\u6536\u7684\u6587\u4EF6\u6682\u5B58\u8D77\u6765\u3002" } : mode === "untracked" ? { text: "\u5DE5\u4F5C\u533A\u662F\u5E72\u51C0\u7684\uFF0C\u6CA1\u6709\u53EF\u50A8\u85CF\u7684\u5185\u5BB9\u3002", detail: null } : { text: "\u6CA1\u6709\u53EF\u50A8\u85CF\u7684\u5185\u5BB9\u3002", detail: untracked.length > 0 ? `\u5DE5\u4F5C\u533A\u91CC\u53EA\u6709 ${untracked.length} \u4E2A\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\uFF1B\u9ED8\u8BA4\u50A8\u85CF\u4E0D\u6536\u5B83\u4EEC\uFF0C\u8981\u6536\u5C31\u9009\u300C\u8FDE\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u300D\u3002` : "\u5DE5\u4F5C\u533A\u4E0E\u7D22\u5F15\u90FD\u662F\u5E72\u51C0\u7684\u3002" };
+          return withResult({ ...state, stashMenuOpen: false }, { tone: "info", text: empty.text, detail: empty.detail, source: "changes" });
         }
         const branchName = state.branches.find((row) => row.current)?.name ?? base.branch ?? "detached";
         const message = state.message.trim() === "" ? `WIP on ${branchName}` : state.message.trim();
@@ -4029,16 +4822,19 @@
           whenMs: Date.now(),
           paths
         };
+        const resting = mode === "staged" ? unique([...state.unstaged, ...state.staged]) : mode === "untracked" ? [] : untracked;
+        const detail = mode === "staged" ? `\u53EA\u6536\u8D70\u7D22\u5F15\u91CC\u7684\u90A3\u4E00\u4EFD\uFF1A\u8FD9 ${paths.length} \u4E2A\u6587\u4EF6\u7684\u6539\u52A8\u4ECD\u7559\u5728\u5DE5\u4F5C\u533A\uFF0C\u91CD\u65B0\u53D8\u6210\u672A\u6682\u5B58\u3002` : mode === "untracked" ? `\u50A8\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740\u8FD9\u4E9B\u6587\u4EF6\uFF0C\u5305\u62EC ${untracked.length} \u4E2A\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u3002\u5DE5\u4F5C\u533A\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\u3002` : untracked.length > 0 ? `\u50A8\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740 ${paths.length} \u4E2A\u5DF2\u8DDF\u8E2A\u6587\u4EF6\uFF1B\u5DE5\u4F5C\u533A\u91CC\u90A3 ${untracked.length} \u4E2A\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u6CA1\u6709\u4E00\u8D77\u6536\u8D70\uFF0C\u4ECD\u7559\u5728\u5DE5\u4F5C\u533A\u3002` : `\u50A8\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740\u8FD9\u4E9B\u6587\u4EF6\u3002\u5DE5\u4F5C\u533A\u4E0E\u300C\u5DF2\u6682\u5B58\u300D\u7684\u6E05\u5355\u90FD\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\u3002`;
         return withResult({
           ...state,
           stashes: [entry, ...state.stashes],
           staged: [],
-          unstaged: [],
-          message: ""
+          unstaged: resting,
+          message: "",
+          stashMenuOpen: false
         }, {
           tone: "ok",
-          text: `\u5DF2\u50A8\u85CF ${paths.length} \u4E2A\u6587\u4EF6\u7684\u6539\u52A8\u3002`,
-          detail: `\u50A8\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740\u8FD9\u4E9B\u6587\u4EF6\u3002\u5DE5\u4F5C\u533A\u4E0E\u300C\u5DF2\u6682\u5B58\u300D\u7684\u6E05\u5355\u90FD\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u5E94\u7528\u56DE\u5DE5\u4F5C\u533A\u6216\u5F39\u51FA\u90FD\u80FD\u628A\u5B83\u62FF\u56DE\u6765\u3002`,
+          text: mode === "staged" ? `\u5DF2\u50A8\u85CF ${paths.length} \u4E2A\u6587\u4EF6\u7684\u5DF2\u6682\u5B58\u5185\u5BB9\u3002` : mode === "untracked" ? `\u5DF2\u50A8\u85CF ${paths.length} \u4E2A\u6587\u4EF6\uFF08\u5176\u4E2D ${untracked.length} \u4E2A\u672A\u8DDF\u8E2A\uFF09\u3002` : `\u5DF2\u50A8\u85CF ${paths.length} \u4E2A\u6587\u4EF6\u7684\u5DF2\u8DDF\u8E2A\u6539\u52A8\u3002`,
+          detail,
           source: "changes"
         });
       }
@@ -4079,6 +4875,71 @@
           source: "stash"
         });
       }
+      case "stash-menu-toggle":
+        return { ...state, stashMenuOpen: !state.stashMenuOpen };
+      case "stash-menu":
+        return { ...state, stashMenuId: action.id };
+      case "stash-branch-open":
+        return { ...state, stashBranchId: action.id, stashBranchDraft: "stash-branch", stashMenuId: null };
+      case "stash-branch-draft":
+        return { ...state, stashBranchDraft: action.value };
+      case "stash-branch-cancel":
+        return { ...state, stashBranchId: null, stashBranchDraft: "" };
+      case "stash-branch-apply": {
+        if (state.busy !== null || state.reloading) return state;
+        const id = state.stashBranchId;
+        if (id === null) return state;
+        const name = state.stashBranchDraft.trim();
+        if (name === "") {
+          return withResult(state, { tone: "error", text: "\u5148\u7ED9\u5206\u652F\u8D77\u4E2A\u540D\u5B57\u3002", detail: "git stash branch \u4F1A\u65B0\u5EFA\u4E00\u6761\u5206\u652F\uFF0C\u518D\u628A\u8FD9\u6761\u8BB0\u5F55\u5E94\u7528\u4E0A\u53BB\u3002", source: "stash" });
+        }
+        if (state.branches.some((row) => row.name === name)) {
+          return withResult(state, { tone: "error", text: `\u5206\u652F ${name} \u5DF2\u7ECF\u5B58\u5728\u3002`, detail: "\u6362\u4E00\u4E2A\u540D\u5B57\uFF1B\u8FD9\u6761\u8BB0\u5F55\u8FD8\u6CA1\u6709\u88AB\u7528\u6389\u3002", source: "stash" });
+        }
+        const entry = state.stashes.find((row) => row.id === id);
+        if (entry === void 0) return { ...state, stashBranchId: null, stashBranchDraft: "" };
+        const head = headInfoOf(base, state);
+        const branch = {
+          name,
+          upstream: null,
+          ahead: 0,
+          behind: 0,
+          oidShort: head === null ? "" : head.short,
+          lastCommitMs: Date.now(),
+          subject: `\u4ECE ${id} \u5EFA\u7684\u5206\u652F`,
+          mergedIntoCurrent: false,
+          current: true
+        };
+        return withResult({
+          ...state,
+          // 建分支等于切过去：原来那条分支不再标成当前分支。
+          branches: [branch, ...state.branches.map((row) => ({ ...row, current: false }))],
+          stashes: state.stashes.filter((row) => row.id !== id),
+          unstaged: unique([...state.unstaged, ...entry.paths]),
+          stashBranchId: null,
+          stashBranchDraft: "",
+          stashMenuId: null
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u4ECE ${id} \u5EFA\u5206\u652F ${name}\uFF0C\u8BB0\u5F55\u91CC\u7684 ${entry.paths.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002`,
+          detail: "git stash branch\uFF1A\u65B0\u5206\u652F\u4ECE\u50A8\u85CF\u5F53\u65F6\u7684\u63D0\u4EA4\u5F00\u59CB\uFF0C\u50A8\u85CF\u5185\u5BB9\u76F4\u63A5\u843D\u5230\u5DE5\u4F5C\u533A\u3002\u8FD9\u6761\u8BB0\u5F55\u5DF2\u7ECF\u7528\u6389\uFF0C\u4E0D\u4F1A\u7559\u5728\u6E05\u5355\u91CC\u3002",
+          source: "stash"
+        });
+      }
+      case "stash-clear-open":
+        return { ...state, stashClearPending: true, stashMenuId: null };
+      case "stash-clear-cancel":
+        return { ...state, stashClearPending: false };
+      case "stash-clear-apply": {
+        const count = state.stashes.length;
+        if (count === 0) return { ...state, stashClearPending: false };
+        return withResult({ ...state, stashes: [], stashClearPending: false }, {
+          tone: "warn",
+          text: `\u5DF2\u6E05\u7A7A ${count} \u6761\u50A8\u85CF\u8BB0\u5F55\u3002`,
+          detail: "\u8BB0\u5F55\u91CC\u7684\u6539\u52A8\u4E0D\u518D\u5B58\u5728\uFF0C\u8FD9\u4E00\u6B65\u4E0D\u80FD\u64A4\u56DE\uFF1B\u5DE5\u4F5C\u533A\u4E0E\u63D0\u4EA4\u5386\u53F2\u90FD\u6CA1\u6709\u88AB\u6539\u52A8\u3002",
+          source: "stash"
+        });
+      }
       case "commit-undo": {
         if (state.busy !== null || state.reloading) return state;
         const localHead = state.localCommits[0] ?? null;
@@ -4099,6 +4960,9 @@
           ...state,
           localCommits: localHead !== null ? state.localCommits.slice(1) : state.localCommits,
           undoneOid: localHead !== null ? state.undoneOid : action.oid,
+          // 撤销掉的如果是一条「修订」出来的提交，被它替掉的原提交要回到历史里：
+          // 撤销的意思是「这一步不算了」，原来那条提交本来就没有被真正删掉。
+          replacedOid: localHead !== null && state.localCommits.length === 1 ? null : state.replacedOid,
           staged: unique([...state.staged, ...files]),
           message: state.message.trim() === "" ? subject : state.message,
           ahead: pushed ? state.ahead : Math.max(0, state.ahead - 1),
@@ -4153,6 +5017,86 @@
     if (meta.addedLines !== null && meta.addedLines > 0) parts.push(`\u65B0\u589E ${meta.addedLines} \u884C`);
     if (meta.deletedLines !== null && meta.deletedLines > 0) parts.push(`\u5220\u9664 ${meta.deletedLines} \u884C`);
     return parts.join("\uFF0C");
+  }
+  function sparseTopDirsOf(base) {
+    const dirs = /* @__PURE__ */ new Set();
+    for (const files of base.commitFiles.values()) {
+      for (const file of files) {
+        const first = file.path.split("/")[0];
+        if (first !== void 0 && first !== "" && first !== file.path) dirs.add(first);
+      }
+    }
+    return [...dirs].sort();
+  }
+  function worktreePathsOf(base, state) {
+    const raw = [
+      base.screen.identity.worktreePath,
+      ...base.screen.otherWorktrees.map((item) => item.path),
+      ...state.createdWorktrees.map((item) => item.path)
+    ];
+    return raw.filter((path) => path !== "").map((path) => state.movedWorktrees[path] ?? path);
+  }
+  function refListOf(base, state) {
+    const local = state.localCommits.map((commit) => ({ oid: commit.oid, short: commit.short }));
+    const total = Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1));
+    const keep = Math.max(0, total - local.length);
+    const captured = base.screen.commits.filter((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid).slice(0, keep).map((commit) => ({ oid: commit.oid, short: commit.short }));
+    return [...local, ...captured];
+  }
+  function resolveRef(base, state, text) {
+    const raw = text.trim();
+    if (raw === "") return null;
+    const refs = refListOf(base, state);
+    const head = /^HEAD(?:~(\d+))?$/i.exec(raw);
+    if (head !== null) {
+      const back = head[1] === void 0 ? 0 : Number(head[1]);
+      return refs[back] ?? null;
+    }
+    return refs.find((ref) => ref.oid.startsWith(raw) || ref.short === raw) ?? null;
+  }
+  function headInfoOf(base, state) {
+    const local = state.localCommits[0];
+    if (local !== void 0) {
+      return { oid: local.oid, short: local.short, subject: local.subject, parents: local.parents, files: local.files };
+    }
+    const captured = base.screen.commits.find((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid);
+    if (captured === void 0) return null;
+    return {
+      oid: captured.oid,
+      short: captured.short,
+      subject: captured.subject,
+      parents: captured.parents,
+      files: base.commitFiles.get(captured.oid) ?? []
+    };
+  }
+  function trackedChangesOf(base, state) {
+    return state.unstaged.filter((path) => metadataOf(base, path)?.change !== "untracked");
+  }
+  function mergeFiles(previous, added) {
+    const merged = previous.slice();
+    for (const file of added) {
+      const index = merged.findIndex((row) => row.path === file.path);
+      if (index === -1) merged.push(file);
+      else merged[index] = file;
+    }
+    return merged;
+  }
+  function marksOf(state, form) {
+    const marks = [];
+    if (form === "amend") marks.push("\u4FEE\u8BA2");
+    if (form === "fixup") marks.push("fixup");
+    if (form === "squash") marks.push("squash");
+    if (state.skipHooks) marks.push("\u8DF3\u8FC7\u94A9\u5B50");
+    if (state.signCommit) marks.push("\u5DF2\u7B7E\u540D");
+    if (state.signoff) marks.push("\u7B7E\u540D\u884C");
+    return marks;
+  }
+  function optionNotesOf(state) {
+    const notes = [];
+    if (state.skipHooks) notes.push("\u8FD9\u6B21\u8DF3\u8FC7\u4E86 pre-commit \u4E0E commit-msg \u4E24\u4E2A\u63D0\u4EA4\u94A9\u5B50\uFF0C\u63D0\u4EA4\u524D\u7684\u68C0\u67E5\u6CA1\u6709\u8DD1\u3002");
+    if (state.signCommit) notes.push("\u8FD9\u6761\u63D0\u4EA4\u5E26\u7B7E\u540D\uFF08\u539F\u578B\u6A21\u62DF\uFF0C\u6CA1\u6709\u771F\u7684\u8C03\u7528\u672C\u673A\u5BC6\u94A5\uFF09\u3002");
+    if (state.signoff) notes.push("\u8BF4\u660E\u672B\u5C3E\u8FFD\u52A0\u4E86\u4E00\u884C Signed-off-by: \u8FB0\u8FB0\u6D0B\u6D0B <chen@example.com>\u3002");
+    return notes.length === 0 ? "" : " " + notes.join("");
   }
 
   // docs/prototype/vc-redesign/src/domain/handoff.ts
@@ -4293,51 +5237,6 @@
     branches: "\u5206\u652F\u5173\u7CFB\u592A\u4E71\uFF1F\u4EA4\u7ED9 AI \u7406\u6E05"
   };
 
-  // docs/prototype/vc-redesign/src/data/patches.ts
-  var TS_SAMPLE = [
-    { kind: "filehead", text: "diff --git a/src/client/views/shared/workRouteTable.ts b/src/client/views/shared/workRouteTable.ts" },
-    { kind: "hunk", text: "@@ -18,7 +18,7 @@ export const workRouteTableOf = function (rows) {" },
-    { kind: "context", text: "  const table = new Map()" },
-    { kind: "context", text: "  for (const row of rows) {" },
-    { kind: "del", text: "-    table.set(row.key, row.ticket)" },
-    { kind: "add", text: "+    table.set(row.key, row.ticket ?? row.fallback)" },
-    { kind: "context", text: "  }" },
-    { kind: "context", text: "  return table" },
-    { kind: "context", text: "}" }
-  ];
-  var TS_SAMPLE_TWO = [
-    { kind: "filehead", text: "diff --git a/src/refresh/rooms/host/outbound-admission.ts b/src/refresh/rooms/host/outbound-admission.ts" },
-    { kind: "hunk", text: "@@ -41,6 +41,10 @@ export const admitOutbound = function (request) {" },
-    { kind: "context", text: "  if (!request.sessionId) return { ok: false, reason: 'no-session' }" },
-    { kind: "add", text: "+  if (request.retryOf) {" },
-    { kind: "add", text: "+    traces.push({ kind: 'retry', id: request.retryOf })" },
-    { kind: "add", text: "+  }" },
-    { kind: "context", text: "  const admitted = checkQuota(request)" },
-    { kind: "del", text: "-  return admitted ? allow(request) : deny(request)" },
-    { kind: "add", text: "+  return admitted ? allow(request) : deny(request, { retryable: true })" }
-  ];
-  var MARKDOWN_SAMPLE = [
-    { kind: "filehead", text: "diff --git a/docs/review/sample.md b/docs/review/sample.md" },
-    { kind: "hunk", text: "@@ -1,4 +1,6 @@" },
-    { kind: "context", text: "# \u8BC4\u5BA1\u8BB0\u5F55" },
-    { kind: "add", text: "+## \u7ED3\u8BBA" },
-    { kind: "add", text: "+\u4E24\u5904\u9700\u8981\u4EBA\u5DE5\u786E\u8BA4\u7684\u8FB9\u754C\u5DF2\u7ECF\u5217\u5728\u4E0B\u9762\u3002" },
-    { kind: "context", text: "" },
-    { kind: "context", text: "## \u8BC1\u636E" }
-  ];
-  var PNG_SAMPLE = [
-    { kind: "filehead", text: "Binary files a/docs/design/md-env-check-chain.png and b/docs/design/md-env-check-chain.png differ" },
-    { kind: "no-newline", text: "\u539F\u578B\u4E0D\u6E32\u67D3\u4E8C\u8FDB\u5236\u5DEE\u5F02\u3002" }
-  ];
-  function samplePatch(path) {
-    if (path.endsWith(".ts") || path.endsWith(".mts") || path.endsWith(".tsx")) {
-      return path.includes("outbound-admission") ? TS_SAMPLE_TWO : TS_SAMPLE;
-    }
-    if (path.endsWith(".md")) return MARKDOWN_SAMPLE;
-    if (path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".webp")) return PNG_SAMPLE;
-    return null;
-  }
-
   // docs/prototype/vc-redesign/src/domain/select.ts
   function judgeScreen(base, state) {
     const screen = base.screen;
@@ -4453,13 +5352,28 @@
     return `${date.getMonth() + 1} \u6708 ${date.getDate()} \u65E5`;
   }
   function fileRowOf(base, state, path, options) {
-    const meta = metadataOf(base, path);
+    const renamedFrom = state.renames.find((entry) => entry.to === path)?.from ?? null;
+    const meta = metadataOf(base, renamedFrom ?? path);
     const change = meta?.change ?? "modified";
     const badge = changeBadge(change);
     const { dir, name } = splitPath(path);
     const isUntracked = change === "untracked";
+    const busy = state.busy !== null || state.reloading;
     const expanded = state.openFile === path;
     const patch = expanded && !isUntracked && !options.conflict ? samplePatch(path) : null;
+    const split = patch === null ? null : patchHunksOf(patch);
+    const stagedIndexes = split === null ? [] : options.staged ? split.hunks.map((_, index) => index) : state.stagedHunks[path] ?? [];
+    const hunks = split === null ? [] : split.hunks.map((lines, index) => {
+      const stagedHere = stagedIndexes.includes(index);
+      return {
+        index,
+        lines,
+        staged: stagedHere,
+        canStage: !busy && !options.conflict && !options.staged && !stagedHere,
+        canUnstage: !busy && !options.conflict && stagedHere
+      };
+    });
+    const hunkProgress = split !== null && !options.staged && stagedIndexes.length > 0 ? { staged: stagedIndexes.length, total: split.hunks.length } : null;
     let patchNote = null;
     if (expanded) {
       if (options.conflict) patchNote = "\u51B2\u7A81\u6587\u4EF6\u5728\u5408\u5E76\u5B8C\u6210\u524D\u6CA1\u6709\u5355\u4E00\u57FA\u7EBF\uFF0C\u539F\u578B\u4E0D\u5C55\u793A\u5DEE\u5F02\u3002";
@@ -4467,10 +5381,16 @@
       else if (patch === null) patchNote = "\u8FD9\u4E2A\u6269\u5C55\u540D\u6CA1\u6709\u53EF\u5C55\u793A\u7684\u793A\u4F8B\u8865\u4E01\u3002";
     }
     const extraBadges = [];
-    if (options.conflict) extraBadges.push("\u51B2\u7A81");
-    else if (options.staged) extraBadges.push(COPY.changes.stagedBadge);
-    if (isUntracked) extraBadges.push(COPY.changes.untracked);
-    const busy = state.busy !== null || state.reloading;
+    if (options.conflict) extraBadges.push({ text: "\u51B2\u7A81", tone: "error" });
+    else if (options.staged) extraBadges.push({ text: COPY.changes.stagedBadge, tone: "ok" });
+    if (isUntracked) extraBadges.push({ text: COPY.changes.untracked, tone: "muted" });
+    if (hunkProgress !== null) {
+      extraBadges.push({
+        text: COPY.changes.hunkProgress(hunkProgress.staged, hunkProgress.total),
+        tone: "ok",
+        title: COPY.changes.hunkProgressTitle(hunkProgress.staged, hunkProgress.total)
+      });
+    }
     return {
       path,
       dir,
@@ -4483,7 +5403,8 @@
       conflict: options.conflict,
       staged: options.staged,
       expanded,
-      patch,
+      patchHead: split === null ? null : split.header,
+      hunks,
       patchNote,
       canStage: !busy && !options.conflict && !options.staged,
       canUnstage: !busy && !options.conflict && options.staged,
@@ -4492,7 +5413,11 @@
       canDiscard: !busy && !options.conflict && !options.staged && !isUntracked,
       canIgnore: !busy && !options.conflict && !options.staged && isUntracked,
       canDeleteUntracked: !busy && !options.conflict && !options.staged && isUntracked,
-      resolvable: !busy && options.conflict
+      canDeleteTracked: !busy && !options.conflict && !options.staged && !isUntracked,
+      canUntrack: !busy && !options.conflict && !options.staged && !isUntracked,
+      canRename: !busy && !options.conflict && !options.staged && !isUntracked,
+      resolvable: !busy && options.conflict,
+      renamedFrom
     };
   }
   function pendingOf(base, state) {
@@ -4527,6 +5452,10 @@
         return { kind: pending.kind, path, title: COPY.changes.confirmIgnoreTitle(name), body: COPY.changes.confirmIgnoreBody, meta: null, confirmLabel: COPY.changes.confirmIgnore, danger: false };
       case "delete-untracked":
         return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTitle(name), body: COPY.changes.confirmDeleteBody, meta: null, confirmLabel: COPY.changes.confirmDelete, danger: true };
+      case "delete-tracked":
+        return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTrackedTitle(name), body: COPY.changes.confirmDeleteTrackedBody, meta: metaText, confirmLabel: COPY.changes.confirmDeleteTracked, danger: true };
+      case "untrack":
+        return { kind: pending.kind, path, title: COPY.changes.confirmUntrackTitle(name), body: COPY.changes.confirmUntrackBody, meta: null, confirmLabel: COPY.changes.confirmUntrack, danger: false };
       case "resolve-ours":
         return { kind: pending.kind, path, title: COPY.changes.confirmResolveOursTitle(name), body: COPY.changes.confirmResolveOursBody, meta: null, confirmLabel: COPY.changes.confirmResolve, danger: true };
       case "resolve-theirs":
@@ -4572,11 +5501,32 @@
       if (group.id === "staged") return true;
       return group.rows.length > 0;
     });
+    const form = state.commitForm;
+    const head = headInfoOf(base, state);
+    const alsoTracked = state.commitAllTracked ? trackedChangesOf(base, state) : [];
+    const effectiveCount = state.staged.length + alsoTracked.length;
+    const autoMessage = head === null || form !== "fixup" && form !== "squash" ? null : (form === "fixup" ? "fixup! " : "squash! ") + head.subject;
     const commitVerdict = verdictOf(screen, "commit");
-    let disabledReason = commitVerdict.reason;
-    if (state.staged.length === 0) disabledReason = COPY.changes.commitNoStaged;
-    else if (state.conflicts.length > 0) disabledReason = COPY.block["conflicts-unresolved"];
-    else if (state.message.trim() === "") disabledReason = COPY.changes.commitNoMessage;
+    let disabledReason = commitVerdict.reason === COPY.block["nothing-staged"] ? null : commitVerdict.reason;
+    if (disabledReason === null) {
+      if (state.conflicts.length > 0) {
+        disabledReason = COPY.block["conflicts-unresolved"];
+      } else if (form === "amend") {
+        if (head === null) disabledReason = "\u5386\u53F2\u91CC\u8FD8\u6CA1\u6709\u53EF\u4EE5\u4FEE\u8BA2\u7684\u63D0\u4EA4";
+        else if (state.message.trim() === "") disabledReason = COPY.changes.commitNoMessage;
+        else if (effectiveCount === 0 && state.message.trim() === head.subject.trim()) disabledReason = "\u8BF4\u660E\u548C\u5185\u5BB9\u90FD\u6CA1\u6709\u53D8\u5316\uFF0C\u4E0D\u9700\u8981\u4FEE\u8BA2";
+      } else if (effectiveCount === 0) {
+        disabledReason = COPY.changes.commitNoStaged;
+      } else if (form === "commit" && state.message.trim() === "") {
+        disabledReason = COPY.changes.commitNoMessage;
+      }
+    }
+    const commitLabel = form === "amend" ? COPY.commitOptions.labelAmend : form === "fixup" ? COPY.commitOptions.labelFixup : form === "squash" ? COPY.commitOptions.labelSquash : COPY.changes.commitLabel(effectiveCount);
+    const commitHint = form === "amend" ? effectiveCount === 0 ? "\u8FD9\u6B21\u53EA\u6539\u63D0\u4EA4\u8BF4\u660E\uFF0C\u5185\u5BB9\u6CBF\u7528\u4E0A\u4E00\u6761\u63D0\u4EA4\u3002" : "\u8FD9\u6B21\u4F1A\u628A\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u5E76\u8FDB\u4E0A\u4E00\u6761\u63D0\u4EA4\uFF0C\u63D0\u4EA4\u53F7\u4F1A\u53D8\u3002" : form === "fixup" ? "fixup \u63D0\u4EA4\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\uFF0C\u7B49\u6574\u7406\u5386\u53F2\u65F6\u538B\u56DE\u4E0A\u4E00\u6761\u3002" : form === "squash" ? "squash \u63D0\u4EA4\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\uFF0C\u7B49\u6574\u7406\u5386\u53F2\u65F6\u548C\u4E0A\u4E00\u6761\u5E76\u6210\u4E00\u6761\u3002" : alsoTracked.length > 0 ? "\u4F1A\u5148\u6682\u5B58\u8FD9 " + alsoTracked.length + " \u4E2A\u5DF2\u8DDF\u8E2A\u7684\u6539\u52A8\uFF1B\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u4E0D\u7B97\u3002" : COPY.changes.messageHint;
+    const recordFlags = [];
+    if (state.skipHooks) recordFlags.push({ label: COPY.commitOptions.skipHooks, hint: COPY.commitOptions.skipHooksNote });
+    if (state.signCommit) recordFlags.push({ label: COPY.commitOptions.signCommit, hint: COPY.commitOptions.signCommitNote });
+    if (state.signoff) recordFlags.push({ label: COPY.commitOptions.signoff, hint: COPY.commitOptions.signoffNote });
     const changeCount = state.staged.length + state.unstaged.length;
     return {
       stats: [
@@ -4596,17 +5546,35 @@
       canDiscardAll: !busy && state.conflicts.length === 0 && state.unstaged.length > 0,
       canStash: !busy && state.conflicts.length === 0 && changeCount > 0,
       stashReason: state.conflicts.length > 0 ? COPY.block["conflicts-unresolved"] : null,
+      stashMenuOpen: state.stashMenuOpen,
       openMenuPath: state.openMenuPath,
       pending: pendingOf(base, state),
+      rename: state.renamePath === null ? null : { path: state.renamePath, draft: state.renameDraft },
       ignoredNote: state.ignored.length === 0 ? null : COPY.changes.ignoredNote(state.ignored.length),
       composer: {
         stagedCount: state.staged.length,
         message: state.message,
         placeholder: COPY.changes.messagePlaceholder,
-        hint: COPY.changes.messageHint,
+        hint: commitHint,
         disabled: busy || disabledReason !== null,
         disabledReason,
-        busy: state.busy === "commit"
+        busy: state.busy === "commit",
+        label: commitLabel,
+        flags: recordFlags,
+        optionsOpen: state.commitOptionsOpen,
+        options: {
+          form,
+          formNote: COPY.commitOptions.formNote[form],
+          target: head === null ? null : { short: head.short, subject: head.subject },
+          allTracked: state.commitAllTracked,
+          allTrackedCount: trackedChangesOf(base, state).length,
+          skipHooks: state.skipHooks,
+          signCommit: state.signCommit,
+          signoff: state.signoff,
+          templateApplied: state.templateApplied,
+          autoMessage,
+          messageEditable: form === "commit" || form === "amend"
+        }
       }
     };
   }
@@ -4628,11 +5596,12 @@
       authorDateMs: commit.authorDateMs,
       parents: commit.parents,
       files: commit.files,
-      local: true
+      local: true,
+      marks: commit.marks
     }));
     const total = historyTotal(base, state);
     const keep = Math.max(0, total - local.length);
-    const captured = base.screen.commits.filter((commit) => commit.oid !== state.undoneOid).slice(0, keep).map((commit) => ({
+    const captured = base.screen.commits.filter((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid).slice(0, keep).map((commit) => ({
       oid: commit.oid,
       short: commit.short,
       subject: commit.subject,
@@ -4640,22 +5609,29 @@
       authorDateMs: commit.authorDateMs,
       parents: commit.parents,
       files: base.commitFiles.get(commit.oid) ?? [],
-      local: false
+      local: false,
+      marks: []
     }));
     return [...local, ...captured];
   }
   function historyTotal(base, state) {
     return Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1));
   }
-  function matchesQuery(entry, query) {
-    if (query === "") return true;
-    const needle = query.trim().toLowerCase();
-    if (needle === "") return true;
-    return entry.subject.toLowerCase().includes(needle) || entry.author.toLowerCase().includes(needle) || entry.short.toLowerCase().includes(needle);
-  }
   function historyOf(base, state, nowMs) {
     const entries = historyEntries(base, state);
-    const filtered = entries.filter((entry) => matchesQuery(entry, state.historyQuery) && (!state.historyMergeOnly || entry.parents.length > 1));
+    const needle = state.historyQuery.trim().toLowerCase();
+    const codeScope = state.historyScope === "code";
+    const hitOf = (entry) => {
+      if (!codeScope || needle === "") return null;
+      return entry.files.find((file) => file.path.toLowerCase().includes(needle))?.path ?? null;
+    };
+    const matchesQuery = (entry) => {
+      if (needle === "") return true;
+      if (codeScope) return hitOf(entry) !== null;
+      return entry.subject.toLowerCase().includes(needle) || entry.author.toLowerCase().includes(needle) || entry.short.toLowerCase().includes(needle);
+    };
+    const matchesFile = (entry) => state.historyFileOnly === null || entry.files.some((file) => file.path === state.historyFileOnly);
+    const filtered = entries.filter((entry) => matchesFile(entry) && matchesQuery(entry) && (!state.historyMergeOnly || entry.parents.length > 1));
     let previousGroup = "";
     const rows = filtered.map((entry) => {
       const group = dayGroupLabel(nowMs, entry.authorDateMs);
@@ -4670,7 +5646,10 @@
         merge: entry.parents.length > 1,
         filesCount: entry.files.length,
         group: groupLabel,
-        selected: state.historyOpenOid === entry.oid
+        selected: state.historyOpenOid === entry.oid,
+        marks: entry.marks,
+        hasNote: state.commitNotes[entry.oid] !== void 0,
+        hitPath: hitOf(entry)
       };
     });
     let detail = null;
@@ -4701,10 +5680,35 @@
           parents: entry.parents.map(shortOid),
           files,
           filesNote: entry.files.length === 0 ? merge ? COPY.history.filesEmptyMerge : COPY.history.filesEmpty : null,
-          loading: false
+          loading: false,
+          note: state.commitNotes[entry.oid] ?? "",
+          noteSaved: state.commitNotes[entry.oid] !== void 0,
+          fileMenuPath: state.historyFileMenu
         };
       }
     }
+    let compare = null;
+    const compared = state.compare;
+    if (compared !== null) {
+      const target = entries.find((entry) => entry.oid === compared.toOid);
+      const files = (target?.files ?? []).map((file) => {
+        const { dir, name } = splitPath(file.path);
+        return { path: file.path, dir, name, delta: lineDelta(file.added, file.deleted) };
+      });
+      const added = (target?.files ?? []).reduce((sum, file) => sum + file.added, 0);
+      const deleted = (target?.files ?? []).reduce((sum, file) => sum + file.deleted, 0);
+      const parts = [`${files.length} \u4E2A\u6587\u4EF6`];
+      if (added > 0) parts.push(`+${added}`);
+      if (deleted > 0) parts.push(`\u2212${deleted}`);
+      compare = {
+        from: compared.fromShort,
+        to: compared.toShort,
+        files,
+        summary: parts.join("\uFF0C"),
+        note: COPY.history.compareNote
+      };
+    }
+    const emptyText = state.historyFileOnly !== null ? COPY.history.emptyFileOnly(splitPath(state.historyFileOnly).name) : codeScope && needle !== "" ? COPY.history.emptyCode : COPY.history.empty;
     return {
       detail,
       rows,
@@ -4713,6 +5717,11 @@
       query: state.historyQuery,
       mergeOnly: state.historyMergeOnly,
       empty: rows.length === 0,
+      emptyText,
+      scope: state.historyScope,
+      fileOnly: state.historyFileOnly,
+      compare,
+      compareForm: { open: state.compareOpen, from: state.compareFrom, to: state.compareTo },
       scopeText: COPY.history.loadedCount(rows.length, historyTotal(base, state)),
       mergeOnlyText: COPY.history.mergeOnly
     };
@@ -4760,9 +5769,10 @@
     const abnormal = states.some((state) => state.tone === "warn" || state.tone === "error");
     return { states, abnormal };
   }
-  function worktreeRowOf(state, worktree) {
+  function worktreeRowOf(base, state, worktree) {
     const { dir, name } = splitPath(worktree.path);
     const chips = stateChipsOf(worktree);
+    const rule = state.wtSparseRules[worktree.path];
     return {
       path: worktree.path,
       dir,
@@ -4774,8 +5784,19 @@
       abnormal: chips.abnormal,
       copied: state.copiedPath === worktree.path,
       locked: worktree.locked,
-      prunable: worktree.prunable
+      prunable: worktree.prunable,
+      moveOpen: state.wtMovePath === worktree.path,
+      moveDraft: state.wtMovePath === worktree.path ? state.wtMoveDraft : worktree.path,
+      sparseOpen: state.wtSparsePath === worktree.path,
+      sparseDirs: sparseTopDirsOf(base),
+      sparseSelected: state.wtSparsePath === worktree.path ? state.wtSparseDirs : rule ?? [],
+      sparseSummary: rule === void 0 ? null : COPY.worktrees.sparseCurrent(rule)
     };
+  }
+  function movedWorktreeOf(state, item) {
+    const to = state.movedWorktrees[item.path];
+    if (to === void 0) return item;
+    return { ...item, path: to, display: splitPath(to).name };
   }
   function applyWorktreeActions(state, item) {
     const unlocked = state.unlockedWorktrees.includes(item.path);
@@ -4790,7 +5811,7 @@
   }
   function worktreesOf(base, state) {
     const identity = base.screen.identity;
-    const current = identity.worktreePath === "" ? null : worktreeRowOf(state, {
+    const current = identity.worktreePath === "" ? null : worktreeRowOf(base, state, {
       path: identity.worktreePath,
       display: identity.worktreeDisplay,
       head: identity.oid ?? "",
@@ -4804,8 +5825,21 @@
       prunableUnknown: false
     });
     const demo = state.demoWorktrees ? demoWorktreesOf(identity.worktreePath) : [];
-    const othersRaw = [...base.screen.otherWorktrees.filter((item) => !item.current), ...demo].filter((item) => !state.hiddenWorktrees.includes(item.path)).map((item) => applyWorktreeActions(state, item));
-    const others = othersRaw.map((item) => worktreeRowOf(state, item)).sort((a, b) => Number(b.abnormal) - Number(a.abnormal));
+    const created = state.createdWorktrees.map((entry) => ({
+      path: entry.path,
+      display: splitPath(entry.path).name,
+      head: identity.oid ?? "",
+      branch: entry.branch,
+      bare: false,
+      current: false,
+      locked: false,
+      lockReason: null,
+      lockUnknown: false,
+      prunable: false,
+      prunableUnknown: false
+    }));
+    const othersRaw = [...created, ...base.screen.otherWorktrees.filter((item) => !item.current), ...demo].filter((item) => !state.hiddenWorktrees.includes(item.path)).map((item) => applyWorktreeActions(state, item)).map((item) => movedWorktreeOf(state, item));
+    const others = othersRaw.map((item) => worktreeRowOf(base, state, item)).sort((a, b) => Number(b.abnormal) - Number(a.abnormal));
     const abnormal = others.filter((row) => row.abnormal).length;
     return {
       current,
@@ -4816,7 +5850,16 @@
       notice: COPY.worktrees.scope,
       aiLabel: COPY.worktrees.ai,
       aiEnabled: abnormal > 0,
-      pending: state.worktreePending
+      pending: state.worktreePending,
+      create: {
+        open: state.wtCreateOpen,
+        path: state.wtCreatePath,
+        mode: state.wtCreateMode,
+        branch: state.wtCreateBranch,
+        error: state.wtCreateError,
+        // 已有分支的候选：最近用过的几条，当前分支不列（它已经在当前工作区里检出）。
+        branches: state.branches.filter((row) => !row.current).slice().sort((a, b) => b.lastCommitMs - a.lastCommitMs).slice(0, 6).map((row) => row.name)
+      }
     };
   }
   function branchRowOf(state, row, nowMs) {
@@ -4873,7 +5916,9 @@
       message: entry.message,
       when: timeText(nowMs, entry.whenMs),
       paths: entry.paths,
-      filesCount: entry.paths.length
+      filesCount: entry.paths.length,
+      menuOpen: state.stashMenuId === entry.id,
+      branchOpen: state.stashBranchId === entry.id
     }));
     const pending = state.stashPending === null ? null : {
       id: state.stashPending.id,
@@ -4885,7 +5930,10 @@
       total: rows.length,
       empty: rows.length === 0,
       pending,
-      busy: state.busy !== null
+      busy: state.busy !== null,
+      clearPending: state.stashClearPending,
+      branchId: state.stashBranchId,
+      branchDraft: state.stashBranchDraft
     };
   }
   function panelModelOf(base, state, nowMs) {
@@ -7182,6 +8230,107 @@
     }
   }
 
+  // docs/prototype/vc-redesign/src/data/capability-entries.ts
+  var TAB_ENTRIES = [
+    // —— 改动页：工作区与暂存 ——
+    { id: "1.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6539\u52A8\u9875\u9876\u90E8\u7684\u4E09\u5F20\u7EDF\u8BA1\u5361\u4E0E\u6587\u4EF6\u5217\u8868", status: "\u5DF2\u753B" },
+    { id: "1.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u6587\u4EF6\u884C\u5C55\u5F00\u540E\u7684\u9010\u5757\u5DEE\u5F02\uFF0C\u6BCF\u4E00\u5757\u4E0A\u65B9\u4E00\u884C\u7ED9\u300C\u6682\u5B58\u8FD9\u4E00\u5757 / \u53D6\u6D88\u6682\u5B58\u8FD9\u4E00\u5757\u300D\uFF0C\u90E8\u5206\u6682\u5B58\u7684\u884C\u4E0A\u6807\u300C\u5DF2\u6682\u5B58 1/2 \u5757\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u9010\u5757\u6682\u5B58\u9009\u7684\u662F\u300C\u54EA\u4E9B\u884C\u8FDB\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\uFF0C\u6240\u4EE5\u8D34\u5728\u9010\u884C\u5DEE\u5F02\u4E0A\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u90A3\u91CC\u6539\u7684\u662F\u8FD9\u6B21\u63D0\u4EA4\u600E\u4E48\u8BB0\uFF09\uFF0C\u4E5F\u4E0D\u653E\u884C\u5C3E\u83DC\u5355\uFF08\u83DC\u5355\u91CC\u770B\u4E0D\u5230\u662F\u54EA\u4E00\u5757\uFF09\u3002" },
+    { id: "1.3", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6587\u4EF6\u884C\u5C3E\u7684\u300C\u6682\u5B58\u300D", status: "\u5DF2\u753B" },
+    { id: "1.4", form: "\u884C\u5185\u63A7\u4EF6", at: "\u672A\u6682\u5B58\u5206\u7EC4\u6807\u9898\u53F3\u4FA7\u7684\u300C\u5168\u90E8\u6682\u5B58\u300D", status: "\u5DF2\u753B" },
+    { id: "1.5", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6587\u4EF6\u884C\u5C3E\u7684\u300C\u53D6\u6D88\u6682\u5B58\u300D\u4E0E\u5DF2\u6682\u5B58\u5206\u7EC4\u6807\u9898\u7684\u300C\u5168\u90E8\u53D6\u6D88\u6682\u5B58\u300D", status: "\u5DF2\u753B" },
+    { id: "1.6", form: "\u884C\u5C3E\u83DC\u5355", at: "\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u4E22\u5F03\u4FEE\u6539\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "1.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u672A\u6682\u5B58\u5206\u7EC4\u6807\u9898\u53F3\u4FA7\u7684\u300C\u4E22\u5F03\u5168\u90E8\u300D\u4E0E\u8D34\u7EC4\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "1.8", form: "\u884C\u5C3E\u83DC\u5355", at: "\u672A\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u5220\u9664\u8FD9\u4E2A\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "1.9", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u5220\u9664\u5DF2\u8DDF\u8E2A\u7684\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u53EA\u4F5C\u7528\u4E8E\u8FD9\u4E00\u884C\u3001\u5220\u6389\u5C31\u627E\u4E0D\u56DE\u6765\uFF0C\u6240\u4EE5\u548C\u300C\u4E22\u5F03\u4FEE\u6539\u300D\u540C\u4E00\u5C42\u653E\u5728\u884C\u5C3E\u83DC\u5355\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u90A3\u91CC\u53EA\u51B3\u5B9A\u8FD9\u6B21\u63D0\u4EA4\u600E\u4E48\u8BB0\uFF09\uFF0C\u4E5F\u4E0D\u5355\u72EC\u5360\u4E00\u5C4F\uFF08\u4E00\u6B21\u53EA\u5220\u4E00\u884C\uFF09\u3002" },
+    { id: "1.10", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u505C\u6B62\u8DDF\u8E2A\uFF0C\u4FDD\u7559\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u672C\u7968\u5DF2\u753B", reason: "\u8BFB\u8005\u662F\u5728\u8FD9\u4E00\u884C\u4E0A\u8BF4\u300C\u522B\u518D\u8DDF\u8E2A\u5B83\u300D\uFF0C\u548C\u52A0\u5165\u5FFD\u7565\u6E05\u5355\u662F\u540C\u4E00\u7C7B\u51B3\u5B9A\uFF0C\u6240\u4EE5\u653E\u884C\u5C3E\u83DC\u5355\uFF1B\u7ED3\u679C\u8981\u8BA9\u8FD9\u4E2A\u6587\u4EF6\u4ECE\u5217\u8868\u6D88\u5931\u3001\u5E76\u5199\u660E\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u8FD8\u5728\u3002" },
+    { id: "1.11", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u91CD\u547D\u540D\u6216\u79FB\u52A8\u300D\uFF0C\u70B9\u5F00\u540E\u5728\u8FD9\u4E00\u884C\u4E0B\u9762\u5C55\u5F00\u53EA\u586B\u65B0\u8DEF\u5F84\u7684\u8F93\u5165\u6846", status: "\u672C\u7968\u5DF2\u753B", reason: "\u91CD\u547D\u540D\u6539\u7684\u662F\u4E00\u6761\u8DEF\u5F84\uFF0C\u5C5E\u4E8E\u884C\u7EA7\u52A8\u4F5C\uFF0C\u6240\u4EE5\u548C\u4E22\u5F03\u3001\u5FFD\u7565\u653E\u5728\u540C\u4E00\u5F20\u83DC\u5355\u91CC\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u5B83\u4E0D\u662F\u63D0\u4EA4\u65B9\u5F0F\uFF09\uFF0C\u4E5F\u4E0D\u653E\u4E8C\u7EA7\u9875\uFF08\u4E3A\u4E00\u4E2A\u8DEF\u5F84\u5F00\u4E00\u5C4F\u592A\u91CD\uFF09\u3002" },
+    { id: "1.12", form: "\u884C\u5C3E\u83DC\u5355", at: "\u672A\u8DDF\u8E2A\u6216\u5DF2\u4FEE\u6539\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u52A0\u5165 .gitignore\u300D", status: "\u5DF2\u753B" },
+    { id: "1.13", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u6587\u4EF6\u884C\u5C55\u5F00\u91CC\u7684\u300C\u8FD9\u6761\u8DEF\u5F84\u4E3A\u4EC0\u4E48\u88AB\u5FFD\u7565\u300D", status: "\u53EA\u8BFB", reason: "git check-ignore \u662F\u53EA\u8BFB\u8BCA\u65AD\uFF0C\u9762\u677F\u53EA\u5C55\u793A\u5B83\u8BFB\u5230\u7684\u89C4\u5219\u4E0E\u6765\u6E90\u6587\u4EF6\uFF0C\u4E0D\u753B\u80FD\u6539\u7684\u63A7\u4EF6\u3002" },
+    // —— 改动页：提交 ——
+    { id: "2.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u533A\u53F3\u4FA7\u7684\u4E3B\u6309\u94AE\u300C\u63D0\u4EA4 N \u4E2A\u6587\u4EF6\u300D", status: "\u5DF2\u753B" },
+    { id: "2.2", form: "\u63D0\u4EA4\u9009\u9879", at: "\u63D0\u4EA4\u533A\u300C\u63D0\u4EA4\u9009\u9879\u300D\u91CC\u7684\u300C\u628A\u672A\u6682\u5B58\u7684\u6539\u52A8\u4E5F\u4E00\u8D77\u63D0\u4EA4\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u51B3\u5B9A\u54EA\u4E9B\u6539\u52A8\u8FDB\u5165\u8FD9\u6B21\u63D0\u4EA4\uFF0C\u548C\u5DF2\u6682\u5B58\u6E05\u5355\u662F\u540C\u4E00\u4EF6\u4E8B\uFF0C\u6240\u4EE5\u653E\u5728\u63D0\u4EA4\u533A\u91CC\u7528\u5F00\u5173\u8868\u8FBE\uFF1B\u4E0D\u653E\u8FDB\u6587\u4EF6\u884C\uFF08\u4E00\u6B21\u63D0\u4EA4\u53EF\u4EE5\u8DE8\u591A\u4E2A\u6587\u4EF6\uFF09\uFF0C\u4E5F\u4E0D\u653E\u63D0\u4EA4\u884C\u83DC\u5355\uFF08\u90A3\u91CC\u6539\u7684\u662F\u5DF2\u7ECF\u8BB0\u4E0B\u6765\u7684\u63D0\u4EA4\uFF09\u3002" },
+    { id: "2.3", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u5F62\u6001\u4E00\u680F\u7684\u300C\u4FEE\u8BA2\u4E0A\u4E00\u6761\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u4FEE\u8BA2\u8981\u91CD\u5199\u8BF4\u660E\u5E76\u590D\u7528\u5DF2\u6682\u5B58\u7684\u5185\u5BB9\uFF0C\u53EA\u6709\u63D0\u4EA4\u533A\u540C\u65F6\u770B\u5F97\u89C1\u8FD9\u4E24\u6837\uFF1B\u63D0\u4EA4\u884C\u83DC\u5355\u53EA\u7559\u7ED9\u4E0D\u9700\u8981\u518D\u5199\u4EC0\u4E48\u7684\u884C\u7EA7\u52A8\u4F5C\uFF08\u8FD8\u539F\u3001\u62E3\u9009\u3001\u64A4\u9500\uFF09\u3002" },
+    { id: "2.4", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u5F62\u6001\u4E00\u680F\u7684\u300Cfixup\u300D\u4E0E\u300Csquash\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u4EEC\u751F\u6210\u7684\u662F\u65B0\u63D0\u4EA4\uFF0C\u53EA\u662F\u5E26 fixup! / squash! \u524D\u7F00\uFF0C\u6240\u4EE5\u548C\u300C\u65B0\u63D0\u4EA4\u300D\u5E76\u5217\u5728\u540C\u4E00\u7EC4\u5F62\u6001\u91CC\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u884C\u83DC\u5355\uFF0C\u56E0\u4E3A\u53D1\u8D77\u65F6\u4ECD\u8981\u9009\u4E2D\u5185\u5BB9\u4E0E\u770B\u8BF4\u660E\u3002" },
+    { id: "2.5", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u8BB0\u5F55\u65B9\u5F0F\u91CC\u7684\u300C\u8DF3\u8FC7\u63D0\u4EA4\u94A9\u5B50\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u51B3\u5B9A\u8FD9\u4E00\u6B21\u63D0\u4EA4\u8DD1\u4E0D\u8DD1\u94A9\u5B50\uFF0C\u5C5E\u4E8E\u8FD9\u6B21\u63D0\u4EA4\u7684\u8BB0\u5F55\u65B9\u5F0F\uFF1B\u5355\u72EC\u4E00\u4E2A\u5F00\u5173\uFF0C\u65C1\u8FB9\u5E38\u9A7B\u300C\u63D0\u4EA4\u524D\u7684\u68C0\u67E5\u4E0D\u4F1A\u8DD1\u300D\u8FD9\u53E5\u540E\u679C\u3002" },
+    { id: "2.6", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u8BB0\u5F55\u65B9\u5F0F\u91CC\u7684\u300C\u7B7E\u540D\u63D0\u4EA4\u300D\u4E0E\u300C\u8FFD\u52A0\u7B7E\u540D\u884C\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u4E24\u8005\u90FD\u6539\u5199\u8FD9\u6B21\u63D0\u4EA4\u7684\u5143\u6570\u636E\uFF0C\u4E00\u4E2A\u6362\u7B7E\u540D\u5757\u3001\u4E00\u4E2A\u52A0\u4E00\u884C\u8BF4\u660E\uFF0C\u653E\u540C\u4E00\u7EC4\u8BFB\u8005\u624D\u770B\u5F97\u51FA\u533A\u522B\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u5F62\u6001\uFF0C\u56E0\u4E3A\u5F62\u6001\u51B3\u5B9A\u8FD9\u6761\u63D0\u4EA4\u8FDB\u4E0D\u8FDB\u5386\u53F2\uFF0C\u4E0D\u51B3\u5B9A\u5B83\u7684\u7B7E\u540D\u3002" },
+    { id: "2.7", form: "\u9762\u677F\u4E4B\u5916", at: "\u63D0\u4EA4\u8BF4\u660E\u8F93\u5165\u6846\u65C1\u5199\u660E\u300C\u5B8C\u6574\u8BF4\u660E\u53BB\u7F16\u8F91\u5668\u91CC\u5199\u300D", status: "\u53EA\u8BFB", reason: "\u6253\u5F00\u7F16\u8F91\u5668\u662F\u9762\u677F\u4E4B\u5916\u7684\u4E8B\uFF0C\u9762\u677F\u53EA\u5728\u8F93\u5165\u6846\u65C1\u5199\u6E05\u8FD9\u6761\u8FB9\u754C\uFF0C\u4E0D\u753B\u534A\u622A\u6309\u94AE\u3002" },
+    { id: "2.8", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u63D0\u4EA4\u8BF4\u660E\u91CC\u7684\u300C\u5957\u7528 .gitmessage\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u53EA\u6539\u8F93\u5165\u6846\u91CC\u90A3\u6BB5\u5B57\uFF0C\u6240\u4EE5\u7D27\u6328\u7740\u8F93\u5165\u6846\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u5F62\u6001\uFF08\u6A21\u677F\u4E0D\u6539\u53D8\u8FD9\u662F\u54EA\u79CD\u63D0\u4EA4\uFF09\uFF0C\u4E5F\u4E0D\u653E\u7BA1\u7406\u9875\uFF08\u586B\u8BF4\u660E\u65F6\u5C31\u5730\u53EF\u7528\u624D\u4E0D\u6253\u65AD\u6253\u5B57\uFF09\u3002" },
+    // —— 提交历史页 ——
+    { id: "3.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u5217\u8868", status: "\u5DF2\u753B" },
+    { id: "3.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u70B9\u5F00\u4E00\u884C\u63D0\u4EA4\u540E\u7684\u8BE6\u60C5\u9875", status: "\u5DF2\u753B" },
+    { id: "3.3", form: "\u53EF\u5C55\u5F00\u533A", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u70B9\u5F00\u67D0\u4E2A\u6587\u4EF6\u7684\u9010\u884C\u5DEE\u5F02", status: "\u5DF2\u753B" },
+    { id: "3.4", form: "\u884C\u5C3E\u83DC\u5355", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u6587\u4EF6\u884C\u5C3E\u300C\u66F4\u591A\u300D\u2192\u300C\u770B\u8FD9\u4E2A\u6587\u4EF6\u7684\u5386\u53F2\u300D\uFF1A\u56DE\u5230\u5217\u8868\u5E76\u52A0\u4E00\u679A\u53EF\u70B9\u6389\u7684\u300C\u53EA\u770B <\u6587\u4EF6>\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5355\u6587\u4EF6\u5386\u53F2\u662F\u4ECE\u4E00\u6761\u63D0\u4EA4\u91CC\u7684\u67D0\u4E2A\u6587\u4EF6\u53D1\u8D77\u7684\u8FFD\u95EE\uFF0C\u5165\u53E3\u8D34\u5728\u90A3\u4E2A\u6587\u4EF6\u884C\u4E0A\uFF1B\u4E0D\u653E\u8FDB\u5168\u5E93\u641C\u7D22\uFF08\u90A3\u91CC\u6309\u8BF4\u660E\u641C\uFF09\uFF0C\u4E5F\u4E0D\u653E\u63D0\u4EA4\u884C\u83DC\u5355\uFF08\u90A3\u91CC\u662F\u5BF9\u6574\u6761\u63D0\u4EA4\u505A\u52A8\u4F5C\uFF09\u3002" },
+    { id: "3.6", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u9876\u90E8\u7684\u7B5B\u9009\u6846", status: "\u5DF2\u753B" },
+    { id: "3.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u641C\u7D22\u6846\u65C1\u7684\u300C\u8BF4\u660E / \u4EE3\u7801\u53D8\u5316\u300D\u8303\u56F4\u5207\u6362\uFF1B\u547D\u4E2D\u884C\u6807\u51FA\u662F\u54EA\u4EFD\u6587\u4EF6\u5BF9\u4E0A\u4E86", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u548C\u6309\u8BF4\u660E\u641C\u662F\u540C\u4E00\u4E2A\u641C\u7D22\u6846\u7684\u4E24\u79CD\u8303\u56F4\uFF0C\u505A\u6210\u7B5B\u9009\u6846\u65C1\u8FB9\u7684\u8303\u56F4\u5207\u6362\uFF1B\u4E0D\u5355\u72EC\u5F00\u4E00\u5C4F\uFF0C\u56E0\u4E3A\u7ED3\u679C\u4ECD\u7136\u843D\u5728\u8FD9\u4E2A\u5217\u8868\u91CC\u3002" },
+    { id: "3.8", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u5DE5\u5177\u6761\u7684\u300C\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528\u300D\uFF1A\u4E24\u884C\u8868\u5355\uFF08\u4ECE / \u5230\uFF09\uFF0C\u7ED3\u679C\u5934\u4E0E\u6587\u4EF6\u6E05\u5355\u8D34\u5728\u5217\u8868\u9876\u90E8\uFF0C\u53EF\u9000\u51FA\u6BD4\u8F83", status: "\u672C\u7968\u5DF2\u753B", reason: "\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528\u8981\u5148\u9009\u4E24\u4E2A\u5BF9\u8C61\uFF0C\u9762\u677F\u91CC\u7ED9\u5B83\u4E00\u5F20\u4E24\u884C\u8868\u5355\uFF1B\u4E0D\u653E\u5728\u63D0\u4EA4\u884C\u83DC\u5355\uFF0C\u56E0\u4E3A\u5B83\u662F\u4E24\u4E24\u6BD4\u8F83\uFF0C\u4E0D\u662F\u5BF9\u4E00\u884C\u505A\u52A8\u4F5C\u3002" },
+    { id: "3.10", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u63D0\u4EA4\u8BE6\u60C5\u9876\u90E8\u7684\u4E00\u884C\u300C\u7248\u672C\u540D\u300D\u8BFB\u6570", status: "\u53EA\u8BFB", reason: "\u7248\u672C\u540D\u662F git describe \u7684\u53EA\u8BFB\u7ED3\u679C\uFF0C\u9762\u677F\u5728\u8BE6\u60C5\u91CC\u7ED9\u4E00\u884C\u8BFB\u6570\uFF0C\u4E0D\u753B\u63A7\u4EF6\u3002" },
+    { id: "3.12", form: "\u53EF\u5C55\u5F00\u533A", at: "\u63D0\u4EA4\u8BE6\u60C5\u5E95\u90E8\u7684\u300C\u63D0\u4EA4\u5907\u6CE8\u300D\uFF1A\u5199\u4E00\u53E5\u3001\u4FDD\u5B58\uFF0C\u5217\u8868\u884C\u4E0A\u591A\u4E00\u679A\u300C\u5907\u6CE8\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5907\u6CE8\u6302\u5728\u4E00\u6761\u63D0\u4EA4\u4E0A\uFF0C\u8DDF\u7740\u8BE6\u60C5\u8D70\uFF1B\u4E0D\u653E\u8FDB\u5168\u5E93\u641C\u7D22\uFF0C\u56E0\u4E3A\u5B83\u662F\u7ED9\u8FD9\u6761\u63D0\u4EA4\u505A\u7684\u6CE8\u89E3\uFF0C\u4E0D\u662F\u67E5\u627E\u5165\u53E3\u3002" },
+    { id: "3.13", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u300C\u53D6\u8FD9\u4E2A\u7248\u672C\u7684\u6587\u4EF6\u5185\u5BB9\u300D\u7684\u53EA\u8BFB\u5F62\u72B6", status: "\u53EA\u8BFB", reason: "\u53D6\u67D0\u4E2A\u7248\u672C\u7684\u6587\u4EF6\u5185\u5BB9\u662F\u53EA\u8BFB\u8BCA\u65AD\uFF0C\u9762\u677F\u5728\u8BE6\u60C5\u91CC\u5C55\u793A\u5B83\u8BFB\u5230\u7684\u6587\u4EF6\u4E0E\u4F53\u79EF\uFF0C\u4E0D\u753B\u6267\u884C\u6309\u94AE\u3002" },
+    // —— 工作区页 ——
+    { id: "9.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5DE5\u4F5C\u533A\u9875\u7684\u5F53\u524D\u5DE5\u4F5C\u533A\u5361\u4E0E\u5176\u4ED6\u5DE5\u4F5C\u533A\u5217\u8868", status: "\u5DF2\u753B" },
+    { id: "9.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5DE5\u4F5C\u533A\u9875\u5E95\u90E8\u300C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u300D\u5F39\u51FA\u7684\u8868\u5355\uFF1A\u76EE\u5F55\u4E0E\u5206\u652F\u4E24\u884C\uFF0C\u9ED8\u8BA4\u65B0\u5EFA\u5206\u652F", status: "\u672C\u7968\u5DF2\u753B", reason: "\u65B0\u5EFA\u5DE5\u4F5C\u533A\u8981\u586B\u8DEF\u5F84\u4E0E\u5206\u652F\uFF0C\u7528\u4E00\u4E2A\u8868\u5355\u6BD4\u5728\u884C\u91CC\u585E\u4E24\u9897\u6309\u94AE\u6E05\u695A\uFF1B\u653E\u5728\u5217\u8868\u4E0B\u65B9\uFF0C\u56E0\u4E3A\u5B83\u4E0D\u5C5E\u4E8E\u4EFB\u4F55\u4E00\u884C\u3002" },
+    { id: "9.3", form: "\u53EF\u5C55\u5F00\u533A", at: "\u540C\u4E00\u5F20\u8868\u5355\u91CC\u7684\u300C\u5DF2\u6709\u5206\u652F\u300D\uFF1A\u70B9\u6700\u8FD1\u7528\u8FC7\u7684\u5206\u652F\u586B\u8FDB\u8F93\u5165\u6846\uFF0C\u5206\u652F\u540D\u4ECD\u53EF\u624B\u6539", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u548C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u662F\u540C\u4E00\u5F20\u8868\u5355\u7684\u7B2C\u4E8C\u79CD\u586B\u6CD5\uFF1A\u8DEF\u5F84\u7167\u586B\uFF0C\u5206\u652F\u6539\u6210\u4ECE\u5DF2\u6709\u6E05\u5355\u91CC\u9009\uFF0C\u6240\u4EE5\u5E76\u8FDB\u540C\u4E00\u5904\u3002" },
+    { id: "9.4", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u79FB\u9664\u5DE5\u4F5C\u533A\u300D\u4E0E\u5185\u8054\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "9.5", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5C55\u5F00\u76EE\u5F55\u4E0D\u5B58\u5728\u7684\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u6E05\u9664\u8BB0\u5F55\u300D", status: "\u5DF2\u753B" },
+    { id: "9.6", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5C55\u5F00\u88AB\u5360\u7528\u7684\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u89E3\u9664\u9501\u5B9A\u300D", status: "\u5DF2\u753B" },
+    { id: "9.7", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u79FB\u52A8\u300D\uFF1A\u586B\u4E00\u4E2A\u65B0\u76EE\u5F55\uFF0C\u4FDD\u5B58\u540E\u6E05\u5355\u91CC\u6362\u6210\u65B0\u8DEF\u5F84", status: "\u672C\u7968\u5DF2\u753B", reason: "\u79FB\u52A8\u6539\u7684\u662F\u8FD9\u4E00\u68F5\u7684\u8DEF\u5F84\uFF0C\u5C5E\u4E8E\u5C55\u5F00\u533A\u91CC\u7684\u884C\u7EA7\u52A8\u4F5C\uFF1B\u4E0D\u653E\u8FDB\u65B0\u5EFA\u8868\u5355\uFF08\u5B83\u4E0D\u52A8\u767B\u8BB0\u5185\u5BB9\uFF09\uFF0C\u4E5F\u4E0D\u653E\u9875\u9762\u7EA7\u52A8\u4F5C\uFF08\u4E00\u6B21\u53EA\u79FB\u4E00\u68F5\uFF09\u3002" },
+    { id: "9.8", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u7A00\u758F\u68C0\u51FA\u300D\uFF1A\u52FE\u9876\u5C42\u76EE\u5F55\u3001\u4FDD\u5B58\u89C4\u5219\uFF0C\u5C55\u5F00\u884C\u91CC\u5E38\u9A7B\u4E00\u53E5\u5F53\u524D\u89C4\u5219", status: "\u672C\u7968\u5DF2\u753B", reason: "\u7A00\u758F\u68C0\u51FA\u6539\u7684\u662F\u8FD9\u4E00\u68F5\u7684\u68C0\u51FA\u8303\u56F4\uFF0C\u8DDF\u7740\u8FD9\u68F5\u8D70\uFF1B\u653E\u5C55\u5F00\u533A\uFF0C\u8BFB\u8005\u80FD\u8FB9\u770B\u5F53\u524D\u8DEF\u5F84\u8FB9\u9009\u4FDD\u7559\u54EA\u4E9B\u76EE\u5F55\u3002" },
+    // —— 储藏页 ——
+    { id: "7.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6539\u52A8\u9875\u63D0\u4EA4\u533A\u53F3\u4E0A\u89D2\u7684\u300C\u50A8\u85CF\u300D", status: "\u5DF2\u753B" },
+    { id: "7.2", form: "\u884C\u5C3E\u83DC\u5355", at: "\u300C\u50A8\u85CF\u300D\u53F3\u4FA7\u7BAD\u5934\u6253\u5F00\u7684\u83DC\u5355\u91CC\u7684\u300C\u8FDE\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u300D\uFF08git stash -u\uFF09", status: "\u672C\u7968\u5DF2\u753B", reason: "\u8FDE\u672A\u8DDF\u8E2A\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u662F\u50A8\u85CF\u52A8\u4F5C\u7684\u4E00\u4E2A\u53D8\u4F53\uFF0C\u6302\u5728\u540C\u4E00\u9897\u300C\u50A8\u85CF\u300D\u4E0A\u6700\u76F4\u63A5\uFF1B\u4E0D\u653E\u8FDB\u50A8\u85CF\u9875\u7B7E\uFF08\u90A3\u6761\u8BB0\u5F55\u5DF2\u7ECF\u751F\u6210\uFF0C\u6765\u4E0D\u53CA\u53CD\u6094\uFF09\u3002" },
+    { id: "7.3", form: "\u884C\u5C3E\u83DC\u5355", at: "\u540C\u4E00\u5F20\u83DC\u5355\u91CC\u7684\u300C\u53EA\u50A8\u85CF\u5DF2\u6682\u5B58\u7684\u6539\u52A8\u300D\uFF08git stash push --staged\uFF09\uFF1A\u6536\u5B8C\u5DE5\u4F5C\u533A\u91CC\u7684\u6539\u52A8\u4ECD\u5728", status: "\u672C\u7968\u5DF2\u753B", reason: "\u540C\u4E0A\uFF1A\u5B83\u662F\u50A8\u85CF\u52A8\u4F5C\u7684\u53D8\u4F53\uFF0C\u548C\u300C\u8FDE\u672A\u8DDF\u8E2A\u4E00\u8D77\u300D\u5E76\u6392\u653E\u5728\u300C\u50A8\u85CF\u300D\u7684\u83DC\u5355\u91CC\uFF0C\u8BFB\u8005\u80FD\u5728\u70B9\u4E4B\u524D\u9009\u6E05\u695A\u6536\u54EA\u4E9B\u3002" },
+    { id: "7.4", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u9875\u7B7E\u7684\u8BB0\u5F55\u5217\u8868", status: "\u5DF2\u753B" },
+    { id: "7.5", form: "\u53EF\u5C55\u5F00\u533A", at: "\u50A8\u85CF\u9875\u6BCF\u884C\u8BB0\u5F55\u4E0B\u9762\u76F4\u63A5\u5217\u51FA\u7684\u6587\u4EF6\u8DEF\u5F84", status: "\u5DF2\u753B" },
+    { id: "7.6", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u7684\u300C\u5E94\u7528\u300D", status: "\u5DF2\u753B" },
+    { id: "7.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u7684\u300C\u5F39\u51FA\u300D", status: "\u5DF2\u753B" },
+    { id: "7.8", form: "\u884C\u5C3E\u83DC\u5355", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u4ECE\u8FD9\u6761\u8BB0\u5F55\u5EFA\u5206\u652F\u300D\uFF1A\u586B\u5206\u652F\u540D\uFF0C\u5EFA\u5B8C\u8BB0\u5F55\u7528\u6389\u3001\u5185\u5BB9\u843D\u5230\u5DE5\u4F5C\u533A", status: "\u672C\u7968\u5DF2\u753B", reason: "\u4ECE\u50A8\u85CF\u5EFA\u5206\u652F\u8981\u5148\u7ED9\u5206\u652F\u540D\uFF0C\u5C5E\u4E8E\u5BF9\u8FD9\u6761\u8BB0\u5F55\u505A\u7684\u4E0B\u4E00\u6B65\uFF0C\u6240\u4EE5\u653E\u8FDB\u5B83\u7684\u884C\u83DC\u5355\uFF1B\u4E0D\u653E\u9875\u9762\u7EA7\u52A8\u4F5C\uFF0C\u56E0\u4E3A\u4E00\u6B21\u5904\u7406\u7684\u662F\u8FD9\u4E00\u6761\u8BB0\u5F55\u3002" },
+    { id: "7.9", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u7684\u300C\u4E22\u5F03\u8BB0\u5F55\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "7.10", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u9875\u5217\u8868\u6807\u9898\u884C\u53F3\u4FA7\u7684\u300C\u6E05\u7A7A\u5168\u90E8\u8BB0\u5F55\u300D\u4E0E\u8D34\u6807\u9898\u884C\u7684\u786E\u8BA4\u5361", status: "\u672C\u7968\u5DF2\u753B", reason: "\u6E05\u7A7A\u662F\u6574\u9875\u7684\u52A8\u4F5C\uFF0C\u653E\u5728\u5217\u8868\u6807\u9898\u884C\u53F3\u4FA7\uFF1B\u4E0D\u653E\u8FDB\u6BCF\u884C\u7684\u884C\u83DC\u5355\uFF08\u5B83\u4E0D\u662F\u5BF9\u4E00\u6761\u8BB0\u5F55\u505A\u7684\uFF09\uFF0C\u4E5F\u4E0D\u653E\u5371\u9669\u533A\uFF08\u50A8\u85CF\u8BB0\u5F55\u53EA\u5728\u672C\u673A\uFF09\u3002" }
+  ];
+  var PAGE_TITLES = {
+    "branch-tags": "\u5206\u652F\u4E0E\u4E0A\u6E38",
+    remote: "\u8FDC\u7AEF",
+    submodules: "\u5B50\u6A21\u7EC4",
+    maintenance: "\u4ED3\u5E93\u7EF4\u62A4",
+    migrate: "\u8FC1\u79FB\u4E0E\u5BFC\u5165",
+    config: "\u914D\u7F6E",
+    hooks: "\u94A9\u5B50",
+    diagnostics: "\u8BCA\u65AD",
+    platform: "\u5E73\u53F0\u4E0E\u80FD\u529B\u8FB9\u754C",
+    rebase: "\u4EA4\u4E92\u5F0F\u53D8\u57FA",
+    conflicts: "\u51B2\u7A81\u5904\u7F6E",
+    task: "\u957F\u4EFB\u52A1",
+    search: "\u5168\u5E93\u641C\u7D22",
+    manage: "\u7BA1\u7406\u7D22\u5F15"
+  };
+  var ALL_ENTRIES = (() => {
+    const handwritten = new Map(TAB_ENTRIES.map((entry) => [entry.id, entry]));
+    return CAPABILITIES.map((cap) => handwritten.get(cap.id) ?? derivedEntry(cap));
+  })();
+  var ENTRY_BY_ID = new Map(ALL_ENTRIES.map((entry) => [entry.id, entry]));
+  function allCapabilityEntries() {
+    return ALL_ENTRIES;
+  }
+  function capabilityEntryOf(id) {
+    return ENTRY_BY_ID.get(id);
+  }
+  function derivedEntry(cap) {
+    const page = PAGE_TITLES[cap.target] ?? cap.target;
+    if (cap.readOnly) {
+      return {
+        id: cap.id,
+        form: cap.placement === "\u5916" ? "\u9762\u677F\u4E4B\u5916" : "\u53EA\u8BFB\u8BCA\u65AD",
+        at: page + "\u9875\u80FD\u529B\u6E05\u5355\u91CC\u7684\u53EA\u8BFB\u8BF4\u660E",
+        status: "\u53EA\u8BFB",
+        reason: cap.placement === "\u5916" ? "\u8FD9\u6761\u80FD\u529B\u8981\u9762\u677F\u4E4B\u5916\u7684\u5DE5\u5177\u6216\u5E73\u53F0\u624D\u80FD\u505A\uFF0C\u9875\u9762\u53EA\u5199\u6E05\u8FB9\u754C\uFF0C\u4E0D\u753B\u534A\u622A\u6309\u94AE\u3002" : "\u53EA\u8BFB\u80FD\u529B\u53EA\u5C55\u793A\u5B83\u8BFB\u5230\u7684\u5F62\u72B6\uFF0C\u9762\u677F\u4E0D\u63D0\u4F9B\u6267\u884C\u6309\u94AE\u3002"
+      };
+    }
+    if (cap.target === "platform") {
+      return { id: cap.id, form: "\u9875\u9762\u52A8\u4F5C", at: "\u5E73\u53F0\u4E0E\u80FD\u529B\u8FB9\u754C\u9875\u7684\u8BF4\u660E\u884C", status: "\u5DF2\u753B" };
+    }
+    return { id: cap.id, form: "\u9875\u9762\u52A8\u4F5C", at: page + "\u9875\u80FD\u529B\u6E05\u5355\u91CC\u7684\u300C\u6F14\u793A\u8FD9\u6761\u6D41\u7A0B\u300D", status: "\u5DF2\u753B" };
+  }
+
   // docs/prototype/vc-redesign/src/data/pages-copy.ts
   var MANAGE_INDEX = {
     id: "manage",
@@ -7777,16 +8926,33 @@
     }
     const composer = h("div", { class: "composer" });
     if (result !== null && result.source === "commit") composer.append(resultBanner(result));
-    const stashBtn = h("button", {
-      class: `link-btn${model.canStash ? "" : " is-disabled"}`,
-      attrs: {
-        type: "button",
-        "data-focus-key": "stash-create",
-        title: model.canStash ? COPY.changes.stashHint : model.stashReason ?? COPY.changes.stashBlocked,
-        disabled: !model.canStash
-      },
-      dataset: { action: "stash-create" }
-    }, COPY.changes.stashAction);
+    const stashBtn = h(
+      "span",
+      { class: "stash-split" },
+      h("button", {
+        class: `link-btn${model.canStash ? "" : " is-disabled"}`,
+        attrs: {
+          type: "button",
+          "data-focus-key": "stash-create",
+          title: model.canStash ? COPY.changes.stashHint : model.stashReason ?? COPY.changes.stashBlocked,
+          disabled: !model.canStash
+        },
+        dataset: { action: "stash-create" }
+      }, COPY.changes.stashAction),
+      h("button", {
+        class: `stash-caret${model.stashMenuOpen ? " is-on" : ""}`,
+        attrs: {
+          type: "button",
+          "aria-haspopup": "true",
+          "aria-expanded": model.stashMenuOpen ? "true" : "false",
+          "aria-label": COPY.stash.variantsTitle,
+          title: model.canStash ? COPY.stash.variantsTitle : model.stashReason ?? COPY.changes.stashBlocked,
+          "data-focus-key": "stash-variants",
+          disabled: !model.canStash
+        },
+        dataset: { action: "stash-menu-toggle" }
+      }, h("span", { class: "stash-caret-glyph", attrs: { "aria-hidden": "true" }, text: "\u2304" }))
+    );
     const stagedLine = h(
       "div",
       { class: "composer-head" },
@@ -7807,21 +8973,24 @@
         stashBtn
       )
     );
-    const textarea = h("textarea", {
-      class: "commit-input",
-      attrs: {
-        id: "commit-message",
-        rows: 2,
-        placeholder: model.composer.placeholder,
-        "data-field": "message",
-        "data-focus-key": "commit-message",
-        "aria-label": "\u63D0\u4EA4\u8BF4\u660E",
-        "aria-describedby": "commit-hint"
-      }
-    });
-    textarea.value = model.composer.message;
+    const messageNode = model.composer.options.messageEditable ? (() => {
+      const textarea = h("textarea", {
+        class: "commit-input",
+        attrs: {
+          id: "commit-message",
+          rows: 2,
+          placeholder: model.composer.placeholder,
+          "data-field": "message",
+          "data-focus-key": "commit-message",
+          "aria-label": "\u63D0\u4EA4\u8BF4\u660E",
+          "aria-describedby": "commit-hint"
+        }
+      });
+      textarea.value = model.composer.message;
+      return textarea;
+    })() : renderAutoMessage(model.composer);
     const commitButton = button({
-      label: COPY.changes.commitLabel(model.composer.stagedCount),
+      label: model.composer.label,
       kind: "primary",
       size: "md",
       disabled: model.composer.disabled,
@@ -7831,22 +9000,174 @@
       action: "commit",
       focusKey: "commit"
     });
+    const flagNames = model.composer.flags.map((flag) => flag.label).join("\u3001");
+    const optionsToggle = h("button", {
+      class: "commit-options-toggle" + (model.composer.optionsOpen ? " is-on" : ""),
+      attrs: {
+        type: "button",
+        "aria-expanded": model.composer.optionsOpen ? "true" : "false",
+        "aria-haspopup": "true",
+        "aria-label": flagNames === "" ? COPY.commitOptions.triggerLabel : COPY.commitOptions.triggerLabel + "\uFF08\u5DF2\u5F00\u542F\uFF1A" + flagNames + "\uFF09",
+        title: flagNames === "" ? COPY.commitOptions.triggerHint : COPY.commitOptions.triggerHint + "\u3002\u5DF2\u5F00\u542F\uFF1A" + flagNames,
+        "data-focus-key": "commit-options"
+      },
+      dataset: { action: "commit-options-toggle" }
+    }, h("span", { class: "commit-options-caret", attrs: { "aria-hidden": "true" }, text: "\u2304" }));
     const footLeft = model.composer.disabledReason === null ? h("span", { class: "hint-text", text: model.composer.hint }) : h(
       "span",
       { class: "composer-reason", id: "commit-reason" },
       icon("alert", 12),
       h("span", { text: model.composer.disabledReason })
     );
+    const flagNode = model.composer.flags.length === 0 ? null : h(
+      "div",
+      { class: "composer-flags", attrs: { role: "status", "aria-label": "\u8FD9\u6B21\u63D0\u4EA4\u5DF2\u6253\u5F00\u7684\u8BB0\u5F55\u65B9\u5F0F" } },
+      ...model.composer.flags.map((flag) => chip(flag.label, flag.label === COPY.commitOptions.skipHooks ? "warn" : "info", { small: true, title: flag.hint }))
+    );
     const foot = h(
       "div",
       { class: "composer-foot", id: "commit-hint" },
       footLeft,
       handoffEntry(HANDOFF_ENTRY.changes, "changes"),
-      commitButton
+      h("div", { class: "commit-split" }, commitButton, optionsToggle)
     );
-    composer.append(stagedLine, textarea, foot);
+    composer.append(stagedLine, messageNode);
+    if (flagNode !== null) composer.append(flagNode);
+    composer.append(foot);
+    if (model.composer.optionsOpen) composer.append(renderCommitOptions(model.composer));
+    if (model.stashMenuOpen) composer.append(renderStashMenu());
     view.append(filterRow, list, composer);
     return view;
+  }
+  function renderStashMenu() {
+    const item = (label, note3, mode) => h(
+      "button",
+      {
+        class: "stash-opt",
+        attrs: { type: "button", "data-focus-key": `stash-mode:${mode}` },
+        dataset: { action: "stash-create", mode }
+      },
+      h("span", { class: "stash-opt-title", text: label }),
+      h("span", { class: "stash-opt-note", text: note3 })
+    );
+    return h(
+      "div",
+      { class: "stash-menu", attrs: { role: "group", "aria-label": COPY.stash.variantsTitle } },
+      h(
+        "div",
+        { class: "opt-head" },
+        h("span", { class: "opt-title", text: COPY.stash.variantsTitle }),
+        h("button", {
+          class: "opt-close",
+          attrs: { type: "button", "aria-label": "\u6536\u8D77\u50A8\u85CF\u65B9\u5F0F", "data-focus-key": "stash-variants-close" },
+          dataset: { action: "stash-menu-toggle" }
+        }, "\xD7")
+      ),
+      h("p", { class: "stash-menu-hint", text: COPY.stash.variantsHint }),
+      item(COPY.stash.variantAll, COPY.stash.variantAllNote, "all"),
+      item(COPY.stash.variantUntracked, COPY.stash.variantUntrackedNote, "untracked"),
+      item(COPY.stash.variantStaged, COPY.stash.variantStagedNote, "staged")
+    );
+  }
+  function renderCommitOptions(composer) {
+    const options = composer.options;
+    const copy = COPY.commitOptions;
+    const panel = h("div", { class: "commit-options", attrs: { role: "dialog", "aria-label": copy.title } });
+    panel.append(h(
+      "div",
+      { class: "opt-head" },
+      h("span", { class: "opt-title", text: copy.title }),
+      h("button", {
+        class: "opt-close",
+        attrs: { type: "button", "aria-label": "\u6536\u8D77\u63D0\u4EA4\u9009\u9879", title: "\u6536\u8D77\u63D0\u4EA4\u9009\u9879", "data-focus-key": "commit-options-close" },
+        dataset: { action: "commit-options-toggle" }
+      }, "\xD7")
+    ));
+    const forms = [
+      ["commit", copy.form.commit],
+      ["amend", copy.form.amend],
+      ["fixup", copy.form.fixup],
+      ["squash", copy.form.squash]
+    ];
+    const seg = h("div", { class: "opt-seg", attrs: { role: "group", "aria-label": copy.formKey } });
+    for (const [form, label] of forms) {
+      seg.append(h("button", {
+        class: "opt-seg-btn" + (options.form === form ? " is-on" : ""),
+        attrs: {
+          type: "button",
+          "aria-pressed": options.form === form ? "true" : "false",
+          "data-focus-key": "commit-form:" + form,
+          title: copy.formNote[form]
+        },
+        dataset: { action: "commit-form", form }
+      }, label));
+    }
+    const group = (key, control, note3) => h(
+      "div",
+      { class: "opt-line" },
+      h("span", { class: "opt-key", text: key }),
+      h(
+        "div",
+        { class: "opt-body" },
+        control,
+        note3 === null ? null : h("p", { class: "opt-note", text: note3 })
+      )
+    );
+    panel.append(group(
+      copy.formKey,
+      seg,
+      options.form === "commit" ? options.formNote : options.formNote + (options.target === null ? " " + copy.targetNone : " " + copy.target(options.target.short, options.target.subject))
+    ));
+    panel.append(group(copy.contentKey, optionSwitch({
+      label: copy.allTracked,
+      note: options.allTrackedCount === 0 ? copy.allTrackedEmpty : copy.allTrackedNote(options.allTrackedCount),
+      on: options.allTracked,
+      action: "commit-all-tracked",
+      focusKey: "commit-all-tracked",
+      disabled: options.allTrackedCount === 0 && options.allTracked === false
+    }), options.allTrackedCount === 0 ? copy.allTrackedEmpty : options.allTracked ? copy.allTrackedNote(options.allTrackedCount) : copy.contentNote));
+    panel.append(group(copy.messageKey, h("button", {
+      class: "opt-link",
+      attrs: { type: "button", "data-focus-key": "commit-template", title: copy.templateNote },
+      dataset: { action: options.templateApplied ? "template-undo" : "template-apply" }
+    }, options.templateApplied ? copy.templateApplied + " \xB7 " + copy.templateUndo : copy.templateApply), copy.templateNote));
+    panel.append(group(copy.recordKey, h(
+      "div",
+      { class: "opt-records" },
+      optionSwitch({ label: copy.skipHooks, note: copy.skipHooksNote, on: options.skipHooks, action: "skip-hooks", focusKey: "skip-hooks" }),
+      optionSwitch({ label: copy.signCommit, note: copy.signCommitNote, on: options.signCommit, action: "sign-commit", focusKey: "sign-commit" }),
+      optionSwitch({ label: copy.signoff, note: copy.signoffNote, on: options.signoff, action: "signoff", focusKey: "signoff" })
+    ), copy.recordNote));
+    return panel;
+  }
+  function optionSwitch(item) {
+    return h(
+      "button",
+      {
+        class: "opt-check" + (item.on ? " is-on" : "") + (item.disabled === true ? " is-off" : ""),
+        attrs: {
+          type: "button",
+          role: "switch",
+          "aria-checked": item.on ? "true" : "false",
+          "data-focus-key": item.focusKey,
+          disabled: item.disabled === true,
+          title: item.note
+        },
+        dataset: { action: item.action }
+      },
+      h("span", { class: "opt-box", attrs: { "aria-hidden": "true" } }),
+      h("span", { class: "opt-check-label", text: item.label })
+    );
+  }
+  function renderAutoMessage(composer) {
+    const copy = COPY.commitOptions;
+    return h(
+      "div",
+      { class: "commit-auto", attrs: { id: "commit-message" } },
+      h("span", { class: "commit-auto-lead", text: copy.autoMessageLead }),
+      h("span", { class: "commit-auto-text mono", text: composer.options.autoMessage ?? "" }),
+      h("span", { class: "commit-auto-note", text: copy.autoMessageNote })
+    );
   }
   function renderGroup(group, model) {
     const section2 = h("section", { class: `group group-${group.id}` });
@@ -7925,7 +9246,9 @@
     ));
     if (row.extraBadges.length > 0) {
       const extras = h("span", { class: "file-extras" });
-      for (const text of row.extraBadges) extras.append(chip(text, row.conflict ? "error" : text === COPY.changes.stagedBadge ? "ok" : "muted", { small: true }));
+      for (const extra of row.extraBadges) {
+        extras.append(chip(extra.text, extra.tone, { small: true, ...extra.title === void 0 ? {} : { title: extra.title } }));
+      }
       main.append(extras);
     }
     if (row.delta !== null) {
@@ -7968,14 +9291,47 @@
     rowNode.append(main, actions);
     const wrap = h("div", { class: "file-row-wrap" }, rowNode);
     if (menuOpen) wrap.append(renderRowMenu(row, model));
+    if (model.rename !== null && model.rename.path === row.fullPath) wrap.append(renderRenameForm(model.rename));
     if (pendingHere && model.pending !== null) wrap.append(renderConfirmCard(model.pending));
     if (row.expanded) {
       const body = h("div", { class: "file-detail" });
-      if (row.patch !== null) body.append(patchBlock(row.patch), h("div", { class: "file-detail-note", text: COPY.changes.patchNote }));
-      else if (row.patchNote !== null) body.append(note(row.patchNote));
+      const hasPatch = row.hunks.length > 0 || (row.patchHead?.length ?? 0) > 0;
+      if (hasPatch) {
+        const blocks = h("div", { class: "hunked" });
+        if (row.patchHead !== null && row.patchHead.length > 0) blocks.append(patchBlock(row.patchHead));
+        for (const hunk of row.hunks) blocks.append(renderHunk(hunk, row));
+        body.append(blocks, h("div", { class: "file-detail-note", text: COPY.changes.patchNote }));
+        if (row.hunks.length > 0) body.append(h("div", { class: "file-detail-note", text: COPY.changes.hunkNote }));
+      } else if (row.patchNote !== null) {
+        body.append(note(row.patchNote));
+      }
       wrap.append(body);
     }
     return wrap;
+  }
+  function renderHunk(hunk, row) {
+    const copy = COPY.changes;
+    const unstage = hunk.canUnstage;
+    const label = unstage ? copy.hunkUnstage : copy.hunkStage;
+    const bar = h(
+      "div",
+      { class: "hunk-bar" },
+      h("span", { class: "hunk-name", text: copy.hunkTitle(hunk.index + 1) }),
+      hunk.staged ? chip(copy.hunkStaged, "ok", { small: true }) : null,
+      h("span", { class: "hunk-gap" }),
+      // 外形沿用行尾动作那颗小按钮（.row-act），只把高度与字号压到块头这一行的高度。
+      h("button", {
+        class: "row-act hunk-act",
+        attrs: {
+          type: "button",
+          disabled: !unstage && !hunk.canStage,
+          "data-focus-key": `hunk:${row.fullPath}:${hunk.index}`,
+          title: `${label}\uFF08${row.name} \u5171 ${row.hunks.length} \u5757\uFF09`
+        },
+        dataset: { action: unstage ? "unstage-hunk" : "stage-hunk", path: row.fullPath, index: String(hunk.index) }
+      }, label)
+    );
+    return h("div", { class: `hunk${hunk.staged ? " is-staged" : ""}` }, bar, patchBlock(hunk.lines));
   }
   function renderRowMenu(row, model) {
     const menu = h("div", { class: "row-menu", attrs: { role: "menu", "aria-label": `${row.name} \u7684\u66F4\u591A\u64CD\u4F5C` } });
@@ -7985,6 +9341,9 @@
       dataset: { action, ...dataset }
     }, label);
     if (row.canDiscard) menu.append(item(COPY.changes.menuDiscard, "changes-pending", { kind: "discard", path: row.fullPath }, true));
+    if (row.canRename) menu.append(item(COPY.changes.menuRename, "rename-open", { path: row.fullPath }));
+    if (row.canUntrack) menu.append(item(COPY.changes.menuUntrack, "changes-pending", { kind: "untrack", path: row.fullPath }));
+    if (row.canDeleteTracked) menu.append(item(COPY.changes.menuDeleteTracked, "changes-pending", { kind: "delete-tracked", path: row.fullPath }, true));
     if (row.canIgnore) menu.append(item(COPY.changes.menuIgnore, "changes-pending", { kind: "ignore", path: row.fullPath }));
     if (row.canDeleteUntracked) menu.append(item(COPY.changes.menuDelete, "changes-pending", { kind: "delete-untracked", path: row.fullPath }, true));
     if (row.resolvable) {
@@ -7999,6 +9358,35 @@
     }, COPY.changes.menuClose));
     void model;
     return menu;
+  }
+  function renderRenameForm(rename) {
+    const copy = COPY.changes;
+    const input = h("input", {
+      class: "rename-input",
+      attrs: {
+        type: "text",
+        value: rename.draft,
+        placeholder: copy.renamePlaceholder,
+        "data-field": "rename",
+        "data-focus-key": "rename-input",
+        autocomplete: "off",
+        spellcheck: "false",
+        "aria-label": copy.renameTitle
+      }
+    });
+    return h(
+      "div",
+      { class: "rename-form", attrs: { role: "group", "aria-label": copy.renameTitle } },
+      h("h3", { class: "rename-title", text: copy.renameTitle }),
+      input,
+      h("p", { class: "rename-hint", text: copy.renameHint }),
+      h(
+        "div",
+        { class: "rename-actions" },
+        button({ label: copy.renameCancel, kind: "ghost", size: "sm", action: "rename-cancel", focusKey: "rename-cancel" }),
+        button({ label: copy.renameSubmit, kind: "secondary", size: "sm", action: "rename-apply", focusKey: "rename-apply" })
+      )
+    );
   }
   function renderConfirmCard(pending) {
     const card = h(
@@ -8300,12 +9688,13 @@
   }
   function renderList2(model, options) {
     const view = h("div", { class: "view view-history" });
+    const placeholder = model.scope === "code" ? COPY.history.searchPlaceholderCode : COPY.history.searchPlaceholder(model.total);
     const search = h("input", {
       class: "search-input",
       attrs: {
         type: "search",
-        placeholder: COPY.history.searchPlaceholder(model.total),
-        "aria-label": COPY.history.searchPlaceholder(model.total),
+        placeholder,
+        "aria-label": placeholder,
         autocomplete: "off",
         spellcheck: "false",
         "data-field": "history-query",
@@ -8313,27 +9702,158 @@
       }
     });
     search.value = model.query;
+    const scopeSwitch = h(
+      "div",
+      { class: "scope-switch", attrs: { role: "group", "aria-label": COPY.history.scopeLabel } },
+      scopeButton(model, "message", COPY.history.scopeMessage, COPY.history.scopeMessageHint),
+      scopeButton(model, "code", COPY.history.scopeCode, COPY.history.scopeCodeHint)
+    );
+    const tools = h("div", { class: "history-tools" }, search, scopeSwitch);
     const mergeToggle = h("button", {
       class: `toggle-btn${model.mergeOnly ? " is-on" : ""}`,
       attrs: { type: "button", "aria-pressed": model.mergeOnly ? "true" : "false", "data-focus-key": "history-merge" },
       dataset: { action: "history-merge-only" }
     }, COPY.history.mergeOnly);
-    const tools = h("div", { class: "history-tools" }, search, mergeToggle);
-    const scope = h("div", { class: "history-scope", text: model.scopeText });
+    const scopeRow = h(
+      "div",
+      { class: "history-scope-row" },
+      mergeToggle,
+      h("span", { class: "history-scope", text: model.scopeText }),
+      h("button", {
+        class: `link-btn history-compare${model.compareForm.open ? " is-on" : ""}`,
+        attrs: { type: "button", "aria-expanded": model.compareForm.open ? "true" : "false", "data-focus-key": "compare-open" },
+        dataset: { action: "compare-open" }
+      }, COPY.history.compareOpen)
+    );
+    const extra = h("div", { class: "history-extra" });
+    if (model.compareForm.open) extra.append(renderCompareForm(model));
+    if (model.compare !== null) extra.append(renderCompareHead(model.compare));
+    else if (model.fileOnly !== null) extra.append(renderFileOnlyStrip(model.fileOnly));
     const scroll = h("div", { class: "history-scroll" });
     if (options.result !== null && options.result !== void 0 && options.result.source === "history") {
       scroll.append(resultBanner(options.result));
     }
-    if (model.empty) {
-      scroll.append(emptyState(COPY.history.empty, null));
+    if (model.compare !== null) {
+      scroll.append(renderCompareFiles(model.compare));
+    } else if (model.empty) {
+      scroll.append(emptyState(model.emptyText, null));
     } else {
       for (const row of model.rows) {
         if (row.group !== null) scroll.append(h("div", { class: "day-group", text: row.group }));
         scroll.append(renderCommitLine(row, model, options));
       }
     }
-    view.append(tools, scope, scroll);
+    view.append(tools, scopeRow);
+    if (extra.childElementCount > 0) view.append(extra);
+    view.append(scroll);
     return view;
+  }
+  function scopeButton(model, scope, label, hint) {
+    const on = model.scope === scope;
+    return h("button", {
+      class: `scope-btn${on ? " is-on" : ""}`,
+      attrs: { type: "button", "aria-pressed": on ? "true" : "false", title: hint, "data-focus-key": `history-scope:${scope}` },
+      dataset: { action: "history-scope", scope }
+    }, label);
+  }
+  function renderCompareForm(model) {
+    const input = (field, value, label) => {
+      const node = h("input", {
+        class: "compare-input",
+        attrs: {
+          type: "text",
+          value,
+          placeholder: label,
+          autocomplete: "off",
+          spellcheck: "false",
+          "aria-label": label,
+          "data-field": field,
+          "data-focus-key": field
+        }
+      });
+      node.value = value;
+      return node;
+    };
+    return h(
+      "div",
+      { class: "compare-form", attrs: { role: "group", "aria-label": COPY.history.compareTitle } },
+      h(
+        "div",
+        { class: "compare-row" },
+        h("span", { class: "compare-k", text: COPY.history.compareFrom }),
+        input("compare-from", model.compareForm.from, COPY.history.compareFrom)
+      ),
+      h(
+        "div",
+        { class: "compare-row" },
+        h("span", { class: "compare-k", text: COPY.history.compareTo }),
+        input("compare-to", model.compareForm.to, COPY.history.compareTo)
+      ),
+      h("p", { class: "compare-hint", text: COPY.history.compareHint }),
+      h(
+        "div",
+        { class: "compare-actions" },
+        button({ label: COPY.history.compareCancel, kind: "ghost", size: "sm", action: "compare-close", focusKey: "compare-cancel" }),
+        button({ label: COPY.history.compareApply, kind: "secondary", size: "sm", action: "compare-apply", focusKey: "compare-apply" })
+      )
+    );
+  }
+  function renderCompareHead(compare) {
+    return h(
+      "div",
+      { class: "compare-head" },
+      h(
+        "span",
+        { class: "compare-title" },
+        COPY.history.compareTitle,
+        " ",
+        h("span", { class: "mono", text: compare.from }),
+        "..",
+        h("span", { class: "mono", text: compare.to })
+      ),
+      h("span", { class: "compare-summary", text: compare.summary }),
+      h("button", {
+        class: "link-btn",
+        attrs: { type: "button", "data-focus-key": "compare-end" },
+        dataset: { action: "compare-end" }
+      }, COPY.history.compareEnd)
+    );
+  }
+  function renderCompareFiles(compare) {
+    const list = h("div", { class: "compare-files" });
+    list.append(h("div", { class: "compare-files-note" }, note(compare.note, "muted")));
+    for (const file of compare.files) {
+      list.append(h(
+        "div",
+        { class: "file-row compare-file", attrs: { title: file.path } },
+        h(
+          "span",
+          { class: "file-path" },
+          h("span", { class: "file-dir", text: file.dir }),
+          h("span", { class: "file-name", text: file.name })
+        ),
+        h(
+          "span",
+          { class: "file-delta" },
+          file.delta.added === null ? null : h("span", { class: "dl-add", text: file.delta.added }),
+          file.delta.deleted === null ? null : h("span", { class: "dl-del", text: file.delta.deleted })
+        )
+      ));
+    }
+    return list;
+  }
+  function renderFileOnlyStrip(path) {
+    return h(
+      "div",
+      { class: "history-file-only" },
+      h("span", { class: "file-only-lead", text: COPY.history.fileOnlyLead }),
+      h("span", { class: "file-only-path mono", text: path, title: path }),
+      h("button", {
+        class: "file-only-clear",
+        attrs: { type: "button", "aria-label": COPY.history.fileOnlyClear, title: COPY.history.fileOnlyClear },
+        dataset: { action: "history-file-only-clear" }
+      }, "\xD7")
+    );
   }
   function renderCommitLine(row, model, options) {
     const menuOpen = options.menuOid === row.oid;
@@ -8360,7 +9880,16 @@
           { class: "commit-meta" },
           h("span", { class: "commit-author", text: row.author }),
           h("span", { class: "commit-when", text: row.when }),
-          row.filesCount > 0 ? h("span", { class: "commit-files", text: `${row.filesCount} \u4E2A\u6587\u4EF6` }) : null
+          row.filesCount > 0 ? h("span", { class: "commit-files", text: `${row.filesCount} \u4E2A\u6587\u4EF6` }) : null,
+          // 这条提交是怎么记下来的：修订、fixup、跳过钩子、已签名在行上就能看见；
+          // 按代码搜时再加一枚「命中 文件名」，写过备注的再加一枚「备注」。
+          row.marks.length === 0 && row.hitPath === null && !row.hasNote ? null : h(
+            "span",
+            { class: "commit-marks" },
+            ...row.marks.map((mark) => chip(mark, "warn", { small: true, title: mark })),
+            row.hitPath === null ? null : chip(`${COPY.history.hitTag}${splitPath(row.hitPath).name}`, "info", { small: true, title: row.hitPath }),
+            row.hasNote ? chip(COPY.history.noteTag, "ok", { small: true, title: COPY.history.noteSaved }) : null
+          )
         ),
         h("span", { class: "commit-chevron" }, icon("chevron", 12))
       ),
@@ -8446,6 +9975,50 @@
       h("span", { class: "commit-merge-raw mono", text: row.subject })
     );
   }
+  function renderFileMenu(file) {
+    const menu = h("div", { class: "row-menu", attrs: { role: "menu", "aria-label": COPY.history.fileMenuOpen } });
+    menu.append(h("button", {
+      class: "row-menu-item",
+      attrs: { type: "button", role: "menuitem" },
+      dataset: { action: "history-file-only", path: file.path }
+    }, COPY.history.fileHistory));
+    menu.append(h("button", {
+      class: "row-menu-item is-close",
+      attrs: { type: "button", "aria-label": COPY.history.menuClose },
+      dataset: { action: "history-file-menu", path: file.path }
+    }, COPY.history.menuClose));
+    return menu;
+  }
+  function renderNoteSection(detail) {
+    const input = h("textarea", {
+      class: "note-input",
+      attrs: {
+        rows: 2,
+        placeholder: COPY.history.notePlaceholder,
+        "aria-label": COPY.history.noteTitle,
+        "data-field": "note",
+        "data-focus-key": "note-input"
+      }
+    });
+    input.value = detail.note;
+    return h(
+      "div",
+      { class: "detail-notes" },
+      h(
+        "div",
+        { class: "detail-notes-head" },
+        h("h3", { class: "detail-notes-title", text: COPY.history.noteTitle }),
+        detail.noteSaved ? chip(COPY.history.noteSaved, "ok", { small: true }) : null
+      ),
+      h("p", { class: "detail-notes-hint", text: COPY.history.noteHint }),
+      input,
+      h(
+        "div",
+        { class: "detail-notes-actions" },
+        button({ label: COPY.history.noteSave, kind: "secondary", size: "sm", action: "note-save", focusKey: "note-save" })
+      )
+    );
+  }
   function renderDetail2(detail, options) {
     const view = h("div", { class: "view view-detail" });
     const head = h(
@@ -8514,7 +10087,26 @@
         file.delta.deleted === null ? null : h("span", { class: "dl-del", text: file.delta.deleted })
       ));
       fileNode.append(h("span", { class: `row-chevron${file.expanded ? " is-open" : ""}` }, icon("chevron", 12)));
-      files.append(fileNode);
+      const menuOpen = detail.fileMenuPath === file.path;
+      const line = h(
+        "div",
+        { class: "commit-file-line" },
+        fileNode,
+        h("button", {
+          class: `row-act commit-file-more${menuOpen ? " is-open" : ""}`,
+          attrs: {
+            type: "button",
+            "aria-haspopup": "true",
+            "aria-expanded": menuOpen ? "true" : "false",
+            "aria-label": COPY.history.fileMenuOpen,
+            title: COPY.history.fileMenuOpen,
+            "data-focus-key": `file-more:${file.path}`
+          },
+          dataset: { action: "history-file-menu", path: file.path }
+        }, h("span", { class: "row-more-dots", text: "\u22EF", attrs: { "aria-hidden": "true" } }))
+      );
+      const wrap = h("div", { class: "commit-file-wrap" }, line);
+      if (menuOpen) wrap.append(renderFileMenu(file));
       if (file.expanded) {
         const body = h("div", { class: "file-detail" });
         if (file.patch !== null) {
@@ -8523,10 +10115,12 @@
         } else {
           body.append(note("\u8FD9\u4E2A\u6269\u5C55\u540D\u6CA1\u6709\u53EF\u5C55\u793A\u7684\u793A\u4F8B\u8865\u4E01\u3002"));
         }
-        files.append(body);
+        wrap.append(body);
       }
+      files.append(wrap);
     }
     scroll.append(files);
+    scroll.append(renderNoteSection(detail));
     if (options.result !== null && options.result !== void 0 && options.result.source === "history") {
       scroll.append(resultBanner(options.result));
     }
@@ -8545,10 +10139,17 @@
         { class: "stash-head-text" },
         h("h2", { class: "stash-title", text: COPY.stash.title }),
         h("p", { class: "stash-count", text: COPY.stash.lede })
-      )
+      ),
+      // 清空是整页动作：放在列表标题行右侧，不做进每行的菜单里。
+      model.empty ? null : h("button", {
+        class: "link-btn stash-clear-action",
+        attrs: { type: "button", "data-focus-key": "stash-clear-action" },
+        dataset: { action: "stash-clear-open" }
+      }, COPY.stash.clearAction)
     );
     view.append(head);
     view.append(note(COPY.stash.boundary, "muted"));
+    if (model.clearPending) view.append(renderClearCard(model));
     const scroll = h("div", { class: "stash-scroll" });
     if (result !== null && result.source === "stash") scroll.append(resultBanner(result));
     if (model.empty) {
@@ -8558,6 +10159,47 @@
     }
     view.append(scroll);
     return view;
+  }
+  function renderClearCard(model) {
+    return h(
+      "div",
+      { class: "stash-clear-card", attrs: { role: "group", "aria-label": COPY.stash.clearTitle(model.total) } },
+      h("p", { class: "stash-confirm-title", text: COPY.stash.clearTitle(model.total) }),
+      h("p", { class: "stash-confirm-body", text: COPY.stash.clearBody }),
+      h(
+        "div",
+        { class: "stash-confirm-actions" },
+        button({ label: COPY.stash.clearCancel, kind: "ghost", size: "sm", action: "stash-clear-cancel", focusKey: "stash-clear-cancel" }),
+        button({ label: COPY.stash.clearConfirm, kind: "danger", size: "sm", action: "stash-clear-apply", focusKey: "stash-clear-apply" })
+      )
+    );
+  }
+  function renderBranchForm(model) {
+    const input = h("input", {
+      class: "wt-input",
+      attrs: {
+        type: "text",
+        "aria-label": COPY.stash.branchName,
+        autocomplete: "off",
+        spellcheck: "false",
+        "data-field": "stash-branch",
+        "data-focus-key": "stash-branch"
+      }
+    });
+    input.value = model.branchDraft;
+    return h(
+      "div",
+      { class: "stash-branch-form", attrs: { role: "group", "aria-label": COPY.stash.branchTitle } },
+      h("p", { class: "stash-branch-title", text: COPY.stash.branchTitle }),
+      input,
+      h("p", { class: "stash-branch-hint", text: COPY.stash.branchHint }),
+      h(
+        "div",
+        { class: "stash-branch-actions" },
+        button({ label: COPY.stash.cancel, kind: "ghost", size: "sm", action: "stash-branch-cancel", focusKey: "stash-branch-cancel" }),
+        button({ label: COPY.stash.branchApply, kind: "secondary", size: "sm", action: "stash-branch-apply", focusKey: "stash-branch-apply" })
+      )
+    );
   }
   function renderStashRow(row, model) {
     const wrap = h("div", { class: "stash-row-wrap" });
@@ -8605,8 +10247,38 @@
       title: COPY.stash.dropTitle(row.id),
       disabled: model.busy
     }));
+    actions.append(h("button", {
+      class: `row-act row-more stash-more${row.menuOpen ? " is-open" : ""}`,
+      attrs: {
+        type: "button",
+        "aria-haspopup": "true",
+        "aria-expanded": row.menuOpen ? "true" : "false",
+        "aria-label": COPY.stash.menuMore,
+        title: COPY.stash.menuMore,
+        "data-focus-key": `stash-more:${row.id}`,
+        disabled: model.busy
+      },
+      dataset: { action: "stash-menu", id: row.id }
+    }, h("span", { class: "row-more-dots", text: "\u22EF", attrs: { "aria-hidden": "true" } })));
     line.append(actions);
     wrap.append(line);
+    if (row.menuOpen) {
+      wrap.append(h(
+        "div",
+        { class: "row-menu", attrs: { role: "menu", "aria-label": COPY.stash.menuMore } },
+        h("button", {
+          class: "row-menu-item",
+          attrs: { type: "button", role: "menuitem" },
+          dataset: { action: "stash-branch-open", id: row.id }
+        }, COPY.stash.menuBranch),
+        h("button", {
+          class: "row-menu-item is-close",
+          attrs: { type: "button", "aria-label": COPY.stash.menuClose },
+          dataset: { action: "stash-menu", id: row.id }
+        }, COPY.stash.menuClose)
+      ));
+    }
+    if (row.branchOpen) wrap.append(renderBranchForm(model));
     const paths = h("div", { class: "stash-paths" });
     paths.append(h("p", { class: "stash-paths-note", text: COPY.stash.pathsNote }));
     const list = h("ul", { class: "stash-path-list" });
@@ -8650,12 +10322,18 @@
     } else if (rows.length === 0) {
       list.append(emptyState(COPY.worktrees.filterEmpty, null));
     } else {
-      for (const row of rows) list.append(renderRow2(row, options.expandedPath === row.path, model.pending));
+      for (const row of rows) list.append(renderRow2(row, options.expandedPath === row.path, model));
     }
     view.append(list);
+    if (model.create.open) view.append(renderCreateForm(model));
     view.append(h(
       "div",
       { class: "wt-foot" },
+      h("button", {
+        class: `link-btn wt-create-open${model.create.open ? " is-on" : ""}`,
+        attrs: { type: "button", "aria-expanded": model.create.open ? "true" : "false", "data-focus-key": "wt-create-open" },
+        dataset: { action: "wt-create-open" }
+      }, COPY.worktrees.createOpen),
       handoffEntry(model.abnormalCount > 0 ? HANDOFF_ENTRY.worktrees : COPY.ai.cleanEntry, "worktrees")
     ));
     if (result !== null) view.append(resultBanner(result));
@@ -8744,7 +10422,7 @@
       h("span", { class: "filter-count", text: count })
     );
   }
-  function renderRow2(row, expanded, pending) {
+  function renderRow2(row, expanded, model) {
     const rowNode = h("div", {
       class: `wt-row${row.abnormal ? " is-abnormal" : ""}${expanded ? " is-open" : ""}`
     });
@@ -8790,7 +10468,7 @@
     );
     rowNode.append(h("div", { class: "wt-main" }, nameRow, pathRow, stateRow), actions);
     const wrap = h("div", { class: "wt-row-wrap" }, rowNode);
-    if (expanded) wrap.append(renderDetail3(row, pending));
+    if (expanded) wrap.append(renderDetail3(row, model.pending));
     return wrap;
   }
   function renderDetail3(row, pending) {
@@ -8812,6 +10490,7 @@
         if (state.detail === null) continue;
         detail.append(fact(state.label, state.detail, false));
       }
+      if (row.sparseSummary !== null) detail.append(fact(COPY.worktrees.sparse, row.sparseSummary, false));
     }
     if (!awaiting) {
       const actions = h("div", { class: "wt-actions-row" });
@@ -8836,6 +10515,22 @@
         }));
       }
       actions.append(button({
+        label: COPY.worktrees.move,
+        kind: "secondary",
+        size: "sm",
+        action: "wt-move-open",
+        dataset: { path: row.path },
+        focusKey: `wt-move-open:${row.path}`
+      }));
+      actions.append(button({
+        label: COPY.worktrees.sparse,
+        kind: "secondary",
+        size: "sm",
+        action: "wt-sparse-open",
+        dataset: { path: row.path },
+        focusKey: `wt-sparse-open:${row.path}`
+      }));
+      actions.append(button({
         label: COPY.worktrees.remove,
         kind: "danger",
         size: "sm",
@@ -8845,6 +10540,8 @@
       }));
       detail.append(actions);
     }
+    if (row.moveOpen) detail.append(renderMoveForm(row));
+    if (row.sparseOpen) detail.append(renderSparsePanel(row));
     if (pending !== null && pending.path === row.path) {
       detail.append(h(
         "div",
@@ -8873,6 +10570,144 @@
       ));
     }
     return detail;
+  }
+  function renderCreateForm(model) {
+    const create = model.create;
+    const pathInput = h("input", {
+      class: "wt-input",
+      attrs: {
+        type: "text",
+        id: "wt-create-path",
+        placeholder: COPY.worktrees.createPathPlaceholder,
+        "aria-label": COPY.worktrees.createPath,
+        autocomplete: "off",
+        spellcheck: "false",
+        "data-field": "wt-create-path",
+        "data-focus-key": "wt-create-path"
+      }
+    });
+    pathInput.value = create.path;
+    const branchInput = h("input", {
+      class: "wt-input",
+      attrs: {
+        type: "text",
+        id: "wt-create-branch",
+        placeholder: COPY.worktrees.createBranchPlaceholder,
+        "aria-label": COPY.worktrees.createBranch,
+        autocomplete: "off",
+        spellcheck: "false",
+        "data-field": "wt-create-branch",
+        "data-focus-key": "wt-create-branch"
+      }
+    });
+    branchInput.value = create.branch;
+    const mode = (value, label) => {
+      const on = create.mode === value;
+      return h("button", {
+        class: `wt-mode${on ? " is-on" : ""}`,
+        attrs: { type: "button", "aria-pressed": on ? "true" : "false", "data-focus-key": `wt-mode:${value}` },
+        dataset: { action: "wt-create-mode", mode: value }
+      }, label);
+    };
+    const recent = create.mode === "existing" && create.branches.length > 0 ? h(
+      "div",
+      { class: "wt-recent" },
+      h("span", { class: "wt-recent-lead", text: COPY.worktrees.createRecent }),
+      ...create.branches.map((name) => h("button", {
+        class: `wt-recent-chip${create.branch === name ? " is-on" : ""}`,
+        attrs: { type: "button", title: name, "data-focus-key": `wt-branch:${name}` },
+        dataset: { action: "wt-create-branch", value: name }
+      }, name))
+    ) : null;
+    return h(
+      "div",
+      { class: "wt-form wt-create", attrs: { role: "group", "aria-label": COPY.worktrees.createTitle } },
+      h("h4", { class: "wt-form-title", text: COPY.worktrees.createTitle }),
+      h(
+        "div",
+        { class: "wt-field" },
+        h("label", { class: "wt-field-k", text: COPY.worktrees.createPath, attrs: { for: "wt-create-path" } }),
+        pathInput
+      ),
+      h(
+        "div",
+        { class: "wt-field" },
+        h("label", { class: "wt-field-k", text: COPY.worktrees.createBranch, attrs: { for: "wt-create-branch" } }),
+        h(
+          "div",
+          { class: "wt-modes", attrs: { role: "group", "aria-label": COPY.worktrees.createBranch } },
+          mode("new", COPY.worktrees.createModeNew),
+          mode("existing", COPY.worktrees.createModeExisting)
+        ),
+        branchInput,
+        recent
+      ),
+      h("p", { class: "wt-form-hint", text: create.mode === "new" ? COPY.worktrees.createHintNew : COPY.worktrees.createHintExisting }),
+      create.error === null ? null : h("p", { class: "wt-form-error", attrs: { role: "alert" }, text: create.error }),
+      h(
+        "div",
+        { class: "wt-form-actions" },
+        button({ label: COPY.worktrees.createCancel, kind: "ghost", size: "sm", action: "wt-create-close", focusKey: "wt-create-cancel" }),
+        button({ label: COPY.worktrees.createSubmit, kind: "secondary", size: "sm", action: "wt-create-submit", focusKey: "wt-create-submit" })
+      )
+    );
+  }
+  function renderMoveForm(row) {
+    const input = h("input", {
+      class: "wt-input",
+      attrs: {
+        type: "text",
+        "aria-label": COPY.worktrees.moveLabel,
+        autocomplete: "off",
+        spellcheck: "false",
+        "data-field": "wt-move",
+        "data-focus-key": `wt-move:${row.path}`
+      }
+    });
+    input.value = row.moveDraft;
+    return h(
+      "div",
+      { class: "wt-form wt-move", attrs: { role: "group", "aria-label": COPY.worktrees.moveTitle } },
+      h("h4", { class: "wt-form-title", text: COPY.worktrees.moveTitle }),
+      h("label", { class: "wt-field-k", text: COPY.worktrees.moveLabel }),
+      input,
+      h("p", { class: "wt-form-hint", text: COPY.worktrees.moveHint }),
+      h(
+        "div",
+        { class: "wt-form-actions" },
+        button({ label: COPY.worktrees.createCancel, kind: "ghost", size: "sm", action: "wt-move-close", focusKey: "wt-move-cancel" }),
+        button({ label: COPY.worktrees.moveSubmit, kind: "secondary", size: "sm", action: "wt-move-apply", focusKey: "wt-move-apply" })
+      )
+    );
+  }
+  function renderSparsePanel(row) {
+    const dirs = h("div", { class: "wt-dirs", attrs: { role: "group", "aria-label": COPY.worktrees.sparseTitle } });
+    for (const dir of row.sparseDirs) {
+      const on = row.sparseSelected.includes(dir);
+      dirs.append(h(
+        "button",
+        {
+          class: `wt-dir${on ? " is-on" : ""}`,
+          attrs: { type: "button", "aria-pressed": on ? "true" : "false", title: on ? `\u4E0D\u4FDD\u7559 ${dir}` : `\u4FDD\u7559 ${dir}`, "data-focus-key": `wt-dir:${dir}` },
+          dataset: { action: "wt-sparse-toggle", dir }
+        },
+        h("span", { class: "wt-dir-box", attrs: { "aria-hidden": "true" }, text: on ? "\u2713" : "" }),
+        h("span", { class: "mono", text: dir })
+      ));
+    }
+    return h(
+      "div",
+      { class: "wt-form wt-sparse", attrs: { role: "group", "aria-label": COPY.worktrees.sparseTitle } },
+      h("h4", { class: "wt-form-title", text: COPY.worktrees.sparseTitle }),
+      h("p", { class: "wt-form-hint", text: COPY.worktrees.sparseHint }),
+      dirs,
+      h(
+        "div",
+        { class: "wt-form-actions" },
+        button({ label: COPY.worktrees.sparseCancel, kind: "ghost", size: "sm", action: "wt-sparse-close", focusKey: "wt-sparse-cancel" }),
+        button({ label: COPY.worktrees.sparseSave, kind: "secondary", size: "sm", action: "wt-sparse-save", focusKey: "wt-sparse-save" })
+      )
+    );
   }
   function pendingTitle(pending) {
     if (pending.kind === "unlock") return COPY.worktrees.unlockTitle;
@@ -9099,11 +10934,16 @@
   }
   function coverageNote() {
     const count = (placement) => CAPABILITIES.filter((cap) => cap.placement === placement).length;
+    const entries = allCapabilityEntries();
+    const tally = (status) => entries.filter((entry) => entry.status === status).length;
     return h(
       "p",
       { class: "coverage-note" },
       chip("\u8986\u76D6\u53E3\u5F84", "info", { small: true }),
       h("span", { text: "162 \u6761\u80FD\u529B\u5168\u90E8\u6709\u843D\u70B9\uFF1A\u547D\u4EE4\u9762\u677F\u53EF\u6309\u540D\u79F0\u4E0E\u4F4D\u7F6E\u641C\u7D22\uFF0C\u6BCF\u4E2A\u9875\u9762\u5E95\u90E8\u6309 #1588 \u7684\u7F16\u53F7\u9010\u6761\u5217\u51FA\u3002\u516D\u6761\u6CA1\u6709\u9762\u677F\u5165\u53E3\u7684\uFF08\u53D1\u8865\u4E01\u90AE\u4EF6\u4E0E\u5E73\u53F0\u4E94\u6761\uFF09\u5728\u300C\u5E73\u53F0\u4E0E\u8FB9\u754C\u300D\u91CC\u9010\u6761\u53EA\u8BFB\u8BF4\u660E\u3002" }),
+      h("span", {
+        text: "\u5165\u53E3\u5F62\u6001\u4E0E\u843D\u70B9\u9010\u6761\u8BB0\u5728 capability-entries.md\uFF1A\u5DF2\u753B " + tally("\u5DF2\u753B") + " \u6761\uFF0C\u672C\u7248\u8865\u9F50 " + tally("\u672C\u7968\u5DF2\u753B") + " \u6761\uFF08\u63D0\u4EA4\u533A\u7684\u5F62\u6001\u3001\u5185\u5BB9\u6765\u6E90\u3001\u8BF4\u660E\u6A21\u677F\u3001\u94A9\u5B50\u4E0E\u7B7E\u540D\uFF09\uFF0C\u53E6\u6709 " + tally("\u5F85\u753B") + " \u6761\u5199\u660E\u51B3\u5B9A\u3001\u7559\u7ED9\u540E\u7EED\u5207\u7247\u3002"
+      }),
       h("span", { class: "coverage-count mono", text: "\u76F4 " + count("\u76F4") + " \xB7 \u6298 " + count("\u6298") + " \xB7 \u8BCA " + count("\u8BCA") + " \xB7 \u5916 " + count("\u5916") })
     );
   }
@@ -10098,9 +11938,15 @@
     const meta = PAGE_META[cap.target];
     return (meta === void 0 ? cap.target : meta.title) + " \u203A " + cap.entry;
   }
+  function sublineOf(cap) {
+    const entry = capabilityEntryOf(cap.id);
+    if (entry === void 0) return locationOf(cap) + " \xB7 " + cap.command;
+    return locationOf(cap) + " \xB7 " + entry.form + " \xB7 " + entry.at;
+  }
   function matches(cap, query) {
     if (query === "") return true;
-    const hay = (cap.id + " " + cap.name + " " + cap.command + " " + cap.entry + " " + cap.domain + " " + locationOf(cap)).toLocaleLowerCase();
+    const entry = capabilityEntryOf(cap.id);
+    const hay = (cap.id + " " + cap.name + " " + cap.command + " " + cap.entry + " " + cap.domain + " " + locationOf(cap) + " " + (entry === void 0 ? "" : entry.form + " " + entry.at + " " + (entry.reason ?? ""))).toLocaleLowerCase();
     return hay.includes(query);
   }
   var MAX_ROWS = 80;
@@ -10122,7 +11968,8 @@
         chip(cap.level, levelTone(cap.level), { small: true }),
         chip(PLACEMENT_LABEL[cap.placement] ?? cap.placement, "muted", { small: true })
       ),
-      h("span", { class: "palette-row-sub", text: locationOf(cap) + " \xB7 " + cap.command })
+      // 子行先写「在哪一页的哪个控件」，再写 git 命令：读者找入口时看前半句就够，命令留给核对。
+      h("span", { class: "palette-row-sub", text: sublineOf(cap) })
     ));
     const empty = hits.length === 0 ? h("p", { class: "palette-empty", text: "\u6CA1\u6709\u5339\u914D\u7684\u80FD\u529B\uFF1A\u6362\u4E00\u4E2A\u66F4\u77ED\u7684\u5173\u952E\u5B57\uFF0C\u6216\u76F4\u63A5\u8F93\u5165\u80FD\u529B\u7F16\u53F7\uFF08\u4F8B\u5982 11.6\uFF09\u3002" }) : null;
     const more = hits.length > MAX_ROWS ? h("p", { class: "palette-more", text: "\u8FD8\u6709 " + (hits.length - MAX_ROWS) + " \u6761\u6CA1\u663E\u793A\uFF0C\u518D\u8F93\u5165\u51E0\u4E2A\u5B57\u7F29\u5C0F\u8303\u56F4\u3002" }) : null;
@@ -10149,7 +11996,7 @@
           { class: "palette-foot" },
           h("span", { class: "mono", text: "\u5171 " + CAPABILITIES.length + " \u6761\u80FD\u529B" }),
           h("span", { text: "\u5339\u914D " + hits.length + " \u6761" }),
-          h("span", { class: "palette-hint", text: "Enter \u6253\u5F00\u7B2C\u4E00\u6761 \xB7 Esc \u5173\u95ED \xB7 \u9009\u4E2D\u540E\u8DF3\u5230\u5BF9\u5E94\u9875\u9762\u5E76\u9AD8\u4EAE" })
+          h("span", { class: "palette-hint", text: "Enter \u6253\u5F00\u7B2C\u4E00\u6761 \xB7 Esc \u5173\u95ED \xB7 \u9009\u4E2D\u540E\u8DF3\u5230\u5BF9\u5E94\u9875\u9762\uFF1B\u56DB\u9875\u7B7E\u4E0A\u7684\u80FD\u529B\u4F1A\u5207\u5230\u90A3\u4E2A\u9875\u7B7E\uFF0C\u63D0\u4EA4\u9009\u9879\u91CC\u7684\u51E0\u6761\u4F1A\u76F4\u63A5\u628A\u5C55\u5F00\u533A\u6253\u5F00" })
         )
       )
     );
@@ -10276,9 +12123,11 @@
       if (target === "view") {
         nextPages = reducePage(nextPages, { type: "page-close-all" });
         state = reduce(state, { type: "view", view: cap.target }, base);
+        const opensOptions = capabilityEntryOf(cap.id)?.form === "\u63D0\u4EA4\u9009\u9879";
+        if (opensOptions && !state.commitOptionsOpen) state = reduce(state, { type: "commit-options-toggle" }, base);
         nextPages = reducePage(nextPages, { type: "palette-highlight", id: cap.id });
         pages = nextPages;
-        render({ focusKey: "tab-" + cap.target, scroll: null });
+        render({ focusKey: opensOptions ? "commit-options" : "tab-" + cap.target, scroll: null });
         return;
       }
       nextPages = reducePage(nextPages, { type: "page-open", page: target });
@@ -10774,6 +12623,14 @@
           dispatch({ type: action, path }, { focusKey: `row:${path}` });
           return;
         }
+        case "stage-hunk":
+        case "unstage-hunk": {
+          const path = el.dataset.path ?? "";
+          const index = Number(el.dataset.index);
+          if (!Number.isInteger(index)) return;
+          dispatch({ type: action, path, index }, { focusKey: `hunk:${path}:${index}` });
+          return;
+        }
         case "stage-all":
           dispatch({ type: "stage-all" }, { focusKey: "stage-all" });
           return;
@@ -10785,15 +12642,52 @@
           runOp("commit");
           return;
         }
+        case "commit-options-toggle":
+          dispatch({ type: "commit-options-toggle" }, { focusKey: "commit-options", scroll: null });
+          return;
+        case "commit-form": {
+          const form = el.dataset.form;
+          if (form !== "commit" && form !== "amend" && form !== "fixup" && form !== "squash") return;
+          dispatch({ type: "commit-form", form }, { focusKey: "commit-form:" + form, scroll: null });
+          return;
+        }
+        case "commit-all-tracked":
+          dispatch({ type: "commit-all-tracked" }, { focusKey: "commit-all-tracked", scroll: null });
+          return;
+        case "skip-hooks":
+          dispatch({ type: "skip-hooks" }, { focusKey: "skip-hooks", scroll: null });
+          return;
+        case "sign-commit":
+          dispatch({ type: "sign-commit" }, { focusKey: "sign-commit", scroll: null });
+          return;
+        case "signoff":
+          dispatch({ type: "signoff" }, { focusKey: "signoff", scroll: null });
+          return;
+        case "template-apply":
+          dispatch({ type: "template-apply", body: COMMIT_TEMPLATE }, { focusKey: "commit-template", scroll: null });
+          return;
+        case "template-undo":
+          dispatch({ type: "template-undo" }, { focusKey: "commit-template", scroll: null });
+          return;
         case "changes-open-menu": {
           const path = el.dataset.path ?? "";
           const open = state.openMenuPath === path;
           dispatch({ type: "changes-open-menu", path: open ? null : path }, { focusKey: `row-more:${path}` });
           return;
         }
+        case "rename-open": {
+          dispatch({ type: "rename-open", path: el.dataset.path ?? "" }, { focusKey: "rename-input", scroll: null });
+          return;
+        }
+        case "rename-cancel":
+          dispatch({ type: "rename-cancel" }, { focusKey: lastFocusKey, scroll: null });
+          return;
+        case "rename-apply":
+          dispatch({ type: "rename-apply" }, { focusKey: "rename-apply", scroll: null });
+          return;
         case "changes-pending": {
           const kind = el.dataset.kind;
-          if (kind !== "discard" && kind !== "discard-all" && kind !== "ignore" && kind !== "delete-untracked" && kind !== "resolve-ours" && kind !== "resolve-theirs") return;
+          if (kind !== "discard" && kind !== "discard-all" && kind !== "ignore" && kind !== "delete-untracked" && kind !== "delete-tracked" && kind !== "untrack" && kind !== "resolve-ours" && kind !== "resolve-theirs") return;
           const pendingKind = kind;
           const path = el.dataset.path ?? null;
           dispatch({ type: "changes-pending", pending: { kind: pendingKind, path } }, { focusKey: "changes-cancel", scroll: null });
@@ -10805,8 +12699,40 @@
         case "changes-apply":
           dispatch({ type: "changes-apply" }, { focusKey: lastFocusKey, scroll: null });
           return;
-        case "stash-create":
+        case "stash-create": {
+          const mode = el.dataset.mode;
+          if (mode === "untracked" || mode === "staged") {
+            dispatch({ type: "stash-create", mode }, { focusKey: "stash-variants", scroll: null });
+            return;
+          }
           dispatch({ type: "stash-create" }, { focusKey: "composer-links", scroll: null });
+          return;
+        }
+        case "stash-menu-toggle":
+          dispatch({ type: "stash-menu-toggle" }, { focusKey: "stash-variants", scroll: null });
+          return;
+        case "stash-menu":
+          dispatch({ type: "stash-menu", id: el.dataset.id ?? "" }, { focusKey: `stash-more:${el.dataset.id ?? ""}`, scroll: null });
+          return;
+        case "stash-branch-open":
+          dispatch({ type: "stash-branch-open", id: el.dataset.id ?? "" }, { focusKey: "stash-branch", scroll: null });
+          return;
+        case "stash-branch-cancel": {
+          const id = state.stashBranchId ?? "";
+          dispatch({ type: "stash-branch-cancel" }, { focusKey: `stash-more:${id}`, scroll: null });
+          return;
+        }
+        case "stash-branch-apply":
+          dispatch({ type: "stash-branch-apply" }, { focusKey: "stash-branch-apply", scroll: null });
+          return;
+        case "stash-clear-open":
+          dispatch({ type: "stash-clear-open" }, { focusKey: "stash-clear-cancel", scroll: null });
+          return;
+        case "stash-clear-cancel":
+          dispatch({ type: "stash-clear-cancel" }, { focusKey: "stash-clear-action", scroll: null });
+          return;
+        case "stash-clear-apply":
+          dispatch({ type: "stash-clear-apply" }, { focusKey: "stash-clear-action", scroll: null });
           return;
         case "stash-apply":
         case "stash-pop": {
@@ -10889,6 +12815,40 @@
         case "history-merge-only":
           dispatch({ type: "history-merge-only" }, { focusKey: "history-merge" });
           return;
+        case "history-scope": {
+          const scope = el.dataset.scope;
+          if (scope !== "message" && scope !== "code") return;
+          dispatch({ type: "history-scope", scope }, { focusKey: `history-scope:${scope}`, scroll: null });
+          return;
+        }
+        case "history-file-menu": {
+          const path = el.dataset.path ?? "";
+          dispatch({ type: "history-file-menu", path }, { focusKey: `file-more:${path}`, scroll: null });
+          return;
+        }
+        case "history-file-only": {
+          const path = el.dataset.path ?? "";
+          dispatch({ type: "history-file-only", path }, { focusKey: "history-query", scroll: null });
+          return;
+        }
+        case "history-file-only-clear":
+          dispatch({ type: "history-file-only", path: null }, { focusKey: "history-query", scroll: null });
+          return;
+        case "compare-open":
+          dispatch({ type: "compare-open" }, { focusKey: "compare-open", scroll: null });
+          return;
+        case "compare-close":
+          dispatch({ type: "compare-close" }, { focusKey: "compare-open", scroll: null });
+          return;
+        case "compare-apply":
+          dispatch({ type: "compare-apply" }, { focusKey: "compare-open", scroll: null });
+          return;
+        case "compare-end":
+          dispatch({ type: "compare-end" }, { focusKey: "compare-open", scroll: null });
+          return;
+        case "note-save":
+          dispatch({ type: "note-save" }, { focusKey: "note-save", scroll: null });
+          return;
         case "ai-worktrees":
           dispatch({ type: "ai-worktrees" }, { focusKey: "ai-worktrees" });
           return;
@@ -10936,6 +12896,52 @@
           repaint({ focusKey: `wt-expand:${path}` });
           return;
         }
+        // 新建工作区：页底表单，开、改、提交三者分开，错误留在表单里。
+        case "wt-create-open":
+          dispatch({ type: "wt-create-open" }, { focusKey: "wt-create-path", scroll: null });
+          return;
+        case "wt-create-close":
+          dispatch({ type: "wt-create-close" }, { focusKey: "wt-create-open", scroll: null });
+          return;
+        case "wt-create-mode": {
+          const mode = el.dataset.mode === "existing" ? "existing" : "new";
+          dispatch({ type: "wt-create-mode", mode }, { focusKey: `wt-mode:${mode}`, scroll: null });
+          return;
+        }
+        case "wt-create-branch":
+          dispatch({ type: "wt-create-branch", value: el.dataset.value ?? "" }, { focusKey: "wt-create-branch", scroll: null });
+          return;
+        case "wt-create-submit":
+          dispatch({ type: "wt-create-submit" }, { focusKey: "wt-create-submit", scroll: null });
+          return;
+        // 移动与稀疏检出都贴在展开行里，焦点回到发起它们的那颗按钮。
+        case "wt-move-open": {
+          const path = el.dataset.path ?? "";
+          dispatch({ type: "wt-move-open", path }, { focusKey: `wt-move:${path}`, scroll: null });
+          return;
+        }
+        case "wt-move-close":
+          dispatch({ type: "wt-move-close" }, { focusKey: `wt-move-open:${expandedWorktree ?? ""}`, scroll: null });
+          return;
+        case "wt-move-apply":
+          dispatch({ type: "wt-move-apply" }, { focusKey: "wt-move-apply", scroll: null });
+          return;
+        case "wt-sparse-open": {
+          const path = el.dataset.path ?? "";
+          dispatch({ type: "wt-sparse-open", path }, { focusKey: `wt-sparse-open:${path}`, scroll: null });
+          return;
+        }
+        case "wt-sparse-toggle": {
+          const dir = el.dataset.dir ?? "";
+          dispatch({ type: "wt-sparse-toggle", dir }, { focusKey: `wt-dir:${dir}`, scroll: null });
+          return;
+        }
+        case "wt-sparse-close":
+          dispatch({ type: "wt-sparse-close" }, { focusKey: `wt-sparse-open:${expandedWorktree ?? ""}`, scroll: null });
+          return;
+        case "wt-sparse-save":
+          dispatch({ type: "wt-sparse-save" }, { focusKey: "wt-sparse-save", scroll: null });
+          return;
         case "branch-open":
           dispatch({ type: "branch-open" }, { focusKey: "branch-query" });
           return;
@@ -11148,13 +13154,27 @@
       if (!(target instanceof HTMLTextAreaElement) && !(target instanceof HTMLInputElement)) return;
       if (event instanceof InputEvent && event.isComposing) return;
       const field = target.dataset.field;
-      if (field === "message") {
+      if (field === "rename") {
+        dispatch({ type: "rename-draft", value: target.value }, { focusKey: "rename-input", scroll: null });
+      } else if (field === "message") {
         const next = reduce(state, { type: "message", value: target.value }, base);
         if (next === state) return;
         state = next;
         syncComposer();
       } else if (field === "history-query") {
         dispatch({ type: "history-query", value: target.value }, { focusKey: "history-query" });
+      } else if (field === "compare-from" || field === "compare-to") {
+        dispatch({ type: "compare-draft", which: field === "compare-from" ? "from" : "to", value: target.value }, { focusKey: field });
+      } else if (field === "note") {
+        dispatch({ type: "note-draft", value: target.value }, { focusKey: "note-input" });
+      } else if (field === "wt-create-path") {
+        dispatch({ type: "wt-create-path", value: target.value }, { focusKey: "wt-create-path" });
+      } else if (field === "wt-create-branch") {
+        dispatch({ type: "wt-create-branch", value: target.value }, { focusKey: "wt-create-branch" });
+      } else if (field === "stash-branch") {
+        dispatch({ type: "stash-branch-draft", value: target.value }, { focusKey: "stash-branch" });
+      } else if (field === "wt-move") {
+        dispatch({ type: "wt-move-draft", value: target.value }, { focusKey: `wt-move:${expandedWorktree ?? ""}` });
       } else if (field === "branch-query") {
         dispatch({ type: "branch-query", value: target.value }, { focusKey: "branch-query" });
       } else if (field === "branch-draft") {
@@ -11181,7 +13201,7 @@
         buttonEl.setAttribute("aria-busy", busy ? "true" : "false");
         buttonEl.title = current.disabledReason ?? "";
         const label = buttonEl.querySelector(".btn-label");
-        if (label !== null) label.textContent = busy ? COPY.busy.commit : COPY.changes.commitLabel(current.stagedCount);
+        if (label !== null) label.textContent = busy ? COPY.busy.commit : current.label;
       }
       const reason = composer.querySelector(".composer-reason");
       const hint = composer.querySelector(".hint-text");
@@ -11238,6 +13258,16 @@
         handoffKind = null;
         handoffCopied = false;
         repaint({ focusKey: `handoff-${previous}` });
+        return;
+      }
+      if (event.key === "Escape" && state.commitOptionsOpen) {
+        event.preventDefault();
+        dispatch({ type: "commit-options-toggle" }, { focusKey: "commit-options" });
+        return;
+      }
+      if (event.key === "Escape" && state.stashMenuOpen) {
+        event.preventDefault();
+        dispatch({ type: "stash-menu-toggle" }, { focusKey: "stash-variants" });
         return;
       }
       if (event.key === "Escape" && state.changesPending !== null) {
@@ -11316,6 +13346,12 @@
         state = reduce(state, { type: "branch-close" }, base);
         repaint({ focusKey: "branch-open" });
       }
+      if (state.commitOptionsOpen && target.closest(".commit-options") === null && target.closest('[data-action="commit-options-toggle"]') === null) {
+        dispatch({ type: "commit-options-toggle" }, { focusKey: lastFocusKey });
+      }
+      if (state.stashMenuOpen && target.closest(".stash-menu") === null && target.closest('[data-action="stash-menu-toggle"]') === null) {
+        dispatch({ type: "stash-menu-toggle" }, { focusKey: lastFocusKey, scroll: null });
+      }
       const insideTransient = target.closest(".row-menu, .row-more, .row-act, .commit-menu, .commit-more, .changes-confirm, .commit-confirm") !== null;
       if (!insideTransient && (commitMenuOid !== null || commitConfirmOid !== null || state.openMenuPath !== null)) {
         commitMenuOid = null;
@@ -11343,6 +13379,25 @@
         const first = panelModelOf(base, state, Date.now()).worktrees.others.find((row) => row.abnormal);
         expandedWorktree = first === void 0 ? null : first.path;
       }
+      if (params.get("wtnew") === "1") {
+        state = reduce(state, { type: "wt-create-open" }, base);
+        const newPath = params.get("wtnewpath");
+        if (newPath !== null && newPath !== "") state = reduce(state, { type: "wt-create-path", value: newPath }, base);
+        if (params.get("wtnewmode") === "existing") state = reduce(state, { type: "wt-create-mode", mode: "existing" }, base);
+        const newBranch = params.get("wtnewbranch");
+        if (newBranch !== null && newBranch !== "") state = reduce(state, { type: "wt-create-branch", value: newBranch }, base);
+        if (params.get("wtnewsubmit") === "1") state = reduce(state, { type: "wt-create-submit" }, base);
+      }
+      const moveParam = params.get("wtmove");
+      if (moveParam !== null && moveParam !== "") {
+        expandedWorktree = moveParam;
+        state = reduce(state, { type: "wt-move-open", path: moveParam }, base);
+      }
+      const sparseParam = params.get("wtsparse");
+      if (sparseParam !== null && sparseParam !== "") {
+        expandedWorktree = sparseParam;
+        state = reduce(state, { type: "wt-sparse-open", path: sparseParam }, base);
+      }
       const wtPendingParam = params.get("wtpending");
       if (wtPendingParam === "unlock" || wtPendingParam === "prune" || wtPendingParam === "remove") {
         const path = params.get("wtpath") ?? "";
@@ -11361,13 +13416,21 @@
         state = reduce(state, { type: "changes-open-menu", path: menuPath }, base);
       }
       const changePending = params.get("cpending");
-      if (changePending === "discard" || changePending === "discard-all" || changePending === "ignore" || changePending === "delete-untracked" || changePending === "resolve-ours" || changePending === "resolve-theirs") {
+      if (changePending === "discard" || changePending === "discard-all" || changePending === "ignore" || changePending === "delete-untracked" || changePending === "delete-tracked" || changePending === "untrack" || changePending === "resolve-ours" || changePending === "resolve-theirs") {
         state = reduce(state, { type: "changes-pending", pending: { kind: changePending, path: params.get("cpath") ?? null } }, base);
       }
       const commitMenu = params.get("commitmenu");
       if (commitMenu !== null && commitMenu !== "") commitMenuOid = commitMenu;
       if (params.get("commitconfirm") === "1" && commitMenuOid !== null) commitConfirmOid = commitMenuOid;
       if (params.get("stashdemo") === "1") state = reduce(state, { type: "stash-create" }, base);
+      if (params.get("stashmenu") === "1") state = reduce(state, { type: "stash-menu-toggle" }, base);
+      const stashMode = params.get("stashmode");
+      if ((stashMode === "all" || stashMode === "untracked" || stashMode === "staged") && params.get("stashgo") === "1") {
+        state = reduce(state, { type: "stash-create", mode: stashMode }, base);
+      }
+      const stashBranch = params.get("stashbranch");
+      if (stashBranch !== null && stashBranch !== "") state = reduce(state, { type: "stash-branch-open", id: stashBranch }, base);
+      if (params.get("stashclear") === "1") state = reduce(state, { type: "stash-clear-open" }, base);
       const stashPending = params.get("stashpending");
       if (stashPending === "drop") {
         const stashId = params.get("stashid") ?? "stash@{0}";
@@ -11396,12 +13459,38 @@
       if (open !== null && open !== "") state = reduce(state, { type: "history-open", oid: open }, base);
       const file = params.get("file");
       if (file !== null && file !== "") state = reduce(state, { type: "history-open-file", path: file }, base);
+      const hscope = params.get("hscope");
+      if (hscope === "code" || hscope === "message") state = reduce(state, { type: "history-scope", scope: hscope }, base);
+      const hfile = params.get("hfile");
+      if (hfile !== null && hfile !== "") state = reduce(state, { type: "history-file-only", path: hfile }, base);
+      if (params.get("hcompare") === "1") state = reduce(state, { type: "compare-open" }, base);
+      const hfrom = params.get("hfrom");
+      if (hfrom !== null && hfrom !== "") state = reduce(state, { type: "compare-draft", which: "from", value: hfrom }, base);
+      const hto = params.get("hto");
+      if (hto !== null && hto !== "") state = reduce(state, { type: "compare-draft", which: "to", value: hto }, base);
+      if (params.get("hcompared") === "1") state = reduce(state, { type: "compare-apply" }, base);
       const filter = params.get("filter");
       if (filter === "conflict" || filter === "staged" || filter === "unstaged") {
         state = reduce(state, { type: "filter", filter }, base);
       }
+      const expandPath = params.get("expand");
+      if (expandPath !== null && expandPath !== "") state = reduce(state, { type: "expand-file", path: expandPath }, base);
       const message = params.get("message");
       if (message !== null && message !== "") state = reduce(state, { type: "message", value: message }, base);
+      if (params.get("stageall") === "1") state = reduce(state, { type: "stage-all" }, base);
+      if (params.get("commitoptions") === "1") state = reduce(state, { type: "commit-options-toggle" }, base);
+      const commitFormParam = params.get("commitform");
+      if (commitFormParam === "amend" || commitFormParam === "fixup" || commitFormParam === "squash" || commitFormParam === "commit") {
+        state = reduce(state, { type: "commit-form", form: commitFormParam }, base);
+        if (commitFormParam !== "commit" && !state.commitOptionsOpen) {
+          state = reduce(state, { type: "commit-options-toggle" }, base);
+        }
+      }
+      if (params.get("commitall") === "1") state = reduce(state, { type: "commit-all-tracked" }, base);
+      if (params.get("noverify") === "1") state = reduce(state, { type: "skip-hooks" }, base);
+      if (params.get("sign") === "1") state = reduce(state, { type: "sign-commit" }, base);
+      if (params.get("signoff") === "1") state = reduce(state, { type: "signoff" }, base);
+      if (params.get("template") === "1") state = reduce(state, { type: "template-apply", body: COMMIT_TEMPLATE }, base);
       if (params.get("confirm") === "1") {
         state = reduce(state, { type: "pull-confirm-open", files: dirtyFiles(), dirtyCount: dirtyFiles().length }, base);
       }
@@ -11431,7 +13520,14 @@
         const cap = CAPABILITIES.find((item) => item.id === capParam);
         if (cap !== void 0) {
           const target = targetOfCapability(cap);
-          if (target !== "view") pages = reducePage(pages, { type: "page-open", page: target });
+          if (target !== "view") {
+            pages = reducePage(pages, { type: "page-open", page: target });
+          } else {
+            state = reduce(state, { type: "view", view: cap.target }, base);
+            if (capabilityEntryOf(cap.id)?.form === "\u63D0\u4EA4\u9009\u9879" && !state.commitOptionsOpen) {
+              state = reduce(state, { type: "commit-options-toggle" }, base);
+            }
+          }
           pages = reducePage(pages, { type: "palette-highlight", id: cap.id });
         }
       }

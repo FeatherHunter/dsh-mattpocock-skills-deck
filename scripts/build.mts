@@ -818,6 +818,17 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcStyles', file: 'src/client/views/versionControl/vcStyles.ts' }, // #851 版本管理页签的视觉语言（档案索引）：一段 CSS 文本，经同一个 styles.insert 接缝注入
   { id: 'vcShellStyles', file: 'src/client/views/versionControl/vcShellStyles.ts' }, // #1738 页面壳的视觉语言：深浅两套语义色、四档宽排布；同样走 styles.insert 接缝
   { id: 'vcPageStyles', file: 'src/client/views/versionControl/vcPageStyles.ts' }, // #1829 阶段 4：重做页面新增的样式（页头、分区/折叠/事实网格/对象行、管理索引卡、命令面板遮罩、分支浮层），仍走同一个 styles.insert 接缝
+  { id: 'vcBranchStyles', file: 'src/client/views/versionControl/vcBranchStyles.ts' }, // #1858：分支与标签页自己的样式（对象行三行结构、筛选与搜索、行尾动作、段内空态），排在本页视图叶子之前注入
+  // #1860：主屏按定稿原型还原的样式（身份行、四页签、四个一级页签正文），按真源分段拆成八份叶子，
+  //   每份都在 350 有效行以内；拼接顺序就是注入顺序，改动时两边一起改。
+  { id: 'vcProtoTokens', file: 'src/client/views/versionControl/vcProtoTokens.ts' },
+  { id: 'vcProtoChrome', file: 'src/client/views/versionControl/vcProtoChrome.ts' },
+  { id: 'vcProtoControls', file: 'src/client/views/versionControl/vcProtoControls.ts' },
+  { id: 'vcProtoChanges', file: 'src/client/views/versionControl/vcProtoChanges.ts' },
+  { id: 'vcProtoComposer', file: 'src/client/views/versionControl/vcProtoComposer.ts' },
+  { id: 'vcProtoHistory', file: 'src/client/views/versionControl/vcProtoHistory.ts' },
+  { id: 'vcProtoWorktrees', file: 'src/client/views/versionControl/vcProtoWorktrees.ts' },
+  { id: 'vcProtoMenus', file: 'src/client/views/versionControl/vcProtoMenus.ts' },
   { id: 'vcRows', file: 'src/client/views/versionControl/vcRows.ts' }, // #842 从 vcBlocks 原样搬出：行分组 / 行画法 / 其他工作树行 / 某路径的差异读数（vcBlocks 要腾行给写操作）
   { id: 'vcWrite', file: 'src/client/views/versionControl/vcWrite.ts' }, // #842 写操作的纯规则层（判定→状态、理由→词条、写失败→话术族、确认框内容）
   { id: 'vcWriteRun', file: 'src/client/views/versionControl/vcWriteRun.ts' }, // #842 写操作的执行层（预检、四条写电话、结果记账、成功后的重读）
@@ -855,9 +866,11 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcCommitPage', file: 'src/client/views/versionControl/vcCommitPage.ts' }, // #1743 提交页正文（八条能力的主入口、多行说明、确认卡与结果都在面板里；排在页面壳之前，壳要调它）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
   { id: 'vcBranches', file: 'src/client/views/versionControl/vcBranches.ts' }, // #1746 分支与标签业务面板（4.1–4.13 十三条入口、dryRun 判定、确认卡与结果；由页面壳挂进分支与标签页）
+  { id: 'vcBranchSections', file: 'src/client/views/versionControl/vcBranchSections.ts' }, // #1881 从本页视图叶子拆出的后两段正文（标签、上游跟踪）与四件小工具：叶子当时已用到 346 / 350 有效行，行内菜单要加就只能先拆
   { id: 'vcBranchPage', file: 'src/client/views/versionControl/vcBranchPage.ts' }, // #1829 阶段 3 分支与标签页的视图叶子（页头、筛选与搜索、分支卡片、标签、页尾折叠；静态树 vcBranchTreeOf 供门禁，组件 vcBranchPageOf 供页面壳）
   { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
   { id: 'vcStashOps', file: 'src/client/views/versionControl/vcStashOps.ts' }, // #1751 贮藏页的数据与动作层（首屏贮藏片怎么读、十条动作怎么拼、回包怎么落状态；不画界面）
+  { id: 'vcStashDetail', file: 'src/client/views/versionControl/vcStashDetail.ts' }, // #1860 D8 贮藏记录下面那片文件清单的四种画法（读到了 / 正在读或读失败 / 点才给 / 记录消失后的兜底），排在正文之前
   { id: 'vcStashPage', file: 'src/client/views/versionControl/vcStashPage.ts' }, // #1751 贮藏页的入口与真实动作画法（十条动作、确认卡、最近丢弃、版本门提示；由页面壳挂进贮藏页）
   { id: 'vcDiagnostics', file: 'src/client/views/versionControl/vcDiagnostics.ts' }, // #1761 诊断页的数据与动作层（域 13 只读查询与二分、5.12 替换对象；不画界面）
   { id: 'vcDiagnosticsPage', file: 'src/client/views/versionControl/vcDiagnosticsPage.ts' }, // #1761 诊断页正文（十四条能力各一个入口、13.13 只读展示、13.3/13.14 只放指针；壳要调它）
@@ -1056,6 +1069,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   //   订阅层那片再拼（状态栏要挂它导出的 SuggestStreamMount）。顺序反了闭包里会拿到未定义的自由变量。
   { id: 'suggestFacts', file: 'src/client/statusbar/suggestFacts.ts' },
   { id: 'suggestStream', file: 'src/client/statusbar/suggestStream.ts' },
+  // #1879：气泡该不该显示的唯一判据与关 deck 时的收尾。排在订阅层之后（订阅层的挂载组件调用它）。
+  { id: 'suggestGate', file: 'src/client/statusbar/suggestGate.ts' },
   { id: 'suggestTimeline', file: 'src/client/statusbar/suggestTimeline.ts' },
   { id: 'suggestEngine', file: 'src/client/statusbar/suggestEngine.ts' },
   // #1411：状态胶囊上方的下一步建议气泡。外观旋钮（含层级常量）先求值，样式叶子读它拼 CSS；

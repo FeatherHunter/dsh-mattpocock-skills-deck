@@ -49,9 +49,10 @@ async function main() {
     const st = {
       version: 1,
       ui: { stateFilter: 'open', sortKey: 'updatedAt', sortDir: 'desc', labelClicks: { bug: 3 } },
-      // #1612：工作区每条记录现在是四格——statusBar/deckTools 两个文字开关加两个旧布尔开关；旧 bannerFolded 只留一步读兼容。
+      // #1612：工作区每条记录里的三个文字开关是 statusBar/deckTools（#1879 又加了 suggest），另有两个旧布尔开关；
+      //   旧 bannerFolded 只留一步读兼容。
       // #1641：还没打开过的工作区可以多一个临时标记 unopened（见下面标记往返那几条）。
-      workspaces: { 'D:\\ws\\demo': { statusBar: 'show', deckTools: 'off', noRepoDismissed: false, subwsMarkAutoShown: true } },
+      workspaces: { 'D:\\ws\\demo': { statusBar: 'show', deckTools: 'off', suggest: 'on', noRepoDismissed: false, subwsMarkAutoShown: true } },
       debug: { enabled: false, sampleRate: 1 },
       templates: { execute: 'hi' },
     }

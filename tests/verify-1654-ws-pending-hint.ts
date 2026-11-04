@@ -165,9 +165,12 @@ async function main() {
       getCachedSnapshot: function () { return null },
       deckStatusBarOf: function () { return 'hide' },
       deckToolsOf: function () { return 'on' },
+      // #1879：设置页多了第三颗「下一步建议」开关，这一组夹具只需要它读得出值、写得进去。
+      deckSuggestOf: function () { return 'on' },
       isWorkspaceUnopened: unopenedOf,
       setDeckStatusBar: function () {},
       setDeckTools: function () {},
+      setDeckSuggest: function () {},
       flash: function () {},
       copyText: function () {},
     }
@@ -190,9 +193,12 @@ async function main() {
       getCachedSnapshot: function () { return null },
       deckStatusBarOf: function () { return 'hide' },
       deckToolsOf: function () { return 'on' },
+      // #1879：设置页多了第三颗「下一步建议」开关，这一组夹具只需要它读得出值、写得进去。
+      deckSuggestOf: function () { return 'on' },
       isWorkspaceUnopened: unopenedOf,
       setDeckStatusBar: function () {},
       setDeckTools: function () {},
+      setDeckSuggest: function () {},
       flash: function () {},
       copyText: function () {},
     }

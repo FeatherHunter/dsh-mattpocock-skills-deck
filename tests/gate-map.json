@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T17:33:24.062Z",
+  "generatedAt": "2026-11-04T20:04:55.647Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 570,
-  "gateCount": 570,
-  "attributedGates": 514,
+  "chainLength": 571,
+  "gateCount": 571,
+  "attributedGates": 515,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 113,
+  "completionRecordedGates": 114,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 888,
+  "graphFileCount": 900,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -170,6 +170,7 @@
         "src/client/statusbar/suggestBubble.ts",
         "src/client/statusbar/suggestEngine.ts",
         "src/client/statusbar/suggestFacts.ts",
+        "src/client/statusbar/suggestGate.ts",
         "src/client/statusbar/suggestStream.ts",
         "src/client/statusbar/suggestStyles.ts",
         "src/client/statusbar/suggestTimeline.ts",
@@ -253,7 +254,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 87 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 88 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -3177,6 +3178,7 @@
         "src/client/statusbar/suggestAppearance.ts",
         "src/client/statusbar/suggestBubble.ts",
         "src/client/statusbar/suggestFacts.ts",
+        "src/client/statusbar/suggestGate.ts",
         "src/client/statusbar/suggestStream.ts",
         "tests/lib/gate-result.ts"
       ],
@@ -3189,7 +3191,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 31,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-1453-repo-locate-via-session.ts",
@@ -3868,6 +3870,7 @@
         "src/client/statusbar/suggestAppearance.ts",
         "src/client/statusbar/suggestBubble.ts",
         "src/client/statusbar/suggestFacts.ts",
+        "src/client/statusbar/suggestGate.ts",
         "src/client/statusbar/suggestStream.ts",
         "tests/lib/gate-result.ts"
       ],
@@ -3880,7 +3883,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 93,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-1530-generated-outputs-not-inputs.ts",
@@ -4608,6 +4611,8 @@
         "src/client/kernel/motion.ts",
         "src/client/views/versionControl/vcBranchPage.ts",
         "src/client/views/versionControl/vcBranchPopover.ts",
+        "src/client/views/versionControl/vcBranchSections.ts",
+        "src/client/views/versionControl/vcBranchStyles.ts",
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCapabilityList.ts",
         "src/client/views/versionControl/vcCapabilityPages.ts",
@@ -4656,8 +4661,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 503,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 35 条"
+      "expectedAssertions": 537,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 36 条"
     },
     {
       "step": "node tests/verify-1586-worktrees.ts",
@@ -5159,7 +5164,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 42,
+      "expectedAssertions": 46,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 5 条"
     },
     {
@@ -5660,26 +5665,38 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 207,
+      "expectedAssertions": 259,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-1776-vc-tab-browser.ts",
       "file": "tests/verify-1776-vc-tab-browser.ts",
       "guards": [
+        "docs/design/md-env-check-chain.png",
+        "docs/design/md-env-check-chain.svg",
+        "docs/review/20261025-spec-complete-prompt-review.html",
         "scripts/lib/transpile-unit.mts",
         "src/client/kernel/locale-data.ts",
+        "src/client/kernel/motion.ts",
+        "src/client/views/shared/workRouteTable.ts",
         "src/client/views/versionControl/vcShellStyles.ts",
+        "src/client/views/versionControl/vcStyles.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/browser-pool.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/source-text.ts",
+        "tests/verify-1545-workroute-row-nav.ts",
         "tests/verify-818-version-control-view.ts"
       ],
       "dirs": [
+        "docs/design",
+        "docs/review",
         "scripts/lib",
         "src/client/kernel",
+        "src/client/views/shared",
         "src/client/views/versionControl",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "tests",
         "tests/lib"
@@ -5687,8 +5704,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 243,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 1 条"
+      "expectedAssertions": 337,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-1783-comments-projection.ts",
@@ -6094,7 +6111,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 78,
+      "expectedAssertions": 79,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -6689,6 +6706,40 @@
       "completionRecord": true,
       "expectedAssertions": 27,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1879-suggest-deck-gate.ts",
+      "file": "tests/verify-1879-suggest-deck-gate.ts",
+      "guards": [
+        "scripts/build.mts",
+        "src/client/index.ts",
+        "src/client/kernel/deck-state.ts",
+        "src/client/kernel/motion.ts",
+        "src/client/statusbar/StatusBar.ts",
+        "src/client/statusbar/suggestAppearance.ts",
+        "src/client/statusbar/suggestBubble.ts",
+        "src/client/statusbar/suggestFacts.ts",
+        "src/client/statusbar/suggestGate.ts",
+        "src/client/statusbar/suggestStream.ts",
+        "src/client/views/SettingsWorkspaces.ts",
+        "src/host/configStore.ts",
+        "src/host/deckToolGate.ts",
+        "tests/lib/gate-result.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "src/client",
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/client/views",
+        "src/host",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 50,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -7968,6 +8019,7 @@
         "src/client/views/versionControl/vcBlocks.ts",
         "src/client/views/versionControl/vcBranchPage.ts",
         "src/client/views/versionControl/vcBranchPopover.ts",
+        "src/client/views/versionControl/vcBranchSections.ts",
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcCapabilityList.ts",
@@ -8031,6 +8083,7 @@
         "src/client/views/versionControl/vcShellIdentity.ts",
         "src/client/views/versionControl/vcShellPages.ts",
         "src/client/views/versionControl/vcShellPrimitives.ts",
+        "src/client/views/versionControl/vcStashDetail.ts",
         "src/client/views/versionControl/vcStashOps.ts",
         "src/client/views/versionControl/vcStashPage.ts",
         "src/client/views/versionControl/vcSubmodulesData.ts",
@@ -8093,8 +8146,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 732,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 111 条"
+      "expectedAssertions": 733,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 113 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -8183,6 +8236,7 @@
         "src/client/views/versionControl/vcBlocks.ts",
         "src/client/views/versionControl/vcBranchPage.ts",
         "src/client/views/versionControl/vcBranchPopover.ts",
+        "src/client/views/versionControl/vcBranchSections.ts",
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcCapabilityList.ts",
@@ -8246,6 +8300,7 @@
         "src/client/views/versionControl/vcShellPages.ts",
         "src/client/views/versionControl/vcShellPrimitives.ts",
         "src/client/views/versionControl/vcShellStyles.ts",
+        "src/client/views/versionControl/vcStashDetail.ts",
         "src/client/views/versionControl/vcStashOps.ts",
         "src/client/views/versionControl/vcStashPage.ts",
         "src/client/views/versionControl/vcStyles.ts",
@@ -8307,7 +8362,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 110 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 112 条"
     },
     {
       "step": "node tests/verify-847-stall-watch.ts",
@@ -12936,6 +12991,7 @@
       "step": "node tests/verify-version-control-host.ts",
       "file": "tests/verify-version-control-host.ts",
       "guards": [
+        "src/host/index.ts",
         "src/host/versionControl.ts",
         "tests/fixtures/version-control/live-819-review-shapes.json",
         "tests/fixtures/version-control/live-numstat-shapes.json",
@@ -12949,7 +13005,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-version-control-parsers.ts",
@@ -13403,6 +13459,7 @@
       "node tests/verify-1612-deck-door.ts"
     ],
     "docs/design": [
+      "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-closeout-acceptance.ts"
     ],
     "docs/releases": [
@@ -13411,6 +13468,9 @@
       "node tests/verify-market-tarball.ts",
       "node tests/verify-release-contract.ts",
       "node tests/verify-release-template.ts"
+    ],
+    "docs/review": [
+      "node tests/verify-1776-vc-tab-browser.ts"
     ],
     "docs/tracker": [
       "node tests/verify-1443-github-readbudget.ts",
@@ -13609,6 +13669,7 @@
       "node tests/verify-1711-report-index.ts",
       "node tests/verify-1776-vc-live-tab.ts",
       "node tests/verify-1802-settings-cross-window.ts",
+      "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-ctx.ts",
@@ -13761,6 +13822,7 @@
       "node tests/verify-1612-deck-door.ts",
       "node tests/verify-1612-deck-state.ts",
       "node tests/verify-1776-vc-live-tab.ts",
+      "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
       "node tests/verify-client-hardcode-gate.ts",
@@ -13844,6 +13906,7 @@
       "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-1833-list-sticky.ts",
       "node tests/verify-1866-write-ui.ts",
+      "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -13948,6 +14011,7 @@
       "node tests/verify-1612-deck-door.ts",
       "node tests/verify-1661-banner-singleline.ts",
       "node tests/verify-1732-chain-menu-resize.ts",
+      "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -13998,6 +14062,7 @@
       "node tests/verify-1837-skill-importance.ts",
       "node tests/verify-1864-snapshot-detail-view.ts",
       "node tests/verify-1866-write-ui.ts",
+      "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -14097,6 +14162,7 @@
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1565-workroute-first-col-browser.ts",
       "node tests/verify-1582-open-folder.ts",
+      "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1783-comments-projection.ts",
       "node tests/verify-1864-snapshot-detail-view.ts",
       "node tests/verify-1866-write-ui.ts",
@@ -14351,6 +14417,7 @@
       "node tests/verify-1762-platform.ts",
       "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-1854-log-fs-port.ts",
+      "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -14669,6 +14736,7 @@
       "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-1770-gitlab-list-truncated.ts",
       "node tests/verify-1774-carry-wiring.ts",
+      "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
@@ -15515,6 +15583,7 @@
       "node tests/verify-1790-status-surface.ts",
       "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-1831-read-timeout.ts",
+      "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -15652,9 +15721,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 911,
+    "fileCount": 923,
     "dirCount": 92,
-    "coveredFileCount": 911,
+    "coveredFileCount": 923,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 72,
@@ -15736,6 +15805,7 @@
       "src/client/statusbar/suggestBubble.ts",
       "src/client/statusbar/suggestEngine.ts",
       "src/client/statusbar/suggestFacts.ts",
+      "src/client/statusbar/suggestGate.ts",
       "src/client/statusbar/suggestStream.ts",
       "src/client/statusbar/suggestStyles.ts",
       "src/client/statusbar/suggestTimeline.ts",
@@ -15853,6 +15923,8 @@
       "src/client/views/versionControl/vcBlocks.ts",
       "src/client/views/versionControl/vcBranchPage.ts",
       "src/client/views/versionControl/vcBranchPopover.ts",
+      "src/client/views/versionControl/vcBranchSections.ts",
+      "src/client/views/versionControl/vcBranchStyles.ts",
       "src/client/views/versionControl/vcBranches.ts",
       "src/client/views/versionControl/vcCache.ts",
       "src/client/views/versionControl/vcCapabilityList.ts",
@@ -15892,6 +15964,14 @@
       "src/client/views/versionControl/vcPalette.ts",
       "src/client/views/versionControl/vcPlatformData.ts",
       "src/client/views/versionControl/vcPlatformPage.ts",
+      "src/client/views/versionControl/vcProtoChanges.ts",
+      "src/client/views/versionControl/vcProtoChrome.ts",
+      "src/client/views/versionControl/vcProtoComposer.ts",
+      "src/client/views/versionControl/vcProtoControls.ts",
+      "src/client/views/versionControl/vcProtoHistory.ts",
+      "src/client/views/versionControl/vcProtoMenus.ts",
+      "src/client/views/versionControl/vcProtoTokens.ts",
+      "src/client/views/versionControl/vcProtoWorktrees.ts",
       "src/client/views/versionControl/vcQuery.ts",
       "src/client/views/versionControl/vcQueryView.ts",
       "src/client/views/versionControl/vcRealActions.ts",
@@ -15918,6 +15998,7 @@
       "src/client/views/versionControl/vcShellPages.ts",
       "src/client/views/versionControl/vcShellPrimitives.ts",
       "src/client/views/versionControl/vcShellStyles.ts",
+      "src/client/views/versionControl/vcStashDetail.ts",
       "src/client/views/versionControl/vcStashOps.ts",
       "src/client/views/versionControl/vcStashPage.ts",
       "src/client/views/versionControl/vcStyles.ts",

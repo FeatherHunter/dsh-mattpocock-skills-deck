@@ -37,6 +37,8 @@ declare function suggestEventOf(...args: any[]): any;
 declare function isEnabled(...args: any[]): any;
 // #1411：建议气泡的渲染薄壳（由相邻叶子提供，构建时按 index.ts 的标记次序拼在本文件之前）。
 declare const SuggestBubble: any;
+// #1879：气泡该不该显示、关掉 deck 时怎么收尾（真源在相邻叶子 suggestGate.ts）。
+declare function useSuggestBubbleGate(...args: any[]): any;
 
 /** 已认出的调用编号最多记多少条：只是防「对话极长时集合无界」的下限，超了整清一次再记。 */
 const SUGGEST_SEEN_LIMIT = 500
@@ -150,8 +152,10 @@ const suggestClosedWrite = function (table: any, op: string) {
   }
 }
 
-/** 记下用户关掉的是哪个会话的哪一条调用（同一会话再关一次覆盖旧的；超上限淘汰最早关的）。 */
-const suggestClosedRemember = function (sid: string, callId: string) {
+/** 记下用户关掉的是哪个会话的哪一条调用（同一会话再关一次覆盖旧的；超上限淘汰最早关的）。
+ *  #1879 起另有一处调用：关掉整个 deck 时，屏上那组也按「已跳过」写这里（见 suggestGate.ts），
+ *  所以它从模块私有改成导出 —— 跨叶子只借这一个写口，关闭标记的键与淘汰规则仍然只有这一份。 */
+export const suggestClosedRemember = function (sid: string, callId: string) {
   if (!sid || !callId) return
   const table = suggestClosedTable()
   table[sid] = { callId: callId, at: Date.now() }
@@ -527,9 +531,9 @@ export const SuggestStreamMount = function (props: any) {
     st = (cx && cx.storeSvc && typeof cx.storeSvc.useStore === 'function') ? cx.storeSvc.useStore(sid) : null
   } catch (eStore) { st = null }
   // 切回旧会话时先把它上次留下的那组建议放回来（#1451 后续：气泡按会话保留，切走再回来还在）。
-  const groupState = React.useState(function () { return suggestGroupRecall(sid) })
-  const group = groupState[0]
-  const setGroup = groupState[1]
+  const [group, setGroup] = React.useState(function () { return suggestGroupRecall(sid) })
+  // #1879：这一帧显不显示气泡只问 suggestGate 一处；deck 整个关掉时，它还会顺手把这组建议记为已跳过。
+  const visible = useSuggestBubbleGate(props, group, setGroup)
   // 每一组给一个递增编号：同一条内容再来一次也算新组，保证界面能重挂（第二组覆盖第一组）。
   const seqRef = React.useRef(0)
   React.useEffect(function () {
@@ -571,7 +575,7 @@ export const SuggestStreamMount = function (props: any) {
       try { stream.dispose() } catch (eDispose) {}
     }
   }, [sid])
-  if (!group) return null
+  if (!group || !visible) return null
   return React.createElement(SuggestBubble, {
     st: st,
     sid: sid,
