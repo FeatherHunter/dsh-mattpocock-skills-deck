@@ -120,7 +120,8 @@ export function createGitDiffPhone(deps: any): (args: any) => Promise<any> {
     const hasHead: any = await readHasHead(exe, base.root)
     if (hasHead === null) return failPhone('env', '问不出这个仓库有没有第一次提交，取差异这一步做不了')
     if (hasHead === false) return { ok: true, path: path, lines: [], truncated: false, reason: 'no-commit-baseline' }
-    const res: any = await runPinned(exe, base.root, (commandFor('patch', { patchPath: path }) as any).args, { stdoutLimit: patchLimit })
+    // #1860 D17：已暂存那一组读「索引相对 HEAD」，与默认的「工作区相对 HEAD」分开取。
+    const res: any = await runPinned(exe, base.root, (commandFor('patch', { patchPath: path, staged: args && args.staged === true }) as any).args, { stdoutLimit: patchLimit })
     return patchEnvelope(res, path, '', '取这个文件的差异这一步')
   }
 

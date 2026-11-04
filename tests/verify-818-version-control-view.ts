@@ -159,8 +159,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcTaskPanel.js',
   // #1742 改动页操作面板（13 条动作的渲染面板）：页面壳只在传了改动读数时才挂它；与构建同序，排在页面壳之前。
   'src/client/views/versionControl/vcChangesPage.js',
-  // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
+  // #1751 贮藏页三片（与构建同序）：先动作与数据层，再记录下面那片文件清单的画法，最后是页面本体。
   'src/client/views/versionControl/vcStashOps.js',
+  'src/client/views/versionControl/vcStashDetail.js', // #1860 D8：文件清单的四种画法（读到 / 正在读或失败 / 点才给 / 兜底）
   'src/client/views/versionControl/vcStashPage.js',
   // #1761 诊断页两片（与构建同序）：先数据与动作层，再页面正文；页面壳只在诊断页且拿到读数时挂它。
   'src/client/views/versionControl/vcDiagnostics.js',
@@ -1010,7 +1011,8 @@ async function main() {
     htmlNoCwd = renderToStaticMarkup(React.createElement(renderNoCwd.VersionControlTab, { st: {} }))
   } catch (e) { htmlNoCwd = '' }
   check(htmlNoCwd.replace(/<[^>]*>/g, ' ').indexOf('当前会话尚未关联工作区') >= 0 && htmlNoCwd.indexOf('data-vc-shell') < 0 && noCwdCalls === 0, 'G15 真渲染：空 cwd 时画的是那句空态，不画页面壳，宿主一个电话都没被调到（实得 ' + noCwdCalls + ' 次）')
-  check(['changes', 'commits', 'worktrees', 'stash'].every(function (id) { return enTabLabelOf(id).indexOf(tEn('vc.shell.tab.' + id)) === 0 }) && flatEn.indexOf(tEn('vc.shell.identity.search')) >= 0 && flatEn.indexOf(tEn('vc.shell.identity.capCount', { n: 162 })) >= 0 && flatEn.indexOf('vc.shell.') < 0 && flatEn.indexOf('提交历史') < 0 && flatEn.indexOf('未提交改动') < 0, 'G9 英文界面下页面壳的固定文案走英文词条（页签 / 搜索入口 / 能力计数都是英文；账本里的能力名与页面种类是中文数据，不在词条口径内）')
+  // #1860 能力清单退役后身份行不再画「共 N 条能力」；命令面板入口只剩图标，文案在 aria-label 里，所以查 htmlEn 而不是去标签后的可见文字。
+  check(['changes', 'commits', 'worktrees', 'stash'].every(function (id) { return enTabLabelOf(id).indexOf(tEn('vc.shell.tab.' + id)) === 0 }) && htmlEn.indexOf(tEn('vc.shell.identity.paletteHint', { n: 162 })) >= 0 && flatEn.indexOf(tEn('vc.shell.sync.readLabel')) >= 0 && flatEn.indexOf('vc.shell.') < 0 && flatEn.indexOf('提交历史') < 0 && flatEn.indexOf('未提交改动') < 0, 'G9 英文界面下页面壳的固定文案走英文词条（页签 / 命令面板入口 / 读取时刻标签都是英文；账本里的能力名与页面种类是中文数据，不在词条口径内）')
 
   // ---- N 组：#819 对抗式审查的十四条（先修真骗人的、再修天天遇到的、最后修边角）----
   // N1（严重）换工作区：读数与界面状态整体复位，旧工作区的身份与「打开中的提交」都不许留下来。
@@ -1210,18 +1212,36 @@ async function main() {
     for (const cap of v.CAPABILITIES) if (!capSeen.has(cap.id)) return false
     return true
   }
-  // 主入口判据：全页渲染里每条能力恰好一个 data-cap-primary，值就是能力编号。
+  // #1860：能力清单整块从页面体退役，162 条能力的唯一主入口搬进命令面板（vcPalette）。
+  //   判据分两半，各自都不可退让：①逐页渲染时页体里一个旧主入口标记都不剩；
+  //   ②命令面板空查询按账本次序画出全部能力、每条恰一次（只看编号与次序，不按名称猜）。
+  const legacyCapListMarkersOf = function (html) {
+    return attrValuesOf(html, 'data-cap-primary').length + attrValuesOf(html, 'data-cap-row').length +
+      attrValuesOf(html, 'data-surface').length + (html.indexOf('data-vc-cap-list') >= 0 ? 1 : 0)
+  }
+  const paletteHtmlOf = function () { return shellHtmlOf({ page: 'changes', width: 460, skin: 'dark', open: { palette: true } }) }
+  const paletteIdsOf = function () { return attrValuesOf(paletteHtmlOf(), 'data-cap-primary') }
+  const pagePaletteIdsOf = function (pageId) {
+    return paletteIdsOf().filter(function (id) { return String((VIEW.vcCapabilityOf(id) || {}).page || '') === String(pageId) })
+  }
   const primaryMarkerJudgmentOf = function (v) {
-    const html = renderToStaticMarkup(v.vcRenderAllPages(h, tZh, { width: 460, skin: 'dark' }))
-    const ids = attrValuesOf(html, 'data-cap-primary')
-    return ids.length === v.CAPABILITY_TOTAL && new Set(ids).size === v.CAPABILITY_TOTAL && v.CAPABILITIES.every(function (c) { return ids.indexOf(c.id) >= 0 })
+    for (const surface of v.PAGE_SURFACES) {
+      let html = ''
+      try { html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: String(surface.id), width: 460, skin: 'dark' })) } catch (e) { html = '' }
+      if (legacyCapListMarkersOf(html) !== 0) return false
+    }
+    let paletteHtml = ''
+    try { paletteHtml = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'changes', width: 460, skin: 'dark', open: { palette: true } })) } catch (e) { paletteHtml = '' }
+    const ids = attrValuesOf(paletteHtml, 'data-cap-primary')
+    return ids.length === v.CAPABILITY_TOTAL && new Set(ids).size === v.CAPABILITY_TOTAL &&
+      ids.join(',') === v.CAPABILITIES.map(function (c) { return c.id }).join(',')
   }
   const allShell = allShellHtmlOf({ width: 460, skin: 'dark' })
   const renderedPages = attrValuesOf(allShell, 'data-vc-page')
   check(allShell.length > 0 && allShell.indexOf('data-vc-pages="1"') >= 0, 'Z1a renderAllPages 一次渲染全部页面（根节点带 data-vc-pages）')
   check(renderedPages.length === VIEW.PAGE_SURFACES.length && renderedPages.join(',') === VIEW.PAGE_SURFACES.map(function (p2) { return p2.id }).join(','), 'Z1b 渲染出来的页面顺序与账本 PAGE_SURFACES 一字不差（实得 ' + renderedPages.length + ' 页）')
   check(attrValuesOf(allShell, 'data-vc-page-count')[0] === String(VIEW.PAGE_SURFACES.length), 'Z1c data-vc-page-count 与账本页数相等')
-  check(primaryMarkerJudgmentOf(VIEW), 'Z1d 每条能力恰好一个 data-cap-primary 主入口、共 ' + VIEW.CAPABILITY_TOTAL + ' 个（不多不少、编号不重）')
+  check(primaryMarkerJudgmentOf(VIEW), 'Z1d 能力清单从页体退役、主入口只剩命令面板：所有页面逐页渲染后页体旧标记全为 0；命令面板空查询按账本次序渲染全部 ' + VIEW.CAPABILITY_TOTAL + ' 条 data-cap-primary（不多不少、编号不重）')
   check(registryJudgmentOf(VIEW), 'Z2 页面注册表：每页恰好归一处、并集覆盖账本全部 ' + VIEW.CAPABILITY_TOTAL + ' 条能力、每页条数等于 PAGE_COUNTS')
   check(VIEW.vcPageRegistryOf().reduce(function (n, row) { return n + row.count }, 0) === VIEW.CAPABILITY_TOTAL, 'Z2b 注册表各页条数之和等于能力总数（没有能力掉在页与页的缝里）')
   const cap1314 = VIEW.vcCapabilityOf('13.14')
@@ -1232,21 +1252,23 @@ async function main() {
   const platformHtml = shellHtmlOf({ page: 'platform', width: 460, skin: 'dark' })
   check(platformHtml.indexOf('data-vc-note="platform-pointer"') >= 0 && platformHtml.indexOf('13.14') >= 0, 'Z3d 平台页画一条指回提交历史页的说明（正文点到 13.14）')
   check(rowSegmentOf(platformHtml, '13.14') === '', 'Z3e 平台页没有 13.14 的主入口行（入口只在提交历史页，不在两处各摆一个）')
-  check(shellHtmlOf({ page: 'commits' }).indexOf('data-vc-note="13.14"') >= 0, 'Z3f 提交历史页画出 13.14 的说明位（图形化视图从 #1744 起就画在这一页）')
+  // #1860：页壳不再画 13.14 的说明块；图形化提交历史块（vcHistoryGraph）自己带 data-vc-note="13.14"。
+  const z3fShellPlain = shellHtmlOf({ page: 'commits', width: 460, skin: 'dark' })
+  const z3fGraphRows = [
+    { oid: 'a'.repeat(40), short: 'aaaaaaa', subject: '第二条', author: '林可', authorDateMs: NOW, commitDateMs: NOW, parents: ['b'.repeat(40)] },
+    { oid: 'b'.repeat(40), short: 'bbbbbbb', subject: '第一条', author: '林可', authorDateMs: NOW - 60000, commitDateMs: NOW - 60000, parents: [] },
+  ]
+  const z3fGraphHtml = renderToStaticMarkup(VIEW.vcHistoryGraphNode(h, tZh, { graph: VIEW.vcHistoryGraphOf(z3fGraphRows), width: 460 }))
+  check(z3fShellPlain.indexOf('data-vc-note="13.14"') < 0 && z3fGraphHtml.indexOf('data-vc-note="13.14"') >= 0 && z3fGraphHtml.indexOf('data-vc-graph="1"') >= 0 && z3fGraphHtml.indexOf(tZh('vc.shell.history.graphTitle')) >= 0 && LOC.zh['vc.shell.history.graphTitle'] === '图形化提交历史' && !!LOC.en['vc.shell.history.graphTitle'] && LOC.en['vc.shell.history.graphTitle'] !== LOC.zh['vc.shell.history.graphTitle'], 'Z3f 提交历史页的页壳不再画 13.14 的说明块；图形化提交历史块由 vcHistoryGraph 自己用 data-vc-note="13.14" 归属本页，标题词条 vc.shell.history.graphTitle 的值是「图形化提交历史」（中英成对）')
   const diagHtml = shellHtmlOf({ page: 'diagnostics', width: 460, skin: 'dark' })
   const diagCaps = VIEW.vcPageCapabilitiesOf('diagnostics')
-  const diagRowsAllPending = diagCaps.every(function (c) { return rowSegmentOf(diagHtml, c.id).indexOf('data-cap-hint="1"') >= 0 })
-  check(diagHtml.indexOf('data-vc-note="diagnostics-readonly"') >= 0 && diagRowsAllPending && diagHtml.indexOf('data-surface="') < 0 && diagHtml.indexOf('data-cap-main=') < 0, 'Z3g 诊断页只读：画一条只读说明，' + diagCaps.length + ' 条能力都不画可执行控件（不伪造按钮、不打开操作面）')
+  check(diagHtml.indexOf('data-vc-note="diagnostics-readonly"') >= 0 && attrValuesOf(diagHtml, 'data-cap-primary').length === 0 && diagHtml.indexOf('data-surface="') < 0 && diagHtml.indexOf('data-cap-row="') < 0, 'Z3g 诊断页只读：画一条只读说明；能力清单退役后页体里没有 data-cap-primary / data-surface / data-cap-row（' + diagCaps.length + ' 条能力的入口改在命令面板）')
   let opCap: any = null
   for (const surface of VIEW.PAGE_SURFACES) {
     const found = VIEW.vcPageCapabilitiesOf(surface.id).filter(function (c) { return c.finalForm === '操作' })[0]
     if (found) { opCap = found; break }
   }
   check(!!opCap, 'Z4a 账本里找得到终局形态是「操作」的能力（下面几处拿它当样本）')
-  const sampleCap = opCap || VIEW.vcPageCapabilitiesOf('changes')[0]
-  const openHtml = shellHtmlOf({ page: sampleCap.page, open: { surface: sampleCap.id }, width: 460, skin: 'dark' })
-  const openSeg = rowSegmentOf(openHtml, sampleCap.id)
-  check(openSeg.indexOf('data-surface="' + sampleCap.id + '"') >= 0 && openSeg.indexOf('data-cap-main=') >= 0, 'Z4b 种子把操作面置为打开态后，那一行里出现 data-surface 与主控件（没有被画到别的行里）')
   // 三层同源：核心判定 → 界面禁用键 → 真词条。三层逐层拿真数据比对，不许界面自己另起一套说法。
   const behindScreen = screenOf({ identity: { sync: 'tracked-known', behind: 2, ahead: 0 } })
   const pushDecision = VIEW.judge(behindScreen, 'push')
@@ -1260,16 +1282,6 @@ async function main() {
   const disabledEn = renderToStaticMarkup(VIEW.vcShellStateNode(h, tEn, { state: 'disabled', reason: 'behind-remote' }))
   check(disabledZh.indexOf('data-cap-why="' + behindKey + '"') >= 0 && disabledZh.indexOf(behindZh) >= 0, 'Z5e 禁用态节点常驻真词条原因，data-cap-why 就是第 2 层的键（中文界面）')
   check(disabledEn.indexOf(behindEn) >= 0 && disabledEn.indexOf(behindZh) < 0, 'Z5f 英文界面显示英文真词条、不串中文')
-  const confirmHtml = shellHtmlOf({ page: sampleCap.page, open: { surface: sampleCap.id }, seed: { confirm: { capId: sampleCap.id, verb: '删除分支', target: '分支 feat' } }, width: 460, skin: 'dark' })
-  const confirmSeg = rowSegmentOf(confirmHtml, sampleCap.id)
-  check(confirmSeg.indexOf('data-vc-confirm="1"') >= 0 && (confirmSeg.match(/data-vc-confirm-seg="/g) || []).length === 4, 'Z6a 确认卡贴触发点、四段齐全（会动什么 / 不会动什么 / 可逆性与恢复路径 / 动词写后果）')
-  check(confirmSeg.indexOf('data-focus-default="cancel"') >= 0, 'Z6b 确认卡的默认焦点在取消键上（危险动作一进来不停在确认键）')
-  const okResultHtml = shellHtmlOf({ page: sampleCap.page, open: { surface: sampleCap.id }, seed: { result: { capId: sampleCap.id, cmd: 'git add', ms: 120, n: 2, next: '接着提交' } }, width: 460, skin: 'dark' })
-  const okSeg = rowSegmentOf(okResultHtml, sampleCap.id)
-  check(okSeg.indexOf('data-vc-result="ok"') >= 0 && okSeg.indexOf('data-vc-result') > okSeg.indexOf('data-surface'), 'Z6c 成功结果画在触发控件那一行里、且在操作面之后（结果贴触发点）')
-  const failResultHtml = shellHtmlOf({ page: sampleCap.page, open: { surface: sampleCap.id }, seed: { result: { capId: sampleCap.id, error: true, git: 'fatal: 拒绝，非快进', step: '推送', expected: '快进', actual: '非快进', cause: '远端有新提交' } }, width: 460, skin: 'dark' })
-  const failSeg = rowSegmentOf(failResultHtml, sampleCap.id)
-  check(failSeg.indexOf('data-vc-result="fail"') >= 0 && failSeg.indexOf('fatal: 拒绝，非快进') >= 0 && failSeg.indexOf('data-vc-result-action="retry"') >= 0, 'Z6d 失败结果贴触发点，原话、环节、期望与实际、上游原因、重试一样不少')
   check(VIEW.VC_SHELL_WIDTHS.join(',') === '300,380,460,520', 'Z7a 四档宽就是 300 / 380 / 460 / 520')
   for (const w of VIEW.VC_SHELL_WIDTHS) {
     const widthHtml = shellHtmlOf({ page: 'commits', width: w, skin: 'dark' })
@@ -1287,7 +1299,7 @@ async function main() {
   const dangling = controls.filter(function (id2) { return !allIds.has(id2) })
   if (dangling.length) console.log('    （全页渲染里指空的 aria-controls：' + [...new Set(dangling)].join('、') + '）')
   check(controls.length > 0 && dangling.length === 0, 'Z8c 全页渲染时每一处 aria-controls 都指向真实存在的 id（' + controls.length + ' 处）')
-  const onePageOpen = shellHtmlOf({ page: 'branch-tags', width: 460, skin: 'dark', open: { branch: true, palette: true, gear: true } })
+  const onePageOpen = shellHtmlOf({ page: 'branch-tags', width: 460, skin: 'dark', open: { branch: true, palette: true, gear: true }, seed: { branch: 'main', oid: 'abcdef1' } })
   const oneIds = idSetOf(onePageOpen)
   const oneControls = attrValuesOf(onePageOpen, 'aria-controls')
   // 单页受控渲染时只画出这一页：页签指向的其余三页面板不在 DOM 里，这是受控渲染的应有之义；
@@ -1295,7 +1307,11 @@ async function main() {
   const oneDangling = oneControls.filter(function (id2) { return !oneIds.has(id2) && id2.indexOf('vc-page-') !== 0 })
   if (oneDangling.length) console.log('    （单页渲染里指空的 aria-controls：' + oneDangling.join('、') + '；现有 id：' + [...oneIds].join('、') + '）')
   check(oneControls.length >= 3 && oneDangling.length === 0, 'Z8d 单页把分支浮层 / 命令面板 / 齿轮索引都打开时，这三处 aria-controls 都指到真实 id')
-  check((onePageOpen.match(/aria-expanded="true"/g) || []).length >= 3, 'Z8e 三处触发控件都标了 aria-expanded=true')
+  // 三颗触发控件要逐颗点名（分支按钮只在有分支时画，所以受控渲染必须带 seed.branch）。
+  const oneTriggersOpen = function (html: string, marker: string) {
+    return (html.match(/<button[^>]*>/g) || []).filter(function (tag) { return tag.indexOf(marker) >= 0 && tag.indexOf('aria-expanded="true"') >= 0 }).length
+  }
+  check(oneTriggersOpen(onePageOpen, 'data-vc-branch-btn="1"') === 1 && oneTriggersOpen(onePageOpen, 'data-vc-search-entry="1"') === 1 && oneTriggersOpen(onePageOpen, 'data-vc-gear-btn="1"') === 1, 'Z8e 三处触发控件（分支按钮 / 命令面板入口 / 齿轮索引入口）打开时各标一处 aria-expanded=true')
   check(allShell.indexOf('data-vc-gear-index') >= 0 && allShell.indexOf('tabindex=') >= 0, 'Z8f 页签带 tabindex（选中 0、其余 -1），焦点顺序与视觉一致')
   const byId1314 = VIEW.vcPaletteRowsOf('13.14')
   check(byId1314.length === 1 && byId1314[0].id === '13.14', 'Z9a 命令面板按能力 id 搜到一条（13.14 唯一命中）')
@@ -1345,7 +1361,6 @@ async function main() {
   check(stateValues.join(',') === 'empty,loading,error,disabled', 'Z15a 四种状态各有画法（空 / 加载 / 失败 / 禁用）')
   const formValues = attrValuesOf(shellHtmlOf({ page: 'changes', width: 460, skin: 'dark' }), 'data-vc-form')
   check(formValues.join(',') === 'inline,float,page', 'Z15b 三种表单形态各有画法（行内展开 / 贴触发点的浮层 / 整页替换）')
-  check(okSeg.length > 0 && failSeg.indexOf('data-vc-old-read') < 0, 'Z15c 结果里不把旧读数当新读数（新旧分开画）')
   check(allShell.indexOf('data-vc-skeleton="1"') >= 0, 'Z15d 每页骨架自检位存在（形态与状态的画法在这壳里可见）')
 
   // ---- P 组：#1743 提交页（域 2 八条提交能力）----
@@ -1374,10 +1389,10 @@ async function main() {
     return count('2.1') === 1 && count('2.2') === 1 && count('2.3') === 1 && count('2.4') === 2 &&
       count('2.5') === 1 && count('2.6') === 2 && count('2.7') === 1 && count('2.8') === 1 && caps.length === 10
   }
-  // 2.7 必须是面板内的多行输入框：textarea 带 rows、带同一个 data-vc-commit-msg 标记，而且没有单行 input 顶替它。
+  // 2.7 必须是原型 composer 里的多行输入框：textarea 带 rows=2、带同一个 data-vc-commit-msg 标记，而且没有单行 input 顶替它。
   const pMultilineJudgmentOf = function (v: any) {
     const html = pRenderOf(v, null)
-    return /<textarea[^>]*data-vc-commit-msg="1"/.test(html) && /<textarea[^>]*rows="6"/.test(html) && !/<input[^>]*data-vc-commit-msg/.test(html)
+    return /<textarea[^>]*data-vc-commit-msg="1"/.test(html) && /<textarea[^>]*rows="2"/.test(html) && !/<input[^>]*data-vc-commit-msg/.test(html)
   }
   // 确认卡四段必须齐全，且默认焦点在取消键上。
   const pConfirmJudgmentOf = function (v: any) {
@@ -1393,16 +1408,15 @@ async function main() {
     const panelAt = html.indexOf('data-vc-commit-panel')
     const submitAt = html.indexOf('data-vc-commit-submit')
     const resultAt = html.indexOf('data-vc-commit-result="ok"')
-    const firstCapAt = html.indexOf('data-cap-primary')
-    return panelAt >= 0 && submitAt > panelAt && resultAt > submitAt && firstCapAt > resultAt
+    return panelAt >= 0 && submitAt > panelAt && resultAt > submitAt
   }
   check(typeof VIEW.vcCommitPageNode === 'function' && typeof VIEW.vcCommitOpsOf === 'function' && typeof VIEW.commitArgvOf === 'function', 'P1 提交页叶子与共享提交计划已按构建次序拼进闭包（八条能力共用一份 argv 真源）')
   const pDefault = pRenderOf(VIEW, null)
   check(pDefault.indexOf('data-vc-commit-panel="1"') >= 0 && pDefault.indexOf('data-vc-page="changes"') >= 0, 'P2 改动页拿到读数时画出提交面板（面板挂在改动页，不在别的页签）')
   check(pCapControlJudgmentOf(VIEW), 'P3 八条提交能力各有自己的控件（2.4 的 fixup / squash 两个互斥形态各一颗、2.6 拆成签名提交与追加签名行两颗，共 10 颗；实得 ' + attrValuesOf(pDefault, 'data-cap-control').join('、') + '）')
-  const pPrimaryIds = attrValuesOf(pDefault, 'data-cap-primary')
-  check(pPrimaryIds.length === VIEW.PAGE_COUNTS.changes && pPrimaryIds.filter(function (id) { return id === '2.4' }).length === 1, 'P3b 面板外的能力清单仍是一条能力一个主入口（改动页 ' + VIEW.PAGE_COUNTS.changes + ' 条 data-cap-primary，2.4 恰一条；面板控件不抢这个标记）')
-  check(pMultilineJudgmentOf(VIEW), 'P4 2.7 的说明是面板内多行输入框（textarea rows=6，没有单行 input 顶替；不弹外部编辑器）')
+  // #1860：改动页页体不再画能力清单；21 条能力的主入口搬到命令面板，按账本顺序逐条渲染。
+  check(attrValuesOf(pDefault, 'data-cap-primary').length === 0 && pagePaletteIdsOf('changes').length === VIEW.PAGE_COUNTS.changes && pagePaletteIdsOf('changes').join(',') === VIEW.vcPageCapabilitiesOf('changes').map(function (c) { return c.id }).join(',') && pagePaletteIdsOf('changes').filter(function (id) { return id === '2.4' }).length === 1, 'P3b 改动页页面体不再画能力清单（data-cap-primary 0 个）；命令面板空查询里这页 ' + VIEW.PAGE_COUNTS.changes + ' 条能力齐全、顺序=账本顺序且 2.4 恰一条')
+  check(pMultilineJudgmentOf(VIEW), 'P4 2.7 的说明是面板内多行输入框（原型 composer 的 textarea rows=2，带 data-vc-commit-msg；没有单行 input 顶替，也不弹外部编辑器）')
   check(pDefault.indexOf('data-vc-commit-template="1"') >= 0 && pDefault.indexOf('模板第二行') >= 0 && pDefault.indexOf('data-vc-template-text') >= 0, 'P5 2.8 把 commit.template 的原文读进面板并原样显示（套用前先让人看见要写什么）')
   const pOpts = attrValuesOf(pDefault, 'data-vc-commit-opt')
   check(pOpts.join(',') === 'skipHooks,sign,signoff' && pDefault.indexOf('data-vc-commit-trailer="1"') >= 0 && pDefault.indexOf('Signed-off-by: 张三') >= 0 && pDefault.indexOf('example.com') >= 0, 'P6 2.5 / 2.6 各自独立勾选：跳过钩子、签名提交、追加签名行是三颗分开的勾选框，追加签名行的原文显示在面板里')
@@ -1465,8 +1479,9 @@ async function main() {
     return attrValuesOf(html, 'data-vc-diag-pointer').join(',') === '13.3,13.14'
   }
   check(dgReplaceJudgmentOf(VIEW), 'DG9 5.12 替换对象：一颗建替换按钮、每条替换各一颗撤销按钮（撤销就在那一行上，--delete 才能一键撤）')
+  // #1860：诊断页页体也不再有能力清单；本页面板的按钮仍只带 data-cap-control，能力入口去命令面板按 id 找、目标页仍是诊断页。
   const dgPrimary = attrValuesOf(dgPlain, 'data-cap-primary')
-  check(dgPrimary.length === VIEW.PAGE_COUNTS.diagnostics && new Set(dgPrimary).size === dgPrimary.length && dgPrimary.indexOf('13.1') >= 0 && dgPrimary.indexOf('13.13') >= 0, 'DG10 面板不抢主入口标记：诊断页仍是 ' + VIEW.PAGE_COUNTS.diagnostics + ' 条 data-cap-primary，本页面板的按钮只带 data-cap-control')
+  check(dgPrimary.length === 0 && dgPlain.indexOf('data-surface="') < 0 && attrValuesOf(dgPlain, 'data-cap-control').length > 0 && VIEW.vcPageCapabilitiesOf('diagnostics').every(function (cap) { return paletteIdsOf().indexOf(cap.id) >= 0 && VIEW.vcPaletteTargetOf(cap.id).page === 'diagnostics' }), 'DG10 面板不抢主入口标记：诊断页页体不再画能力清单（data-cap-primary 0 个），本页面板的按钮只带 data-cap-control；这 ' + VIEW.PAGE_COUNTS.diagnostics + ' 条能力的入口在命令面板里按 id 查得到、目标页=diagnostics')
   const dgConfirm = dgRenderOf(VIEW, { confirm: { cap: '5.12', op: 'replace-create', ticketId: 't1', verb: '建立替换', target: 'aaaa → bbbb' } })
   check(dgConfirm.indexOf('data-vc-diag-confirm="replace-create"') >= 0 && attrValuesOf(dgConfirm, 'data-vc-confirm-seg').join(',') === 'what,wont,reversible,verb' && dgConfirm.indexOf('data-focus-default="cancel"') >= 0 && dgConfirm.indexOf('data-vc-diag-confirm-go') >= 0, 'DG11 5.12 建替换是危险动作：确认卡贴在这一块里、四段齐全、默认焦点在取消键')
   const dgFail = dgRenderOf(VIEW, { results: { '5.12': { ok: false, failKey: 'vc.diag.reason.noReplace', git: 'fatal: replace ref ... does not exist', message: '撤销失败' } } })
@@ -1583,9 +1598,12 @@ async function main() {
   check(aiHtml.replace(/<[^>]*>/g, ' ').indexOf('vc.action.aiHandoff') < 0, 'AI7a AI 按钮印的是词条译文而不是键名（词典没插进按钮）')
   const aiBtnMatch = /<button[^>]*data-vc-ai="conflict"[^>]*>([\s\S]*?)<\/button>/.exec(aiHtml)
   check(!!aiBtnMatch && aiBtnMatch[1].replace(/<[^>]*>/g, '').trim() === tZh('vc.action.aiHandoff'), 'AI8 每颗 AI 按钮文字都是同一句「让 AI 帮我解决」的动作名（实得 ' + (aiBtnMatch ? aiBtnMatch[1].replace(/<[^>]*>/g, '').trim() : '没找到按钮') + '）')
+  // #1860：原型的工作区页把交接入口放在页面底部（worktrees.ts 的 wt-foot），顶上不画兜底条；
+  //   这里锁住「顶部没有 AI 入口 + 底部交接入口在」，防止有人再把无条件兜底条加回来。
   const aiBoundaryHtml = aiRenderOf(aiSeedReadsOf(firstSeedOf()), 'worktrees')
   const aiBoundaryKinds = aiKindsOf(aiBoundaryHtml)
-  check(aiBoundaryKinds.length === 1 && aiBoundaryKinds[0] === 'boundary' && aiBoundaryHtml.indexOf('data-vc-page="worktrees"') >= 0, 'AI7b 工作树页上的 AI 入口只出「工作树边界」这一档，别的落点不混进来（实得 ' + aiBoundaryKinds.join(',') + '）')
+  const aiBoundaryFoot: boolean = aiBoundaryHtml.indexOf('data-wt-handoff="1"') >= 0
+  check(aiBoundaryKinds.length === 0 && aiBoundaryHtml.indexOf('data-vc-page="worktrees"') >= 0 && aiBoundaryFoot, 'AI7b 工作区页顶上不再出兜底 AI 条（实得 ' + aiBoundaryKinds.length + ' 个），交接入口在页面底部（实得 ' + aiBoundaryFoot + '）')
   const aiFailHtml = aiRenderOf(aiSeedReadsOf(null))
   check(aiKindsOf(aiFailHtml).indexOf('read-fail') >= 0, 'AI7c 首屏整次读失败（timeout）时出现「读失败」AI 入口（可外带的那五档之一）')
   const aiPlainHtml = aiRenderOf(aiSeedReadsOf(firstSeedOf()))
@@ -1815,7 +1833,7 @@ async function main() {
   check(dropConfirmHtml.indexOf('stash@{0}') >= 0 && dropConfirmHtml.indexOf('第一条贮藏') >= 0, 'Z16r 确认卡说清删的是哪一条（对象级信息，不只说「删除」）')
   const clearConfirmHtml = stashPageOf(stashEntries, 'git version 2.49.0', Object.assign(VIEW.vcStashStateNew(), { confirm: { op: 'clear', selector: '', subject: '' } }))
   check(clearConfirmHtml.indexOf('data-vc-stash-confirm="clear"') >= 0, 'Z16s 全清同样走确认卡（clear 与 drop 两条毁档都要确认）')
-  const detailState = Object.assign(VIEW.vcStashStateNew(), { detail: { selector: 'stash@{0}', files: ['a.txt', 'b.txt'], fileCount: 2, patch: 'diff --git a/a.txt b/a.txt\n+stash-me\n', truncated: true } })
+  const detailState = Object.assign(VIEW.vcStashStateNew(), { details: { 'stash@{0}': { selector: 'stash@{0}', files: ['a.txt', 'b.txt'], fileCount: 2, patch: 'diff --git a/a.txt b/a.txt\n+stash-me\n', truncated: true, state: 'ok' } } })
   const detailHtml = stashPageOf(stashEntries, 'git version 2.49.0', detailState)
   check(detailHtml.indexOf('data-vc-stash-detail="stash@{0}"') >= 0 && attrValuesOf(detailHtml, 'data-vc-stash-file').join(',') === 'a.txt,b.txt', 'Z16t 查看内容：就地铺开涉及的文件清单')
   check(detailHtml.indexOf('data-vc-stash-patch="1"') >= 0 && detailHtml.indexOf('+stash-me') >= 0, 'Z16u 查看内容：差异原文一并铺开（不是只给文件名单）')
@@ -1874,7 +1892,7 @@ async function main() {
   }
   const cfgHtml = cfgShellOf('config', cfgStateOf())
   check(cfgHtml.indexOf('data-vc-config-page="1"') >= 0 && attrValuesOf(cfgHtml, 'data-vc-config-read').filter(function (x) { return x === 'ok' }).length === 2, 'Z17a 配置页在页面壳里画出正文，读状态如实标 ok（页根与读条各标一次）')
-  check(attrValuesOf(cfgHtml, 'data-cap-primary').join(',') === '12.1,12.2,12.3,12.4,12.7,12.8', 'Z17b 配置页六条能力仍由能力行给唯一主入口（12.1–12.4 / 12.7 / 12.8，页面体不另画一份）')
+  check(attrValuesOf(cfgHtml, 'data-cap-primary').length === 0 && pagePaletteIdsOf('config').join(',') === '12.1,12.2,12.3,12.4,12.7,12.8' && pagePaletteIdsOf('config').join(',') === VIEW.vcPageCapabilitiesOf('config').map(function (c) { return c.id }).join(','), 'Z17b 配置页页面体不再画能力清单（data-cap-primary 0 个）；命令面板空查询里六条能力齐全、顺序=账本（12.1–12.4 / 12.7 / 12.8）')
   check(VIEW.vcPageCapabilitiesOf('hooks').map(function (c) { return c.id }).join(',') === '12.5,12.6', 'Z17c 钩子页两条能力由能力行给主入口（12.5 清单 / 12.6 手动跑）')
   check(attrValuesOf(cfgHtml, 'data-vc-config-identity').join(',') === 'user.name,user.email' && cfgHtml.indexOf('基线名字') >= 0 && cfgHtml.indexOf('base@example.com') >= 0, 'Z17d 身份两键各一行，旧值照读回包原样印（本仓库 / 这台机器各一格）')
   check(attrValuesOf(cfgHtml, 'data-vc-config-old').length === 2 && cfgHtml.indexOf(fill(LOC.zh['vc.config.identity.old'], { local: '基线名字', global: LOC.zh['vc.config.identity.never'] })) >= 0, 'Z17e 旧值说明按词条拼：有值印值、没有就明说「未配置」，不印空白')
@@ -2064,8 +2082,11 @@ async function main() {
   const wtHint = VIEW.vcWorktreesVersionHintOf(tZh, '9.7')
   check(String(wtHint).indexOf('2.17') >= 0 && String(wtHint).indexOf('终端') >= 0, 'W27 版本不够时常驻画「需要哪个版本 + 替代做法」（' + wtHint + '）')
   const wtHtmlOk = renderToStaticMarkup(VIEW.vcWorktreesPageNode(h, tZh, { reads: wtReads, ui: {}, ops: {} }))
-  check(wtHtmlOk.indexOf('data-vc-wt-page="1"') >= 0 && attrValuesOf(wtHtmlOk, 'data-wt-entry').length === 8, 'W28 工作树页真的渲染出八条入口（实得 ' + attrValuesOf(wtHtmlOk, 'data-wt-entry').length + ' 条）')
-  check(wtHtmlOk.indexOf('data-wt-version="hidden"') >= 0 && wtHtmlOk.indexOf('data-wt-version="full"') < 0, 'W29 9.7 那一行带版本门说明，可用的能力不画多余说明')
+  // #1860 整页还原：能力清单退役，工作树页首屏不再画八条能力入口折叠块，也不再常驻版本门说明；
+  // 行清单本身不变，每条能力的唯一主入口交给命令面板（W30 仍要求这一页不抢 data-cap-primary）。
+  check(wtHtmlOk.indexOf('data-vc-wt-page="1"') >= 0 && attrValuesOf(wtHtmlOk, 'data-wt-entry').length === 0, 'W28 工作树页按原型只画行清单，不再渲染能力入口折叠块（实得 ' + attrValuesOf(wtHtmlOk, 'data-wt-entry').length + ' 条）')
+  check(attrValuesOf(wtHtmlOk, 'data-wt-row').length === 1 && wtHtmlOk.indexOf('data-wt-list="1"') >= 0, 'W28b 其他工作区那一行与清单容器都还在（首屏结构没被砍空）')
+  check(wtHtmlOk.indexOf('data-wt-version') < 0, 'W29 首屏不再常驻版本门说明（9.7 的版本门判定仍由 W26 的 vcWorktreeAvailabilityOf 验）')
   check(wtHtmlOk.indexOf('data-cap-primary') < 0, 'W30 工作树页不用主入口标记 data-cap-primary（每条能力的唯一主入口仍由能力行负责，Z1d 不会被抢）')
   const dangerIds = VIEW.WORKTREE_ACTIONS.filter(function (a) { return a.danger === true }).map(function (a) { return a.id }).sort().join(',')
   const needConfirm = VIEW.WORKTREE_ACTIONS.filter(function (a) { return a.confirm === true }).map(function (a) { return a.id }).sort().join(',')
@@ -2177,7 +2198,8 @@ async function main() {
 
   // Y2 加载更多：按需再取、每批 50 条、与 vcData 的批大小同源
   check(attrValuesOf(y1Html, 'data-vc-load-more').length === 1, 'Y2a hasMore 为真时才画「加载更多」（没有更多就不给假按钮）')
-  check(VIEW.VC_HISTORY_BATCH === VIEW.VC_LOG_BATCH && y1Html.indexOf(String(VIEW.VC_HISTORY_BATCH)) >= 0, 'Y2b 每批条数=vcData 的 VC_LOG_BATCH（' + VIEW.VC_LOG_BATCH + ' 条），历史页不另写一份数字')
+  // #1860：批大小不再印在按钮/范围行上；判据改成「数量同源 + 范围行文案由词条按实际条数派生」。
+  check(VIEW.VC_HISTORY_BATCH === VIEW.VC_LOG_BATCH && y1Html.indexOf(fill(tZh('vc.shell.history.scope'), { n: String(hcRows4.length) })) >= 0 && hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4.slice(0, 2), hasMore: true }) }).indexOf(fill(tZh('vc.shell.history.scope'), { n: '2' })) >= 0 && y1Html.indexOf(fill(tZh('vc.shell.history.scope'), { n: '2' })) < 0, 'Y2b 每批条数=vcData 的 VC_LOG_BATCH（' + VIEW.VC_LOG_BATCH + ' 条）；历史页范围行「已加载 N 条」由词条 vc.shell.history.scope 按实际条数派生（换一份条数文案跟着变，不另写死数字）')
   const hcNext2 = (function () {
     const rows = hcCommitsOf(2)
     return rows.map(function (c, i) { return Object.assign({}, c, { oid: hcOid(10 + i), short: 'd' + (i + 1), parents: [] }) })
@@ -2466,9 +2488,9 @@ async function main() {
   // R7 主入口唯一、键盘可达与读屏属性
   const r7Caps = VIEW.vcPageCapabilitiesOf('remote')
   const r7CapIds = r7Caps.map(function (c) { return c.id })
-  const r7Primary = attrValuesOf(r1Html, 'data-cap-primary')
+  const r7Primary = pagePaletteIdsOf('remote')
   const r7EachOnce = r7CapIds.length > 0 && r7Primary.join(',') === r7CapIds.join(',') && r7CapIds.every(function (id) { return r7Primary.filter(function (x) { return x === id }).length === 1 })
-  check(r7CapIds.slice(0, 4).join(',') === '8.1,8.2,8.3,8.4' && r7EachOnce, 'R7a 远端页每条能力恰好一个主入口，8.1–8.4 排在最前（页面注册表与能力账本同源；这一页还挂着域 8 其余能力，入口都在本页正文里）')
+  check(attrValuesOf(r1Html, 'data-cap-primary').length === 0 && r7CapIds.slice(0, 4).join(',') === '8.1,8.2,8.3,8.4' && r7EachOnce, 'R7a 远端页页面体不再画能力清单（0 个）；命令面板里这页每条能力恰好一行、8.1–8.4 排在最前（页面注册表与能力账本同源）')
   const r7Cap81 = VIEW.vcCapabilityOf('8.1')
   check(!!r7Cap81 && r7Cap81.page === 'remote' && r7Cap81.primaryEntry.indexOf('远端') >= 0, 'R7b 8.1 的主入口登记在「远端与同步」页')
   check(/data-vc-remote-online-btn="origin"[^>]*aria-expanded="true"/.test(r2OkHtml) && /data-vc-remote-online-btn="mirror"[^>]*aria-expanded="false"/.test(r2OkHtml), 'R7c 联网展开状态由 aria-expanded 报给读屏（展开的是哪个远端指得清）')
@@ -2480,7 +2502,7 @@ async function main() {
   //   能力归属不在这里另写名单：面板按能力账本的 page 字段筛，断言逐条回账本对。
   // 先量一量页面归属与主入口标记，再判输入、校验、读取四态与十种结果的画法。
   const qEsc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
-  const qPageHtmlOf = function (page) { return shellHtmlOf({ page: page, width: 460, skin: 'dark' }) }
+  const qPageHtmlOf = function (page, extra) { return shellHtmlOf(Object.assign({ page: page, width: 460, skin: 'dark' }, extra || {})) }
   const qKindsOf = function (html) { return attrValuesOf(html, 'data-vc-query') }
   const qCapsOf = function (html) { return attrValuesOf(html, 'data-vc-query-cap') }
   const qDiagPrimaryJudgmentOf = function (v) {
@@ -2488,29 +2510,25 @@ async function main() {
     const prim = attrValuesOf(html, 'data-vc-query-primary')
     return prim.length === 4 && prim.every(function (x) { return x === '1' }) && attrValuesOf(html, 'data-vc-query-primary-badge').length === 4
   }
-  const qCommitsHtml = qPageHtmlOf('commits')
+  const qCommitsHtml = qPageHtmlOf('commits', { reads: hcReadsOf({ commits: hcRows4, hasMore: true }) })
   const qDiagHtml = qPageHtmlOf('diagnostics')
-  check(qKindsOf(qCommitsHtml).join(',') === 'file-history,grep,pickaxe,compare,describe,notes' && qCapsOf(qCommitsHtml).join(',') === '3.4,3.6,3.7,3.8,3.10,3.12', 'Q1a 提交历史页挂六组历史高级查询（3.4 单文件历史 / 3.6 说明搜索 / 3.7 代码变化搜索 / 3.8 比较引用 / 3.10 版本名 / 3.12 提交备注）')
+  check(attrValuesOf(qCommitsHtml, 'data-vc-query-panel').length === 0 && attrValuesOf(qCommitsHtml, 'data-vc-query').length === 0 && ['3.4', '3.6', '3.7', '3.8', '3.10', '3.12'].every(function (id) { return paletteIdsOf().indexOf(id) >= 0 && VIEW.vcPaletteTargetOf(id).page === 'commits' }), 'Q1a 提交历史页不再挂历史高级查询面板（#1860 面板退役）；这六条能力改从命令面板进，按 id 查得到且目标页=commits（3.4 单文件历史 / 3.6 说明搜索 / 3.7 代码变化搜索 / 3.8 比较引用 / 3.10 版本名 / 3.12 提交备注）')
   check(qKindsOf(qDiagHtml).join(',') === 'blame,range-diff,reflog,show-file' && qCapsOf(qDiagHtml).join(',') === '3.5,3.9,3.11,3.13', 'Q1b 管理·诊断页挂四组只读查询（3.5 行级追溯 / 3.9 两组提交对照 / 3.11 引用日志 / 3.13 取某版本文件内容）')
   check(attrValuesOf(qCommitsHtml, 'data-vc-query-page').every(function (p) { return p === 'commits' }) && attrValuesOf(qDiagHtml, 'data-vc-query-page').every(function (p) { return p === 'diagnostics' }), 'Q1c 每组都带着自己所在的页面读数（页面归属不靠代码里的书写次序猜）')
-  check(attrValuesOf(qCommitsHtml, 'data-vc-query-primary').join(',') === '0,0,0,0,0,0' && attrValuesOf(qCommitsHtml, 'data-vc-query-primary-badge').length === 0, 'Q1d 提交历史页六组都不是「诊断页主入口」（不抢 3.5/3.9/3.11/3.13 的说法）')
+  const qCommitsEntries = VIEW.vcQueryCatalogOf().filter(function (e) { return e.page === 'commits' })
+  check(attrValuesOf(qCommitsHtml, 'data-vc-query-panel').length === 0 && attrValuesOf(qCommitsHtml, 'data-vc-query').length === 0 && qCommitsEntries.length === 6 && qCommitsEntries.every(function (e) { return e.diagnostic !== true }), 'Q1d 提交历史页六组查询已随面板退役；数据层里这六条也都不是「诊断页主入口」（不抢 3.5/3.9/3.11/3.13 的说法）')
   check(qDiagPrimaryJudgmentOf(VIEW), 'Q1e 诊断页四组都标主入口并挂「主入口」徽标，页面正文写着这四条的主入口就在本页（共 4 组）')
   check(qDiagHtml.indexOf('data-vc-query-diagnostics="1"') >= 0 && qDiagHtml.indexOf(tZh('vc.query.diagnosticsNote')) >= 0, 'Q1f 诊断页正文有「本页是四条只读能力主入口」的说明段（不是只靠徽标暗示）')
   // 「历史查看」域一共十三条：3.1 提交列表 / 3.2 单条提交详情 / 3.3 提交内逐文件差异 由 #1744 的提交历史页正文承担，
   //   本票接 3.4–3.13 这十条（逐条列在这里，是票面写死的范围，不是从代码里反推的名单）。
   const qWantCapIds = ['3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
-  const qAllPagesCaps: string[] = []
-  VIEW.PAGE_SURFACES.forEach(function (surface) {
-    const html = qPageHtmlOf(String(surface.id))
-    qCapsOf(html).forEach(function (id) { qAllPagesCaps.push(id) })
-  })
   const qCapOrder = function (a: string, b: string) { return Number(a) - Number(b) }
-  check(qAllPagesCaps.slice().sort(qCapOrder).join(',') === qWantCapIds.slice().sort(qCapOrder).join(','), 'Q1g 全页面板的能力并集 = 票面那十条（3.4–3.13，一个不多一个不少；3.1–3.3 由提交历史页正文承担）实测：' + qAllPagesCaps.slice().sort(qCapOrder).join(','))
+  const qCatalog = VIEW.vcQueryCatalogOf()
+  check(qCatalog.length === 10 && qCatalog.map(function (e) { return e.capId }).sort(qCapOrder).join(',') === qWantCapIds.slice().sort(qCapOrder).join(',') && qCatalog.every(function (e) { const cap = VIEW.vcCapabilityOf(e.capId); return !!cap && e.page === cap.page }), 'Q1g 数据层的能力目录仍恰好覆盖票面那十条（3.4–3.13，一个不多一个不少；3.1–3.3 由提交历史页正文承担），每条页面归属逐条等于账本')
   let qLedgerOk = VIEW.vcQueryCatalogOf().length === 10
   VIEW.vcQueryCatalogOf().forEach(function (entry) {
     const cap = VIEW.vcCapabilityOf(entry.capId)
-    const html = qPageHtmlOf(String(entry.page))
-    if (!cap || entry.page !== cap.page || entry.name !== cap.name || html.indexOf(qEsc(cap.command)) < 0) qLedgerOk = false
+    if (!cap || entry.page !== cap.page || entry.name !== cap.name || entry.command !== cap.command) qLedgerOk = false
   })
   check(qLedgerOk, 'Q1h 十条的名称、页面归属与命令原文都逐条回能力账本取（界面不另写一份命令清单）')
   let qOtherPagesClean = true
@@ -2526,18 +2544,24 @@ async function main() {
   const qInputsOn = function (html, kind) { return attrValuesOf(html, 'data-vc-query-field-for').filter(function (k) { return k === kind }).length }
   let qFieldsOk = true
   VIEW.vcQueryCatalogOf().forEach(function (entry) {
-    const html = qPageHtmlOf(String(entry.page))
-    if (qInputsOn(html, entry.kind) !== entry.fields.length) qFieldsOk = false
-    entry.fields.forEach(function (f) { if (html.indexOf('data-vc-query-input="' + f.name + '"') < 0) qFieldsOk = false })
+    if (!Array.isArray(entry.fields)) qFieldsOk = false
+    const qSeen: string[] = []
+    entry.fields.forEach(function (f) {
+      if (qSeen.indexOf(f.name) >= 0) qFieldsOk = false
+      qSeen.push(f.name)
+    })
   })
-  check(qFieldsOk, 'Q2a 十条的输入框逐字段画出来（字段名与能力目录同源，不多不少）')
+  VIEW.vcQueryEntriesOf('diagnostics').forEach(function (entry) {
+    if (qInputsOn(qDiagHtml, entry.kind) !== entry.fields.length) qFieldsOk = false
+    entry.fields.forEach(function (f) { if (qDiagHtml.indexOf('data-vc-query-input="' + f.name + '"') < 0) qFieldsOk = false })
+  })
+  check(qFieldsOk, 'Q2a 十条的输入面字段名与能力目录同源、不重名（3.10 版本名本来就没有输入框）；诊断页四组仍按能力目录逐字段画出输入框（提交历史页面板已随 #1860 退役）')
   check(VIEW.vcQueryInputValueOf(VIEW.vcQueryInputsOf(), 'file-history', 'count') === '50' && VIEW.vcQueryInputValueOf(VIEW.vcQueryInputsOf(), 'compare', 'mode') === 'two-dot' && VIEW.vcQueryInputValueOf(VIEW.vcQueryInputsOf(), 'pickaxe', 'mode') === 'occurrence', 'Q2b 条数初值 50、比较方式初值两点（a..b）、搜索方式初值按出现次数（-S）')
-  check(qCommitsHtml.indexOf('value="50"') >= 0 && qCommitsHtml.indexOf('value="two-dot"') >= 0 && qCommitsHtml.indexOf('value="occurrence"') >= 0, 'Q2c 初值真的画进输入框（不是只存在状态里）')
-  const qLimitsOk = ['file-history', 'blame', 'compare', 'range-diff'].every(function (kind) {
-    const entry = VIEW.vcQueryEntryOf(kind)
-    return qPageHtmlOf(String(entry.page)).indexOf('data-vc-query-limit="' + entry.limit + '"') >= 0 && entry.limit > 0
-  }) && qPageHtmlOf('commits').indexOf('data-vc-query-limit="0"') < 0
-  check(qLimitsOk, 'Q2d 有上限的四条写着各自的显式条数上限，没有上限的三条不放假上限')
+  check(qDiagHtml.indexOf('value="50"') >= 0 && VIEW.vcQueryInputValueOf(VIEW.vcQueryInputsOf(), 'file-history', 'count') === '50' && VIEW.vcQueryInputValueOf(VIEW.vcQueryInputsOf(), 'compare', 'mode') === 'two-dot' && VIEW.vcQueryInputValueOf(VIEW.vcQueryInputsOf(), 'pickaxe', 'mode') === 'occurrence', 'Q2c 条数初值 50 真的画进输入框（诊断页 reflog 那一格）；比较方式与搜索方式的初值在数据层同源可查（它们的面板已不挂页）')
+  const qLimitedKinds = ['file-history', 'blame', 'grep', 'pickaxe', 'compare', 'range-diff', 'reflog']
+  const qFreeKinds = ['describe', 'notes', 'show-file']
+  const qLimitsOk = qLimitedKinds.every(function (kind) { const entry = VIEW.vcQueryEntryOf(kind); return !!entry && entry.limit > 0 }) && qFreeKinds.every(function (kind) { const entry = VIEW.vcQueryEntryOf(kind); return !!entry && entry.limit === 0 }) && attrValuesOf(qDiagHtml, 'data-vc-query-limit').join(',') === '500,300,200' && qDiagHtml.indexOf('data-vc-query-limit="0"') < 0
+  check(qLimitsOk, 'Q2d 有上限的七条在数据层各带显式条数上限、没有上限的三条不放假上限；诊断页画出来的上限行（500 / 300 / 200）与目录逐条相等')
 
   // Q3 本地预检：四类错各指到字段，十条合法输入各自拼出宿主要的那份参数
   const qReq = VIEW.vcQueryParamsOf('file-history', { path: '', count: '50' })
@@ -2664,8 +2688,8 @@ async function main() {
   const qTruncErrHtml = renderToStaticMarkup(VIEW.vcQueryPageNode(h, tZh, { page: 'commits', width: 460, nowMs: Q_NOW, queries: qTruncErrView.queries }))
   check(qGitErrHtml.indexOf('fatal: bad revision') >= 0 && qTruncErrHtml.indexOf(tZh('vc.query.truncatedFail')) >= 0, 'Q5m 宿主失败显示 git 原话；读不全时明说「读不全就不给半份」（两种失败不混成一句）')
   check(attrValuesOf(qGitErrHtml, 'data-vc-query-retry').length === 0, 'Q5n 静态渲染里失败态不给假重试按钮（没有回调就不画能点的东西）')
-  const qIdleHtml = qPageHtmlOf('commits')
-  check(qIdleHtml.indexOf('data-vc-query-state="idle"') >= 0 && qIdleHtml.indexOf(tZh('vc.query.idle')) >= 0, 'Q5o 还没跑过任何一条时每组都写「还没查」（不冒充空结果）')
+  const qIdleHtml = qPageHtmlOf('diagnostics')
+  check(qIdleHtml.indexOf('data-vc-query-state="idle"') >= 0 && qIdleHtml.indexOf(tZh('vc.query.idle')) >= 0, 'Q5o 诊断页四组还没跑过任何一条时每组都写「还没查」（不冒充空结果；提交历史页面板已随 #1860 退役）')
   const qLoadingView = { 'file-history': { state: 'loading', seq: 2, data: null, error: null } }
   const qLoadingHtml = renderToStaticMarkup(VIEW.vcQueryPageNode(h, tZh, { page: 'commits', width: 460, nowMs: Q_NOW, queries: qLoadingView }))
   check(qLoadingHtml.indexOf('data-vc-query-running="1"') >= 0 && qLoadingHtml.indexOf(tZh('vc.query.running')) >= 0, 'Q5p 正在读时写「正在查」（不拿上一次的结果冒充新读数）')
@@ -2679,13 +2703,13 @@ async function main() {
   check(qWidthOk, 'Q5q 四档宽下结果条数不变：300/380 收起作者，460 起补上作者（宽度只改排布、不删结果）')
 
   // Q6 页面壳集成：面板只挂两页、组数对、全页渲染 id 不重复
-  check(qCommitsHtml.indexOf('data-vc-query-panel="commits"') >= 0 && qDiagHtml.indexOf('data-vc-query-panel="diagnostics"') >= 0 && attrValuesOf(qCommitsHtml, 'data-vc-query-panel-count')[0] === '6' && attrValuesOf(qDiagHtml, 'data-vc-query-panel-count')[0] === '4', 'Q6a 页面壳把面板挂进提交历史页与诊断页（组数读数 6 / 4 与账本一致）')
+  check(attrValuesOf(qCommitsHtml, 'data-vc-query-panel').length === 0 && qDiagHtml.indexOf('data-vc-query-panel="diagnostics"') >= 0 && attrValuesOf(qDiagHtml, 'data-vc-query-panel-count')[0] === '4', 'Q6a 页面壳只把历史高级查询面板挂进诊断页（4 组读数与账本一致）；提交历史页不再挂面板（#1860）')
   const qAllHtml = allShellHtmlOf({ width: 460, skin: 'dark' })
   const qIds = attrValuesOf(qAllHtml, 'id')
   check(new Set(qIds).size === qIds.length, 'Q6b 全页渲染时面板不造重复 id（' + qIds.length + ' 个 id 全不相同，输入框的 label/for 不会指错）')
   const qCapsListOf = function (html) { return attrValuesOf(html, 'data-cap-primary').length }
-  check(qCapsListOf(qCommitsHtml) === VIEW.vcPageCapabilitiesOf('commits').length && qCapsListOf(qDiagHtml) === VIEW.vcPageCapabilitiesOf('diagnostics').length, 'Q6c 面板插在能力清单之前、不吞掉本页的能力行（两页能力行数与原页面一致）')
-  check(qCommitsHtml.indexOf('vc-query-commits') >= 0 && qDiagHtml.indexOf('vc-query-diagnostics') >= 0, 'Q6d 两页各有自己的面板 id（锚点与深链指得清是哪一页的面板）')
+  check(qCapsListOf(qCommitsHtml) === 0 && qCapsListOf(qDiagHtml) === 0 && pagePaletteIdsOf('commits').length === VIEW.vcPageCapabilitiesOf('commits').length && pagePaletteIdsOf('diagnostics').length === VIEW.vcPageCapabilitiesOf('diagnostics').length, 'Q6c 两页页面体都不再画能力清单（data-cap-primary 0 个）；能力入口都搬进命令面板、条数与账本一致')
+  check(qCommitsHtml.indexOf('vc-query-commits') < 0 && qDiagHtml.indexOf('vc-query-diagnostics') >= 0, 'Q6d 提交历史页不再有查询面板 id（#1860 退役）；诊断页仍保留自己的面板 id（锚点与深链指得清）')
 
   // ---- Z17 组：平台与边界页 + 迁移页 14.1 导出向导（#1762 T26，域 14 与 5.9 / 8.15）----
   // 两条页面正文都是静态渲染：不开输入、不发请求；断言只看画出了什么、用户读到哪句话。
@@ -2725,7 +2749,7 @@ async function main() {
   check(rpErrHtml.indexOf('data-vc-platform-rp-error="1"') >= 0 && rpErrHtml.indexOf('引用不认识') >= 0, 'Z17k request-pull 失败贴回原话与环节（不吞错误、不只说失败）')
   check(attrValuesOf(platformWideHtml, 'data-vc-platform-note').join(',') === VIEW.VC_PLATFORM_NOTE_IDS.join(','), 'Z17l 平台页九条说明按账本编号逐条画出（8.15 / 5.9 / 14.2 / 14.3–14.8，不抄第二份名单）')
   check(VIEW.VC_PLATFORM_NOTE_IDS.every(function (id: string) { return !!LOC.zh['vc.platform.note.' + id] && platformWideHtml.indexOf(LOC.zh['vc.platform.note.' + id]) >= 0 }), 'Z17m 每条说明都落到真词条上（九段都不是键名回显）')
-  check(attrValuesOf(platformWideHtml, 'data-cap-primary').length === VIEW.PAGE_COUNTS.platform && platformWideHtml.indexOf('data-surface=') < 0, 'Z17n 平台页主入口仍只由页面壳的能力清单给 ' + VIEW.PAGE_COUNTS.platform + ' 个；新正文不另画操作面（一个能力两个主入口会当场判红）')
+  check(attrValuesOf(platformWideHtml, 'data-cap-primary').length === 0 && platformWideHtml.indexOf('data-surface=') < 0 && pagePaletteIdsOf('platform').join(',') === VIEW.vcPageCapabilitiesOf('platform').map(function (c) { return c.id }).join(','), 'Z17n 平台页页面体不再画主入口（0 个），新正文也不另画操作面；这 ' + VIEW.PAGE_COUNTS.platform + ' 条能力的入口都在命令面板里、顺序=账本')
   const migHtml = migratePageOf(VIEW.vcNewMigrateExport(), VIEW.vcNewPlatformReads())
   check(migHtml.indexOf('data-vc-migrate-export="1"') >= 0 && attrValuesOf(migHtml, 'data-vc-migrate-field').join(',') === 'range,dir' && migHtml.indexOf('data-vc-migrate-check="1"') >= 0, 'Z17o 迁移页画出 14.1 导出向导（区间与输出目录两个输入 + 预检按钮）')
   const migChecked: any = Object.assign(VIEW.vcNewMigrateExport(), { range: 'HEAD~2..HEAD', dir: 'patches', stage: 'checked', ticket: { id: 'fp-abc', checkedAtMs: NOW, expiresAtMs: NOW + 120000, op: 'format-patch' }, checkedDir: 'D:/w/repo/patches', checkedRange: 'HEAD~2..HEAD' })
@@ -2944,7 +2968,7 @@ async function main() {
   const syTask = syShellOf(syTaskReads, { open: '8.5' })
   check(syTask.indexOf('data-vc-sync-task="1"') >= 0 && syTask.indexOf('data-vc-sync-task-id="task-9"') >= 0 && syTask.indexOf('data-vc-sync-cancel="1"') >= 0, 'S12 执行后交给长任务通道：任务号、状态与取消按钮都画出来（取消要有残留说明）')
   check(syTask.indexOf('data-vc-sync-task-residual="1"') >= 0, 'S13 取消后的残留说明常驻在任务区（下载的对象与已发出的引用不会自己回去）')
-  check(attrValuesOf(syOk, 'data-cap-primary').join(',') === VIEW.vcPageCapabilitiesOf('remote').map(function (cap) { return cap.id }).join(','), 'S14 远端页的主入口仍只有账本登记的那 16 条（同步段不许自己再挂 data-cap-primary）')
+  check(attrValuesOf(syOk, 'data-cap-primary').length === 0 && pagePaletteIdsOf('remote').join(',') === VIEW.vcPageCapabilitiesOf('remote').map(function (cap) { return cap.id }).join(','), 'S14 远端页页面体不再画主入口（0 个）；账本登记的 ' + VIEW.PAGE_COUNTS.remote + ' 条能力入口都在命令面板里、顺序=账本（同步段不许自己再挂 data-cap-primary）')
   for (const sw of VIEW.VC_SHELL_WIDTHS) {
     const wHtml = syShellOf(syReadsOf(syReplyOf('push', '8.9')), { open: '8.9' }, sw, sw % 2 === 0 ? 'dark' : 'light')
     check(wHtml.indexOf('data-vc-sync-page="1"') >= 0 && attrValuesOf(wHtml, 'data-vc-sync-act').length === 10, 'S15 宽 ' + sw + '：同步段十个入口一个不少（窄档不删入口）')
@@ -3046,7 +3070,7 @@ async function main() {
   check(attrValuesOf(mgNarrow, 'data-vc-migrate-path').length === 0 && attrValuesOf(mgWide, 'data-vc-migrate-path').length === 1, 'M17 产物路径按宽度收放：300 与 380 不挤，460 起在面板里点名文件路径')
   const mgLight = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' }, 460, 'light')
   check(attrValuesOf(mgLight, 'data-vc-skin')[0] === 'light' && attrValuesOf(mgLight, 'data-vc-migrate-act').length === 9, 'M18 另一套皮肤同样能渲染迁移页（两套皮肤都只换颜色，不删入口）')
-  check(attrValuesOf(mgClosed, 'data-cap-primary').join(',') === VIEW.vcPageCapabilitiesOf('migrate').map(function (cap) { return cap.id }).join(','), 'M19 迁移页的主入口仍只有账本登记的那几条（迁移页正文不许自己再挂 data-cap-primary）')
+  check(attrValuesOf(mgClosed, 'data-cap-primary').length === 0 && pagePaletteIdsOf('migrate').join(',') === VIEW.vcPageCapabilitiesOf('migrate').map(function (cap) { return cap.id }).join(','), 'M19 迁移页页面体不再画主入口（0 个）；账本登记的那几条能力入口都在命令面板里、顺序=账本（迁移页正文不许自己再挂 data-cap-primary）')
   const mgMaint = shellHtmlOf({ page: 'maintenance', width: 460, skin: 'dark' })
   check(mgMaint.indexOf('data-vc-note="maintenance-readonly"') >= 0 && mgMaint.indexOf('data-vc-migrate-act') < 0, 'M20 维护页只放 11.14 与 11.15 的只读指路说明，不给迁移页的触发按钮（只读项不出现触发按钮）')
   const mgErr = mgShellOf({ migrate: { state: 'err', data: null, error: { kind: 'env', message: '找不到 git 命令' } }, task: { state: 'idle', data: null, error: null } }, {})
@@ -3086,8 +3110,8 @@ async function main() {
     { name: '宽度分档改成不单调（更窄反而画更多）', patch: (s) => s.replace('  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 1\n  if (w >= VC_FOLD_BANDS[2]) return 2\n  return 3', '  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 2\n  if (w >= VC_FOLD_BANDS[2]) return 1\n  return 3'), test: (v) => { let prev = null; for (const w of [460, 420, 380, 360, 340, 320, 300, 200]) { const b = v.vcFoldBandAt(w); if (prev !== null && b < prev) return false; prev = b } return true }, what: 'D11' },
     // #1738：页面注册表只留页签页 —— 能力并集缺管理分区，Z2 必须当场红。
     { name: '页面注册表只留页签页（能力并集缺页）', patch: (s) => s.replace("  return PAGE_SURFACES.map(function (p: any) {", "  return PAGE_SURFACES.filter(function (p: any) { return p.kind === '页签' }).map(function (p: any) {"), test: registryJudgmentOf, what: 'Z2' },
-    // #1738：主入口标记换个属性名 —— 全页渲染里一个主入口都不剩，Z1d 必须当场红。
-    { name: '主入口标记改成另一个属性名', patch: (s) => s.replace("'data-cap-primary': String(cap.id || ''),", "'data-cap-entry': String(cap.id || ''),"), test: primaryMarkerJudgmentOf, what: 'Z1' },
+    // #1738/#1860：命令面板行的主入口标记换个属性名 —— 面板少一条 data-cap-primary，Z1d 必须当场红。
+    { name: '命令面板行主入口标记改成另一个属性名', patch: (s) => s.replace("'data-cap-primary': row.id,", "'data-cap-entry': row.id,"), test: primaryMarkerJudgmentOf, what: 'Z1d' },
     // #1744：历史页的「加载更多」不再画（有更多也装成到顶）—— Y2a 必须当场红。
     { name: '历史页不再画「加载更多」', patch: (s) => s.replace('  if (hasMore === true) {', '  if (false) {'), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y1Reads })); return html.indexOf('data-vc-load-more') >= 0 }, what: 'Y2a' },
     // #1744：图形化视图丢掉父提交连线（合并提交画成一条线）—— Y6b 必须当场红。
@@ -3101,7 +3125,9 @@ async function main() {
     // #1745：本地必填校验放行（空路径也发）—— Q3a 必须当场红。
     { name: '必填校验放行', patch: (s) => s.replace("if (f.required && text === '') return bad(f.name, 'required-missing')", "if (false) return bad(f.name, 'required-missing')"), test: (v) => { const r = v.vcQueryParamsOf('file-history', { path: '', count: '50' }); return r.ok === false && r.reason === 'required-missing' && r.field === 'path' }, what: 'Q3a' },
     // #1743：提交说明退回单行输入框 —— P4 的多行判据必须当场红。
-    { name: '提交说明退回单行输入框', patch: (s) => s.replace("    h('textarea', {\n      key: 'area', rows: 6, className: 'vcs-commit-area', value: p.message,", "    h('input', {\n      key: 'area', type: 'text', className: 'vcs-commit-area', value: p.message,"), test: pMultilineJudgmentOf, what: 'P4' },
+    // #1860：提交区改成原型 composer 之后，说明框的位置与类名换了（textarea.commit-input[data-vc-commit-msg]），
+    //   这条反证要改针对新源码里的那一行，否则补丁打不中就等于没证。
+    { name: '提交说明退回单行输入框', patch: (s) => s.replace("  children.push(h('textarea', {\n    key: 'msg', rows: 2, className: 'commit-input', value: p.message,", "  children.push(h('input', {\n    key: 'msg', type: 'text', className: 'commit-input', value: p.message,"), test: pMultilineJudgmentOf, what: 'P4' },
     // #1743：追加签名行与跳过钩子挤到同一条能力上 —— P3 的「每条能力各自一个控件」必须当场红。
     { name: '追加签名行挂到别条能力上', patch: (s) => s.replace("{ key: 'signoff', cap: '2.6',", "{ key: 'signoff', cap: '2.5',"), test: pCapControlJudgmentOf, what: 'P3' },
     // #1743：确认卡删掉「可逆性与恢复路径」那一段 —— P7 的四段判据必须当场红。

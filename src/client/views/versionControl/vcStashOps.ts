@@ -27,20 +27,125 @@ export const VC_STASH_CHECK_PHONE = 'wf.gitStashCheck'
 /** 需要预检票的写动作：读动作（list / show）与最近丢弃的恢复直接执行，其余一律先预检再确认再凭票执行。 */
 export const VC_STASH_CHECK_OPS: string[] = ['push', 'push-untracked', 'push-staged', 'apply', 'pop', 'branch', 'drop', 'clear']
 
-/** 贮藏页的初始状态：列表与最近丢弃都空，等首屏数据或动作回包填。 */
+/** 一屏里自动读「查看内容」的条数上限（#1860 D8）：再往后由人点，避免几十条记录同时起 git 进程。 */
+export const VC_STASH_AUTO_SHOW_MAX = 10
+/** 详情缓存的条数上限：与差异缓存同一档（40 份），超出的按首次写入顺序丢最旧的。 */
+export const VC_STASH_DETAIL_MAX = 40
+
+/** 贮藏页的初始状态：列表与最近丢弃都空，等首屏数据或动作回包填。
+ *  details 是「选择器 → 那一卷的详情读数」：D8 起记录行一挂出来就自动读前十条，所以详情不再只有一份；
+ *  每份带 state（loading / ok / err），界面据此画「正在读」「读失败带重试」还是文件清单。 */
 export const vcStashStateNew = function (): any {
   return {
     entries: [],
     listState: 'idle',
     versionText: '',
     message: '',
-    detail: null,
+    details: {},
     pending: null,
     confirm: null,
     branch: null,
     result: null,
     recent: [],
   }
+}
+
+/** 一条记录的详情读数；没有就是 null（界面据此画「点查看内容才给」）。 */
+export const vcStashDetailOf = function (state: any, selector: any): any {
+  const map: any = (state && state.details) || {}
+  return map[String(selector || '')] || null
+}
+
+/** 把一条记录标成「正在读」或「读失败」：写在 details 里，界面不用另存一份在途表。
+ *  patch 传 null 表示删掉这条详情（收起文件清单），其余字段原样合并。 */
+export const vcStashDetailPatch = function (state: any, selector: any, patch: any): any {
+  const base: any = state || vcStashStateNew()
+  const key: string = String(selector || '')
+  if (key === '') return base
+  const map: any = Object.assign({}, base.details || {})
+  if (patch === null) delete map[key]
+  else map[key] = Object.assign({}, map[key] || {}, patch || {})
+  const keys: string[] = Object.keys(map)
+  const keep: any = keys.length <= VC_STASH_DETAIL_MAX ? map : (function () {
+    const out: any = {}
+    keys.slice(keys.length - VC_STASH_DETAIL_MAX).forEach(function (k: string) { out[k] = map[k] })
+    return out
+  })()
+  return Object.assign({}, base, { details: keep })
+}
+
+
+/** 自动读详情的排队执行（#1860 D8）：一条一条串着发，不并发十枪。
+ *  为什么串行：每条 git stash show 在宿主那边要起两个进程（文件名清单 + 差异），十条一起发会让面板
+ *  一打开就卡住；串行读回来的顺序也与列表顺序一致，不会出现「后读的先铺开」。
+ *  为什么先标 loading：界面立刻有反馈，而且重复调用（re-render 后再次进入）看到 loading 就不会重发。
+ *  deps：selectors（要读的选择器）、call（宿主电话口）、cwd、getUi（读当前 ui）、setUi（落 ui）。 */
+export const vcStashAutoRunOf = function (deps: any): any {
+  const d: any = deps || {}
+  const list: string[] = (Array.isArray(d.selectors) ? d.selectors : [])
+    .map(function (s: any) { return String(s === undefined || s === null ? '' : s) })
+    .filter(function (s: string) { return s !== '' })
+  // 每次落状态都按「拿当前态算出下一态」回写（与容器其它动作层同一写法）：
+  //   这十条是一条链上的微任务，中间不会等 React 重渲染完，用渲染时抓的那份 ui 会互相覆盖（#1860 D8 实测过）。
+  const apply = function (fn: any): void {
+    if (typeof d.setUi !== 'function') return
+    d.setUi(function (cur: any) {
+      const base: any = Object.assign({}, vcStashStateNew(), (cur || {}).stash || {})
+      return Object.assign({}, cur || {}, { stash: fn(base) })
+    })
+  }
+  // #1860 D18：先把这一批**全部**标成「正在读」—— 十条的骨架同时出现，然后读一条填一条。
+  //   只在轮到某条时才标 loading 的话，后面的行还停在「点查看内容才给」，看起来像根本没动。
+  if (list.length > 0) {
+    apply(function (base: any) {
+      return list.reduce(function (acc: any, s: string): any {
+        return vcStashDetailPatch(acc, s, { selector: s, state: 'loading' })
+      }, base)
+    })
+  }
+  const one = function (selector: string): any {
+    return Promise.resolve(vcStashWriteCallOf(d.call, d.cwd, { op: 'show', selector: selector }, '', '')).then(function (reply: any) {
+      apply(function (base: any) { return vcStashApplyReply(base, reply, { quiet: true, selector: selector }) })
+      return reply
+    }, function (err: any) {
+      // 电话本身被拒（宿主没接这一枪）也要落成「读失败」：不然这一行会一直转圈，人以为还在读。
+      apply(function (base: any) {
+        return vcStashDetailPatch(base, selector, { selector: selector, state: 'err', kind: 'throw', message: String((err && err.message) || err) })
+      })
+      return null
+    })
+  }
+  return list.reduce(function (chain: any, selector: string): any {
+    return chain.then(function () { return one(selector) })
+  }, Promise.resolve(null))
+}
+/** 进入贮藏页时算「这一次该自动读哪几条」并交给调用方（#1860 D8）。
+ *  为什么要有这一层：React 每次重渲染都会再问一次「还有谁没读」，而排队读是异步的 —— ``seen`` 记着已经请求过
+ *  的选择器，不记的话同一条会被反复排队。返回这一次真正交出去的那几条（空数组表示不用做事）。 */
+export const vcStashAutoKickOf = function (deps: any): string[] {
+  const d: any = deps || {}
+  const seen: any = d.seen || {}
+  const fresh: string[] = vcStashAutoShowOf(d.state, d.entries, d.max).filter(function (s: string) { return seen[s] !== true })
+  if (fresh.length === 0) return []
+  fresh.forEach(function (s: string) { seen[s] = true })
+  if (typeof d.fire === 'function') d.fire(fresh)
+  return fresh
+}
+
+/** 自动读的名单：最新的一批记录里，还没有详情读数的那些（已读、正在读、读失败都不再自动重发）。
+ *  排序与正文同一口径（按 atMs 从新到旧），只取前 max 条 —— 一屏之外的不预读。 */
+export const vcStashAutoShowOf = function (state: any, entries: any, max: any): string[] {
+  const list: any[] = Array.isArray(entries) ? entries.slice() : []
+  const limit: number = Math.max(0, Math.floor(Number(max === undefined ? VC_STASH_AUTO_SHOW_MAX : max) || 0))
+  const known: any = (state && state.details) || {}
+  const sorted: any[] = list.sort(function (a: any, b: any) { return (Number(b && b.atMs) || 0) - (Number(a && a.atMs) || 0) })
+  const out: string[] = []
+  for (let i = 0; i < sorted.length && i < limit; i += 1) {
+    const selector: string = String((sorted[i] && sorted[i].selector) || '')
+    if (selector === '' || known[selector]) continue
+    out.push(selector)
+  }
+  return out
 }
 
 /** 首屏聚合里的贮藏条目；数据没到或是坏分片时给空数组（页面照常画得出空列表）。 */
@@ -196,30 +301,43 @@ export const vcStashResultOf = function (reply: any): any {
   }
 }
 
-/** 动作回包落状态：成功刷新列表与最近丢弃；失败只留错误，不动已经读到的列表。 */
-export const vcStashApplyReply = function (state: any, reply: any): any {
+/** 动作回包落状态：成功刷新列表与最近丢弃；失败只留错误，不动已经读到的列表。
+ *  opts.quiet（#1860 D8 的自动读取用）：只落详情读数，不写结果条、不动 pending —— 十条记录同时读时
+ *  每一条都往页顶报「查看内容完成」会盖掉真正该看的提示，也会把行上的按钮闪成不可点。 */
+export const vcStashApplyReply = function (state: any, reply: any, opts?: any): any {
   const next = Object.assign({}, state || vcStashStateNew())
   const r = reply || {}
-  next.pending = null
-  next.confirm = null
-  next.branch = null
-  next.result = vcStashResultOf(r)
+  const quiet = !!(opts && opts.quiet === true)
+  const asked: string = String((opts && opts.selector) || '')
+  if (!quiet) {
+    next.pending = null
+    next.confirm = null
+    next.branch = null
+    next.result = vcStashResultOf(r)
+  }
+  if (r.op === 'show' || asked !== '') {
+    const selector: string = String(r.selector || asked || '')
+    if (r.ok === true) {
+      const detail: any = {
+        selector: selector,
+        oid: String(r.oid || ''),
+        files: Array.isArray(r.files) ? r.files : [],
+        fileCount: typeof r.fileCount === 'number' ? r.fileCount : 0,
+        patch: typeof r.patch === 'string' ? r.patch : '',
+        truncated: r.truncated === true,
+        state: 'ok',
+      }
+      return vcStashDetailPatch(next, selector, detail)
+    }
+    // 读失败：把这条记成 err，界面上那颗重试才有落点；别把已经读到的那一份冲掉。
+    return vcStashDetailPatch(next, selector, { selector: selector, state: 'err', kind: String((r.error && r.error.kind) || 'other') })
+  }
   if (r.ok === true) {
     if (Array.isArray(r.entries)) {
       next.entries = r.entries
       next.listState = 'ok'
     }
     if (Array.isArray(r.recent)) next.recent = r.recent
-    if (r.op === 'show') {
-      next.detail = {
-        selector: String(r.selector || ''),
-        oid: String(r.oid || ''),
-        files: Array.isArray(r.files) ? r.files : [],
-        fileCount: typeof r.fileCount === 'number' ? r.fileCount : 0,
-        patch: typeof r.patch === 'string' ? r.patch : '',
-        truncated: r.truncated === true,
-      }
-    }
   }
   return next
 }

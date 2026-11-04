@@ -13,8 +13,9 @@
  *   A. 管理页九分区：维护页的齿轮索引恰好九个按钮、顺序等于 VC_MANAGE_PAGES；
  *   B. 四档宽 × 两皮肤：每档每皮肤都渲染得出来，根节点读数（页面 / 档宽 / 皮肤 / 层级）对；
  *   C. 不横向溢出：文档 scrollWidth 不超过 viewport，且所有可见后代的左右边界都在根节点之内；
- *   D. 排布不退化：页签四个排在同一行、每条能力恰有一个 data-cap-primary、四态与三种形态都在、
- *      关键句子（页标题、能力清单标题、禁用原因、13.14 说明、命令面板标题）不被截断；
+ *   D. 排布不退化：页签四个排在同一行、四态与三种形态都在、关键句子（页标题、禁用原因、
+ *      13.14 说明、命令面板标题）不被截断；#1860 起能力清单退场，页面体里不许再有 data-cap-primary，
+ *      162 条主入口只在命令面板（本组末尾单独核对一次）；
  *   E. 命令面板：搜索页输入框在、命中行带 data-cap-secondary、按 id / 名称 / 命令原文都能搜到，
  *      搜不到时画空态；面板本身也不横向溢出。
  *   F. 提交历史页（#1744 T09）：四档宽 × 两皮肤都画出列表、详情与逐文件差异、第 13.14 条图形化视图，
@@ -173,6 +174,8 @@ function entryOf(closureSrc: string): string {
     '    rootRight: rr.right, rootLeft: rr.left, maxRight: maxRight, minLeft: minLeft,',
     '    tabTops: tabTops, tabCount: tabs.length,',
     "    primaries: grab('[data-cap-primary]', 'data-cap-primary'),",
+    // #1860：能力清单退役以后，主入口只剩命令面板一处；页面体里必须一条都没有（正文读数单独取，避免与浮层混算）。
+    "    bodyPrimaries: (function () { const b = root.querySelector('[data-vc-page-body]') || root; return b.querySelectorAll('[data-cap-primary]').length; })(),",
     "    gear: grab('[data-vc-gear-item]', 'data-vc-gear-item'),",
     "    states: grab('[data-vc-state]', 'data-vc-state'),",
     "    forms: grab('[data-vc-form]', 'data-vc-form'),",
@@ -479,7 +482,7 @@ async function run(browser: any, env: any) {
         check(!!m && !overflowOf(m), tag + '：没有横向溢出（文档 ' + (m && m.docScrollWidth) + ' ≤ viewport ' + (m && m.innerWidth) + '，后代右边界 ' + (m && m.maxRight) + ' ≤ 根右边界 ' + (m && m.rootRight) + '）')
         check(!!m && m.gear.join(',') === managePages.join(','), tag + '：齿轮九分区按 VC_MANAGE_PAGES 顺序排（' + (m && m.gear.join(',')) + '）')
         check(!!m && m.tabCount === 4 && m.tabTops.length === 4 && Math.max.apply(null, m.tabTops) - Math.min.apply(null, m.tabTops) <= 1, tag + '：四个页签排在同一行（行顶差 ≤1px）')
-        check(!!m && m.primaries.length === maintenanceCaps.length && m.primaries.length === new Set(m.primaries).size && m.primaries.join(',') === maintenanceCaps.join(','), tag + '：每条能力恰有一个 data-cap-primary（' + (m && m.primaries.length) + ' 条）')
+        check(!!m && m.bodyPrimaries === 0 && m.primaries.length === 0, tag + '：正文里不再画能力行与 data-cap-primary（该页 ' + maintenanceCaps.length + ' 条能力，主入口只在命令面板）')
         // #1776 M2 起维护页会挂整仓重写与维护卡片两段真正文，骨架自检不再和正文并排出现；
         // 状态与表单的自检画法挪到一页仍然是骨架的页面上验（下面渲染 changes 页且不给读数）。
         check(!!m && m.maintPage === true && m.rewritePage === true && m.skeleton === false, tag + '：维护页换成真正文（整仓重写 + 维护卡片），不再画自检骨架')
@@ -606,7 +609,7 @@ async function run(browser: any, env: any) {
         check(!!m && m.branchPage === true, tag + '：分支与标签面板画出来了')
         check(!!m && m.branchRows.join(',') === 'main,feature/x,release/2026-10' && m.tagRows.join(',') === 'v1.0.0,v1.1.0', tag + '：分支与标签都按读数顺序各画一行（分支 ' + (m && m.branchRows.length) + ' / 标签 ' + (m && m.tagRows.length) + '）')
         check(!!m && m.branchOps === '13' && m.branchWrites === '9' && m.branchChecks === '1' && m.branchForms === '10', tag + '：根上仍报 13 条能力 / 9 条写 / 1 条验签，页尾折叠区仍画十条写动作（实得 ' + (m && [m.branchOps, m.branchWrites, m.branchChecks, m.branchForms].join('/')) + '）')
-        check(!!m && m.primaries.length === branchCaps.length && m.primaries.join(',') === branchCaps.join(','), tag + '：十三条能力仍各有一个 data-cap-primary 在能力行（' + (m && m.primaries.length) + ' 条）')
+        check(!!m && m.bodyPrimaries === 0 && m.primaries.length === 0, tag + '：正文里不再画能力行与 data-cap-primary（该页 ' + branchCaps.length + ' 条能力，主入口只在命令面板）')
         check(!!m && m.branchFilters.join(',') === 'all,current,unmerged' && m.branchQuery === true, tag + '：首屏有搜索框与三颗筛选胶囊（全部 / 当前分支 / 未并入当前分支）')
         check(!!m && m.branchScope === '3' && m.branchMerged === '1' && m.branchNotMerged === '2', tag + '：筛选计数与两张名单的条数对得上读数（显示 ' + (m && m.branchScope) + ' / 已并入 ' + (m && m.branchMerged) + ' / 没并入 ' + (m && m.branchNotMerged) + '）')
         const head = m && m.branchOrder ? m.branchOrder.slice(0, 4).join(',') : ''
@@ -655,7 +658,7 @@ async function run(browser: any, env: any) {
           m.cfgReadonly === 3 && m.cfgIdentityRows.join(',') === 'user.name,user.email' &&
           m.cfgRows.join(',') === 'core.autocrlf,core.hooksPath' && m.cfgGroupEmpty === 1 && m.cfgReads.join(',') === 'ok,ok'
         check(struct, tag + '：正文是元信息 → 相关配置 → 只读读取；四组折叠加身份两行、两行只读、一组空态与两处读数都在（实得 ' + (m && m.cfgGroups.join(',')) + '）')
-        check(!!m && m.primaries.join(',') === configCaps.join(',') && m.hooksList === null && m.hookRows.length === 0, tag + '：六条能力仍各一个主入口（' + (m && m.primaries.length) + ' 条），没画第二套写入口、也没串到钩子页')
+        check(!!m && m.bodyPrimaries === 0 && m.primaries.length === 0 && m.hooksList === null && m.hookRows.length === 0, tag + '：正文里不再画能力行（该页 ' + configCaps.length + ' 条能力，主入口只在命令面板），没画第二套写入口、也没串到钩子页')
         check(!!m && m.cfgClipped.length === 0 && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.cfgClipped.concat(m.clipped).join(',') || '无') + '）')
         await page.screenshot({ path: path.join(shotDir, 'config-' + skin + '-' + width + '.png') })
       }
@@ -678,11 +681,17 @@ async function run(browser: any, env: any) {
           m.hookCaps.join(',') === '12.6,12.6' && m.hooksGate === null && m.hooksInstall === 1 &&
           m.hooksDirAttr === '1' && m.cfgGroups.length === 0
         check(struct, tag + '：正文是钩子目录 → 钩子清单 → 手动运行；三个文件按名字排，示例与不可执行都标出来（实得 ' + (m && m.hookRows.join(',')) + '）')
-        check(!!m && m.primaries.join(',') === hooksCaps.join(',') && m.cfgReads.length === 0, tag + '：两条能力仍各一个主入口（' + (m && m.primaries.length) + ' 条），没串到配置页')
+        check(!!m && m.bodyPrimaries === 0 && m.primaries.length === 0 && m.cfgReads.length === 0, tag + '：正文里不再画能力行（该页 ' + hooksCaps.length + ' 条能力，主入口只在命令面板），没串到配置页')
         check(!!m && m.hooksClipped.length === 0 && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.hooksClipped.concat(m.clipped).join(',') || '无') + '）')
         await page.screenshot({ path: path.join(shotDir, 'hooks-' + skin + '-' + width + '.png') })
       }
     }
+    // ---- #1860：162 条能力的主入口从页面能力清单搬到命令面板 ----
+    // 空查询一次列出全部能力，每条的 data-cap-primary 都落在面板行上；页面体里一条也没有。
+    await page.setViewportSize({ width: 460, height: 1400 })
+    const pal = await renderAt(page, { page: 'changes', width: 460, skin: 'dark', open: { palette: true } })
+    const ledgerIds: string[] = await page.evaluate(() => window.__VC.vcPaletteRowsOf('').map((r: any) => r.id))
+    check(!!pal && pal.paletteInput && pal.bodyPrimaries === 0 && pal.primaries.length === ledgerIds.length && pal.primaries.join(',') === ledgerIds.join(','), '命令面板空查询一次列出 ' + ledgerIds.length + ' 条能力，每条恰一个 data-cap-primary 且顺序与能力账本一致；页面体里没有主入口（实得 ' + (pal && pal.primaries.length) + ' 条）')
     // ---- J 组：两页的空态 / 失败态 / 版本门（460 宽深色各核对一次）----
     await page.setViewportSize({ width: 460, height: 1400 })
     const cfgErr = await renderAt(page, { page: 'config', width: 460, skin: 'dark', config: cfgStateOf({ readState: 'err', readError: 'not-repo' }) })
@@ -735,7 +744,16 @@ async function run(browser: any, env: any) {
   // 没有闭包，得先把同一份真源补到 globalThis 上。
   globalThis.MOTION = (await import('file://' + path.join(ROOT, 'src/client/kernel/motion.js').replace(/\\/g, '/'))).MOTION
   const pageStylesMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcPageStyles.ts').replace(/\\/g, '/'))
-  const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + String(stylesMod.VC_SHELL_STYLE_TEXT || '') + String(pageStylesMod.VC_PAGE_STYLE_TEXT || '')
+  // #1860：主屏原型样式是第二个新叶子，必须按 index.ts 的同一顺序接在 vcPageStyles 之后，
+  //   否则身份行、四页签与改动页拿不到原型规则，这里量尺得到的宽高与真机不一致。
+  // #1860 主屏原型样式按真源拆成八份叶子，这里按 index.ts 与 build.mts 的同序拼全。
+  const protoStyleNames: string[] = ['vcProtoTokens', 'vcProtoChrome', 'vcProtoControls', 'vcProtoChanges', 'vcProtoComposer', 'vcProtoHistory', 'vcProtoWorktrees', 'vcProtoMenus']
+  let protoCss: string = ''
+  for (const name of protoStyleNames) {
+    const mod: any = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/' + name + '.ts').replace(/\\/g, '/'))
+    protoCss += (mod['VC_PROTO_STYLE_' + name.slice('vcProto'.length).toUpperCase()] || []).join('\n') + '\n'
+  }
+  const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + String(stylesMod.VC_SHELL_STYLE_TEXT || '') + String(pageStylesMod.VC_PAGE_STYLE_TEXT || '') + protoCss
 
   // 悬停薄预设 Tip 在真机构建里是 leaf:tip（排在全部视图叶子之前），本闭包不拼 kernel 叶子，这里按契约给同形函数组件桩：
   // 只把触发节点原样渲染出来（真 Tip 额外挂悬停气泡，不影响布局量尺）。维护页与诊断页的禁用原因经它挂，缺了就会渲染抛错。

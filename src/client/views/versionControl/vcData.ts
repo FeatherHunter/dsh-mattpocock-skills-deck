@@ -110,16 +110,20 @@ export const vcReadStatus = function (reads: any, call: any, cwd: any) {
 /** 一处文件的差异（按需）：三态各自独立，失败保留上一次读到的那份。 */
 // #857 P1：未提交这一路也要带代际号。提交那一路早就有 seq（#819 发现 5：晚到的旧回包不许把界面钉在旧的那一笔上），
 //   这一路没有 —— 连点两行时，A 的回包晚到就会把 B 的行内容顶成 A 的补丁。
-export const vcReadDiff = function (reads: any, call: any, cwd: any, path: any, untracked: any) {
+// #1860 D17：同一个文件可能同时出现在「已暂存」与「未暂存」两组里，两行的补丁是两回事。
+//   staged=true 时向宿主读「索引相对 HEAD」，并把这一位带进缓存键（由调用方拼好 key 传进来）。
+// cacheKey（#1860 D17）：缓存里的键可以带分组前缀，但发给宿主的仍是裸路径 —— 两者不能混。
+export const vcReadDiff = function (reads: any, call: any, cwd: any, path: any, untracked: any, staged?: any, cacheKey?: any) {
   const base = reads || vcNewReads()
-  const key = String(path || '')
+  const bare = String(path || '')
+  const key = String(cacheKey === undefined || cacheKey === null ? bare : cacheKey)
   const diffs: Record<string, any> = Object.assign({}, base.diffs || {})
   const prev = diffs[key] || { state: 'idle', lines: null, reason: '', truncated: false, error: null, seq: 0 }
   const seq = (Number(prev.seq) || 0) + 1
   diffs[key] = { state: 'loading', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: prev.error, seq: seq }
   const t0 = Date.now()
   return Promise.resolve()
-    .then(function () { return call(VC_PHONES.diff, { cwd: String(cwd || ''), path: key, untracked: untracked === true }) })
+    .then(function () { return call(VC_PHONES.diff, { cwd: String(cwd || ''), path: bare, untracked: untracked === true, staged: staged === true }) })
     .then(function (reply: any) {
       if (reply && reply.ok === true && Array.isArray(reply.lines)) {
         vcOkLog(VC_PHONES.diff, 'git-diff', t0)

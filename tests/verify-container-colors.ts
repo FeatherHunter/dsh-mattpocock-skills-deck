@@ -58,6 +58,19 @@ const RAW_SEMANTIC_MARKERS = ['mapEmpty', 'mapDone', 'cState', 'containerTri', '
 // #1343 把范围从「容器三态消费端那一圈」扩到整个 src 之后，警告橙、票/issue 状态绿、标签色数据、
 // 主题串与颜色元数据都要在这里登记；每条 reason 说明「为什么这不是第二份会跟着漂的拷贝」。
 const STATUS_EXCEPTIONS = [
+  // ---- #1860 原型样式叶子的产品令牌（深色皮肤）----
+  // 原型界面自己的一套颜色令牌原样搬进 [data-vc-shell] 作用域：--accent / --ok 在原型里是「强调绿」，
+  // 不是容器完成态绿；中央色表改色时这套原型令牌不该跟着变（变了就与 460 宽并排截图的验收基准对不上）。
+  {
+    file: 'src/client/views/versionControl/vcProtoTokens.ts',
+    segment: '--accent: #3fb950',
+    reason: '原型深色皮肤的强调绿令牌（#1860 从原型 app.css 原样移植）：语义是「选中的页签与主按钮」，与容器完成态绿无关。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcProtoTokens.ts',
+    segment: '--ok: #3fb950',
+    reason: '原型深色皮肤的成功绿令牌（#1860 原样移植）：用在干净状态提示上，与容器完成态绿无关；改中央色表不该改它。',
+  },
   // ---- 警告橙：切换、探测、迁移、快照、限流、过期等「要提醒人」的状态提示色 ----
   // 它们和容器空态橙不是同一套语义，中央色表改色时不该跟着变；今天同值只是共用同一支琥珀。
   {
@@ -409,8 +422,10 @@ const STATUS_EXCEPTIONS = [
 //   #f59e0b/#0e8a16（改引像素皮肤令牌），白名单里这两条与落点一起删除：同值点 79→77、落点文件 32→30。
 // #1840：版本控制页签按定稿原型换深浅两套色板，深色主强调绿 #3fb950 与完成态绿同值，
 //   页签自带调色板登记进白名单：同值点 77→78、落点文件 30→31。
-const STATUS_REPO_HITS = 78
-const STATUS_REPO_FILES = 31
+// #1860：四页签外壳按定稿原型整页还原，原型深色皮肤的两条绿令牌（--accent / --ok）原样移植进
+//   vcProtoTokens.ts，白名单补两条：同值点 78→80、落点文件 31→32。
+const STATUS_REPO_HITS = 80
+const STATUS_REPO_FILES = 32
 // 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [
   'src/client/floating/SkillFloatList.ts',

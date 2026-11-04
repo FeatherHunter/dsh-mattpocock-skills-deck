@@ -2,9 +2,9 @@
 # 一个键要在 zh 与 en 两段里同时存在、占位符一致，生成器 scripts/generate-locale-config.mts 会当场报错。
 # 文案口径：动作说清「对什么做什么」，危险动作只说后果不吓人；版本门先说为什么不能点，再说替代做法。
 zh:
-  vc.stash.title: 贮藏
-  vc.stash.lede: 十条贮藏能力都在这一页：新建、列出、查看、应用、弹出、删除、清空、从贮藏建分支，丢掉的还能从「最近丢弃」恢复。
-  vc.stash.boundary: 贮藏只留在本地：git 不会把贮藏推到远端，切换分支也不会带走它。
+  vc.stash.title: 储藏
+  vc.stash.lede: 把暂时不想提交的改动打包储藏起来，之后能应用回工作区接着做。
+  vc.stash.boundary: 储藏记录只在本地，不会推送。应用回工作区时按记录里的顺序恢复。
   vc.stash.count: "{n} 条贮藏"
   vc.stash.message.label: 贮藏说明
   vc.stash.message.placeholder: 一句话说明这批改动是什么（写进贮藏列表的主题）
@@ -13,20 +13,21 @@ zh:
   vc.stash.op.pushStaged: 只贮藏已暂存的文件
   vc.stash.op.list: 刷新列表
   vc.stash.op.show: 查看内容
-  vc.stash.op.apply: 应用并保留记录
-  vc.stash.op.pop: 应用并删记录
+  vc.stash.op.apply: 应用
+  vc.stash.op.pop: 弹出
   vc.stash.op.branch: 从这条建分支
-  vc.stash.op.drop: 删记录
+  vc.stash.op.drop: 丢弃记录
   vc.stash.op.clear: 清空全部
   vc.stash.op.unknown: 不认识的动作
   vc.stash.entry.unknownSubject: （这条贮藏没有写说明）
-  vc.stash.entry.files: 涉及 {n} 个文件
+  vc.stash.entry.files: "{n} 个文件"
   vc.stash.entry.filesUnknown: 文件数要点「查看内容」才给
-  vc.stash.entry.at: 时间 {when}
+  vc.stash.entry.at: "{when}"
   vc.stash.entry.oid: 提交 {oid}
+  vc.stash.entry.sep: " · "
   vc.stash.gate.hidden: 这版 git 的「只贮藏已暂存」用不了（需要 {needed}）。
   vc.stash.gate.alternative: 先做一次全量贮藏，再恢复未暂存的部分
-  vc.stash.list.empty: 现在还没有贮藏记录。
+  vc.stash.list.empty: 还没有储藏过改动
   vc.stash.list.err: 贮藏列表没读出来；可以先按「刷新列表」再试一次。
   vc.stash.branch.placeholder: 新分支名（不能和现有分支重名）
   vc.stash.branch.go: 建分支
@@ -36,11 +37,20 @@ zh:
   vc.stash.branch.err.invalid: '分支名不合法：不能有空格、..、@{、~^:?*[\\，也不要以 - 或 / 开头。'
   vc.stash.confirm.target: "{selector}（{subject}）"
   vc.stash.confirm.go: 确认{verb}
+  vc.stash.confirm.title: 确认{verb}
+  vc.stash.confirm.dropTitle: 丢弃记录 {selector}？
   vc.stash.confirm.cancel: 取消
   vc.stash.detail.title: 贮藏内容
   vc.stash.detail.files: 涉及 {n} 个文件
   vc.stash.detail.truncated: 差异太大，这里显示的是截断后的内容。
   vc.stash.detail.close: 收起
+  vc.stash.pathsNote: 记录里保存的是改动当时的样子。应用回工作区以后，要重新暂存再提交。
+  vc.stash.pathsHint: 一屏只自动读最新的 10 条；这条排在后面，点「查看内容」读它的文件清单。
+  vc.stash.detail.loading: 正在读这条记录的文件清单……
+  vc.stash.detail.error: 这条记录的文件清单没读成。
+  vc.stash.detail.retry: 重试读这条记录
+  vc.stash.emptyHint: 在「改动」页签里点「储藏」，就能把当时的改动打包收好。
+  vc.stash.more.title: 更多贮藏操作（新建、清空、最近丢弃）
   vc.stash.recent.title: 最近丢弃
   vc.stash.recent.empty: 还没有丢弃过贮藏记录。
   vc.stash.recent.note: 在 git 垃圾回收之前，可以从这里恢复最近丢弃的 {n} 条。
@@ -48,6 +58,8 @@ zh:
   vc.stash.recent.restore: 恢复到列表
   vc.stash.result.ok: 完成：{op}
   vc.stash.result.next: 列表已按最新状态刷新。
+  vc.stash.result.tagOk: 完成
+  vc.stash.result.tagFail: 没成功
   vc.stash.fail.usage: 这次请求少了必要参数，没有执行。
   vc.stash.fail.selector: 贮藏选择器不合法，没有执行。
   vc.stash.fail.branch: 分支名不合法，没有建分支。
@@ -66,8 +78,8 @@ zh:
   vc.stash.fail.other: 这次操作没有成功。
 en:
   vc.stash.title: Stashes
-  vc.stash.lede: "All ten stash capabilities live here: create, list, inspect, apply, pop, drop, clear, branch from a stash, and recover recently dropped entries."
-  vc.stash.boundary: "Stashes stay local: git never pushes them to the remote, and switching branches does not carry them along."
+  vc.stash.lede: "Package changes you do not want to commit yet into a stash, then apply them back and keep working."
+  vc.stash.boundary: "Stash entries stay local and are never pushed. Applying them back restores them in the recorded order."
   vc.stash.count: "{n} stash entries"
   vc.stash.message.label: Stash message
   vc.stash.message.placeholder: One line describing these changes (shown as the stash subject)
@@ -76,17 +88,18 @@ en:
   vc.stash.op.pushStaged: Stash staged files only
   vc.stash.op.list: Refresh list
   vc.stash.op.show: Inspect content
-  vc.stash.op.apply: Apply and keep entry
-  vc.stash.op.pop: Apply and drop entry
+  vc.stash.op.apply: Apply
+  vc.stash.op.pop: Pop
   vc.stash.op.branch: Branch from this entry
   vc.stash.op.drop: Drop entry
   vc.stash.op.clear: Clear all
   vc.stash.op.unknown: Unknown action
   vc.stash.entry.unknownSubject: (this stash has no message)
-  vc.stash.entry.files: touches {n} files
+  vc.stash.entry.files: "{n} files"
   vc.stash.entry.filesUnknown: file count appears after "Inspect content"
-  vc.stash.entry.at: at {when}
+  vc.stash.entry.at: "{when}"
   vc.stash.entry.oid: commit {oid}
+  vc.stash.entry.sep: " · "
   vc.stash.gate.hidden: This git cannot stash staged files only (needs {needed}).
   vc.stash.gate.alternative: Stash everything first, then restore the unstaged part.
   vc.stash.list.empty: No stash entries yet.
@@ -99,11 +112,20 @@ en:
   vc.stash.branch.err.invalid: 'Invalid branch name: no spaces, .., @{, ~^:?*[\\, and do not start with - or /.'
   vc.stash.confirm.target: "{selector} ({subject})"
   vc.stash.confirm.go: Confirm {verb}
+  vc.stash.confirm.title: "Confirm {verb}"
+  vc.stash.confirm.dropTitle: "Drop entry {selector}?"
   vc.stash.confirm.cancel: Cancel
   vc.stash.detail.title: Stash content
   vc.stash.detail.files: touches {n} files
   vc.stash.detail.truncated: The diff is too large; this is a truncated view.
   vc.stash.detail.close: Collapse
+  vc.stash.pathsNote: "The entry keeps the changes as they were when stashed. After applying them back, stage and commit again."
+  vc.stash.pathsHint: Only the newest 10 entries load automatically; choose "Inspect content" to list the files this entry touches.
+  vc.stash.detail.loading: Reading the file list of this entry…
+  vc.stash.detail.error: This entry's file list could not be read.
+  vc.stash.detail.retry: Retry reading this entry
+  vc.stash.emptyHint: Click Stash in the Changes tab to package the current changes.
+  vc.stash.more.title: More stash actions (create, clear, recently dropped)
   vc.stash.recent.title: Recently dropped
   vc.stash.recent.empty: No dropped stash entries yet.
   vc.stash.recent.note: Until git garbage-collects them, the {n} most recently dropped entries can be restored here.
@@ -111,6 +133,8 @@ en:
   vc.stash.recent.restore: Restore to list
   vc.stash.result.ok: "Done: {op}"
   vc.stash.result.next: The list is refreshed to the latest state.
+  vc.stash.result.tagOk: Done
+  vc.stash.result.tagFail: Not done
   vc.stash.fail.usage: The request was missing required parameters; nothing ran.
   vc.stash.fail.selector: Invalid stash selector; nothing ran.
   vc.stash.fail.branch: Invalid branch name; no branch was created.

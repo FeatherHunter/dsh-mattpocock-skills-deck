@@ -21,15 +21,18 @@ declare function vcRealInitialUi(): any
 declare function vcRealInitialNav(): any
 declare function vcRealCwdOf(props: any): string
 declare function vcRealCwdEmptyOf(cwd: any): boolean
-declare function vcRealSeedOf(reads: any, nav: any, nowMs: any): any
+declare function vcRealSeedOf(reads: any, nav: any, nowMs: any, t: any): any
 declare function vcRealSkinOf(bodyEl: any): string
+declare function vcRealSkinWatchOf(onSkin: any): any
 declare function vcRealCommitTargetsOf(reads: any): any[]
 declare function vcRealChangesSeedOf(reads: any): any
 declare function vcRealActionsOf(deps: any): any
-declare function vcRealChangesHandlersOf(state: any, setState: any, call: any, cwd: any, translate: any, gate: any): any
+declare function vcRealChangesHandlersOf(state: any, setState: any, call: any, cwd: any, translate: any, gate: any, readsApi?: any): any
 declare function vcRealDelegateOf(callbacks: any): any
 declare function vcRealMigrateFieldsOf(rootEl: any, action: any): any
 declare function vcStashStateNew(): any
+declare function vcStashEntriesOf(reads: any): any[]
+declare function vcStashAutoKickOf(deps: any): string[]
 declare function vcFirstScreenSliceStateOf(reads: any, id: any): string
 declare function vcFirstScreenSliceErrorOf(reads: any, id: any): any
 declare function vcPageDepthOf(page: any): number
@@ -60,6 +63,8 @@ declare function vcRealDeepLinkOf(props: any): string
 declare function vcRealDeepLinkNavOf(key: any): any
 declare function vcRealTabCountsOf(reads: any): any
 declare function vcRealFocusStepOf(root: any, nav: any, state: any): any
+// 四个页签的名字表（changes/commits/worktrees/stash）：#1860 起四页签的首层顶栏由身份行取代。
+declare const VC_TAB_PAGES: string[]
 
 export const VcRealTab = function (props: any) {
   const cx: any = React.useContext(DswsCtx)
@@ -182,6 +187,7 @@ export const VcRealTab = function (props: any) {
     setNavState(vcRealDeepLinkNavOf(vcRealDeepLinkOf(props)) || vcRealInitialNav())
     setChangesState({ values: vcRealChangesSeedOf(vcRealReadsNew(cwd)).values, rows: {} })
     setManageState(vcRealManageNew())
+    stashAutoSeen.current = {}
     pollerRef.current = null
     if (!vcRealCwdEmptyOf(cwd)) actionsRef.current.refresh('enter')
   }, [cwd])
@@ -218,6 +224,13 @@ export const VcRealTab = function (props: any) {
     const timer: any = typeof setInterval === 'function' ? setInterval(function () { poller.tick() }, interval) : null
     return function () { if (timer !== null && typeof clearInterval === 'function') clearInterval(timer) }
   }, [cwd, nav.page, manage.tasks && manage.tasks.running])
+  // #1860 D8：贮藏页的记录一挂出来就自动读前十条的「查看内容」，文件清单直接铺开（排队与去重在 vcStashOps 叶）。
+  //   seen 记着已经请求过的选择器：这个 effect 每帧都问一次「还有谁没读」，不记就会把同一条反复排队。
+  const stashAutoSeen: any = React.useRef({})
+  React.useEffect(function () {
+    if (nav.page !== 'stash') return
+    vcStashAutoKickOf({ state: Object.assign({}, vcStashStateNew(), ui.stash || {}), entries: vcStashEntriesOf(vcRealSeedOf(reads, nav, 0, null)), seen: stashAutoSeen.current, fire: actions.stashAutoShow })
+  })
   // 提交页的只读动作：打开改动页时读一次提交表单（wf.gitCommitForm）；换工作区后 cwd 变了会再读一次。
   const commitFormCwdRef: any = React.useRef('')
   React.useEffect(function () {
@@ -228,17 +241,18 @@ export const VcRealTab = function (props: any) {
     commitFormCwdRef.current = cwd
     actionsRef.current.commitOps().loadForm()
   }, [nav.page, cwd])
-  // 宽度跟四档与皮肤：宽度量根节点（ResizeObserver），皮肤读宿主的 body 主题开关。
+  // 宽度跟四档与皮肤：宽度量根节点（ResizeObserver），皮肤跟宿主的 body 主题开关。
+  // #1860 D15：皮肤不能只在挂载时读一次。宿主机在运行中切深浅主题时不会重挂这个面板，只在 body 上翻
+  //   data-ds-dark-theme；只读一次的话面板会一直用旧皮肤 —— 深色的浅灰文字落在浅色底上，看着就是「整页空掉」。
   React.useEffect(function () {
-    if (typeof document !== 'undefined' && document.body) setSkinState(vcRealSkinOf(document.body))
+    const stopSkin: any = vcRealSkinWatchOf(function (next: string) { setSkinState(next) })
     const el: any = rootRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro: any = new ResizeObserver(function (entries: any) {
+    const ro: any = (!el || typeof ResizeObserver === 'undefined') ? null : new ResizeObserver(function (entries: any) {
       const box: any = entries && entries[0] && entries[0].contentRect
       if (box && isFinite(box.width) && box.width > 0) setWidthState(Math.round(box.width))
     })
-    ro.observe(el)
-    return function () { ro.disconnect() }
+    if (ro) ro.observe(el)
+    return function () { if (ro) ro.disconnect(); if (typeof stopSkin === 'function') stopSkin() }
   }, [])
   // 滚动位置按页各存一份（规格第 343 行）：回来源页时还原那一页的纵向位置；筛选词与高亮由导航快照 pages 负责。
   const scrollRef: any = React.useRef({})
@@ -266,15 +280,21 @@ export const VcRealTab = function (props: any) {
       h('p', { className: 'vcs-live-empty', role: 'status' }, tr('vc.shell.live.emptyCwd')))
   }
   const nowTick: number = nowMs()
-  const seed: any = vcRealSeedOf(reads, nav, nowTick)
+  const seed: any = vcRealSeedOf(reads, nav, nowTick, tr)
   const stash: any = Object.assign({}, vcStashStateNew(), ui.stash || {})
   const changesSeed: any = vcRealChangesSeedOf(reads)
-  const changeHandlers: any = vcRealChangesHandlersOf({ values: changes.values, rows: changes.rows }, setChangesState, callHost, cwd, tr, actions.gate)
+  // 第七个参数是读数口子：行展开读到的补丁要落进 reads.diffs（与历史详情同一个缓存），不落进改动页自己的状态。
+  const changeHandlers: any = vcRealChangesHandlersOf({ values: changes.values, rows: changes.rows }, setChangesState, callHost, cwd, tr, actions.gate, {
+    get: function () { return readsRef.current },
+    set: setReads,
+  })
   changeHandlers.onDone = function () { actionsRef.current.refresh('task-done') }
   const changesModel: any = {
     counts: changesSeed.counts,
     values: changes.values,
     rows: changes.rows,
+    // #1860 D7：展开行要画的补丁读数（键是裸路径，与 vcReadDiff / vcMarkDiffLoading 同一口径）。
+    diffs: reads.diffs || {},
     handlers: changeHandlers,
     // #1829 首屏文件行读的是首屏 changes 片里归一后的两组 FileEntry；筛选值住在 values.filter（默认 all）。
     files: changesSeed.files,
@@ -363,14 +383,25 @@ export const VcRealTab = function (props: any) {
     },
   })
   const failNodes: any[] = vcRealFailNodesOf(h, tr, reads)
-  const kids: any[] = [h('div', { key: 'bar', className: 'vcs-live-bar', 'data-vc-live-bar': '1' }, vcRealBarNodesOf(h, tr, reads, nav, seed))]
+  // #1860：定稿原型的一屏里没有额外顶栏——「读取于」「重新读取」和三个快捷入口都已经并进身份行与齿轮索引。
+  //   四个页签的首层不再画这条顶栏；二级页与其它页保持原样（它们不在本票范围，返回链与快捷入口也还要用）。
+  const firstLevelTab: boolean = VC_TAB_PAGES.indexOf(String(nav.page || '')) >= 0 && !(nav.back && nav.back.page)
+  const kids: any[] = []
+  if (!firstLevelTab) kids.push(h('div', { key: 'bar', className: 'vcs-live-bar', 'data-vc-live-bar': '1' }, vcRealBarNodesOf(h, tr, reads, nav, seed)))
   // AI 兜底入口只在有「面板解决不了的事」时出现（冲突、进行中的操作、读失败五档、工作树边界），
-  //   与旧块一样贴在顶栏下方；没有候选时整块不画。
+  //   与旧块一样贴在顶栏下方；没有候选时整块不画（vcRealAiNodesOf 返回 null），所以定稿原型的干净首屏
+  //   上它不占任何位置。
+  // #1860：四页签的干净首屏照原型只从身份行开始；AI 兜底条保留——它是「面板解决不了的事」的唯一出口，
+  //   干净状态下整块不画，不改变原型版式。
   const aiNode: any = vcRealAiNodesOf(h, tr, reads, nav, props && props.st)
-  if (aiNode) kids.push(aiNode)
+  // AI 兜底条是兜底节点（无 key 时 React 会报「列表子节点缺 key」），这里补一个稳定 key。
+  if (aiNode) kids.push(Object.assign({}, aiNode, { key: 'ai' }))
   if (failNodes.length > 0) kids.push(h('div', { key: 'fails', className: 'vcs-live-fails', 'data-vc-live-fails': '1' }, failNodes))
   kids.push(h('div', { key: 'shell', className: 'vcs-live-shell' }, vcShellPageNode(h, tr, shellOpts)))
-  return h('div', Object.assign({ id: 'vc-real-root', ref: rootRef, className: 'vcs-live', 'data-vc-live': '1', 'data-vc-live-page': nav.page, 'data-vc-live-depth': String(vcPageDepthOf(nav.page)) }, events), kids)
+  // #1860：四个页签首层要像原型那样铺满宿主的可用高度（身份行、页签条、正文、提交区各就各位，正文列表自己滚动、
+  //   提交区贴底）。非首层页仍是内容高度、由宿主外层滚动，所以铺满只加在首层四页签上，用 is-tabpage 这一枚类名分辨。
+  const rootClass: string = 'vcs-live' + (firstLevelTab ? ' is-tabpage' : '')
+  return h('div', Object.assign({ id: 'vc-real-root', ref: rootRef, className: rootClass, 'data-vc-live': '1', 'data-vc-live-page': nav.page, 'data-vc-live-depth': String(vcPageDepthOf(nav.page)) }, events), kids)
 }
 
 export const VC_REAL_TAB_SOURCE = 'src/client/views/versionControl/vcRealTab.ts'

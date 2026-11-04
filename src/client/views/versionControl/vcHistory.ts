@@ -1,30 +1,34 @@
-// views/versionControl/vcHistory.ts —— 提交历史页：列表、详情、逐文件差异与图形化视图（#1744 T09）
+// views/versionControl/vcHistory.ts —— 提交历史页：列表、详情、逐文件差异与图形化视图（#1744 T09；#1860 按定稿原型重排）
 // 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回闭包。
 //
-// 这一页负责域 3 的三件事：3.1 提交列表、3.2 单条提交详情、3.3 提交内逐文件差异；
-// 第 13.14 条「图形历史浏览器」也画在这一页，是面板内自绘的图形化视图：不调用 gitk、不开外部窗口。
+// 版式照 docs/prototype/vc-redesign/src/ui/views/history.ts 与定稿截图 68-commit-menu-460.png：
+//   列表 = 搜索工具行（输入框 + 只看合并）→ 范围行 → 列表（日期分组、提交行 + 行尾「⋯」菜单、加载更多）；
+//   详情 = 整页替换列表的返回条 → 提交说明 → 四行元信息 → 文件清单 → 展开的差异。
+//   页头标题、「13.14 落在本页」说明块与高级查询表单归页壳，不在这一叶画（#1860 已从页壳退役）；
+//   图形化历史仍画在列表页下方，标题就是「图形化提交历史」，不再写长说明。
 //
-// 数据来源（票面边界：不另造首屏读取）：
-//   首屏第一页直接读 #1739 那份首屏快照的 history 片（history 片就是宿主一次性取回的第一页）；
-//   「加载更多」才按需再取，每批 VC_HISTORY_BATCH 条 —— 与 vcData.ts 的 VC_LOG_BATCH 同一份数字。
-// 性能预算（票面验收②）：首屏只画快照给的这一页，不多读一条；详情与逐文件差异点开才读；
-//   下一批点「加载更多」才读；车道最多 VC_HISTORY_LANES_MAX 条，超过就少画并如实报数。
-// 四档宽（规格第 9 节）：300 只留标题、380 补短号与图形车道、460 起补作者与时间、520 差异上下文加宽。
+// 数据读取、过滤、分页与菜单动作的语义没有改（#1860 只改版式与类名）：
+//   首屏第一页直接读 #1739 那份首屏快照的 history 片；「加载更多」才按需再取，
+//   每批 VC_HISTORY_BATCH 条 —— 与 vcData.ts 的 VC_LOG_BATCH 同一份数字。
+//   菜单里的三条历史改写动作仍只做「跳到主入口」，capId 不经这一叶执行 git。
+// 四档宽（规格第 9 节）：300 只留主题、380 补短号与图形车道、460 起补作者与时间、520 差异上下文加宽。
 //
 // 下面这些名字在构建拼好的闭包里由同一份源码提供，这里只声明形状（转译后整块消失）。
 
+declare const React: any
 declare const VC_LOG_BATCH: any
 declare function vcFirstScreenSliceOf(...args: any[]): any
 declare function vcFirstScreenSliceStateOf(...args: any[]): any
 declare function vcFirstScreenSliceErrorOf(...args: any[]): any
 declare function vcFirstScreenStateOf(...args: any[]): any
 declare function vcShortOid(...args: any[]): any
-declare function vcWhenText(...args: any[]): any
+declare function vcCommitWhenText(...args: any[]): any
 declare function vcOneLine(...args: any[]): any
 declare function vcCommitKeyOf(...args: any[]): any
 declare function vcHistoryDetailOf(...args: any[]): any
 declare function vcHistoryGraphOf(...args: any[]): any
 declare function vcHistoryGraphNode(...args: any[]): any
+declare const vcPageIconOf: (h: any, kind: string, size: number) => any
 
 export const VC_HISTORY_BATCH = VC_LOG_BATCH
 export const VC_HISTORY_LANES_MAX = 6
@@ -150,7 +154,7 @@ const vcHistoryDayTextOf = function (t: any, info: any): string {
   return t('vc.shell.history.groupDate', { m: info.m, d: info.d })
 }
 
-// 行尾的「⋯」菜单：贴在行尾，条目文字左对齐（定稿 67/68 的口径）。
+// 行尾的「⋯」菜单：贴在行尾展开（定稿 68-commit-menu-460.png），条目左对齐。
 const vcHistoryMenuOf = function (h: any, t: any, o: any) {
   const opts = o || {}
   const oid: string = String(opts.oid || '')
@@ -164,7 +168,7 @@ const vcHistoryMenuOf = function (h: any, t: any, o: any) {
     //   这里只把不可用的那几颗置灰，不另写说明文字；点下去什么都不会发生。
     const off: boolean = act.key === 'undo' ? !isHead : (act.key === 'cherry' ? isMerge : false)
     items.push(h('button', {
-      key: act.key, type: 'button', className: 'vcs-hist-menu-item' + (act.danger === true ? ' is-danger' : ''),
+      key: act.key, type: 'button', className: 'row-menu-item' + (act.danger === true ? ' is-danger' : ''),
       'data-vc-history-menu-cap': act.capId,
       'aria-label': t('vc.shell.history.menuCapHint', { act: label }),
       disabled: off ? true : undefined,
@@ -172,55 +176,77 @@ const vcHistoryMenuOf = function (h: any, t: any, o: any) {
     }, label))
   }
   items.push(h('button', {
-    key: 'copy', type: 'button', className: 'vcs-hist-menu-item', 'data-vc-history-menu-copy': oid,
+    key: 'copy', type: 'button', className: 'row-menu-item', 'data-vc-history-menu-copy': oid,
     'data-press': 'button', 'data-log': 'vc.history.menu-copy',
   }, t('vc.shell.history.menuCopy')))
   items.push(h('button', {
-    key: 'close', type: 'button', className: 'vcs-hist-menu-item is-close vcs-hist-menu-close', 'data-vc-history-menu-close': '1',
+    key: 'close', type: 'button', className: 'row-menu-item is-close', 'data-vc-history-menu-close': '1',
     'data-press': 'button', 'data-log': 'vc.history.menu-close',
   }, t('vc.shell.history.menuClose')))
-  return h('div', { key: 'menu', className: 'vcs-hist-menu', role: 'menu', 'data-vc-history-menu': oid }, items)
+  return h('div', { key: 'menu', className: 'commit-menu', role: 'menu', 'aria-label': t('vc.shell.history.menuOpen'), 'data-vc-history-menu': oid }, items)
 }
 
+// 一条提交行：先认出哪次提交（短号 + 主题），再看谁提交、什么时候；行尾「⋯」紧贴该行。
+//   可点主体按原型用 div + role=button + tabindex=0（原型 history.ts 的写法），
+//   不用 <button> 是为了不继承页壳给按钮的边框与底色（那会让整行看起来像一颗大按钮）。
 export const vcHistoryRowNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const c = opts.commit || {}
   const width = vcHistoryWidthOf(opts.width)
   const oid: string = String(c.oid || '')
+  const subject: string = String(c.subject || '')
   const open: boolean = opts.expanded === true
   const menuOpen: boolean = opts.menuOpen === true
-  const line: any[] = []
-  line.push(h('button', {
-    key: 'open',
-    type: 'button',
-    className: 'vcs-hist-open',
-    'data-vc-history-open': oid,
-    'aria-expanded': open ? 'true' : 'false',
-    'aria-controls': 'vc-history-detail',
-    'aria-label': t('vc.shell.history.open', { subject: vcOneLine(String(c.subject || ''), 120) }),
-    'data-press': 'button', 'data-log': 'vc.history.row.' + String(opts.index || 0),
-  }, [
-    width >= 380 ? h('span', { key: 'short', className: 'vcs-hist-short', 'data-vc-history-short': '1' }, String(c.short || vcShortOid(oid))) : null,
-    h('span', { key: 'subject', className: 'vcs-hist-subject' }, String(c.subject || '')),
-    width >= 460 ? h('span', { key: 'meta', className: 'vcs-hist-meta' }, [
-      h('span', { key: 'author', className: 'vcs-hist-author', 'data-vc-history-author': '1' }, String(c.author || '')),
-      h('span', { key: 'when', className: 'vcs-hist-when', 'data-vc-history-when': '1' }, vcWhenText(t, opts.nowMs, c.authorDateMs)),
+  const body: any[] = [
+    width >= 380 ? h('span', { key: 'short', className: 'commit-hash mono', 'data-vc-history-short': '1' }, String(c.short || vcShortOid(oid))) : null,
+    // 合并提交的标题是 git 自动生成的原文（例如 Merge branch 'main'），直接读像乱码：
+    //   按原型先给「合并」chip 这个结论，原文降为下一行等宽小字；普通提交仍只画一行主题。
+    //   词表里没有提交历史专用的「合并」词条，先复用分支页那条同值词条；要独立成 key 时只换这一处。
+    vcHistoryIsMergeOf(c)
+      ? h('span', { key: 'subject', className: 'commit-subject commit-subject-merge' }, [
+        h('span', { key: 'lead', className: 'commit-merge-lead' }, t('vc.shell.branch.merge')),
+        h('span', { key: 'raw', className: 'commit-merge-raw mono' }, subject),
+      ])
+      : h('span', { key: 'subject', className: 'commit-subject' }, subject),
+    width >= 460 ? h('span', { key: 'meta', className: 'commit-meta' }, [
+      h('span', { key: 'author', className: 'commit-author', 'data-vc-history-author': '1' }, String(c.author || '')),
+      h('span', { key: 'when', className: 'commit-when', 'data-vc-history-when': '1' }, vcCommitWhenText(t, opts.nowMs, c.authorDateMs)),
+      // 「N 个文件」按原型排在作者与时间后面。合并提交与空提交在 git 侧没有 shortstat，
+      // 这里就没有数字可写，宁可不画也不补 0——0 会被读成「这次提交什么都没改」。
+      typeof c.files === 'number' && c.files >= 0
+        ? h('span', { key: 'files', className: 'commit-files', 'data-vc-history-files': '1' }, t('vc.shell.history.filesCount', { n: String(c.files) }))
+        : null,
     ]) : null,
-    h('span', { key: 'chev', className: 'vcs-hist-chevron', 'aria-hidden': 'true' }, '›'),
-  ]))
-  line.push(h('button', {
-    key: 'more', type: 'button', className: 'vcs-hist-more' + (menuOpen ? ' is-open' : ''),
-    'data-vc-history-more': oid,
-    'aria-haspopup': 'menu',
-    'aria-expanded': menuOpen ? 'true' : 'false',
-    'aria-label': t('vc.shell.history.menuOpen'),
-    'data-press': 'button', 'data-log': 'vc.history.more.' + String(opts.index || 0),
-  }, '⋯'))
-  const wrapKids: any[] = [h('div', { key: 'line', className: 'vcs-hist-line' }, line)]
-  if (menuOpen) wrapKids.push(vcHistoryMenuOf(h, t, { oid: oid, isHead: opts.isHead === true, isMerge: vcHistoryIsMergeOf(c) }))
-  return h('li', { key: oid, className: 'vcs-hist-row', 'data-vc-history-row': oid }, wrapKids)
+    h('span', { key: 'chev', className: 'commit-chevron', 'aria-hidden': 'true' }, vcPageIconOf(h, 'chevron', 12)),
+  ]
+  const line: any = h('div', { key: 'line', className: 'commit-line' }, [
+    h('div', {
+      key: 'row', className: 'commit-row' + (open ? ' is-selected' : '') + (menuOpen ? ' is-menu' : ''),
+      role: 'button', tabIndex: 0,
+      'data-vc-history-open': oid,
+      'aria-expanded': open ? 'true' : 'false',
+      'aria-controls': 'vc-history-detail',
+      'aria-label': t('vc.shell.history.open', { subject: vcOneLine(subject, 120) }),
+      title: subject,
+      'data-press': 'button', 'data-log': 'vc.history.row.' + String(opts.index || 0),
+    }, body),
+    h('button', {
+      key: 'more', type: 'button', className: 'commit-more' + (menuOpen ? ' is-open' : ''),
+      'data-vc-history-more': oid,
+      'aria-haspopup': 'menu',
+      'aria-expanded': menuOpen ? 'true' : 'false',
+      'aria-label': t('vc.shell.history.menuOpen'),
+      title: t('vc.shell.history.menuOpen'),
+      'data-press': 'button', 'data-log': 'vc.history.more.' + String(opts.index || 0),
+    }, h('span', { key: 'dots', 'aria-hidden': 'true' }, '⋯')),
+  ])
+  const wrap: any[] = [line]
+  if (menuOpen) wrap.push(vcHistoryMenuOf(h, t, { oid: oid, isHead: opts.isHead === true, isMerge: vcHistoryIsMergeOf(c) }))
+  return h('div', { key: oid, className: 'commit-line-wrap', 'data-vc-history-row': oid }, wrap)
 }
 
+// 列表页三块：搜索工具行、范围行、滚动区（列表 / 四种状态 / 加载更多 / 图形化历史）。
+//   根读数 data-vc-history / -state / -count 挂在工具行上，四种状态都读得到（门禁与面板都靠这几个属性）。
 export const vcHistoryListOf = function (h: any, t: any, o: any) {
   const opts = o || {}
   const model = opts.model || {}
@@ -231,6 +257,7 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
   const mergeOnly: boolean = ui.historyMergeOnly === true
   const visible: any[] = vcHistoryFilterOf(commits, query, mergeOnly)
   const menu: string = String(ui.historyMenu || '')
+  const hasMore: boolean = model.hasMore === true
   const rows: any[] = []
   let dayKey = ''
   for (let i = 0; i < visible.length; i += 1) {
@@ -238,7 +265,7 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
     const info: any = vcHistoryDayOf(c.authorDateMs, opts.nowMs)
     if (info.key !== dayKey) {
       dayKey = info.key
-      rows.push(h('li', { key: 'day-' + dayKey, className: 'vcs-hist-day', role: 'presentation' }, vcHistoryDayTextOf(t, info)))
+      rows.push(h('div', { key: 'day-' + dayKey, className: 'day-group vcs-hist-day' }, vcHistoryDayTextOf(t, info)))
     }
     const oid: string = String(c.oid || '')
     rows.push(vcHistoryRowNode(h, t, {
@@ -248,45 +275,76 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
       menuOpen: menu !== '' && menu === oid,
     }))
   }
-  const tools: any[] = [h('input', {
-    key: 'q', type: 'search', className: 'vcs-hist-query', 'data-vc-history-query': '1',
-    placeholder: t('vc.shell.history.searchPlaceholder', { n: model.loaded }),
-    'aria-label': t('vc.shell.history.searchPlaceholder', { n: model.loaded }),
-    defaultValue: query,
-  })]
-  tools.push(h('button', {
-    key: 'merge', type: 'button', className: 'vcs-hist-merge-only' + (mergeOnly ? ' is-on' : ''),
-    'data-vc-history-merge-only': mergeOnly ? 'on' : 'off',
-    'aria-pressed': mergeOnly ? 'true' : 'false',
-    'data-press': 'button', 'data-log': 'vc.history.merge-only',
-  }, t('vc.shell.history.mergeOnly')))
-  const kids: any[] = [h('div', { key: 'tools', className: 'vcs-hist-tools' }, tools)]
-  const scopeKey: string = mergeOnly || query.trim() !== '' ? 'scopeFiltered' : 'scope'
-  kids.push(h('p', { key: 'scope', className: 'vcs-hist-scope', 'data-vc-history-scope': '1' }, t('vc.shell.history.' + scopeKey, { n: commits.length, m: visible.length })))
-  if (!visible.length) kids.push(h('p', { key: 'filterEmpty', className: 'vcs-hist-filter-empty', 'data-vc-history-filter-empty': '1' }, t('vc.shell.history.filterEmpty')))
-  kids.push(h('div', { key: 'list', id: 'vc-history-list', className: 'vcs-hist-list', role: 'list', 'aria-label': t('vc.shell.history.listLabel') }, rows))
-  const hasMore = model.hasMore === true
+  const tools: any[] = [
+    h('input', {
+      key: 'q', type: 'search', className: 'search-input', 'data-vc-history-query': '1',
+      placeholder: t('vc.shell.history.searchPlaceholder', { n: model.loaded }),
+      'aria-label': t('vc.shell.history.searchPlaceholder', { n: model.loaded }),
+      autoComplete: 'off', spellCheck: false, defaultValue: query,
+    }),
+    h('button', {
+      key: 'merge', type: 'button', className: 'toggle-btn' + (mergeOnly ? ' is-on' : ''),
+      'data-vc-history-merge-only': mergeOnly ? 'on' : 'off',
+      'aria-pressed': mergeOnly ? 'true' : 'false',
+      'data-press': 'button', 'data-log': 'vc.history.merge-only',
+    }, t('vc.shell.history.mergeOnly')),
+  ]
+  // 范围行照原型是「已加载 n 条，共 m 条」：只有确认没有下一批（hasMore=false）时总数才可信，
+  //   hasMore=true 时总数未知，沿用「已加载 n 条」；筛选态仍用「已加载 n 条，筛出 m 条」那句。
+  const filtered: boolean = mergeOnly || query.trim() !== ''
+  const scopeText: string = filtered
+    ? t('vc.shell.history.scopeFiltered', { n: commits.length, m: visible.length })
+    : (hasMore ? t('vc.shell.history.scope', { n: commits.length }) : t('vc.shell.history.scopeTotal', { n: commits.length, m: commits.length }))
+  const head: any[] = [
+    h('div', {
+      key: 'tools', className: 'history-tools vcs-hist-tools',
+      'data-vc-history': '1',
+      'data-vc-history-state': model.state,
+      'data-vc-history-count': String(model.loaded),
+    }, tools),
+    h('div', { key: 'scope', className: 'history-scope', 'data-vc-history-scope': '1' }, scopeText),
+  ]
+  const scroll: any[] = []
+  if (model.state === 'loading') {
+    scroll.push(h('div', { key: 'loading', className: 'empty', 'data-vc-history-loading': '1' }, h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.loading'))))
+  } else if (model.state === 'error') {
+    const errorKids: any[] = [h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.error'))]
+    if (model.error && model.error.message) errorKids.push(h('div', { key: 'detail', className: 'empty-hint' }, t('vc.shell.history.errorDetail', { msg: String(model.error.message) })))
+    errorKids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-hist-retry', 'data-vc-history-retry': 'history', 'data-press': 'button', 'data-log': 'vc.history.retry' }, t('vc.shell.history.retry')))
+    scroll.push(h('div', { key: 'error', className: 'empty', 'data-vc-history-error': '1' }, errorKids))
+  } else if (model.state === 'empty') {
+    scroll.push(h('div', { key: 'empty', className: 'empty', 'data-vc-history-empty': '1' }, [
+      h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.empty')),
+      h('div', { key: 'next', className: 'empty-hint', 'data-vc-history-next': '1' }, t('vc.shell.history.emptyNext')),
+    ]))
+  } else if (!visible.length) {
+    scroll.push(h('div', { key: 'filterEmpty', className: 'empty', 'data-vc-history-filter-empty': '1' }, h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.filterEmpty'))))
+  } else {
+    scroll.push(h('div', { key: 'list', id: 'vc-history-list', className: 'history-list', role: 'list', 'aria-label': t('vc.shell.history.listLabel') }, rows))
+  }
   if (hasMore === true) {
-    kids.push(h('button', {
-      key: 'more',
-      type: 'button',
-      className: 'vcs-hist-load-more',
+    scroll.push(h('button', {
+      key: 'more', type: 'button', className: 'vcs-hist-load-more',
       'data-vc-load-more': '1',
       'aria-controls': 'vc-history-list',
       disabled: model.logState === 'loading' ? true : undefined,
     }, t('vc.shell.history.loadMore', { batch: VC_HISTORY_BATCH })))
   }
   if (model.logState === 'loading') {
-    kids.push(h('span', { key: 'moreLoading', className: 'vcs-hist-more-state', 'data-vc-history-more-state': 'loading' }, t('vc.shell.history.loadingMore')))
+    scroll.push(h('span', { key: 'moreLoading', className: 'note vcs-hist-more-state', 'data-vc-history-more-state': 'loading' }, t('vc.shell.history.loadingMore')))
   } else if (model.logState === 'err') {
-    kids.push(h('span', { key: 'moreError', className: 'vcs-hist-more-state', 'data-vc-history-more-state': 'error' }, t('vc.shell.history.moreError')))
-    kids.push(h('button', { key: 'moreRetry', type: 'button', className: 'vcs-hist-more-retry', 'data-vc-history-more-retry': '1', 'data-press': 'button', 'data-log': 'vc.history.more-retry' }, t('vc.shell.history.moreRetry')))
+    scroll.push(h('span', { key: 'moreError', className: 'note vcs-hist-more-state', 'data-vc-history-more-state': 'error' }, t('vc.shell.history.moreError')))
+    scroll.push(h('button', { key: 'moreRetry', type: 'button', className: 'vcs-hist-more-retry', 'data-vc-history-more-retry': '1', 'data-press': 'button', 'data-log': 'vc.history.more-retry' }, t('vc.shell.history.moreRetry')))
   }
-  const attrs: any = { key: 'wrap', className: 'vcs-hist-list-wrap' }
-  if (opts.hidden === true) attrs.hidden = true
-  return h('div', attrs, kids)
+  if (opts.withGraph === true && model.state === 'ok') {
+    scroll.push(vcHistoryGraphNode(h, t, { graph: vcHistoryGraphOf(model.commits), width: width }))
+  }
+  head.push(h('div', { key: 'scroll', className: 'history-scroll' }, scroll))
+  return head
 }
 
+// 提交历史页的根：列表与详情整页替换。打开详情时列表留在 DOM 里但整块隐藏 ——
+//   门禁要读得到开着的行与详情节点（aria-expanded / aria-controls / id），视觉上只剩详情那一层。
 export const vcHistoryPageNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const reads = opts.reads || null
@@ -303,27 +361,13 @@ export const vcHistoryPageNode = function (h: any, t: any, o: any) {
     model: model, commit: reads && reads.commit, commitDiffs: reads && reads.commitDiffs,
     ui: ui, width: width, nowMs: readAt,
   }) : null
+  const list = vcHistoryListOf(h, t, { model: model, ui: ui, width: width, nowMs: readAt, withGraph: detail === null })
   const kids: any[] = []
-  if (model.state === 'loading') {
-    kids.push(h('p', { key: 'loading', className: 'vcs-hist-state', 'data-vc-history-loading': '1' }, t('vc.shell.history.loading')))
-  } else if (model.state === 'error') {
-    kids.push(h('p', { key: 'error', className: 'vcs-hist-state', 'data-vc-history-error': '1' }, t('vc.shell.history.error')))
-    if (model.error && model.error.message) kids.push(h('p', { key: 'errorDetail', className: 'vcs-hist-error-detail' }, t('vc.shell.history.errorDetail', { msg: String(model.error.message) })))
-    kids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-hist-retry', 'data-vc-history-retry': 'history', 'data-press': 'button', 'data-log': 'vc.history.retry' }, t('vc.shell.history.retry')))
-  } else if (model.state === 'empty') {
-    kids.push(h('p', { key: 'empty', className: 'vcs-hist-state', 'data-vc-history-empty': '1' }, t('vc.shell.history.empty')))
-    kids.push(h('p', { key: 'next', className: 'vcs-hist-next', 'data-vc-history-next': '1' }, t('vc.shell.history.emptyNext')))
+  if (detail) {
+    kids.push(h('div', { key: 'listHidden', hidden: true, style: { display: 'none' } }, list))
+    kids.push(detail)
   } else {
-    kids.push(vcHistoryListOf(h, t, { model: model, ui: ui, width: width, nowMs: readAt, hidden: !!detail }))
+    for (let i = 0; i < list.length; i += 1) kids.push(list[i])
   }
-  if (detail) kids.push(detail)
-  // 详情是整页替换的阅读视图（定稿 03 截图里没有图形视图），打开详情时把 13.14 那一块收起来，
-  //   返回列表再画 —— 它仍在列表页、仍是同一条能力 13.14 的呈现，不删入口也不改归属。
-  if (!detail) kids.push(vcHistoryGraphNode(h, t, { graph: vcHistoryGraphOf(model.commits), width: width }))
-  return h('section', {
-    className: 'vcs-history',
-    'data-vc-history': '1',
-    'data-vc-history-state': model.state,
-    'data-vc-history-count': String(model.loaded),
-  }, kids)
+  return h(React.Fragment, null, kids)
 }
