@@ -88,9 +88,8 @@ interface CommentThreadsDeps {
   fetchIssueIndex: any
   issueIndexFromSnapshot: any
   setCache: any
-  /** #1694：读当前内存快照的入口与写盘口；缺省时详情结果不并快照（老门禁与老接线行为不变）。 */
+  /** #1694：读当前内存快照的入口；缺省时详情结果不并快照（老门禁与老接线行为不变）。 */
   getCache?: any
-  writeDiskCache?: any
   /**
    * #1864：本地快照库门面（读详情 / 写详情）。缺省时整条本地优先关闭，行为与接线前一致。
    * 形状只要求两个方法，宿主接线按需注入，门禁可以给替身。
@@ -110,10 +109,10 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
   // 在这里已经没有调用点；字段仍留在接口上，是因为宿主接线 src/host/index.ts 照样按这些名字注入。
   // #1456 第 3 条：runGh 连注入带字段一起删了——它连读者都没有，留着只会让人以为读路径还直调 gh。
   // #1465：读路径不再调注册表 describe，getTrackerRegistry 也不再解构（接口保留，宿主照旧注入）。
-  const { normCwd, errText, execProc, setCache, getCache, writeDiskCache } = deps as any
+  const { normCwd, errText, execProc, setCache, getCache } = deps as any
   // #1694：详情结果并进快照的合并器。宿主没注入 getCache 时整段跳过（老门禁/老接线行为一个字节不变）。
   const detailMerge: any = (typeof getCache === 'function' && typeof setCache === 'function')
-    ? createDetailSnapshotMerge({ getCache: getCache, setCache: setCache, writeDiskCache: writeDiskCache, getRepoKey: deps.getRepoKey, now: Date.now })
+    ? createDetailSnapshotMerge({ getCache: getCache, setCache: setCache, now: Date.now })
     : null
   // #1444：读路径只认只读会话（deps.openSession）。会话由宿主按目录选好后端，本文件不再自己分发、
   // 也不再直调 gh；开不成时如实失败，让上层照旧降级用缓存。

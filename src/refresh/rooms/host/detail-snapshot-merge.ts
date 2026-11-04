@@ -8,7 +8,8 @@
  *
  * 三条不能破的约定：
  * 1. 合并只走 kernel/snapshot-merge.ts 的 mergeSnapshot，不在别处写快照字段；
- *    这里只负责「开始取数时记下合并版本」与「取回后合并、写回宿主内存与磁盘」两件事。
+ *    这里只负责「开始取数时记下合并版本」与「取回后合并、写回宿主内存」两件事。
+ *    #1870 起不再写旧的整份磁盘快照（那份 JSON 已退役），库里的详情由 #1864 的本地优先单独负责。
  * 2. 没有基线快照时不凭空造一份：详情结果只补到已有快照上，快照本身由列表/刷新那条主路建立。
  * 3. 版本门用取数开始时的合并版本，不是合并时的版本；过期结果整份丢弃并交回调用方记日志，
  *    与 #1690 的行补丁、写回执同一个判据。
@@ -46,7 +47,7 @@ export interface DetailMergeOutcome {
 
 /**
  * 造一份详情合并器。deps 由宿主入口注入（全部是可缺省的宿主能力）：
- * getCache/setCache 是内存快照桶，writeDiskCache/getRepoKey 让合并后的快照随盘持久化。
+ * getCache/setCache 是内存快照桶；合并结果只写内存，磁盘那份已随 #1870 退役。
  */
 export function createDetailSnapshotMerge(deps: any): any {
   const nowOf: any = deps && typeof deps.now === 'function' ? deps.now : Date.now
@@ -94,12 +95,6 @@ export function createDetailSnapshotMerge(deps: any): any {
     // generatedMs/updatedAt 只用于显示「这份快照什么时候更新过」，不参与合并版本与 etag。
     const next: any = Object.assign({}, out.snapshot, { generatedMs: atMs, updatedAt: new Date(atMs).toISOString() })
     try { setCache({ ts: atMs, snapshot: next, error: null, cwd: cwd }) } catch (e) {}
-    try {
-      if (typeof deps.writeDiskCache === 'function' && typeof deps.getRepoKey === 'function') {
-        const repo: any = await deps.getRepoKey(cwd)
-        if (repo) await deps.writeDiskCache(repo, next)
-      }
-    } catch (e) {}
     return { accepted: true, stale: false, reason: out.reason, snapshot: next, version: out.version, mergeVersion: out.merge.version, counts: out.counts, atMs: atMs }
   }
 

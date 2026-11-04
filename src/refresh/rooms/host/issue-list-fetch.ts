@@ -94,7 +94,7 @@ function sortRows(rows: any[]): any[] {
 }
 
 export function createIssueList(deps: any): any {
-  const { getRepoKey, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, readDiskCache, logCtx, noteSnapshot } = deps as any
+  const { getRepoKey, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, logCtx, noteSnapshot } = deps as any
 
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   function hash8(s: any): string { try { const t: string = String(s || ''); let h: number = 5381; for (let i: number = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e: any) { return '00000000' } }
@@ -253,7 +253,7 @@ export function createIssueList(deps: any): any {
   let _idxScanP: any = null
   function _idxScan(): Promise<any> {
     if (!_idxScanP) _idxScanP = import('./issue-index-scan.js').then(function (m: any) {
-      return m.createIssueIndexScan({ getRepoKey: getRepoKey, readDiskCache: readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso, budget) }, now: Date.now })
+      return m.createIssueIndexScan({ getRepoKey: getRepoKey, fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso, budget) }, now: Date.now })
     })
     return _idxScanP
   }

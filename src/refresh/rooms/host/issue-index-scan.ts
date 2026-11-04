@@ -16,8 +16,6 @@ import * as indexWindow from '../../kernel/index-window-rules.js'
 interface IssueIndexWindowDeps {
   // 取仓库键（工作区目录原文进来，仓库三元组出去）
   getRepoKey?: (cwd: string) => Promise<{ owner: string; name: string } | null | undefined>
-  // 磁盘上那份快照（给重启后的第一次扫描立起点）
-  readDiskCache?: (repo: unknown) => Promise<any>
   // 只问窗口内的变化（回包带 repo/index/count）。#1689 起尾参可带一本本轮预算账本：
   // 带 since 的窗口扫描可以用探针同一轮的增量账本继续预扣，整仓枚举由取数入口自己开枚举账本。
   fetchIssueIndex?: (cwd: string, sinceIso: string, budget?: any) => Promise<any>
@@ -33,9 +31,10 @@ interface RepoHit {
 
 // 建一份「窗口索引状态」。deps 由 src/refresh/rooms/host/issue-list-fetch.js 注入：
 //   getRepoKey(cwd)              → { owner, name }
-//   readDiskCache(repo)          → 磁盘上那份快照（给重启后的第一次扫描立起点）
 //   fetchIssueIndex(cwd, since)  → 只问窗口内的变化，回 { ok, repo, index, count }（#1689 起尾参可带本轮预算账本）
 //   now                          → 取时间（门禁注入假时钟）
+// #1870：重启后的第一次扫描不再从旧的整份磁盘快照立起点——那份 JSON 已经不读了，第一条扫描就是
+// 一次不带 since 的整仓枚举（水印从 0 起，与「从来没扫过」同一个口径）。
 // 回包：{ scan(cwd, opts), commit(cwd, nextWatermarkMs, nextIndex), state(cwd) }
 export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | undefined): {
   scan: (cwd: string, opts?: { commit?: boolean; budget?: any }) => Promise<any>
@@ -46,25 +45,6 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
   const now: () => number = typeof d.now === 'function' ? d.now : Date.now
   const lastIndexBaselineByRepo: Record<string, any> = {}   // 仓库键 → 上一次的完整索引（增量已并入）
   const lastIndexWatermarkByRepo: Record<string, number> = {}  // 仓库键 → 上一次扫描的起点时刻
-
-  // 重启后第一次扫描的起点：内存里的水印与基线一重启就没了，磁盘快照里带着完整的票与状态，
-  // 口径与索引扫描一致，可直接当基线；取不到（没缓存或太旧）就整扫一遍，行为与从前一致。
-  let _seedP: Promise<any> | null = null
-  function seedFor(cwd: string): Promise<any> {
-    if (!_seedP) {
-      _seedP = (async function () {
-        try {
-          if (typeof d.readDiskCache !== 'function' || typeof d.getRepoKey !== 'function') return null
-          const rk = await d.getRepoKey(cwd)
-          if (!rk) return null
-          const snap = await d.readDiskCache(rk)
-          if (!snap) return null
-          return (indexWindow as any).seedFromSnapshot(snap, now())
-        } catch (e) { return null }
-      })()
-    }
-    return _seedP
-  }
 
   async function repoKeyOf(cwd: string): Promise<RepoHit | null> {
     try {
@@ -83,13 +63,6 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
     const hit = await repoKeyOf(cwd)
     if (!hit) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
     const rk = hit.rk
-    if (!lastIndexWatermarkByRepo[rk]) {
-      const seed = await seedFor(cwd)
-      if (seed && seed.baseline) {
-        lastIndexBaselineByRepo[rk] = seed.baseline
-        lastIndexWatermarkByRepo[rk] = seed.watermarkMs
-      }
-    }
     const startedMs = now()
     const w = (indexWindow as any).scanWindow(lastIndexWatermarkByRepo[rk], startedMs)
     const remote = await d.fetchIssueIndex!(cwd, w.sinceIso, o.budget)
@@ -138,13 +111,13 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
 // commitIssueIndex 整体搬入（注释与实现一字不动，只换落点；上面那段 E 件水印口径说明跟着走）。
 // 内含唯一一份窗口状态（createIssueIndexWindowState 在这里只造一次）：调用方经同名转交字段进来，
 // 扫与推落在同一份状态上，不另起第二份。为什么工厂参数仍叫 d：搬来的闭包体点 d.X，零改写就是零行为差。
-// 依赖由取数入口现取现传（getRepoKey / readDiskCache / 取数入口自己的 fetchIssueIndex / Date.now），
-// 与拆分前 _idxState 传的那一份逐字一致。
+// 依赖由取数入口现取现传（getRepoKey / 取数入口自己的 fetchIssueIndex / Date.now），
+// 与拆分前 _idxState 传的那一份逐字一致（#1870 起少了磁盘快照那一格）。
 export function createIssueIndexScan(deps: any): any {
   const d: any = deps || {}
   let stP: any = null
   function _st(): any {
-    if (!stP) stP = createIssueIndexWindowState({ getRepoKey: d.getRepoKey, readDiskCache: d.readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return d.fetchIssueIndex(cwd, sinceIso, budget) }, now: Date.now })
+    if (!stP) stP = createIssueIndexWindowState({ getRepoKey: d.getRepoKey, fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return d.fetchIssueIndex(cwd, sinceIso, budget) }, now: Date.now })
     return stP
   }
     // 增量索引：把「只问变化」的时间窗与水印合并进完整基线，再判有没有真的变。为什么必须合并：

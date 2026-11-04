@@ -60,7 +60,7 @@ type SnapshotDeps = {
   ctx: { get(name: string): unknown }; logCtx?: LogCtx | null; DEFAULT_CWD?: string; envelope?: Envelope | null
   getCache(cwd: string): { ts: number; snapshot: CachedSnap | null }; setCache(v: { ts: number; snapshot: unknown; error: unknown; cwd: string }): void; CACHE_MS: number; cacheSnapshotIsCurrent(snap: unknown, cwd: string): Promise<unknown> | unknown
   upcaseSnapStates(snap: unknown): Inner; computeLevels(tickets: Row[]): Levels; groupTickets(tickets: Row[]): unknown
-  getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<{ owner?: string; name?: string } | null> | { owner?: string; name?: string } | null; readDiskCache(repo: unknown): Promise<CachedSnap | null> | CachedSnap | null; writeDiskCache(repo: unknown, snap: unknown): unknown
+  getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<{ owner?: string; name?: string } | null> | { owner?: string; name?: string } | null
   adoptSnapshot(snap: unknown, c: unknown): unknown; detectionExec(cmd: string, args: unknown[], opts: unknown, phase: string): unknown; getGhPath(): string | null; getGhLastError(): unknown; errText(e: unknown): string
   send?: ((scope: unknown, run: () => unknown) => Promise<{ result: unknown }>) | null
   // #1446：接线处注入的额度读数口（按后端 id 取）；没接就照旧不传，快照形状与今天一致。
@@ -77,7 +77,7 @@ type SnapshotDeps = {
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；#1835 起失败段判重、回包装饰各有一份同目录的共用实现。
 export function createSessionSnapshot(deps: SnapshotDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure, getSnapshotLibrary } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure, getSnapshotLibrary } = deps
   // #723（T19）：快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）搬到了 ./snapshotEnvelope.js
   // （这个文件贴着 350 行上限，要让出位置挂「每个会话在处理哪些票」的读数）。没注入时现造一个，
   // 行为与搬前逐字一致 —— 单测里手工拼实例的那几处就靠这条兜底。
@@ -363,15 +363,9 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         }
         const repo0b = await getRepoKey(cwd)
         // #1863：首屏先无条件读本地快照库——不探测远端、不等整份重建。有数据就直接回放；
-        // 库坏/为空才落到下面的磁盘缓存与在线重建（首屏不许因库不可用而空）。
+        // 库坏/为空才落到下面的在线重建（首屏不许因库不可用而空）。
+        // #1870：旧的整份磁盘快照文件已退役，这里不再有「磁盘回放」这一档。
         const first = await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId2, repoIdentity: String((repoRef2 && repoRef2.refId) || ''), repo: repoRef2, force: isForce })
-        if (!first || !first.replay) {
-          const diskb = await readDiskCache(repo0b)
-          if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
-            const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
-            if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { const rv = (diskb as any).diskReplay || {}; return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()), schema: rv.schema, source: rv.source, completeness: rv.completeness, legacy: rv.legacy === true } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true, setupLayout: _layEarly }), cwd) } // #1433：磁盘回放也按这一轮的布局盖（文件为准，空就抹掉旧答案）；#1692：回放把格式版本/来源/完整度/上次已知时刻随日志说出来
-            }
-          }
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
         // #1446：回退路径也把额度读数带上；#1439 A2：会话口同主路径（见上方的 composer）。
@@ -443,7 +437,6 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           repository: repoRef2, backendModules: backendModules2, selection: _sel, setupLayout: _layEarly,
           viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, fallbackAt: inner2.fallbackAt, fallbackReason: inner2.fallbackReason, refresh: inner2.refresh,
         })
-        if (!first || !first.replay) await writeDiskCache(snap2.repo, snap2)
         if (first) first.decorate(snap2)
         return adoptSnapLog(snap2, cwd)
       } catch (e) {

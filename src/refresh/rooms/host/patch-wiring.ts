@@ -10,8 +10,8 @@
  *  1. 惰性装配：真的有人跑增量之前一个对象都不造（createPatchForHost 会连带造出取数三件套的依赖）。
  *  2. 闸的后端编号在**调用那一刻**读（backendIdOf），不在装配时读死：当前后端是会话读出来的，
  *     装配的时候常常还没有（还没读过就缺席，闸按未知后端处理）。
- *  3. 写回快照的两处（宿主缓存与磁盘缓存）各自包 try：这是后台补行，写盘失败只该让这一趟白干，
- *     不许把调用方的工具调用带崩。
+ *  3. 写回快照这一步包 try：这是后台补行，写回失败只该让这一趟白干，
+ *     不许把调用方的工具调用带崩（#1870 起只写宿主内存那一份，旧的整份磁盘快照已退役）。
  */
 import { createPatchForHost } from './refresh-assembly.js'
 
@@ -40,7 +40,6 @@ export function createPatchWiring(deps: PatchWiringDeps): { patchOf: () => any }
         readSnapshot: function (cwd: any): any { try { const e: any = (typeof d.getCache === 'function') ? d.getCache(cwd) : null; return (e && e.snapshot) ? e.snapshot : null } catch (eR: any) { return null } },
         writeSnapshot: async function (cwd: any, snap: any): Promise<void> {
           try { if (typeof d.setCache === 'function') d.setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd }) } catch (eW: any) {}
-          try { const repo: any = await d.getRepoKey(cwd); if (repo && typeof d.writeDiskCache === 'function') await d.writeDiskCache(repo, snap) } catch (eD: any) {}
         },
         indexOfSnapshot: function (snap: any): any { return (typeof d.issueIndexFromSnapshot === 'function') ? d.issueIndexFromSnapshot(snap) : {} },
         probeIndex: function (cwd: any, sinceIso: any): any { return (typeof d.fetchIssueIndex === 'function') ? d.fetchIssueIndex(cwd, sinceIso) : Promise.resolve({ ok: false }) },

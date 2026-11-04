@@ -3,7 +3,7 @@
  *
  * 第一性原理（#150 Q3 + #118 D1 + 契约 §2 + #113 可测性 + snapshot 双缓存正交）：
  *  - 键 = handleKey = cwd|refId（复用 registry handleKey 语义，Registry 268 行 handleKey 逻辑镜像）
- *  - 存储 = 内存 Map<handleKey → { selection, at }> 单例不落盘（不复用 snapshot owner__name.json）
+ *  - 存储 = 内存 Map<handleKey → { selection, at }> 单例不落盘（不复用旧快照文件）
  *  - 失效 = TTL 30s + cwd 切换新 key 重算 + 后端被卸载（registry 发 unregister，按「缓存里答的是不是它」清）
  *    → 自然过期；statusCache 与 snapshot 双缓存正交不合并（Q3/Q6）
  *  - 轻量化：本模块只管 Selection 缓存，不含 preflight/skill 聚合；pending 场景由 detectionService 决定不缓存

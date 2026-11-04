@@ -216,15 +216,31 @@ async function main() {
   expect('场景5 · snapshot.repo 仍是 Fork（缓存）', snap5.repo && snap5.repo.owner === 'ForkOwner' && snap5.repo.name === 'ForkRepo', JSON.stringify(snap5.repo))
 
   // ============ 场景 6：嵌套仓库（cwd=子目录）→ 归到仓库根，getRepoKey 命中 Fork ============
-  // #652 起这条不只是「git 会往上找」：工作区身份本身要锚到工作区根（自带 .git 或自带主锚文件的最近一层），
-  // 所以父仓库的子目录会话算出来的仓库身份仍是 ForkOwner/ForkRepo。这条在本仓库里独一份，进门禁就是为了它。
-  console.log('--- 场景 6：cwd=子目录，归到仓库根 ---')
+  // #652 起这条不只是「git 会往上找」：工作区身份本身要锚到工作区根。2026-11-03 定版后判据只有一条——
+  // 往上找最近的 docs/agents/workspace.yaml（工作区记录），不再看 .git：没初始化过的目录里在子目录打开，
+  // 工作区就落在那一层，不猜上级。所以这里先写一份工作区记录，再验「子目录会话归到写记录的那一层」。
+  //
+  // #1870 为什么改了这一段：从前这条断言能过，不是因为它测的东西成立，而是因为场景 1 写下的整份磁盘快照
+  // 被场景 6 按仓库名回放了，回包里带的是场景 1 那个工作区根。磁盘快照退役后（那份 JSON 不再读写），
+  // 回包才第一次按真实规则算——没有记录时工作区根就是所选目录自己。这里把「有记录才锚」这条规则写明。
+  console.log('--- 场景 6：cwd=子目录，归到工作区根 ---')
   const subDir = path.join(forkDir, 'sub', 'nested')
   fsx.mkdirSync(subDir, { recursive: true })
+  // 6a 父目录有记录：子目录会话的工作区根锚到写记录的那一层（客户端靠它分桶）。
+  // 先写记录再问，是因为「根在哪」的结论有 30 秒缓存，同一个目录先问一次无记录的结果就会挡住后一次。
+  fsx.mkdirSync(path.join(forkDir, 'docs', 'agents'), { recursive: true })
+  fsx.writeFileSync(path.join(forkDir, 'docs', 'agents', 'workspace.yaml'), 'backend: github\n', 'utf8')
   const h6 = await loadPlugin({ subprocess, timer, fs: fsSvc, skills: makeSkills() })
   const snap6 = await h6('snapshot', { cwd: subDir })
-  expect('场景6 · cwd 在子目录里，snapshot.repo 仍命中 Fork（工作区身份归到仓库根）', snap6.repo && snap6.repo.owner === 'ForkOwner' && snap6.repo.name === 'ForkRepo', JSON.stringify(snap6.repo))
-  expect('场景6 · 回包里带着工作区根，且就是仓库根这一条（客户端靠它分桶）', snap6.workspaceRoot && path.resolve(snap6.workspaceRoot).toLowerCase() === path.resolve(forkDir).toLowerCase(), String(snap6.workspaceRoot))
+  expect('场景6a · cwd 在子目录里，工作区根锚到带工作区记录的父目录（客户端靠它分桶）', snap6.workspaceRoot && path.resolve(snap6.workspaceRoot).toLowerCase() === path.resolve(forkDir).toLowerCase(), String(snap6.workspaceRoot))
+  // 6b 另一个仓库没有任何记录：工作区根是所选目录自己（向上不猜上级），仓库身份仍靠 git 找到它。
+  const bareDir = await setupGitRepo([{ name: 'origin', url: 'https://github.com/BareOwner/BareRepo.git' }])
+  const bareSub = path.join(bareDir, 'sub', 'nested')
+  fsx.mkdirSync(bareSub, { recursive: true })
+  const h6b = await loadPlugin({ subprocess, timer, fs: fsSvc, skills: makeSkills() })
+  const snap6b = await h6b('snapshot', { cwd: bareSub })
+  expect('场景6b · 没有工作区记录时，工作区根就是所选目录自己（不猜上级）', snap6b.workspaceRoot && path.resolve(snap6b.workspaceRoot).toLowerCase() === path.resolve(bareSub).toLowerCase(), String(snap6b.workspaceRoot))
+  expect('场景6b · cwd 在子目录里，snapshot.repo 仍命中 Bare（仓库身份靠 git 往上找）', snap6b.repo && snap6b.repo.owner === 'BareOwner' && snap6b.repo.name === 'BareRepo', JSON.stringify(snap6b.repo))
 
   // ============ 场景 7：非 Git 目录 → repo=null（本地证据读不到，也不起 gh —— #1453 起宿主没有 gh 那一级） ============
   console.log('--- 场景 7：非 git 目录 → repo=null ---')

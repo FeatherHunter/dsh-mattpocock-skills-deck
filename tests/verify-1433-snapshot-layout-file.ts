@@ -7,7 +7,8 @@
  *
  * 钉五件事：① 内存命中：文件里 single 压过缓存里的 multi；
  *   ② 文件里没有布局时回空（不退回本机记忆，也不留缓存里上一次的旧答案）；
- *   ③ 磁盘回放：盘里是 multi、文件里是 single，照样回 single；
+ *   ③ 本地快照库回放：库里那份是 multi、文件里是 single，照样回 single（#1870 起旧的磁盘回放退役，
+ *     回放来源换成工作区快照库，这条判据守的东西不变）；
  *   ④ 拿不到文件通道时回空、不断言崩；
  *   ⑤ 静态面：读函数只认工作区文件；304 回包无条件带布局（含 null）、旧的「没答案就留旧值」条件已删。
  *
@@ -41,7 +42,7 @@ const mkWs = (layoutLine: string | null) => {
   fs.writeFileSync(path.join(ws, 'docs', 'agents', 'workspace.yaml'), 'version: 2\nbackendId: github\npickedAt: 1758500000000\nsource: user\n' + (layoutLine ? ('layout: ' + layoutLine + '\n') : ''), 'utf8')
   return ws
 }
-const mkDeps = (fsSvc: StubFs, cached: any, disk: any) => ({
+const mkDeps = (fsSvc: StubFs, cached: any, replay: any) => ({
   canonicalKey: async (c: unknown) => c,
   selectEarly: async () => ({ backendId: 'github', rev: 0 }),
   isComposerSelection: () => false,
@@ -52,7 +53,12 @@ const mkDeps = (fsSvc: StubFs, cached: any, disk: any) => ({
   setCache: () => {}, CACHE_MS: 60000, cacheSnapshotIsCurrent: async () => true,
   upcaseSnapStates: (s: unknown) => s, computeLevels: () => ({}), groupTickets: () => ({}),
   getRepoRoot: async (c: unknown) => c, getRepoKey: async () => ({ owner: 'o', name: 'n' }),
-  readDiskCache: async () => disk, writeDiskCache: async () => {},
+  // #1870：首屏回放由工作区快照库出；没给 replay 时这一格缺席，走在线重建。
+  getSnapshotLibrary: replay ? async () => ({
+    readSnapshotReplay: async () => ({ snapshot: replay, lastKnownAtMs: Date.now() - 1000 }),
+    recordIssueRows: async () => ({ ok: true }),
+    readSnapshotDiagnostics: async () => [],
+  }) : null,
   adoptSnapshot: (s: unknown) => s, detectionExec: async () => ({}),
   getGhPath: () => null, getGhLastError: () => null, errText: (e: unknown) => String(((e as any) && (e as any).message) || e),
   DEFAULT_CWD: '', logCtx: null, envelope: null, send: null,
@@ -72,12 +78,12 @@ console.log('== ② 文件里没有布局时回空，不留缓存旧答案 ==')
   check((out && out.setupLayout) == null, '快照里不留上一次的值（回空表示还没答过）—— 实得 ' + JSON.stringify(out && out.setupLayout))
 }
 console.log('')
-console.log('== ③ 磁盘回放：盘里 multi、文件里 single 照样回 single ==')
+console.log('== ③ 快照库回放：库里 multi、文件里 single 照样回 single ==')
 {
   const ws = mkWs('single')
-  const disk = { selection: { backendId: 'github', rev: 0 }, generatedMs: Date.now(), setupLayout: { layout: 'multi', pickedAt: 111 } }
-  const out: any = await createSessionSnapshot(mkDeps(makeFs(), null, disk)).handleSnapshot({ cwd: ws })
-  check(out && out.setupLayout && out.setupLayout.layout === 'single', '盘缓存也按这一轮的文件盖 —— 实得 ' + JSON.stringify(out && out.setupLayout))
+  const replay = { ok: true, selection: { backendId: 'github', rev: 0 }, generatedMs: Date.now(), maps: [], issues: [], thinTickets: [], labels: [], setupLayout: { layout: 'multi', pickedAt: 111 } }
+  const out: any = await createSessionSnapshot(mkDeps(makeFs(), null, replay)).handleSnapshot({ cwd: ws })
+  check(out && out.setupLayout && out.setupLayout.layout === 'single', '库回放也按这一轮的文件盖 —— 实得 ' + JSON.stringify(out && out.setupLayout))
 }
 console.log('')
 console.log('== ④ 拿不到文件通道时回空、不崩 ==')

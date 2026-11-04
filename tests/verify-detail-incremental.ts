@@ -7,7 +7,8 @@
  * 逐条对应票 #1694 验收：
  *   A 增量：完整详情只改这张票那一行（别的行对象引用不动），正文/评论/关系按字段组换新；
  *     快照信封版本 snapshot.version 一个字节不动，合并版本 snapshot.merge.version 单调 +1；
- *     合并后的快照同时写回内存与磁盘（面板刷新与跨重启都读得到这份详情）。
+ *     合并后的快照写回宿主内存（面板刷新读得到这份详情；跨重启的那一份由本地快照库的详情落库负责，
+ *     见 verify-1864-snapshot-detail-replay；#1870 起旧的整份磁盘快照退役）。
  *   B 降级不缩数据：完整查询后再来一份 REST 降级（关系组未表达），父边、依赖边、子票计数、
  *     已取评论与评审一条不减少，只更新这次真表达了的行组与正文。
  *   C 版本门：取数开始后快照又被别人推进过，这份更旧的详情结果整份丢弃（快照原引用不动、版本不跳号）。
@@ -117,16 +118,14 @@ function completeIssue(over?: any): any {
 const COMPLETE_GROUPS = { row: 'complete', body: 'complete', labels: 'complete', parents: 'complete', dependencies: 'complete', subIssues: 'complete', comments: 'complete', review: 'complete', mergeInfo: 'complete' }
 
 // ---------------------------------------------------------------------------
-// 假宿主：一格内存快照 + 一个磁盘写盘口，合并在真模块里发生
+// 假宿主：一格内存快照（#1870 起不再有磁盘那份），合并在真模块里发生
 // ---------------------------------------------------------------------------
 let store: any = { ts: 0, snapshot: baseSnapshot(), error: null, cwd: CWD }
-let diskWrites: any[] = []
 let memWrites = 0
 const getCache = function (cwd: any) { return cwd === CWD ? store : { ts: 0, snapshot: null, error: null, cwd: cwd } }
 const setCache = function (v: any) { store = v; memWrites += 1 }
-const writeDiskCache = async function (repo: any, snap: any) { diskWrites.push({ repo: repo, snapshot: snap }) }
 const getRepoKey = async function () { return { owner: 'o', name: 'r' } }
-const detailMerge = createDetailSnapshotMerge({ getCache: getCache, setCache: setCache, writeDiskCache: writeDiskCache, getRepoKey: getRepoKey, now: function () { return CLOCK0 } })
+const detailMerge = createDetailSnapshotMerge({ getCache: getCache, setCache: setCache, now: function () { return CLOCK0 } })
 
 let getMode: 'ok' | 'fail' = 'ok'
 let nextResult: any = { data: completeIssue(), provenance: provenance('graphql', COMPLETE_GROUPS) }
@@ -168,7 +167,6 @@ const deps: any = {
   issueIndexFromSnapshot: function () { return { ok: false } },
   setCache: setCache,
   getCache: getCache,
-  writeDiskCache: writeDiskCache,
   logCtx: { fire: function () {} },
 }
 const handlers = createCommentThreads(deps)
@@ -194,7 +192,7 @@ check(snap1.version === 'v0', 'A10 信封契约版本 snapshot.version 一个字
 check(merger.mergeVersionOf(snap1) === 6, 'A11 合并版本单调 +1', merger.mergeVersionOf(snap1))
 const bodyStamp = snap1.merge && snap1.merge.groups && snap1.merge.groups.body
 check(!!bodyStamp && typeof bodyStamp.atMs === 'number' && bodyStamp.atMs > 0 && bodyStamp.source === 'graphql' && bodyStamp.completeness === 'complete', 'A12 合并组戳记下来源与时刻（界面「上次数据」用它）', bodyStamp)
-check(memWrites >= 1 && diskWrites.length === 1, 'A13 合并后的快照写回内存与磁盘', { mem: memWrites, disk: diskWrites.length })
+check(memWrites >= 1, 'A13 合并后的快照写回宿主内存（磁盘那份已随 #1870 退役）', { mem: memWrites })
 check(!Object.prototype.hasOwnProperty.call(r201, 'provenance'), 'A14 一次读的簿记（provenance）不写进快照')
 
 // ---------------------------------------------------------------------------

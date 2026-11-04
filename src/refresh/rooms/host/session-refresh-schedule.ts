@@ -63,7 +63,7 @@ type RefreshDeps = {
   ctx: { get(name: string): unknown }; logCtx?: LogCtx | null; DEFAULT_CWD?: string; envelope?: Envelope | null
   getCache(cwd: string): { ts: number; snapshot?: unknown } | null | undefined; setCache(v: { ts: number; snapshot: unknown; error: unknown; cwd: string }): void
   upcaseSnapStates(snap: unknown): Inner; computeLevels(tickets: Row[]): Levels; groupTickets(tickets: Row[]): unknown
-  getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<RepoKey> | RepoKey; readDiskCache(repo: unknown): unknown; writeDiskCache(repo: unknown, snap: unknown): unknown
+  getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<RepoKey> | RepoKey
   adoptSnapshot(snap: unknown, c: unknown): unknown; detectionExec(cmd: string, args: unknown[], opts: unknown, phase: string): unknown; resetGhCache(): unknown; getGhPath(): string | null; getGhLastError(): unknown; errText(e: unknown): string
   send?: ((scope: unknown, run: () => unknown) => Promise<{ result: unknown }>) | null
   // #1446：接线处注入的额度读数口（按后端 id 取）；没接就照旧不传，快照形状与今天一致。
@@ -76,7 +76,7 @@ type RefreshDeps = {
   getSnapshotLibrary?: (() => Promise<any> | any) | null
 }
 export function createSessionRefresh(deps: RefreshDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure, getSnapshotLibrary } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure, getSnapshotLibrary } = deps
   // 共用的那份信封（接线处 index.js 传进来，与 wf.snapshot 同一个实例）。
   // 没传就没法组装出与 wf.snapshot 同形的回包 —— 那种情况下宁可如实回一次失败，
   // 也不退回本文件自己拼一份（那正是这次故障的来路：两份信封各自漂）。
@@ -426,7 +426,6 @@ export function createSessionRefresh(deps: RefreshDeps) {
           repository: repoRef2, backendModules: backendModules2, selection: _sel,
           viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck,
         })
-        await writeDiskCache(snap2.repo, snap2)
         return adoptSnapLog(snap2, cwd)
       } catch (e) {
         setCache({ ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd })

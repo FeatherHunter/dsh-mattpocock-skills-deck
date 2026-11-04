@@ -87,19 +87,18 @@ function issue(over?: any): any {
 }
 const ALL = { row: 'complete', body: 'complete', labels: 'complete', parents: 'complete', dependencies: 'complete', subIssues: 'complete', comments: 'complete', review: 'complete', mergeInfo: 'complete' }
 
-// 假宿主：一格内存快照 + 磁盘写盘口；合并在真模块里发生
+// 假宿主：一格内存快照（#1870 起不再有磁盘那份）；合并在真模块里发生
 let store: any = snapshot()
 let memWrites = 0
-let diskWrites: any[] = []
 const getCache = function (cwd: any) { return cwd === CWD ? { ts: 0, snapshot: store, error: null, cwd: cwd } : { ts: 0, snapshot: null, error: null, cwd: cwd } }
 const setCache = function (v: any) { store = v.snapshot; memWrites += 1 }
-const writeDiskCache = async function (repo: any, snap: any) { diskWrites.push(snap) }
 const getRepoKey = async function () { return { owner: 'o', name: 'r' } }
-const detailMerge = createDetailSnapshotMerge({ getCache: getCache, setCache: setCache, writeDiskCache: writeDiskCache, getRepoKey: getRepoKey, now: function () { return CLOCK0 } })
+const detailMerge = createDetailSnapshotMerge({ getCache: getCache, setCache: setCache, now: function () { return CLOCK0 } })
 
 // ---------------------------------------------------------------------------
 // 要求 1：降级不缩数据（正例：完整→降级一条不减少；负例：未表达的关系组不许写成空）
 // ---------------------------------------------------------------------------
+const mergeVersionBeforeDetail = merger.mergeVersionOf(store)
 const token1 = detailMerge.begin(CWD)
 const complete = await detailMerge.merge(CWD, token1, { issue: issue(), provenance: prov('graphql', ALL) })
 check(complete && complete.accepted === true, '要求1 正例前置：完整详情已并进快照')
@@ -124,10 +123,14 @@ check(Array.isArray(r201.blockedBy) && r201.blockedBy.length === 1 && r201.block
 check(r201.subIssueCounts && r201.subIssueCounts.total === 4, '要求1 正例：降级不缩子票计数', r201.subIssueCounts)
 check(r201.commentCount === 1 && r201.comments.length === 1 && r201.reviews.length === 1, '要求1 正例：降级不缩评论与评审', { c: r201.commentCount, r: r201.reviews.length })
 check(r201.body === '降级正文' && r201.title === '票 201 降级标题', '要求1 正例：真表达了的正文与行组照常换新')
+// 要求 4 要用「降级合并之后的那一份」当重启基线：后面的负例与要求 3 会继续改同一份快照，
+// 那不是这一条要验的状态。这里留一份深拷贝（引用同一份会被原地改脏）。
+const mergedSnapshot = JSON.parse(JSON.stringify(store))
 // 负例：来源把行组声明成未表达时，连行组都不许覆盖（未知 ≠ 空）
 const token3 = detailMerge.begin(CWD)
 await detailMerge.merge(CWD, token3, { issue: issue({ title: '票 201 未表达标题', updatedAt: '2026-12-01T00:00:00Z' }), provenance: prov('rest', { body: 'complete' }, { degradedFrom: 'graphql', completeness: 'partial' }) })
 check(store.issues[0].title === '票 201 降级标题', '要求1 负例：行组未表达时不覆盖已知标题', store.issues[0].title)
+
 
 // ---------------------------------------------------------------------------
 // 要求 2：地图里点开一张票，首帧先显示已知阻塞（正例数组形状也认；负例未知不说「没有」）
@@ -194,14 +197,15 @@ check(snapBeforeFail && store && store.issues[0].state === snapBeforeFail.issues
 failKeys.delete('201')
 
 // ---------------------------------------------------------------------------
-// 要求 4：详情永久增量合并（正例：随盘写回、重启后仍在；负例：过期结果丢、不缩上次已知）
+// 要求 4：详情永久增量合并（正例：写回宿主内存、重启基线仍在；负例：过期结果丢、不缩上次已知）
+// #1870：跨重启的那一份不再由整份磁盘快照承担，改由本地快照库的详情落库负责
+// （verify-1864-snapshot-detail-replay 验它）；这里守的是内存那份合并结果与重启后的合并基线。
 // ---------------------------------------------------------------------------
-check(diskWrites.length >= 2, '要求4 正例：详情合并后的快照写回了磁盘', diskWrites.length)
-const lastDisk = diskWrites[diskWrites.length - 1]
-check(lastDisk && Array.isArray(lastDisk.issues) && lastDisk.issues[0].body === '新正文' && lastDisk.issues[0].title === '票 201 降级标题', '要求4 正例：磁盘上那份带着详情正文', lastDisk && lastDisk.issues && lastDisk.issues[0] && { body: lastDisk.issues[0].body, title: lastDisk.issues[0].title, n: diskWrites.length })
-check(merger.mergeVersionOf(lastDisk) >= 8, '要求4 正例：磁盘那份的合并版本也单调递增', merger.mergeVersionOf(lastDisk))
-// 模拟重启：把磁盘那份当新的内存快照，再来一次只表达正文的部分读
-const restarted = JSON.parse(JSON.stringify(lastDisk))
+check(memWrites >= 3, '要求4 正例：详情合并后的快照写回了宿主内存', memWrites)
+check(mergedSnapshot && Array.isArray(mergedSnapshot.issues) && mergedSnapshot.issues[0].body === '降级正文' && mergedSnapshot.issues[0].title === '票 201 降级标题', '要求4 正例：写回的那份带着详情正文', mergedSnapshot && mergedSnapshot.issues && mergedSnapshot.issues[0] && { body: mergedSnapshot.issues[0].body, title: mergedSnapshot.issues[0].title })
+check(merger.mergeVersionOf(mergedSnapshot) > mergeVersionBeforeDetail, '要求4 正例：那份的合并版本也单调递增', { after: merger.mergeVersionOf(mergedSnapshot), before: mergeVersionBeforeDetail })
+// 模拟重启：把库回放出来的那一份当新的内存快照（这里用详情合并后那份代替），再来一次只表达正文的部分读
+const restarted = JSON.parse(JSON.stringify(mergedSnapshot))
 store = restarted
 const token4 = detailMerge.begin(CWD)
 const partial = await detailMerge.merge(CWD, token4, { issue: issue({ title: '票 201 重启后标题', body: '重启后正文', updatedAt: '2026-12-02T00:00:00Z' }), provenance: prov('rest', { row: 'complete', body: 'complete' }, { degradedFrom: 'graphql', completeness: 'partial' }) })

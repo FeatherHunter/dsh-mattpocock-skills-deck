@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T10:05:10.056Z",
+  "generatedAt": "2026-11-04T11:55:00.075Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 572,
   "gateCount": 572,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 114,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 892,
+  "graphFileCount": 891,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -5422,7 +5422,6 @@
       "file": "tests/verify-1692-disk-replay-eviction.ts",
       "guards": [
         "src/refresh/kernel/detail-eviction.ts",
-        "src/refresh/kernel/disk-snapshot-format.ts",
         "src/refresh/rooms/host/git-execution.ts"
       ],
       "dirs": [
@@ -5432,8 +5431,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 89,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+      "expectedAssertions": 55,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-1706-gitlab-project.ts",
@@ -12366,10 +12365,13 @@
       "step": "node tests/verify-t1-getrepokey.ts",
       "file": "tests/verify-t1-getrepokey.ts",
       "guards": [
+        "docs/agents",
+        "docs/agents/workspace.yaml",
         "package/lib/index.js",
         "src/refresh/rooms/host/outbound-control.ts"
       ],
       "dirs": [
+        "docs/agents",
         "package/lib",
         "src/refresh/rooms/host"
       ],
@@ -12377,7 +12379,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
       "step": "node tests/verify-t1-initpublish.ts",
@@ -13442,6 +13444,7 @@
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-issue-body-script.ts",
+      "node tests/verify-t1-getrepokey.ts",
       "node tests/verify-wire-subissues-script.ts"
     ],
     "docs/architecture": [
@@ -15704,9 +15707,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 915,
+    "fileCount": 914,
     "dirCount": 92,
-    "coveredFileCount": 915,
+    "coveredFileCount": 914,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 72,
@@ -16199,7 +16202,6 @@
       "src/refresh/kernel/chain-pruning.ts",
       "src/refresh/kernel/create-write-policy.ts",
       "src/refresh/kernel/detail-eviction.ts",
-      "src/refresh/kernel/disk-snapshot-format.ts",
       "src/refresh/kernel/failure-backoff.ts",
       "src/refresh/kernel/failure-window.ts",
       "src/refresh/kernel/fallback-fetch-budget.ts",
