@@ -603,6 +603,12 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
 export const SMOKE_COMPLETION_RECORDED_GATES: Record<string, number> = {
   'smoke-host-dispatch': 40,
   'smoke-naming-persistence': 37,
+  // 2026-11-04 #1869：三端各一条快照库冒烟。每条只做「真库写一批 → 关句柄 → 重开 → 从库回放容器树
+  // 与子票」，两秒内跑完；GitLab 那条顺手证「没有的能力写成不适用」，本地 Markdown 那条再加票号补零
+  // 与工作单元标识两格。条数按单跑实测登记（各 5 条）。
+  'smoke-snapshot-github': 5,
+  'smoke-snapshot-gitlab': 5,
+  'smoke-snapshot-markdown': 5,
 }
 
 /**

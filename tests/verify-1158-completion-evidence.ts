@@ -338,7 +338,9 @@ console.log('戊）真仓里的挂接与登记')
   //   与 tests/verify-596 是同一件事的复刻（同一批门禁、同一组锚点），已按对抗审查的结论删除，
   //   package.json 的 scripts.smoke 也随之从六条变成五条。数字抽成带来历的常量：
   //   以后加减冒烟条目时这里与 package.json 要一起改，只改一边会当场红——这正是这条断言的意义。
-  const EXPECTED_SMOKE_FILES = 5
+  // 2026-11-04 #1869：冒烟清单从 5 条加到 8 条（GitHub / GitLab / 本地 Markdown 三端各一条快照库冒烟），
+  // 这个常量与 package.json 的 scripts.smoke 一起改，只改一边会当场红。
+  const EXPECTED_SMOKE_FILES = 8
   check(
     smokeFiles.length === EXPECTED_SMOKE_FILES && smokeSteps.every((s) => s.includes('--import')),
     '冒烟清单住在 scripts.smoke 里，' + EXPECTED_SMOKE_FILES + ' 条逐条挂装载钩子（今天 ' + smokeFiles.length + ' 条）',

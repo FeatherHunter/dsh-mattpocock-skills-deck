@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T03:53:19.942Z",
+  "generatedAt": "2026-11-04T03:58:59.896Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 569,
   "gateCount": 569,
@@ -8,8 +8,8 @@
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 111,
-  "smokeLength": 5,
-  "smokeCompletionRecordedGates": 2,
+  "smokeLength": 8,
+  "smokeCompletionRecordedGates": 5,
   "graphFileCount": 892,
   "gates": [
     {
@@ -13296,6 +13296,27 @@
       "gate": "smoke-comment-passthrough",
       "completionRecord": false,
       "expectedAssertions": 0
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-snapshot-github.test.ts",
+      "file": "tests/smoke-snapshot-github.test.ts",
+      "gate": "smoke-snapshot-github",
+      "completionRecord": true,
+      "expectedAssertions": 5
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-snapshot-gitlab.test.ts",
+      "file": "tests/smoke-snapshot-gitlab.test.ts",
+      "gate": "smoke-snapshot-gitlab",
+      "completionRecord": true,
+      "expectedAssertions": 5
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mts tests/smoke-snapshot-markdown.test.ts",
+      "file": "tests/smoke-snapshot-markdown.test.ts",
+      "gate": "smoke-snapshot-markdown",
+      "completionRecord": true,
+      "expectedAssertions": 5
     }
   ],
   "byDir": {
