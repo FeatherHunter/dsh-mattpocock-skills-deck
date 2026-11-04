@@ -17,7 +17,7 @@ import { COPY } from '../data/copy'
 import { changeBadge, lineDelta, shortOid, splitPath, syncModel } from '../data/format'
 import type { ChangeTone, SyncModel } from '../data/format'
 import { patchHunksOf, samplePatch } from '../data/patches'
-import type { BranchPending, BranchRow, BranchSub, ChangesFilter, ChangesPendingKind, CommitForm, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
+import type { BranchPending, BranchRow, BranchSub, ChangesFilter, ChangesPendingKind, CommitForm, HistoryScope, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
 import { headInfoOf, metadataOf, trackedChangesOf } from './session'
 import type { SessionBase } from './session'
 
@@ -224,6 +224,10 @@ export interface CommitRowModel {
   selected: boolean
   /** 这条提交的来历：修订、fixup、squash、跳过钩子、已签名、签名行。 */
   marks: string[]
+  /** 这条提交上写过备注：行上多一枚小标签，扫列表时就知道哪几条被注解过。 */
+  hasNote: boolean
+  /** 按代码变化搜时命中的那个文件：行上写出是哪一份改动对上了，省得逐条点开。 */
+  hitPath: string | null
 }
 
 export interface HistoryFileRowModel {
@@ -246,6 +250,27 @@ export interface CommitDetailModel {
   files: HistoryFileRowModel[]
   filesNote: string | null
   loading: boolean
+  /** 这条提交已经保存的备注；没有时是空字符串。 */
+  note: string
+  noteSaved: boolean
+  /** 哪一行的「更多」菜单开着（单文件历史从这里进）。 */
+  fileMenuPath: string | null
+}
+
+/** 比较两个引用的结果里的一行文件。 */
+export interface CompareFileModel {
+  path: string
+  dir: string
+  name: string
+  delta: { added: string | null; deleted: string | null }
+}
+
+export interface CompareModel {
+  from: string
+  to: string
+  files: CompareFileModel[]
+  summary: string
+  note: string
 }
 
 export interface HistoryModel {
@@ -256,6 +281,13 @@ export interface HistoryModel {
   query: string
   mergeOnly: boolean
   empty: boolean
+  /** 空态那句话随筛选条件变：搜说明、搜代码、只看一个文件，三种说法不一样。 */
+  emptyText: string
+  scope: HistoryScope
+  /** 只看某个文件时，列表顶上那行标签里的完整路径；没开时为 null。 */
+  fileOnly: string | null
+  compare: CompareModel | null
+  compareForm: { open: boolean; from: string; to: string }
   scopeText: string
   mergeOnlyText: string
 }
@@ -847,18 +879,26 @@ function historyTotal(base: SessionBase, state: SessionState): number {
   return Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1))
 }
 
-function matchesQuery(entry: HistoryEntry, query: string): boolean {
-  if (query === '') return true
-  const needle = query.trim().toLowerCase()
-  if (needle === '') return true
-  return entry.subject.toLowerCase().includes(needle)
-    || entry.author.toLowerCase().includes(needle)
-    || entry.short.toLowerCase().includes(needle)
-}
-
 export function historyOf(base: SessionBase, state: SessionState, nowMs: number): HistoryModel {
   const entries = historyEntries(base, state)
-  const filtered = entries.filter((entry) => matchesQuery(entry, state.historyQuery) && (!state.historyMergeOnly || entry.parents.length > 1))
+  const needle = state.historyQuery.trim().toLowerCase()
+  const codeScope = state.historyScope === 'code'
+  // 按代码变化搜：这一版拿「这次提交改到的文件路径」当替身——原型没有真实补丁文本，
+  // 但行为与 git log -S 一致：在这条提交的改动里找，找不到就不算命中。
+  const hitOf = (entry: HistoryEntry): string | null => {
+    if (!codeScope || needle === '') return null
+    return entry.files.find((file) => file.path.toLowerCase().includes(needle))?.path ?? null
+  }
+  const matchesQuery = (entry: HistoryEntry): boolean => {
+    if (needle === '') return true
+    if (codeScope) return hitOf(entry) !== null
+    return entry.subject.toLowerCase().includes(needle)
+      || entry.author.toLowerCase().includes(needle)
+      || entry.short.toLowerCase().includes(needle)
+  }
+  const matchesFile = (entry: HistoryEntry): boolean =>
+    state.historyFileOnly === null || entry.files.some((file) => file.path === state.historyFileOnly)
+  const filtered = entries.filter((entry) => matchesFile(entry) && matchesQuery(entry) && (!state.historyMergeOnly || entry.parents.length > 1))
   let previousGroup = ''
   const rows: CommitRowModel[] = filtered.map((entry) => {
     const group = dayGroupLabel(nowMs, entry.authorDateMs)
@@ -875,6 +915,8 @@ export function historyOf(base: SessionBase, state: SessionState, nowMs: number)
       group: groupLabel,
       selected: state.historyOpenOid === entry.oid,
       marks: entry.marks,
+      hasNote: state.commitNotes[entry.oid] !== undefined,
+      hitPath: hitOf(entry),
     }
   })
 
@@ -907,9 +949,42 @@ export function historyOf(base: SessionBase, state: SessionState, nowMs: number)
         files,
         filesNote: entry.files.length === 0 ? (merge ? COPY.history.filesEmptyMerge : COPY.history.filesEmpty) : null,
         loading: false,
+        note: state.commitNotes[entry.oid] ?? '',
+        noteSaved: state.commitNotes[entry.oid] !== undefined,
+        fileMenuPath: state.historyFileMenu,
       }
     }
   }
+
+  // 比较两个引用：原型只画后一个引用那条提交改到的文件，用来说明「比较结果落在哪」，
+  // 不计算两个引用之间真实的行级差异（那需要宿主算 diff）。
+  let compare: CompareModel | null = null
+  const compared = state.compare
+  if (compared !== null) {
+    const target = entries.find((entry) => entry.oid === compared.toOid)
+    const files: CompareFileModel[] = (target?.files ?? []).map((file) => {
+      const { dir, name } = splitPath(file.path)
+      return { path: file.path, dir, name, delta: lineDelta(file.added, file.deleted) }
+    })
+    const added = (target?.files ?? []).reduce((sum, file) => sum + file.added, 0)
+    const deleted = (target?.files ?? []).reduce((sum, file) => sum + file.deleted, 0)
+    const parts = [`${files.length} 个文件`]
+    if (added > 0) parts.push(`+${added}`)
+    if (deleted > 0) parts.push(`−${deleted}`)
+    compare = {
+      from: compared.fromShort,
+      to: compared.toShort,
+      files,
+      summary: parts.join('，'),
+      note: COPY.history.compareNote,
+    }
+  }
+
+  const emptyText = state.historyFileOnly !== null
+    ? COPY.history.emptyFileOnly(splitPath(state.historyFileOnly).name)
+    : codeScope && needle !== ''
+      ? COPY.history.emptyCode
+      : COPY.history.empty
 
   return {
     detail,
@@ -919,6 +994,11 @@ export function historyOf(base: SessionBase, state: SessionState, nowMs: number)
     query: state.historyQuery,
     mergeOnly: state.historyMergeOnly,
     empty: rows.length === 0,
+    emptyText,
+    scope: state.historyScope,
+    fileOnly: state.historyFileOnly,
+    compare,
+    compareForm: { open: state.compareOpen, from: state.compareFrom, to: state.compareTo },
     scopeText: COPY.history.loadedCount(rows.length, historyTotal(base, state)),
     mergeOnlyText: COPY.history.mergeOnly,
   }

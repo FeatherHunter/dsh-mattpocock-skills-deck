@@ -1221,7 +1221,45 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .toggle-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .toggle-btn.is-on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--accent); font-weight: 650; }
 
-.history-scope { padding: 0 12px 6px; font-family: var(--mono); font-size: 10px; color: var(--faint); border-bottom: 1px solid var(--line); }
+/* 搜索范围切换：两颗小按钮贴在搜索框右边，不另起一行。 */
+.scope-switch { flex: none; display: inline-flex; border: 1px solid var(--line-2); border-radius: 999px; overflow: hidden; }
+.scope-btn { min-height: 22px; padding: 0 7px; border: 0; background: transparent; color: var(--mut); font-size: 10px; cursor: pointer; transition: background 0.12s ease, color 0.12s ease; }
+.scope-btn + .scope-btn { border-left: 1px solid var(--line-2); }
+.scope-btn:hover { background: var(--raised); color: var(--ink-2); }
+.scope-btn.is-on { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+.scope-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.history-scope-row { display: flex; align-items: center; gap: 8px; padding: 0 12px 6px; border-bottom: 1px solid var(--line); }
+.history-scope { flex: 1; min-width: 0; font-family: var(--mono); font-size: 10px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-compare { flex: none; }
+.history-compare.is-on { color: var(--accent); border-bottom-color: var(--accent); }
+
+.history-extra { display: grid; gap: 6px; padding: 0 12px 8px; border-bottom: 1px solid var(--line); }
+
+/* 「只看某个文件」的标签：一条筛选，右边一个叉去掉它。 */
+.history-file-only { display: flex; align-items: center; gap: 6px; min-height: 24px; padding: 2px 6px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--inset); }
+.file-only-lead { flex: none; font-size: 10px; color: var(--mut); }
+.file-only-path { flex: 1; min-width: 0; font-size: 10.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-only-clear { flex: none; width: 18px; height: 18px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--raised); color: var(--mut); font-size: 11px; line-height: 1; cursor: pointer; }
+.file-only-clear:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+
+/* 比较两个引用：先两行表单，再一条结果头加文件清单。 */
+.compare-form { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--inset); }
+.compare-row { display: flex; align-items: center; gap: 6px; }
+.compare-k { flex: none; width: 20px; font-size: 10.5px; color: var(--mut); }
+.compare-input { flex: 1; min-width: 0; height: 24px; padding: 0 7px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--panel); color: var(--ink); font: 11px var(--mono); }
+.compare-input:focus { outline: none; border-color: var(--accent); }
+.compare-hint { font-size: 10px; line-height: 1.55; color: var(--faint); }
+.compare-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+.compare-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--raised); }
+.compare-title { flex: none; font-size: 11px; color: var(--ink-2); }
+.compare-title .mono { color: var(--info); font-weight: 650; }
+.compare-summary { flex: 1; min-width: 0; font-size: 10px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compare-files { display: grid; gap: 2px; }
+.compare-files-note { padding: 2px 2px 6px; }
+.compare-file { min-height: 28px; }
+
 .history-scroll { flex: 1; min-height: 0; overflow: auto; padding: 4px 6px 10px; }
 
 .day-group {
@@ -1304,6 +1342,21 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .detail-files-head { padding: 4px 2px 6px; font-size: 10.5px; color: var(--mut); }
 .commit-file { min-height: 32px; padding: 0 6px; }
 .commit-file .file-main { min-height: 31px; }
+
+/* 提交详情：文件行尾的「更多」与行本身是兄弟节点，菜单贴着这一行展开。 */
+.commit-file-line { display: flex; align-items: center; gap: 4px; }
+.commit-file-line .commit-file { flex: 1; min-width: 0; }
+.commit-file-more { flex: none; min-width: 22px; padding: 0 5px; }
+.commit-file-wrap .row-menu { margin: 2px 0 6px; }
+
+/* 提交备注：详情底部一段，写在这里、跟着这条提交走。 */
+.detail-notes { display: grid; gap: 6px; margin-top: 14px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--inset); }
+.detail-notes-head { display: flex; align-items: center; gap: 6px; }
+.detail-notes-title { font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.detail-notes-hint { font-size: 10px; line-height: 1.55; color: var(--faint); }
+.note-input { width: 100%; min-height: 46px; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--panel); color: var(--ink); font: 11.5px/1.5 var(--sans); resize: vertical; }
+.note-input:focus { outline: none; border-color: var(--accent); }
+.detail-notes-actions { display: flex; justify-content: flex-end; }
 
 .changes-scroll,
 .history-scroll,

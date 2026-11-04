@@ -938,6 +938,41 @@ export function mount(root: HTMLElement): void {
       case 'history-merge-only':
         dispatch({ type: 'history-merge-only' }, { focusKey: 'history-merge' })
         return
+      case 'history-scope': {
+        const scope = el.dataset.scope
+        if (scope !== 'message' && scope !== 'code') return
+        dispatch({ type: 'history-scope', scope }, { focusKey: `history-scope:${scope}`, scroll: null })
+        return
+      }
+      case 'history-file-menu': {
+        const path = el.dataset.path ?? ''
+        // 同一个按钮开与关：reducer 按「还是这一行」判断，再点一次就收起来。
+        dispatch({ type: 'history-file-menu', path }, { focusKey: `file-more:${path}`, scroll: null })
+        return
+      }
+      case 'history-file-only': {
+        const path = el.dataset.path ?? ''
+        dispatch({ type: 'history-file-only', path }, { focusKey: 'history-query', scroll: null })
+        return
+      }
+      case 'history-file-only-clear':
+        dispatch({ type: 'history-file-only', path: null }, { focusKey: 'history-query', scroll: null })
+        return
+      case 'compare-open':
+        dispatch({ type: 'compare-open' }, { focusKey: 'compare-open', scroll: null })
+        return
+      case 'compare-close':
+        dispatch({ type: 'compare-close' }, { focusKey: 'compare-open', scroll: null })
+        return
+      case 'compare-apply':
+        dispatch({ type: 'compare-apply' }, { focusKey: 'compare-open', scroll: null })
+        return
+      case 'compare-end':
+        dispatch({ type: 'compare-end' }, { focusKey: 'compare-open', scroll: null })
+        return
+      case 'note-save':
+        dispatch({ type: 'note-save' }, { focusKey: 'note-save', scroll: null })
+        return
       case 'ai-worktrees':
         dispatch({ type: 'ai-worktrees' }, { focusKey: 'ai-worktrees' })
         return
@@ -1213,6 +1248,10 @@ export function mount(root: HTMLElement): void {
       syncComposer()
     } else if (field === 'history-query') {
       dispatch({ type: 'history-query', value: target.value }, { focusKey: 'history-query' })
+    } else if (field === 'compare-from' || field === 'compare-to') {
+      dispatch({ type: 'compare-draft', which: field === 'compare-from' ? 'from' : 'to', value: target.value }, { focusKey: field })
+    } else if (field === 'note') {
+      dispatch({ type: 'note-draft', value: target.value }, { focusKey: 'note-input' })
     } else if (field === 'branch-query') {
       dispatch({ type: 'branch-query', value: target.value }, { focusKey: 'branch-query' })
     } else if (field === 'branch-draft') {
@@ -1501,6 +1540,18 @@ export function mount(root: HTMLElement): void {
     if (open !== null && open !== '') state = reduce(state, { type: 'history-open', oid: open }, base)
     const file = params.get('file')
     if (file !== null && file !== '') state = reduce(state, { type: 'history-open-file', path: file }, base)
+    // 历史页三件事的深链：搜索范围、只看某个文件、比较两个引用。
+    // 引用先写好再比，截图脚本不用先点开表单再敲字。
+    const hscope = params.get('hscope')
+    if (hscope === 'code' || hscope === 'message') state = reduce(state, { type: 'history-scope', scope: hscope }, base)
+    const hfile = params.get('hfile')
+    if (hfile !== null && hfile !== '') state = reduce(state, { type: 'history-file-only', path: hfile }, base)
+    if (params.get('hcompare') === '1') state = reduce(state, { type: 'compare-open' }, base)
+    const hfrom = params.get('hfrom')
+    if (hfrom !== null && hfrom !== '') state = reduce(state, { type: 'compare-draft', which: 'from', value: hfrom }, base)
+    const hto = params.get('hto')
+    if (hto !== null && hto !== '') state = reduce(state, { type: 'compare-draft', which: 'to', value: hto }, base)
+    if (params.get('hcompared') === '1') state = reduce(state, { type: 'compare-apply' }, base)
     const filter = params.get('filter')
     if (filter === 'conflict' || filter === 'staged' || filter === 'unstaged') {
       state = reduce(state, { type: 'filter', filter }, base)

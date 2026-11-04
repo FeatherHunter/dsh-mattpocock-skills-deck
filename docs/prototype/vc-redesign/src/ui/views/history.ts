@@ -8,9 +8,10 @@
  * 这一版补上「提交也能补做动作」：每行尾部一个「更多」，菜单紧贴这一行展开；
  * 还原、拣选、撤销都先给一句后果说明，结果条回到列表最上面（也就是刚点的那一行附近）。
  */
-import type { CommitDetailModel, CommitRowModel, HistoryModel } from '../../domain/select'
+import type { CommitDetailModel, CommitRowModel, CompareModel, HistoryFileRowModel, HistoryModel } from '../../domain/select'
 import { COPY } from '../../data/copy'
-import type { ResultMessage } from '../../domain/session'
+import { splitPath } from '../../data/format'
+import type { HistoryScope, ResultMessage } from '../../domain/session'
 import { icon, h } from '../dom'
 import { button, chip, emptyState, note, patchBlock, resultBanner } from '../primitives'
 
@@ -34,12 +35,13 @@ export function renderHistory(model: HistoryModel, options: HistoryViewOptions =
 function renderList(model: HistoryModel, options: HistoryViewOptions): HTMLElement {
   const view = h('div', { class: 'view view-history' })
 
+  const placeholder = model.scope === 'code' ? COPY.history.searchPlaceholderCode : COPY.history.searchPlaceholder(model.total)
   const search = h('input', {
     class: 'search-input',
     attrs: {
       type: 'search',
-      placeholder: COPY.history.searchPlaceholder(model.total),
-      'aria-label': COPY.history.searchPlaceholder(model.total),
+      placeholder,
+      'aria-label': placeholder,
       autocomplete: 'off',
       spellcheck: 'false',
       'data-field': 'history-query',
@@ -48,21 +50,42 @@ function renderList(model: HistoryModel, options: HistoryViewOptions): HTMLEleme
   })
   search.value = model.query
 
+  // 搜索范围贴在搜索框右边：两个字的切换，不另起一屏、不另开一行。
+  const scopeSwitch = h('div', { class: 'scope-switch', attrs: { role: 'group', 'aria-label': COPY.history.scopeLabel } },
+    scopeButton(model, 'message', COPY.history.scopeMessage, COPY.history.scopeMessageHint),
+    scopeButton(model, 'code', COPY.history.scopeCode, COPY.history.scopeCodeHint))
+
+  const tools = h('div', { class: 'history-tools' }, search, scopeSwitch)
+
   const mergeToggle = h('button', {
     class: `toggle-btn${model.mergeOnly ? ' is-on' : ''}`,
     attrs: { type: 'button', 'aria-pressed': model.mergeOnly ? 'true' : 'false', 'data-focus-key': 'history-merge' },
     dataset: { action: 'history-merge-only' },
   }, COPY.history.mergeOnly)
 
-  const tools = h('div', { class: 'history-tools' }, search, mergeToggle)
-  const scope = h('div', { class: 'history-scope', text: model.scopeText })
+  const scopeRow = h('div', { class: 'history-scope-row' },
+    mergeToggle,
+    h('span', { class: 'history-scope', text: model.scopeText }),
+    h('button', {
+      class: `link-btn history-compare${model.compareForm.open ? ' is-on' : ''}`,
+      attrs: { type: 'button', 'aria-expanded': model.compareForm.open ? 'true' : 'false', 'data-focus-key': 'compare-open' },
+      dataset: { action: 'compare-open' },
+    }, COPY.history.compareOpen))
+
+  // 工具条下面这层只在需要时出现：比较表单、比较结果头、或「只看某个文件」的标签。
+  const extra = h('div', { class: 'history-extra' })
+  if (model.compareForm.open) extra.append(renderCompareForm(model))
+  if (model.compare !== null) extra.append(renderCompareHead(model.compare))
+  else if (model.fileOnly !== null) extra.append(renderFileOnlyStrip(model.fileOnly))
 
   const scroll = h('div', { class: 'history-scroll' })
   if (options.result !== null && options.result !== undefined && options.result.source === 'history') {
     scroll.append(resultBanner(options.result))
   }
-  if (model.empty) {
-    scroll.append(emptyState(COPY.history.empty, null))
+  if (model.compare !== null) {
+    scroll.append(renderCompareFiles(model.compare))
+  } else if (model.empty) {
+    scroll.append(emptyState(model.emptyText, null))
   } else {
     for (const row of model.rows) {
       if (row.group !== null) scroll.append(h('div', { class: 'day-group', text: row.group }))
@@ -70,8 +93,97 @@ function renderList(model: HistoryModel, options: HistoryViewOptions): HTMLEleme
     }
   }
 
-  view.append(tools, scope, scroll)
+  view.append(tools, scopeRow)
+  if (extra.childElementCount > 0) view.append(extra)
+  view.append(scroll)
   return view
+}
+
+/** 搜索范围的一颗按钮：选中态既改颜色，也写进 aria-pressed，读屏器能听出来。 */
+function scopeButton(model: HistoryModel, scope: HistoryScope, label: string, hint: string): HTMLElement {
+  const on = model.scope === scope
+  return h('button', {
+    class: `scope-btn${on ? ' is-on' : ''}`,
+    attrs: { type: 'button', 'aria-pressed': on ? 'true' : 'false', title: hint, 'data-focus-key': `history-scope:${scope}` },
+    dataset: { action: 'history-scope', scope },
+  }, label)
+}
+
+/** 比较两个引用的两行表单：从哪条、到哪条，两端都能写 HEAD~N 或短号。 */
+function renderCompareForm(model: HistoryModel): HTMLElement {
+  const input = (field: string, value: string, label: string): HTMLInputElement => {
+    const node = h('input', {
+      class: 'compare-input',
+      attrs: {
+        type: 'text',
+        value,
+        placeholder: label,
+        autocomplete: 'off',
+        spellcheck: 'false',
+        'aria-label': label,
+        'data-field': field,
+        'data-focus-key': field,
+      },
+    })
+    node.value = value
+    return node
+  }
+  return h('div', { class: 'compare-form', attrs: { role: 'group', 'aria-label': COPY.history.compareTitle } },
+    h('div', { class: 'compare-row' },
+      h('span', { class: 'compare-k', text: COPY.history.compareFrom }),
+      input('compare-from', model.compareForm.from, COPY.history.compareFrom)),
+    h('div', { class: 'compare-row' },
+      h('span', { class: 'compare-k', text: COPY.history.compareTo }),
+      input('compare-to', model.compareForm.to, COPY.history.compareTo)),
+    h('p', { class: 'compare-hint', text: COPY.history.compareHint }),
+    h('div', { class: 'compare-actions' },
+      button({ label: COPY.history.compareCancel, kind: 'ghost', size: 'sm', action: 'compare-close', focusKey: 'compare-cancel' }),
+      button({ label: COPY.history.compareApply, kind: 'secondary', size: 'sm', action: 'compare-apply', focusKey: 'compare-apply' })))
+}
+
+/** 比较结果的头：比较的是哪两端、一共几个文件，右边一颗「退出比较」。 */
+function renderCompareHead(compare: CompareModel): HTMLElement {
+  return h('div', { class: 'compare-head' },
+    h('span', { class: 'compare-title' },
+      COPY.history.compareTitle,
+      ' ',
+      h('span', { class: 'mono', text: compare.from }),
+      '..',
+      h('span', { class: 'mono', text: compare.to })),
+    h('span', { class: 'compare-summary', text: compare.summary }),
+    h('button', {
+      class: 'link-btn',
+      attrs: { type: 'button', 'data-focus-key': 'compare-end' },
+      dataset: { action: 'compare-end' },
+    }, COPY.history.compareEnd))
+}
+
+/** 比较结果的正文：只列文件与增删行数，原型不算真实差异。 */
+function renderCompareFiles(compare: CompareModel): HTMLElement {
+  const list = h('div', { class: 'compare-files' })
+  list.append(h('div', { class: 'compare-files-note' }, note(compare.note, 'muted')))
+  for (const file of compare.files) {
+    list.append(h('div', { class: 'file-row compare-file', attrs: { title: file.path } },
+      h('span', { class: 'file-path' },
+        h('span', { class: 'file-dir', text: file.dir }),
+        h('span', { class: 'file-name', text: file.name })),
+      h('span', { class: 'file-delta' },
+        file.delta.added === null ? null : h('span', { class: 'dl-add', text: file.delta.added }),
+        file.delta.deleted === null ? null : h('span', { class: 'dl-del', text: file.delta.deleted }))))
+  }
+  return list
+}
+
+/** 「只看某个文件」的标签：写明是哪个文件，右边一个叉把它去掉。 */
+function renderFileOnlyStrip(path: string): HTMLElement {
+  return h('div', { class: 'history-file-only' },
+    h('span', { class: 'file-only-lead', text: COPY.history.fileOnlyLead }),
+    h('span', { class: 'file-only-path mono', text: path, title: path }),
+    h('button', {
+      class: 'file-only-clear',
+      attrs: { type: 'button', 'aria-label': COPY.history.fileOnlyClear, title: COPY.history.fileOnlyClear },
+      dataset: { action: 'history-file-only-clear' },
+    }, '×'))
 }
 
 /** 一行提交 = 可点主体 + 行尾「更多」按钮；两者是兄弟节点，不嵌套可点元素。 */
@@ -95,10 +207,16 @@ function renderCommitLine(row: CommitRowModel, model: HistoryModel, options: His
       h('span', { class: 'commit-author', text: row.author }),
       h('span', { class: 'commit-when', text: row.when }),
       row.filesCount > 0 ? h('span', { class: 'commit-files', text: `${row.filesCount} 个文件` }) : null,
-      // 这条提交是怎么记下来的：修订、fixup、跳过钩子、已签名在行上就能看见。
-      row.marks.length === 0
+      // 这条提交是怎么记下来的：修订、fixup、跳过钩子、已签名在行上就能看见；
+      // 按代码搜时再加一枚「命中 文件名」，写过备注的再加一枚「备注」。
+      row.marks.length === 0 && row.hitPath === null && !row.hasNote
         ? null
-        : h('span', { class: 'commit-marks' }, ...row.marks.map((mark) => chip(mark, 'warn', { small: true, title: mark })))),
+        : h('span', { class: 'commit-marks' },
+          ...row.marks.map((mark) => chip(mark, 'warn', { small: true, title: mark })),
+          row.hitPath === null
+            ? null
+            : chip(`${COPY.history.hitTag}${splitPath(row.hitPath).name}`, 'info', { small: true, title: row.hitPath }),
+          row.hasNote ? chip(COPY.history.noteTag, 'ok', { small: true, title: COPY.history.noteSaved }) : null)),
     h('span', { class: 'commit-chevron' }, icon('chevron', 12))),
     h('button', {
       class: `commit-more${menuOpen ? ' is-open' : ''}`,
@@ -186,6 +304,45 @@ function subjectNodeOf(row: CommitRowModel): HTMLElement {
     h('span', { class: 'commit-merge-raw mono', text: row.subject }))
 }
 
+/** 提交详情里文件行的菜单：目前只有一条「看这个文件的历史」——它是从这一行发起的追问。 */
+function renderFileMenu(file: HistoryFileRowModel): HTMLElement {
+  const menu = h('div', { class: 'row-menu', attrs: { role: 'menu', 'aria-label': COPY.history.fileMenuOpen } })
+  menu.append(h('button', {
+    class: 'row-menu-item',
+    attrs: { type: 'button', role: 'menuitem' },
+    dataset: { action: 'history-file-only', path: file.path },
+  }, COPY.history.fileHistory))
+  menu.append(h('button', {
+    class: 'row-menu-item is-close',
+    attrs: { type: 'button', 'aria-label': COPY.history.menuClose },
+    dataset: { action: 'history-file-menu', path: file.path },
+  }, COPY.history.menuClose))
+  return menu
+}
+
+/** 详情底部的备注段：一条提交的注解，写在这里、跟着这条提交走。 */
+function renderNoteSection(detail: CommitDetailModel): HTMLElement {
+  const input = h('textarea', {
+    class: 'note-input',
+    attrs: {
+      rows: 2,
+      placeholder: COPY.history.notePlaceholder,
+      'aria-label': COPY.history.noteTitle,
+      'data-field': 'note',
+      'data-focus-key': 'note-input',
+    },
+  })
+  input.value = detail.note
+  return h('div', { class: 'detail-notes' },
+    h('div', { class: 'detail-notes-head' },
+      h('h3', { class: 'detail-notes-title', text: COPY.history.noteTitle }),
+      detail.noteSaved ? chip(COPY.history.noteSaved, 'ok', { small: true }) : null),
+    h('p', { class: 'detail-notes-hint', text: COPY.history.noteHint }),
+    input,
+    h('div', { class: 'detail-notes-actions' },
+      button({ label: COPY.history.noteSave, kind: 'secondary', size: 'sm', action: 'note-save', focusKey: 'note-save' })))
+}
+
 function renderDetail(detail: CommitDetailModel, options: HistoryViewOptions): HTMLElement {
   const view = h('div', { class: 'view view-detail' })
 
@@ -247,7 +404,26 @@ function renderDetail(detail: CommitDetailModel, options: HistoryViewOptions): H
       file.delta.added === null ? null : h('span', { class: 'dl-add', text: file.delta.added }),
       file.delta.deleted === null ? null : h('span', { class: 'dl-del', text: file.delta.deleted })))
     fileNode.append(h('span', { class: `row-chevron${file.expanded ? ' is-open' : ''}` }, icon('chevron', 12)))
-    files.append(fileNode)
+
+    // 行尾的「更多」与行本身是兄弟节点：一行是一个可点主体，菜单不能嵌在它里面。
+    const menuOpen = detail.fileMenuPath === file.path
+    const line = h('div', { class: 'commit-file-line' },
+      fileNode,
+      h('button', {
+        class: `row-act commit-file-more${menuOpen ? ' is-open' : ''}`,
+        attrs: {
+          type: 'button',
+          'aria-haspopup': 'true',
+          'aria-expanded': menuOpen ? 'true' : 'false',
+          'aria-label': COPY.history.fileMenuOpen,
+          title: COPY.history.fileMenuOpen,
+          'data-focus-key': `file-more:${file.path}`,
+        },
+        dataset: { action: 'history-file-menu', path: file.path },
+      }, h('span', { class: 'row-more-dots', text: '⋯', attrs: { 'aria-hidden': 'true' } })))
+
+    const wrap = h('div', { class: 'commit-file-wrap' }, line)
+    if (menuOpen) wrap.append(renderFileMenu(file))
     if (file.expanded) {
       const body = h('div', { class: 'file-detail' })
       if (file.patch !== null) {
@@ -256,10 +432,12 @@ function renderDetail(detail: CommitDetailModel, options: HistoryViewOptions): H
       } else {
         body.append(note('这个扩展名没有可展示的示例补丁。'))
       }
-      files.append(body)
+      wrap.append(body)
     }
+    files.append(wrap)
   }
   scroll.append(files)
+  scroll.append(renderNoteSection(detail))
   if (options.result !== null && options.result !== undefined && options.result.source === 'history') {
     scroll.append(resultBanner(options.result))
   }

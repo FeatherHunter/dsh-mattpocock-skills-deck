@@ -236,9 +236,37 @@
     },
     history: {
       searchPlaceholder: (loaded) => `\u5728\u5DF2\u52A0\u8F7D\u7684 ${loaded} \u6761\u63D0\u4EA4\u91CC\u7B5B\u9009`,
+      searchPlaceholderCode: "\u6309\u6587\u4EF6\u8DEF\u5F84\u641C\u8FD9\u6B21\u6539\u4E86\u4EC0\u4E48",
       mergeOnly: "\u53EA\u770B\u5408\u5E76",
       loadedCount: (loaded, total) => `\u5DF2\u52A0\u8F7D ${loaded} \u6761\uFF0C\u5171 ${total} \u6761`,
       empty: "\u5DF2\u52A0\u8F7D\u7684\u63D0\u4EA4\u91CC\u6CA1\u6709\u5339\u914D\u9879\u3002",
+      scopeLabel: "\u641C\u7D22\u8303\u56F4",
+      scopeMessage: "\u8BF4\u660E",
+      scopeCode: "\u4EE3\u7801\u53D8\u5316",
+      scopeMessageHint: "\u6309\u63D0\u4EA4\u8BF4\u660E\u3001\u4F5C\u8005\u6216\u77ED\u53F7\u627E",
+      scopeCodeHint: "\u6309\u8FD9\u6B21\u63D0\u4EA4\u6539\u5230\u7684\u6587\u4EF6\u627E",
+      emptyCode: "\u6CA1\u6709\u63D0\u4EA4\u6539\u5230\u5339\u914D\u8FD9\u4E9B\u6587\u5B57\u7684\u6587\u4EF6\u3002",
+      hitTag: "\u547D\u4E2D ",
+      emptyFileOnly: (name) => `\u6CA1\u6709\u63D0\u4EA4\u6539\u8FC7 ${name}\u3002`,
+      fileOnlyLead: "\u53EA\u770B",
+      fileOnlyClear: "\u4E0D\u518D\u53EA\u770B\u8FD9\u4E2A\u6587\u4EF6",
+      fileHistory: "\u770B\u8FD9\u4E2A\u6587\u4EF6\u7684\u5386\u53F2",
+      fileMenuOpen: "\u8FD9\u4E2A\u6587\u4EF6\u7684\u66F4\u591A\u64CD\u4F5C",
+      compareOpen: "\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528",
+      compareTitle: "\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528",
+      compareFrom: "\u4ECE",
+      compareTo: "\u5230",
+      compareHint: "\u53EF\u4EE5\u5199 HEAD\u3001HEAD~2\uFF0C\u4E5F\u53EF\u4EE5\u6284\u5217\u8868\u91CC\u7684\u77ED\u53F7\u3002",
+      compareApply: "\u6BD4\u8F83",
+      compareCancel: "\u53D6\u6D88",
+      compareEnd: "\u9000\u51FA\u6BD4\u8F83",
+      compareNote: "\u539F\u578B\u6309\u540E\u4E00\u4E2A\u5F15\u7528\u90A3\u6761\u63D0\u4EA4\u7684\u6587\u4EF6\u6E05\u5355\u793A\u610F\uFF0C\u4E0D\u8BA1\u7B97\u4E24\u4E2A\u5F15\u7528\u4E4B\u95F4\u771F\u5B9E\u7684\u884C\u7EA7\u5DEE\u5F02\u3002",
+      noteTitle: "\u63D0\u4EA4\u5907\u6CE8",
+      noteHint: "\u5907\u6CE8\u6302\u5728\u63D0\u4EA4\u4E0A\uFF0C\u4E0D\u6539\u63D0\u4EA4\u5185\u5BB9\uFF1B\u5B58\u5728 refs/notes \u91CC\uFF0C\u9ED8\u8BA4\u4E0D\u4F1A\u968F\u63D0\u4EA4\u4E00\u8D77\u63A8\u9001\u3002",
+      notePlaceholder: "\u7ED9\u8FD9\u6761\u63D0\u4EA4\u5199\u4E00\u53E5\u5907\u6CE8\uFF0C\u4F8B\u5982\u300C\u8FD9\u4E00\u7248\u4E3A\u4E86\u517C\u5BB9\u65E7\u6570\u636E\u300D",
+      noteSave: "\u4FDD\u5B58\u5907\u6CE8",
+      noteTag: "\u5907\u6CE8",
+      noteSaved: "\u5DF2\u6709\u5907\u6CE8",
       groupToday: "\u4ECA\u5929",
       groupYesterday: "\u6628\u5929",
       groupDate: (month, day) => `${month} \u6708 ${day} \u65E5`,
@@ -3720,6 +3748,15 @@
       historyMergeOnly: false,
       historyOpenOid: null,
       historyOpenFile: null,
+      historyScope: "message",
+      historyFileOnly: null,
+      historyFileMenu: null,
+      compareOpen: false,
+      compareFrom: "HEAD~1",
+      compareTo: "HEAD",
+      compare: null,
+      commitNotes: {},
+      noteDraft: "",
       localCommits: [],
       copiedPath: null,
       demoWorktrees: false,
@@ -4170,11 +4207,94 @@
       case "history-merge-only":
         return { ...state, historyMergeOnly: !state.historyMergeOnly };
       case "history-open":
-        return { ...state, historyOpenOid: action.oid, historyOpenFile: null };
+        return {
+          ...state,
+          historyOpenOid: action.oid,
+          historyOpenFile: null,
+          historyFileMenu: null,
+          noteDraft: state.commitNotes[action.oid] ?? ""
+        };
       case "history-open-file":
         return { ...state, historyOpenFile: state.historyOpenFile === action.path ? null : action.path };
       case "history-back":
-        return { ...state, historyOpenOid: null, historyOpenFile: null };
+        return { ...state, historyOpenOid: null, historyOpenFile: null, historyFileMenu: null };
+      case "history-scope":
+        return state.historyScope === action.scope ? state : { ...state, historyScope: action.scope };
+      /*
+       * 单文件历史：从提交详情的文件行走过来，回到列表并只留下改过这个文件的提交。
+       * 筛选开着的时候比较结果先收起——「只看一个文件」和「比较两个引用」是两种读法，
+       * 同时开着会让列表既是过滤结果又是比较结果，读者分不清在看哪一种。
+       */
+      case "history-file-only": {
+        if (action.path === null) return { ...state, historyFileOnly: null, historyFileMenu: null };
+        if (action.path === state.historyFileOnly) return { ...state, historyFileMenu: null };
+        const name = nameOfPath(action.path);
+        return withResult({
+          ...state,
+          historyFileOnly: action.path,
+          historyOpenOid: null,
+          historyOpenFile: null,
+          historyFileMenu: null,
+          compare: null,
+          compareOpen: false
+        }, {
+          tone: "info",
+          text: `\u73B0\u5728\u53EA\u770B ${name} \u7684\u5386\u53F2\u3002`,
+          detail: "\u5217\u8868\u53EA\u7559\u4E0B\u6539\u8FC7\u8FD9\u4E2A\u6587\u4EF6\u7684\u63D0\u4EA4\uFF1B\u5217\u8868\u9876\u4E0A\u90A3\u679A\u300C\u53EA\u770B \u2026\u300D\u6807\u7B7E\u53EF\u4EE5\u70B9\u6389\uFF0C\u56DE\u5230\u5168\u90E8\u5386\u53F2\u3002",
+          source: "history"
+        });
+      }
+      case "history-file-menu":
+        return { ...state, historyFileMenu: state.historyFileMenu === action.path ? null : action.path };
+      case "compare-open":
+        return { ...state, compareOpen: !state.compareOpen };
+      case "compare-close":
+        return { ...state, compareOpen: false };
+      case "compare-draft":
+        return action.which === "from" ? { ...state, compareFrom: action.value } : { ...state, compareTo: action.value };
+      case "compare-apply": {
+        const from = resolveRef(base, state, state.compareFrom);
+        const to = resolveRef(base, state, state.compareTo);
+        if (from === null || to === null) {
+          return withResult(state, {
+            tone: "error",
+            text: from === null ? `\u627E\u4E0D\u5230\u300C${state.compareFrom.trim()}\u300D\u8FD9\u4E2A\u5F15\u7528\u3002` : `\u627E\u4E0D\u5230\u300C${state.compareTo.trim()}\u300D\u8FD9\u4E2A\u5F15\u7528\u3002`,
+            detail: "\u53EF\u4EE5\u5199 HEAD\u3001HEAD~2\uFF0C\u6216\u8005\u5217\u8868\u91CC\u90A3\u6761\u63D0\u4EA4\u7684\u77ED\u53F7\uFF1B\u4E24\u7AEF\u90FD\u8981\u80FD\u5BF9\u4E0A\u4E00\u6761\u63D0\u4EA4\u3002",
+            source: "history"
+          });
+        }
+        if (from.oid === to.oid) {
+          return withResult(state, { tone: "error", text: "\u4E24\u7AEF\u662F\u540C\u4E00\u4E2A\u63D0\u4EA4\uFF0C\u6CA1\u6709\u53EF\u6BD4\u8F83\u7684\u5185\u5BB9\u3002", detail: "\u628A\u5176\u4E2D\u4E00\u7AEF\u6362\u6210\u66F4\u65E9\u7684\u63D0\u4EA4\uFF0C\u6216\u8005\u5199 HEAD~1\u3002", source: "history" });
+        }
+        return {
+          ...state,
+          compareOpen: false,
+          compare: { fromOid: from.oid, fromShort: from.short, toOid: to.oid, toShort: to.short },
+          result: null
+        };
+      }
+      case "compare-end":
+        return { ...state, compare: null };
+      case "note-draft":
+        return { ...state, noteDraft: action.value };
+      case "note-save": {
+        const oid = state.historyOpenOid;
+        if (oid === null) return state;
+        const text = state.noteDraft.trim();
+        const had = state.commitNotes[oid] !== void 0;
+        if (text === "" && !had) {
+          return withResult(state, { tone: "info", text: "\u5907\u6CE8\u662F\u7A7A\u7684\uFF0C\u6CA1\u6709\u4FDD\u5B58\u3002", detail: "\u5199\u4E00\u4E24\u53E5\u518D\u4FDD\u5B58\uFF1B\u5907\u6CE8\u6302\u5728\u63D0\u4EA4\u4E0A\uFF0C\u4E0D\u6539\u63D0\u4EA4\u672C\u8EAB\u3002", source: "history" });
+        }
+        const notes = { ...state.commitNotes };
+        if (text === "") delete notes[oid];
+        else notes[oid] = text;
+        return withResult({ ...state, commitNotes: notes, noteDraft: text }, {
+          tone: "ok",
+          text: text === "" ? "\u5DF2\u5220\u9664\u8FD9\u6761\u63D0\u4EA4\u7684\u5907\u6CE8\u3002" : "\u5DF2\u4FDD\u5B58\u8FD9\u6761\u63D0\u4EA4\u7684\u5907\u6CE8\u3002",
+          detail: "\u5907\u6CE8\u5B58\u5728 refs/notes \u91CC\uFF0C\u8DDF\u7740\u4ED3\u5E93\u8D70\uFF1B\u5B83\u4E0D\u6539\u53D8\u63D0\u4EA4\u672C\u8EAB\uFF0C\u63A8\u9001\u65F6\u4E5F\u8981\u53E6\u5916\u63A8\u8FD9\u4EFD\u5F15\u7528\u3002",
+          source: "history"
+        });
+      }
       case "result-clear":
         return state.result === null ? state : { ...state, result: null };
       case "copy":
@@ -4633,6 +4753,24 @@
     if (meta.addedLines !== null && meta.addedLines > 0) parts.push(`\u65B0\u589E ${meta.addedLines} \u884C`);
     if (meta.deletedLines !== null && meta.deletedLines > 0) parts.push(`\u5220\u9664 ${meta.deletedLines} \u884C`);
     return parts.join("\uFF0C");
+  }
+  function refListOf(base, state) {
+    const local = state.localCommits.map((commit) => ({ oid: commit.oid, short: commit.short }));
+    const total = Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1));
+    const keep = Math.max(0, total - local.length);
+    const captured = base.screen.commits.filter((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid).slice(0, keep).map((commit) => ({ oid: commit.oid, short: commit.short }));
+    return [...local, ...captured];
+  }
+  function resolveRef(base, state, text) {
+    const raw = text.trim();
+    if (raw === "") return null;
+    const refs = refListOf(base, state);
+    const head = /^HEAD(?:~(\d+))?$/i.exec(raw);
+    if (head !== null) {
+      const back = head[1] === void 0 ? 0 : Number(head[1]);
+      return refs[back] ?? null;
+    }
+    return refs.find((ref) => ref.oid.startsWith(raw) || ref.short === raw) ?? null;
   }
   function headInfoOf(base, state) {
     const local = state.localCommits[0];
@@ -5196,15 +5334,21 @@
   function historyTotal(base, state) {
     return Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1));
   }
-  function matchesQuery(entry, query) {
-    if (query === "") return true;
-    const needle = query.trim().toLowerCase();
-    if (needle === "") return true;
-    return entry.subject.toLowerCase().includes(needle) || entry.author.toLowerCase().includes(needle) || entry.short.toLowerCase().includes(needle);
-  }
   function historyOf(base, state, nowMs) {
     const entries = historyEntries(base, state);
-    const filtered = entries.filter((entry) => matchesQuery(entry, state.historyQuery) && (!state.historyMergeOnly || entry.parents.length > 1));
+    const needle = state.historyQuery.trim().toLowerCase();
+    const codeScope = state.historyScope === "code";
+    const hitOf = (entry) => {
+      if (!codeScope || needle === "") return null;
+      return entry.files.find((file) => file.path.toLowerCase().includes(needle))?.path ?? null;
+    };
+    const matchesQuery = (entry) => {
+      if (needle === "") return true;
+      if (codeScope) return hitOf(entry) !== null;
+      return entry.subject.toLowerCase().includes(needle) || entry.author.toLowerCase().includes(needle) || entry.short.toLowerCase().includes(needle);
+    };
+    const matchesFile = (entry) => state.historyFileOnly === null || entry.files.some((file) => file.path === state.historyFileOnly);
+    const filtered = entries.filter((entry) => matchesFile(entry) && matchesQuery(entry) && (!state.historyMergeOnly || entry.parents.length > 1));
     let previousGroup = "";
     const rows = filtered.map((entry) => {
       const group = dayGroupLabel(nowMs, entry.authorDateMs);
@@ -5220,7 +5364,9 @@
         filesCount: entry.files.length,
         group: groupLabel,
         selected: state.historyOpenOid === entry.oid,
-        marks: entry.marks
+        marks: entry.marks,
+        hasNote: state.commitNotes[entry.oid] !== void 0,
+        hitPath: hitOf(entry)
       };
     });
     let detail = null;
@@ -5251,10 +5397,35 @@
           parents: entry.parents.map(shortOid),
           files,
           filesNote: entry.files.length === 0 ? merge ? COPY.history.filesEmptyMerge : COPY.history.filesEmpty : null,
-          loading: false
+          loading: false,
+          note: state.commitNotes[entry.oid] ?? "",
+          noteSaved: state.commitNotes[entry.oid] !== void 0,
+          fileMenuPath: state.historyFileMenu
         };
       }
     }
+    let compare = null;
+    const compared = state.compare;
+    if (compared !== null) {
+      const target = entries.find((entry) => entry.oid === compared.toOid);
+      const files = (target?.files ?? []).map((file) => {
+        const { dir, name } = splitPath(file.path);
+        return { path: file.path, dir, name, delta: lineDelta(file.added, file.deleted) };
+      });
+      const added = (target?.files ?? []).reduce((sum, file) => sum + file.added, 0);
+      const deleted = (target?.files ?? []).reduce((sum, file) => sum + file.deleted, 0);
+      const parts = [`${files.length} \u4E2A\u6587\u4EF6`];
+      if (added > 0) parts.push(`+${added}`);
+      if (deleted > 0) parts.push(`\u2212${deleted}`);
+      compare = {
+        from: compared.fromShort,
+        to: compared.toShort,
+        files,
+        summary: parts.join("\uFF0C"),
+        note: COPY.history.compareNote
+      };
+    }
+    const emptyText = state.historyFileOnly !== null ? COPY.history.emptyFileOnly(splitPath(state.historyFileOnly).name) : codeScope && needle !== "" ? COPY.history.emptyCode : COPY.history.empty;
     return {
       detail,
       rows,
@@ -5263,6 +5434,11 @@
       query: state.historyQuery,
       mergeOnly: state.historyMergeOnly,
       empty: rows.length === 0,
+      emptyText,
+      scope: state.historyScope,
+      fileOnly: state.historyFileOnly,
+      compare,
+      compareForm: { open: state.compareOpen, from: state.compareFrom, to: state.compareTo },
       scopeText: COPY.history.loadedCount(rows.length, historyTotal(base, state)),
       mergeOnlyText: COPY.history.mergeOnly
     };
@@ -7761,12 +7937,12 @@
     { id: "3.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u5217\u8868", status: "\u5DF2\u753B" },
     { id: "3.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u70B9\u5F00\u4E00\u884C\u63D0\u4EA4\u540E\u7684\u8BE6\u60C5\u9875", status: "\u5DF2\u753B" },
     { id: "3.3", form: "\u53EF\u5C55\u5F00\u533A", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u70B9\u5F00\u67D0\u4E2A\u6587\u4EF6\u7684\u9010\u884C\u5DEE\u5F02", status: "\u5DF2\u753B" },
-    { id: "3.4", form: "\u884C\u5C3E\u83DC\u5355", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u6587\u4EF6\u884C\u7684\u300C\u770B\u8FD9\u4E2A\u6587\u4EF6\u7684\u5386\u53F2\u300D", status: "\u5F85\u753B", reason: "\u5355\u6587\u4EF6\u5386\u53F2\u662F\u4ECE\u4E00\u6761\u63D0\u4EA4\u91CC\u7684\u67D0\u4E2A\u6587\u4EF6\u53D1\u8D77\u7684\u8FFD\u95EE\uFF0C\u5165\u53E3\u8D34\u5728\u90A3\u4E2A\u6587\u4EF6\u884C\u4E0A\uFF1B\u4E0D\u653E\u8FDB\u5168\u5E93\u641C\u7D22\uFF08\u90A3\u91CC\u6309\u8BF4\u660E\u641C\uFF09\uFF0C\u4E5F\u4E0D\u653E\u63D0\u4EA4\u884C\u83DC\u5355\uFF08\u90A3\u91CC\u662F\u5BF9\u6574\u6761\u63D0\u4EA4\u505A\u52A8\u4F5C\uFF09\u3002" },
+    { id: "3.4", form: "\u884C\u5C3E\u83DC\u5355", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u6587\u4EF6\u884C\u5C3E\u300C\u66F4\u591A\u300D\u2192\u300C\u770B\u8FD9\u4E2A\u6587\u4EF6\u7684\u5386\u53F2\u300D\uFF1A\u56DE\u5230\u5217\u8868\u5E76\u52A0\u4E00\u679A\u53EF\u70B9\u6389\u7684\u300C\u53EA\u770B <\u6587\u4EF6>\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5355\u6587\u4EF6\u5386\u53F2\u662F\u4ECE\u4E00\u6761\u63D0\u4EA4\u91CC\u7684\u67D0\u4E2A\u6587\u4EF6\u53D1\u8D77\u7684\u8FFD\u95EE\uFF0C\u5165\u53E3\u8D34\u5728\u90A3\u4E2A\u6587\u4EF6\u884C\u4E0A\uFF1B\u4E0D\u653E\u8FDB\u5168\u5E93\u641C\u7D22\uFF08\u90A3\u91CC\u6309\u8BF4\u660E\u641C\uFF09\uFF0C\u4E5F\u4E0D\u653E\u63D0\u4EA4\u884C\u83DC\u5355\uFF08\u90A3\u91CC\u662F\u5BF9\u6574\u6761\u63D0\u4EA4\u505A\u52A8\u4F5C\uFF09\u3002" },
     { id: "3.6", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u9876\u90E8\u7684\u7B5B\u9009\u6846", status: "\u5DF2\u753B" },
-    { id: "3.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u7B5B\u9009\u6846\u65C1\u7684\u300C\u6309\u4EE3\u7801\u53D8\u5316\u641C\u300D\u8303\u56F4\u5207\u6362", status: "\u5F85\u753B", reason: "\u5B83\u548C\u6309\u8BF4\u660E\u641C\u662F\u540C\u4E00\u4E2A\u641C\u7D22\u6846\u7684\u4E24\u79CD\u8303\u56F4\uFF0C\u505A\u6210\u7B5B\u9009\u6846\u65C1\u8FB9\u7684\u8303\u56F4\u5207\u6362\uFF1B\u4E0D\u5355\u72EC\u5F00\u4E00\u5C4F\uFF0C\u56E0\u4E3A\u7ED3\u679C\u4ECD\u7136\u843D\u5728\u8FD9\u4E2A\u5217\u8868\u91CC\u3002" },
-    { id: "3.8", form: "\u547D\u4EE4\u9762\u677F\u9884\u7F6E", at: "\u63D0\u4EA4\u5386\u53F2\u5DE5\u5177\u6761\u7684\u300C\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528\u300D\uFF0C\u6253\u5F00\u4E00\u4E2A\u4E24\u884C\u9009\u62E9\u8868\u5355", status: "\u5F85\u753B", reason: "\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528\u8981\u5148\u9009\u4E24\u4E2A\u5BF9\u8C61\uFF0C\u9762\u677F\u91CC\u7ED9\u5B83\u4E00\u5F20\u4E24\u884C\u8868\u5355\uFF1B\u4E0D\u653E\u5728\u63D0\u4EA4\u884C\u83DC\u5355\uFF0C\u56E0\u4E3A\u5B83\u662F\u4E24\u4E24\u6BD4\u8F83\uFF0C\u4E0D\u662F\u5BF9\u4E00\u884C\u505A\u52A8\u4F5C\u3002" },
+    { id: "3.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u641C\u7D22\u6846\u65C1\u7684\u300C\u8BF4\u660E / \u4EE3\u7801\u53D8\u5316\u300D\u8303\u56F4\u5207\u6362\uFF1B\u547D\u4E2D\u884C\u6807\u51FA\u662F\u54EA\u4EFD\u6587\u4EF6\u5BF9\u4E0A\u4E86", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u548C\u6309\u8BF4\u660E\u641C\u662F\u540C\u4E00\u4E2A\u641C\u7D22\u6846\u7684\u4E24\u79CD\u8303\u56F4\uFF0C\u505A\u6210\u7B5B\u9009\u6846\u65C1\u8FB9\u7684\u8303\u56F4\u5207\u6362\uFF1B\u4E0D\u5355\u72EC\u5F00\u4E00\u5C4F\uFF0C\u56E0\u4E3A\u7ED3\u679C\u4ECD\u7136\u843D\u5728\u8FD9\u4E2A\u5217\u8868\u91CC\u3002" },
+    { id: "3.8", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u5DE5\u5177\u6761\u7684\u300C\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528\u300D\uFF1A\u4E24\u884C\u8868\u5355\uFF08\u4ECE / \u5230\uFF09\uFF0C\u7ED3\u679C\u5934\u4E0E\u6587\u4EF6\u6E05\u5355\u8D34\u5728\u5217\u8868\u9876\u90E8\uFF0C\u53EF\u9000\u51FA\u6BD4\u8F83", status: "\u672C\u7968\u5DF2\u753B", reason: "\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528\u8981\u5148\u9009\u4E24\u4E2A\u5BF9\u8C61\uFF0C\u9762\u677F\u91CC\u7ED9\u5B83\u4E00\u5F20\u4E24\u884C\u8868\u5355\uFF1B\u4E0D\u653E\u5728\u63D0\u4EA4\u884C\u83DC\u5355\uFF0C\u56E0\u4E3A\u5B83\u662F\u4E24\u4E24\u6BD4\u8F83\uFF0C\u4E0D\u662F\u5BF9\u4E00\u884C\u505A\u52A8\u4F5C\u3002" },
     { id: "3.10", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u63D0\u4EA4\u8BE6\u60C5\u9876\u90E8\u7684\u4E00\u884C\u300C\u7248\u672C\u540D\u300D\u8BFB\u6570", status: "\u53EA\u8BFB", reason: "\u7248\u672C\u540D\u662F git describe \u7684\u53EA\u8BFB\u7ED3\u679C\uFF0C\u9762\u677F\u5728\u8BE6\u60C5\u91CC\u7ED9\u4E00\u884C\u8BFB\u6570\uFF0C\u4E0D\u753B\u63A7\u4EF6\u3002" },
-    { id: "3.12", form: "\u53EF\u5C55\u5F00\u533A", at: "\u63D0\u4EA4\u8BE6\u60C5\u5E95\u90E8\u7684\u300C\u63D0\u4EA4\u5907\u6CE8\u300D", status: "\u5F85\u753B", reason: "\u5907\u6CE8\u6302\u5728\u4E00\u6761\u63D0\u4EA4\u4E0A\uFF0C\u8DDF\u7740\u8BE6\u60C5\u8D70\uFF1B\u4E0D\u653E\u8FDB\u5168\u5E93\u641C\u7D22\uFF0C\u56E0\u4E3A\u5B83\u662F\u7ED9\u8FD9\u6761\u63D0\u4EA4\u505A\u7684\u6CE8\u89E3\uFF0C\u4E0D\u662F\u67E5\u627E\u5165\u53E3\u3002" },
+    { id: "3.12", form: "\u53EF\u5C55\u5F00\u533A", at: "\u63D0\u4EA4\u8BE6\u60C5\u5E95\u90E8\u7684\u300C\u63D0\u4EA4\u5907\u6CE8\u300D\uFF1A\u5199\u4E00\u53E5\u3001\u4FDD\u5B58\uFF0C\u5217\u8868\u884C\u4E0A\u591A\u4E00\u679A\u300C\u5907\u6CE8\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5907\u6CE8\u6302\u5728\u4E00\u6761\u63D0\u4EA4\u4E0A\uFF0C\u8DDF\u7740\u8BE6\u60C5\u8D70\uFF1B\u4E0D\u653E\u8FDB\u5168\u5E93\u641C\u7D22\uFF0C\u56E0\u4E3A\u5B83\u662F\u7ED9\u8FD9\u6761\u63D0\u4EA4\u505A\u7684\u6CE8\u89E3\uFF0C\u4E0D\u662F\u67E5\u627E\u5165\u53E3\u3002" },
     { id: "3.13", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u300C\u53D6\u8FD9\u4E2A\u7248\u672C\u7684\u6587\u4EF6\u5185\u5BB9\u300D\u7684\u53EA\u8BFB\u5F62\u72B6", status: "\u53EA\u8BFB", reason: "\u53D6\u67D0\u4E2A\u7248\u672C\u7684\u6587\u4EF6\u5185\u5BB9\u662F\u53EA\u8BFB\u8BCA\u65AD\uFF0C\u9762\u677F\u5728\u8BE6\u60C5\u91CC\u5C55\u793A\u5B83\u8BFB\u5230\u7684\u6587\u4EF6\u4E0E\u4F53\u79EF\uFF0C\u4E0D\u753B\u6267\u884C\u6309\u94AE\u3002" },
     // —— 工作区页 ——
     { id: "9.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5DE5\u4F5C\u533A\u9875\u7684\u5F53\u524D\u5DE5\u4F5C\u533A\u5361\u4E0E\u5176\u4ED6\u5DE5\u4F5C\u533A\u5217\u8868", status: "\u5DF2\u753B" },
@@ -9142,12 +9318,13 @@
   }
   function renderList2(model, options) {
     const view = h("div", { class: "view view-history" });
+    const placeholder = model.scope === "code" ? COPY.history.searchPlaceholderCode : COPY.history.searchPlaceholder(model.total);
     const search = h("input", {
       class: "search-input",
       attrs: {
         type: "search",
-        placeholder: COPY.history.searchPlaceholder(model.total),
-        "aria-label": COPY.history.searchPlaceholder(model.total),
+        placeholder,
+        "aria-label": placeholder,
         autocomplete: "off",
         spellcheck: "false",
         "data-field": "history-query",
@@ -9155,27 +9332,158 @@
       }
     });
     search.value = model.query;
+    const scopeSwitch = h(
+      "div",
+      { class: "scope-switch", attrs: { role: "group", "aria-label": COPY.history.scopeLabel } },
+      scopeButton(model, "message", COPY.history.scopeMessage, COPY.history.scopeMessageHint),
+      scopeButton(model, "code", COPY.history.scopeCode, COPY.history.scopeCodeHint)
+    );
+    const tools = h("div", { class: "history-tools" }, search, scopeSwitch);
     const mergeToggle = h("button", {
       class: `toggle-btn${model.mergeOnly ? " is-on" : ""}`,
       attrs: { type: "button", "aria-pressed": model.mergeOnly ? "true" : "false", "data-focus-key": "history-merge" },
       dataset: { action: "history-merge-only" }
     }, COPY.history.mergeOnly);
-    const tools = h("div", { class: "history-tools" }, search, mergeToggle);
-    const scope = h("div", { class: "history-scope", text: model.scopeText });
+    const scopeRow = h(
+      "div",
+      { class: "history-scope-row" },
+      mergeToggle,
+      h("span", { class: "history-scope", text: model.scopeText }),
+      h("button", {
+        class: `link-btn history-compare${model.compareForm.open ? " is-on" : ""}`,
+        attrs: { type: "button", "aria-expanded": model.compareForm.open ? "true" : "false", "data-focus-key": "compare-open" },
+        dataset: { action: "compare-open" }
+      }, COPY.history.compareOpen)
+    );
+    const extra = h("div", { class: "history-extra" });
+    if (model.compareForm.open) extra.append(renderCompareForm(model));
+    if (model.compare !== null) extra.append(renderCompareHead(model.compare));
+    else if (model.fileOnly !== null) extra.append(renderFileOnlyStrip(model.fileOnly));
     const scroll = h("div", { class: "history-scroll" });
     if (options.result !== null && options.result !== void 0 && options.result.source === "history") {
       scroll.append(resultBanner(options.result));
     }
-    if (model.empty) {
-      scroll.append(emptyState(COPY.history.empty, null));
+    if (model.compare !== null) {
+      scroll.append(renderCompareFiles(model.compare));
+    } else if (model.empty) {
+      scroll.append(emptyState(model.emptyText, null));
     } else {
       for (const row of model.rows) {
         if (row.group !== null) scroll.append(h("div", { class: "day-group", text: row.group }));
         scroll.append(renderCommitLine(row, model, options));
       }
     }
-    view.append(tools, scope, scroll);
+    view.append(tools, scopeRow);
+    if (extra.childElementCount > 0) view.append(extra);
+    view.append(scroll);
     return view;
+  }
+  function scopeButton(model, scope, label, hint) {
+    const on = model.scope === scope;
+    return h("button", {
+      class: `scope-btn${on ? " is-on" : ""}`,
+      attrs: { type: "button", "aria-pressed": on ? "true" : "false", title: hint, "data-focus-key": `history-scope:${scope}` },
+      dataset: { action: "history-scope", scope }
+    }, label);
+  }
+  function renderCompareForm(model) {
+    const input = (field, value, label) => {
+      const node = h("input", {
+        class: "compare-input",
+        attrs: {
+          type: "text",
+          value,
+          placeholder: label,
+          autocomplete: "off",
+          spellcheck: "false",
+          "aria-label": label,
+          "data-field": field,
+          "data-focus-key": field
+        }
+      });
+      node.value = value;
+      return node;
+    };
+    return h(
+      "div",
+      { class: "compare-form", attrs: { role: "group", "aria-label": COPY.history.compareTitle } },
+      h(
+        "div",
+        { class: "compare-row" },
+        h("span", { class: "compare-k", text: COPY.history.compareFrom }),
+        input("compare-from", model.compareForm.from, COPY.history.compareFrom)
+      ),
+      h(
+        "div",
+        { class: "compare-row" },
+        h("span", { class: "compare-k", text: COPY.history.compareTo }),
+        input("compare-to", model.compareForm.to, COPY.history.compareTo)
+      ),
+      h("p", { class: "compare-hint", text: COPY.history.compareHint }),
+      h(
+        "div",
+        { class: "compare-actions" },
+        button({ label: COPY.history.compareCancel, kind: "ghost", size: "sm", action: "compare-close", focusKey: "compare-cancel" }),
+        button({ label: COPY.history.compareApply, kind: "secondary", size: "sm", action: "compare-apply", focusKey: "compare-apply" })
+      )
+    );
+  }
+  function renderCompareHead(compare) {
+    return h(
+      "div",
+      { class: "compare-head" },
+      h(
+        "span",
+        { class: "compare-title" },
+        COPY.history.compareTitle,
+        " ",
+        h("span", { class: "mono", text: compare.from }),
+        "..",
+        h("span", { class: "mono", text: compare.to })
+      ),
+      h("span", { class: "compare-summary", text: compare.summary }),
+      h("button", {
+        class: "link-btn",
+        attrs: { type: "button", "data-focus-key": "compare-end" },
+        dataset: { action: "compare-end" }
+      }, COPY.history.compareEnd)
+    );
+  }
+  function renderCompareFiles(compare) {
+    const list = h("div", { class: "compare-files" });
+    list.append(h("div", { class: "compare-files-note" }, note(compare.note, "muted")));
+    for (const file of compare.files) {
+      list.append(h(
+        "div",
+        { class: "file-row compare-file", attrs: { title: file.path } },
+        h(
+          "span",
+          { class: "file-path" },
+          h("span", { class: "file-dir", text: file.dir }),
+          h("span", { class: "file-name", text: file.name })
+        ),
+        h(
+          "span",
+          { class: "file-delta" },
+          file.delta.added === null ? null : h("span", { class: "dl-add", text: file.delta.added }),
+          file.delta.deleted === null ? null : h("span", { class: "dl-del", text: file.delta.deleted })
+        )
+      ));
+    }
+    return list;
+  }
+  function renderFileOnlyStrip(path) {
+    return h(
+      "div",
+      { class: "history-file-only" },
+      h("span", { class: "file-only-lead", text: COPY.history.fileOnlyLead }),
+      h("span", { class: "file-only-path mono", text: path, title: path }),
+      h("button", {
+        class: "file-only-clear",
+        attrs: { type: "button", "aria-label": COPY.history.fileOnlyClear, title: COPY.history.fileOnlyClear },
+        dataset: { action: "history-file-only-clear" }
+      }, "\xD7")
+    );
   }
   function renderCommitLine(row, model, options) {
     const menuOpen = options.menuOid === row.oid;
@@ -9203,8 +9511,15 @@
           h("span", { class: "commit-author", text: row.author }),
           h("span", { class: "commit-when", text: row.when }),
           row.filesCount > 0 ? h("span", { class: "commit-files", text: `${row.filesCount} \u4E2A\u6587\u4EF6` }) : null,
-          // 这条提交是怎么记下来的：修订、fixup、跳过钩子、已签名在行上就能看见。
-          row.marks.length === 0 ? null : h("span", { class: "commit-marks" }, ...row.marks.map((mark) => chip(mark, "warn", { small: true, title: mark })))
+          // 这条提交是怎么记下来的：修订、fixup、跳过钩子、已签名在行上就能看见；
+          // 按代码搜时再加一枚「命中 文件名」，写过备注的再加一枚「备注」。
+          row.marks.length === 0 && row.hitPath === null && !row.hasNote ? null : h(
+            "span",
+            { class: "commit-marks" },
+            ...row.marks.map((mark) => chip(mark, "warn", { small: true, title: mark })),
+            row.hitPath === null ? null : chip(`${COPY.history.hitTag}${splitPath(row.hitPath).name}`, "info", { small: true, title: row.hitPath }),
+            row.hasNote ? chip(COPY.history.noteTag, "ok", { small: true, title: COPY.history.noteSaved }) : null
+          )
         ),
         h("span", { class: "commit-chevron" }, icon("chevron", 12))
       ),
@@ -9290,6 +9605,50 @@
       h("span", { class: "commit-merge-raw mono", text: row.subject })
     );
   }
+  function renderFileMenu(file) {
+    const menu = h("div", { class: "row-menu", attrs: { role: "menu", "aria-label": COPY.history.fileMenuOpen } });
+    menu.append(h("button", {
+      class: "row-menu-item",
+      attrs: { type: "button", role: "menuitem" },
+      dataset: { action: "history-file-only", path: file.path }
+    }, COPY.history.fileHistory));
+    menu.append(h("button", {
+      class: "row-menu-item is-close",
+      attrs: { type: "button", "aria-label": COPY.history.menuClose },
+      dataset: { action: "history-file-menu", path: file.path }
+    }, COPY.history.menuClose));
+    return menu;
+  }
+  function renderNoteSection(detail) {
+    const input = h("textarea", {
+      class: "note-input",
+      attrs: {
+        rows: 2,
+        placeholder: COPY.history.notePlaceholder,
+        "aria-label": COPY.history.noteTitle,
+        "data-field": "note",
+        "data-focus-key": "note-input"
+      }
+    });
+    input.value = detail.note;
+    return h(
+      "div",
+      { class: "detail-notes" },
+      h(
+        "div",
+        { class: "detail-notes-head" },
+        h("h3", { class: "detail-notes-title", text: COPY.history.noteTitle }),
+        detail.noteSaved ? chip(COPY.history.noteSaved, "ok", { small: true }) : null
+      ),
+      h("p", { class: "detail-notes-hint", text: COPY.history.noteHint }),
+      input,
+      h(
+        "div",
+        { class: "detail-notes-actions" },
+        button({ label: COPY.history.noteSave, kind: "secondary", size: "sm", action: "note-save", focusKey: "note-save" })
+      )
+    );
+  }
   function renderDetail2(detail, options) {
     const view = h("div", { class: "view view-detail" });
     const head = h(
@@ -9358,7 +9717,26 @@
         file.delta.deleted === null ? null : h("span", { class: "dl-del", text: file.delta.deleted })
       ));
       fileNode.append(h("span", { class: `row-chevron${file.expanded ? " is-open" : ""}` }, icon("chevron", 12)));
-      files.append(fileNode);
+      const menuOpen = detail.fileMenuPath === file.path;
+      const line = h(
+        "div",
+        { class: "commit-file-line" },
+        fileNode,
+        h("button", {
+          class: `row-act commit-file-more${menuOpen ? " is-open" : ""}`,
+          attrs: {
+            type: "button",
+            "aria-haspopup": "true",
+            "aria-expanded": menuOpen ? "true" : "false",
+            "aria-label": COPY.history.fileMenuOpen,
+            title: COPY.history.fileMenuOpen,
+            "data-focus-key": `file-more:${file.path}`
+          },
+          dataset: { action: "history-file-menu", path: file.path }
+        }, h("span", { class: "row-more-dots", text: "\u22EF", attrs: { "aria-hidden": "true" } }))
+      );
+      const wrap = h("div", { class: "commit-file-wrap" }, line);
+      if (menuOpen) wrap.append(renderFileMenu(file));
       if (file.expanded) {
         const body = h("div", { class: "file-detail" });
         if (file.patch !== null) {
@@ -9367,10 +9745,12 @@
         } else {
           body.append(note("\u8FD9\u4E2A\u6269\u5C55\u540D\u6CA1\u6709\u53EF\u5C55\u793A\u7684\u793A\u4F8B\u8865\u4E01\u3002"));
         }
-        files.append(body);
+        wrap.append(body);
       }
+      files.append(wrap);
     }
     scroll.append(files);
+    scroll.append(renderNoteSection(detail));
     if (options.result !== null && options.result !== void 0 && options.result.source === "history") {
       scroll.append(resultBanner(options.result));
     }
@@ -11792,6 +12172,40 @@
         case "history-merge-only":
           dispatch({ type: "history-merge-only" }, { focusKey: "history-merge" });
           return;
+        case "history-scope": {
+          const scope = el.dataset.scope;
+          if (scope !== "message" && scope !== "code") return;
+          dispatch({ type: "history-scope", scope }, { focusKey: `history-scope:${scope}`, scroll: null });
+          return;
+        }
+        case "history-file-menu": {
+          const path = el.dataset.path ?? "";
+          dispatch({ type: "history-file-menu", path }, { focusKey: `file-more:${path}`, scroll: null });
+          return;
+        }
+        case "history-file-only": {
+          const path = el.dataset.path ?? "";
+          dispatch({ type: "history-file-only", path }, { focusKey: "history-query", scroll: null });
+          return;
+        }
+        case "history-file-only-clear":
+          dispatch({ type: "history-file-only", path: null }, { focusKey: "history-query", scroll: null });
+          return;
+        case "compare-open":
+          dispatch({ type: "compare-open" }, { focusKey: "compare-open", scroll: null });
+          return;
+        case "compare-close":
+          dispatch({ type: "compare-close" }, { focusKey: "compare-open", scroll: null });
+          return;
+        case "compare-apply":
+          dispatch({ type: "compare-apply" }, { focusKey: "compare-open", scroll: null });
+          return;
+        case "compare-end":
+          dispatch({ type: "compare-end" }, { focusKey: "compare-open", scroll: null });
+          return;
+        case "note-save":
+          dispatch({ type: "note-save" }, { focusKey: "note-save", scroll: null });
+          return;
         case "ai-worktrees":
           dispatch({ type: "ai-worktrees" }, { focusKey: "ai-worktrees" });
           return;
@@ -12060,6 +12474,10 @@
         syncComposer();
       } else if (field === "history-query") {
         dispatch({ type: "history-query", value: target.value }, { focusKey: "history-query" });
+      } else if (field === "compare-from" || field === "compare-to") {
+        dispatch({ type: "compare-draft", which: field === "compare-from" ? "from" : "to", value: target.value }, { focusKey: field });
+      } else if (field === "note") {
+        dispatch({ type: "note-draft", value: target.value }, { focusKey: "note-input" });
       } else if (field === "branch-query") {
         dispatch({ type: "branch-query", value: target.value }, { focusKey: "branch-query" });
       } else if (field === "branch-draft") {
@@ -12309,6 +12727,16 @@
       if (open !== null && open !== "") state = reduce(state, { type: "history-open", oid: open }, base);
       const file = params.get("file");
       if (file !== null && file !== "") state = reduce(state, { type: "history-open-file", path: file }, base);
+      const hscope = params.get("hscope");
+      if (hscope === "code" || hscope === "message") state = reduce(state, { type: "history-scope", scope: hscope }, base);
+      const hfile = params.get("hfile");
+      if (hfile !== null && hfile !== "") state = reduce(state, { type: "history-file-only", path: hfile }, base);
+      if (params.get("hcompare") === "1") state = reduce(state, { type: "compare-open" }, base);
+      const hfrom = params.get("hfrom");
+      if (hfrom !== null && hfrom !== "") state = reduce(state, { type: "compare-draft", which: "from", value: hfrom }, base);
+      const hto = params.get("hto");
+      if (hto !== null && hto !== "") state = reduce(state, { type: "compare-draft", which: "to", value: hto }, base);
+      if (params.get("hcompared") === "1") state = reduce(state, { type: "compare-apply" }, base);
       const filter = params.get("filter");
       if (filter === "conflict" || filter === "staged" || filter === "unstaged") {
         state = reduce(state, { type: "filter", filter }, base);

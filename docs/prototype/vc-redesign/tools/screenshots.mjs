@@ -30,6 +30,8 @@ const INDEX = pathToFileURL(resolve(ROOT, 'index.html')).href
  *            默认按宽度与 embed 推出来，展开区比列表高时（逐块暂存那三张）单独给一个高窗口。
  */
 const HUNK_ROW = '[data-action="toggle-file"][data-path="src/client/views/shared/workRouteTable.ts"]'
+// 列表里最新一条提交的完整提交号：打开详情截图要用它（深链按完整号匹配）。
+const HEAD_OID = 'e489673f240ed18a2e71bb6de5bfc635b2fed73c'
 const TALL = { width: 820, height: 1200 }
 
 const SHOTS = [
@@ -99,6 +101,15 @@ const SHOTS = [
   { name: '84-hunk-stage-460', query: 'expand=src/client/views/shared/workRouteTable.ts', scrollTo: HUNK_ROW, viewport: TALL },
   { name: '85-hunk-partial-460', query: 'expand=src/client/views/shared/workRouteTable.ts', clicks: ['.hunk-act'], scrollTo: HUNK_ROW, viewport: TALL },
   { name: '86-hunk-partial-light-380', query: 'expand=src/client/views/shared/workRouteTable.ts', clicks: ['.hunk-act'], width: 380, theme: 'light', scrollTo: HUNK_ROW, viewport: TALL },
+  // 历史页四条：按代码变化搜、只看某个文件、比较两个引用（表单与结果）、
+  // 提交详情里的文件行菜单（单文件历史的入口）与底部备注段。
+  { name: '87-commit-code-search-460', query: 'view=commits&hscope=code&q=gate-map' },
+  { name: '88-commit-file-only-460', query: 'view=commits&hfile=src/client/views/IssueDetail.ts' },
+  { name: '89-compare-form-460', query: 'view=commits&hcompare=1' },
+  { name: '90-compare-result-460', query: 'view=commits&hcompared=1' },
+  // 提交详情整页比默认列表高：这两张也用高窗口，从标题到备注一次截全，不截半截。
+  { name: '91-commit-file-menu-460', query: 'view=commits&open=' + HEAD_OID, clicks: ['.commit-file-more'], viewport: TALL },
+  { name: '92-commit-note-380-light', query: 'view=commits&open=' + HEAD_OID, width: 380, theme: 'light', viewport: { width: 760, height: 1200 } },
 ]
 
 async function main() {

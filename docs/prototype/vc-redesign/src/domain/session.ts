@@ -36,6 +36,14 @@ export type ChangesFilter = 'all' | 'conflict' | 'staged' | 'unstaged'
  */
 export type CommitForm = 'commit' | 'amend' | 'fixup' | 'squash'
 
+/**
+ * 提交历史里搜索按什么找：
+ *   - message：按提交说明、作者、短号（git log --grep）；
+ *   - code：按这次提交改到的文件（git log -S / -G）。
+ * 两者共用同一个搜索框，所以做成框旁边的范围切换，不另开一屏。
+ */
+export type HistoryScope = 'message' | 'code'
+
 /** 原型模拟出来的本地提交：字段与真实 CommitInfo 对齐，差异只在 files 也带增删行数。 */
 export interface LocalCommit {
   oid: string
@@ -143,6 +151,20 @@ export interface SessionState {
   historyMergeOnly: boolean
   historyOpenOid: string | null
   historyOpenFile: string | null
+  /** 搜索范围：说明 / 代码变化。默认按说明找，与原来的行为一致。 */
+  historyScope: HistoryScope
+  /** 只看某个文件的历史：从提交详情的文件行发起，列表顶部可以点掉。 */
+  historyFileOnly: string | null
+  /** 提交详情里哪一行的「更多」菜单开着（单文件历史从这里进）。 */
+  historyFileMenu: string | null
+  /** 「比较两个引用」的两行表单，以及已经比过的一对引用。 */
+  compareOpen: boolean
+  compareFrom: string
+  compareTo: string
+  compare: { fromOid: string; fromShort: string; toOid: string; toShort: string } | null
+  /** 提交备注：oid → 备注正文。详情里正在编辑的那一份单独放在 noteDraft。 */
+  commitNotes: Record<string, string>
+  noteDraft: string
   localCommits: LocalCommit[]
   copiedPath: string | null
   demoWorktrees: boolean
@@ -245,6 +267,16 @@ export type Action =
   | { type: 'history-open'; oid: string }
   | { type: 'history-open-file'; path: string }
   | { type: 'history-back' }
+  | { type: 'history-scope'; scope: HistoryScope }
+  | { type: 'history-file-only'; path: string | null }
+  | { type: 'history-file-menu'; path: string | null }
+  | { type: 'compare-open' }
+  | { type: 'compare-close' }
+  | { type: 'compare-draft'; which: 'from' | 'to'; value: string }
+  | { type: 'compare-apply' }
+  | { type: 'compare-end' }
+  | { type: 'note-draft'; value: string }
+  | { type: 'note-save' }
   | { type: 'result-clear' }
   | { type: 'copy'; path: string }
   | { type: 'ai-worktrees' }
@@ -320,6 +352,15 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
     historyMergeOnly: false,
     historyOpenOid: null,
     historyOpenFile: null,
+    historyScope: 'message',
+    historyFileOnly: null,
+    historyFileMenu: null,
+    compareOpen: false,
+    compareFrom: 'HEAD~1',
+    compareTo: 'HEAD',
+    compare: null,
+    commitNotes: {},
+    noteDraft: '',
     localCommits: [],
     copiedPath: null,
     demoWorktrees: false,
@@ -821,11 +862,96 @@ function acted(state: SessionState, action: Action, base: SessionBase): SessionS
     case 'history-merge-only':
       return { ...state, historyMergeOnly: !state.historyMergeOnly }
     case 'history-open':
-      return { ...state, historyOpenOid: action.oid, historyOpenFile: null }
+      // 打开一条提交时把它的备注读进编辑框：备注是这条提交的一部分，不另开一层。
+      return {
+        ...state,
+        historyOpenOid: action.oid,
+        historyOpenFile: null,
+        historyFileMenu: null,
+        noteDraft: state.commitNotes[action.oid] ?? '',
+      }
     case 'history-open-file':
       return { ...state, historyOpenFile: state.historyOpenFile === action.path ? null : action.path }
     case 'history-back':
-      return { ...state, historyOpenOid: null, historyOpenFile: null }
+      return { ...state, historyOpenOid: null, historyOpenFile: null, historyFileMenu: null }
+    case 'history-scope':
+      return state.historyScope === action.scope ? state : { ...state, historyScope: action.scope }
+    /*
+     * 单文件历史：从提交详情的文件行走过来，回到列表并只留下改过这个文件的提交。
+     * 筛选开着的时候比较结果先收起——「只看一个文件」和「比较两个引用」是两种读法，
+     * 同时开着会让列表既是过滤结果又是比较结果，读者分不清在看哪一种。
+     */
+    case 'history-file-only': {
+      if (action.path === null) return { ...state, historyFileOnly: null, historyFileMenu: null }
+      if (action.path === state.historyFileOnly) return { ...state, historyFileMenu: null }
+      const name = nameOfPath(action.path)
+      return withResult({
+        ...state,
+        historyFileOnly: action.path,
+        historyOpenOid: null,
+        historyOpenFile: null,
+        historyFileMenu: null,
+        compare: null,
+        compareOpen: false,
+      }, {
+        tone: 'info',
+        text: `现在只看 ${name} 的历史。`,
+        detail: '列表只留下改过这个文件的提交；列表顶上那枚「只看 …」标签可以点掉，回到全部历史。',
+        source: 'history',
+      })
+    }
+    case 'history-file-menu':
+      return { ...state, historyFileMenu: state.historyFileMenu === action.path ? null : action.path }
+    case 'compare-open':
+      // 两端默认给「上一条 → 最新」，这也是最常见的读法；评审要截别的组合再改。
+      return { ...state, compareOpen: !state.compareOpen }
+    case 'compare-close':
+      return { ...state, compareOpen: false }
+    case 'compare-draft':
+      return action.which === 'from' ? { ...state, compareFrom: action.value } : { ...state, compareTo: action.value }
+    case 'compare-apply': {
+      const from = resolveRef(base, state, state.compareFrom)
+      const to = resolveRef(base, state, state.compareTo)
+      if (from === null || to === null) {
+        return withResult(state, {
+          tone: 'error',
+          text: from === null ? `找不到「${state.compareFrom.trim()}」这个引用。` : `找不到「${state.compareTo.trim()}」这个引用。`,
+          detail: '可以写 HEAD、HEAD~2，或者列表里那条提交的短号；两端都要能对上一条提交。',
+          source: 'history',
+        })
+      }
+      if (from.oid === to.oid) {
+        return withResult(state, { tone: 'error', text: '两端是同一个提交，没有可比较的内容。', detail: '把其中一端换成更早的提交，或者写 HEAD~1。', source: 'history' })
+      }
+      return {
+        ...state,
+        compareOpen: false,
+        compare: { fromOid: from.oid, fromShort: from.short, toOid: to.oid, toShort: to.short },
+        result: null,
+      }
+    }
+    case 'compare-end':
+      return { ...state, compare: null }
+    case 'note-draft':
+      return { ...state, noteDraft: action.value }
+    case 'note-save': {
+      const oid = state.historyOpenOid
+      if (oid === null) return state
+      const text = state.noteDraft.trim()
+      const had = state.commitNotes[oid] !== undefined
+      if (text === '' && !had) {
+        return withResult(state, { tone: 'info', text: '备注是空的，没有保存。', detail: '写一两句再保存；备注挂在提交上，不改提交本身。', source: 'history' })
+      }
+      const notes = { ...state.commitNotes }
+      if (text === '') delete notes[oid]
+      else notes[oid] = text
+      return withResult({ ...state, commitNotes: notes, noteDraft: text }, {
+        tone: 'ok',
+        text: text === '' ? '已删除这条提交的备注。' : '已保存这条提交的备注。',
+        detail: '备注存在 refs/notes 里，跟着仓库走；它不改变提交本身，推送时也要另外推这份引用。',
+        source: 'history',
+      })
+    }
     case 'result-clear':
       return state.result === null ? state : { ...state, result: null }
     case 'copy':
@@ -1314,6 +1440,34 @@ interface HeadInfo {
   subject: string
   parents: string[]
   files: Array<{ path: string; added: number; deleted: number }>
+}
+
+/** 历史里能当「引用」用的那几条：本地新提交在前，采集提交在后，撤销与替换掉的不算。 */
+function refListOf(base: SessionBase, state: SessionState): Array<{ oid: string; short: string }> {
+  const local = state.localCommits.map((commit) => ({ oid: commit.oid, short: commit.short }))
+  const total = Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1))
+  const keep = Math.max(0, total - local.length)
+  const captured = base.screen.commits
+    .filter((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid)
+    .slice(0, keep)
+    .map((commit) => ({ oid: commit.oid, short: commit.short }))
+  return [...local, ...captured]
+}
+
+/**
+ * 把输入框里的一行字认成一条提交：HEAD、HEAD~2，或者列表里的短号（可以只写前几位）。
+ * 认不出时返回 null，由调用方把「找不到」原样说给用户，而不是悄悄当成 HEAD。
+ */
+function resolveRef(base: SessionBase, state: SessionState, text: string): { oid: string; short: string } | null {
+  const raw = text.trim()
+  if (raw === '') return null
+  const refs = refListOf(base, state)
+  const head = /^HEAD(?:~(\d+))?$/i.exec(raw)
+  if (head !== null) {
+    const back = head[1] === undefined ? 0 : Number(head[1])
+    return refs[back] ?? null
+  }
+  return refs.find((ref) => ref.oid.startsWith(raw) || ref.short === raw) ?? null
 }
 
 /**
