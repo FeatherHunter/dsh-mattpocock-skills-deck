@@ -9,6 +9,9 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "noEmit": true,
+    // 入口台账 capability-entries.ts 会被 tools/check-capability-entries.ts 用 Node 直接加载，
+    // Node 的 ESM 解析不认省略后缀的相对导入，所以那个文件里写全 .ts；这里放开对应的检查。
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "forceConsistentCasingInFileNames": true,

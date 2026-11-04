@@ -64,6 +64,22 @@ const SHOTS = [
   { name: '66-pull-confirm-460', query: 'confirm=1' },
   { name: '67-row-menu-460', query: '', clicks: ['.row-act.row-more'] },
   { name: '68-commit-menu-460', query: '', clicks: ['#tab-commits', '[data-action="commit-menu"]'] },
+  // 提交选项：形态、内容来源、说明模板、钩子与签名。三档宽 × 两套皮肤各一张，
+  // 展开区浮在提交区上方，文件列表保持原高。
+  { name: '69-commit-options-300', query: 'commitoptions=1', width: 300 },
+  { name: '70-commit-options-380', query: 'commitoptions=1', width: 380 },
+  { name: '71-commit-options-460', query: 'commitoptions=1' },
+  { name: '72-commit-options-light-300', query: 'commitoptions=1', width: 300, theme: 'light' },
+  { name: '73-commit-options-light-380', query: 'commitoptions=1', width: 380, theme: 'light' },
+  { name: '74-commit-options-light-460', query: 'commitoptions=1', theme: 'light' },
+  // 修订：说明预填上一条、作用对象写在形态下面，按钮字跟着变成「修订上一条提交」。
+  { name: '75-commit-amend-460', query: 'stageall=1&commitoptions=1&commitform=amend' },
+  // 修订执行完：结果条贴在提交区，页签条数不变（一条换一条）。
+  { name: '76-commit-amend-result-460', query: 'stageall=1&commitoptions=1&commitform=amend', clicks: [{ click: '[data-action="commit"]', wait: 1000 }] },
+  // fixup：说明由面板写成 fixup! …，输入框换成一行只读说明。
+  { name: '77-commit-fixup-460', query: 'stageall=1&commitoptions=1&commitform=fixup' },
+  // fixup 执行后：历史最前面多一条带 fixup 标记的提交。
+  { name: '78-commit-fixup-history-460', query: 'stageall=1&commitoptions=1&commitform=fixup', clicks: [{ click: '[data-action="commit"]', wait: 1000 }, '#tab-commits'] },
 ]
 
 async function main() {
@@ -89,9 +105,12 @@ async function main() {
     await page.goto(INDEX + '?' + params.toString())
     await page.waitForSelector('.panel')
     await page.waitForTimeout(120)
-    for (const selector of shot.clicks ?? []) {
+    for (const step of shot.clicks ?? []) {
+      // 一步要么是选择器（点一下，等 150ms 让重画落定），要么是 { click, wait }：
+      // 提交这类动作有模拟往返，必须等结果条出来再截，否则截到的是「提交中…」。
+      const selector = typeof step === 'string' ? step : step.click
       await page.click(selector)
-      await page.waitForTimeout(150)
+      await page.waitForTimeout(typeof step === 'string' ? 150 : step.wait)
     }
     if (typeof shot.scrollTo === 'string') {
       await page.evaluate((target) => {

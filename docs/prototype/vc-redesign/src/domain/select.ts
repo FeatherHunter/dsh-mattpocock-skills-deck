@@ -17,8 +17,8 @@ import { COPY } from '../data/copy'
 import { changeBadge, lineDelta, shortOid, splitPath, syncModel } from '../data/format'
 import type { ChangeTone, SyncModel } from '../data/format'
 import { samplePatch } from '../data/patches'
-import type { BranchPending, BranchRow, BranchSub, ChangesFilter, ChangesPendingKind, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
-import { metadataOf } from './session'
+import type { BranchPending, BranchRow, BranchSub, ChangesFilter, ChangesPendingKind, CommitForm, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
+import { headInfoOf, metadataOf, trackedChangesOf } from './session'
 import type { SessionBase } from './session'
 
 export type BadgeTone = ChangeTone | 'warn' | 'error' | 'ok' | 'info' | 'muted'
@@ -107,6 +107,25 @@ export interface GroupModel {
   rows: FileRowModel[]
 }
 
+/** 「提交选项」展开区要画的全部内容：形态、作用对象、内容来源、说明模板与三个记录方式。 */
+export interface CommitOptionsModel {
+  form: CommitForm
+  /** 当前形态的一句解释：选它会把这次提交变成什么。 */
+  formNote: string
+  /** 修订与 fixup / squash 的作用对象（上一条提交）；没有上一条时为 null。 */
+  target: { short: string; subject: string } | null
+  allTracked: boolean
+  /** 打开「把未暂存的改动也一起提交」会额外收进多少个文件。 */
+  allTrackedCount: number
+  skipHooks: boolean
+  signCommit: boolean
+  signoff: boolean
+  templateApplied: boolean
+  /** fixup / squash 的说明由面板写成 fixup! / squash!，这时输入框不参与填写。 */
+  autoMessage: string | null
+  messageEditable: boolean
+}
+
 export interface ComposerModel {
   stagedCount: number
   message: string
@@ -115,6 +134,10 @@ export interface ComposerModel {
   disabled: boolean
   disabledReason: string | null
   busy: boolean
+  /** 主按钮上的字：跟着提交形态变，读者不用打开展开区就知道这一下会做什么。 */
+  label: string
+  optionsOpen: boolean
+  options: CommitOptionsModel
 }
 
 /** 危险动作的确认卡：标题、后果、涉及范围与按钮文案都在这里一次算好，视图不再自己拼。 */
@@ -161,6 +184,8 @@ export interface CommitRowModel {
   filesCount: number
   group: string | null
   selected: boolean
+  /** 这条提交的来历：修订、fixup、squash、跳过钩子、已签名、签名行。 */
+  marks: string[]
 }
 
 export interface HistoryFileRowModel {
@@ -575,11 +600,52 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
     return group.rows.length > 0
   })
 
+  // 提交选项：这一块的结论全部在模型里算好，视图只负责画。
+  // 为什么在这里算：主按钮的字、禁用原因、自动说明三处说的是同一件事（这一次会提交什么），
+  // 分在视图里各写一遍，改一处就会漏另一处。
+  const form = state.commitForm
+  const head = headInfoOf(base, state)
+  const alsoTracked = state.commitAllTracked ? trackedChangesOf(base, state) : []
+  const effectiveCount = state.staged.length + alsoTracked.length
+  const autoMessage = head === null || (form !== 'fixup' && form !== 'squash')
+    ? null
+    : (form === 'fixup' ? 'fixup! ' : 'squash! ') + head.subject
+
   const commitVerdict = verdictOf(screen, 'commit')
-  let disabledReason: string | null = commitVerdict.reason
-  if (state.staged.length === 0) disabledReason = COPY.changes.commitNoStaged
-  else if (state.conflicts.length > 0) disabledReason = COPY.block['conflicts-unresolved']
-  else if (state.message.trim() === '') disabledReason = COPY.changes.commitNoMessage
+  // judge() 只看首屏的已暂存计数，不知道「一起提交」与「修订」这两条路：
+  // 开了「一起提交」时已暂存可以是 0，选「修订」时也可以是 0。所以「还没有暂存的文件」
+  // 这一条交给下面按形态重算，其余阻断原因（冲突、进行中的合并、分离头指针）照旧听 judge 的。
+  let disabledReason: string | null = commitVerdict.reason === COPY.block['nothing-staged'] ? null : commitVerdict.reason
+  if (disabledReason === null) {
+    if (state.conflicts.length > 0) {
+      disabledReason = COPY.block['conflicts-unresolved']
+    } else if (form === 'amend') {
+      if (head === null) disabledReason = '历史里还没有可以修订的提交'
+      else if (state.message.trim() === '') disabledReason = COPY.changes.commitNoMessage
+      else if (effectiveCount === 0 && state.message.trim() === head.subject.trim()) disabledReason = '说明和内容都没有变化，不需要修订'
+    } else if (effectiveCount === 0) {
+      disabledReason = COPY.changes.commitNoStaged
+    } else if (form === 'commit' && state.message.trim() === '') {
+      disabledReason = COPY.changes.commitNoMessage
+    }
+  }
+
+  const commitLabel = form === 'amend'
+    ? COPY.commitOptions.labelAmend
+    : form === 'fixup'
+      ? COPY.commitOptions.labelFixup
+      : form === 'squash'
+        ? COPY.commitOptions.labelSquash
+        : COPY.changes.commitLabel(effectiveCount)
+  const commitHint = form === 'amend'
+    ? (effectiveCount === 0 ? '这次只改提交说明，内容沿用上一条提交。' : '这次会把已暂存的文件并进上一条提交，提交号会变。')
+    : form === 'fixup'
+      ? 'fixup 提交挂在历史最前面，等整理历史时压回上一条。'
+      : form === 'squash'
+        ? 'squash 提交挂在历史最前面，等整理历史时和上一条并成一条。'
+        : alsoTracked.length > 0
+          ? '未暂存的改动会先被暂存，再一起提交。'
+          : COPY.changes.messageHint
 
   const changeCount = state.staged.length + state.unstaged.length
   return {
@@ -607,10 +673,25 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
       stagedCount: state.staged.length,
       message: state.message,
       placeholder: COPY.changes.messagePlaceholder,
-      hint: COPY.changes.messageHint,
+      hint: commitHint,
       disabled: busy || disabledReason !== null,
       disabledReason,
       busy: state.busy === 'commit',
+      label: commitLabel,
+      optionsOpen: state.commitOptionsOpen,
+      options: {
+        form,
+        formNote: COPY.commitOptions.formNote[form],
+        target: head === null ? null : { short: head.short, subject: head.subject },
+        allTracked: state.commitAllTracked,
+        allTrackedCount: trackedChangesOf(base, state).length,
+        skipHooks: state.skipHooks,
+        signCommit: state.signCommit,
+        signoff: state.signoff,
+        templateApplied: state.templateApplied,
+        autoMessage,
+        messageEditable: form === 'commit' || form === 'amend',
+      },
     },
   }
 }
@@ -634,6 +715,7 @@ interface HistoryEntry {
   parents: string[]
   files: Array<{ path: string; added: number; deleted: number }>
   local: boolean
+  marks: string[]
 }
 
 /**
@@ -650,11 +732,14 @@ function historyEntries(base: SessionBase, state: SessionState): HistoryEntry[] 
     parents: commit.parents,
     files: commit.files,
     local: true,
+    marks: commit.marks,
   }))
   const total = historyTotal(base, state)
   const keep = Math.max(0, total - local.length)
   const captured: HistoryEntry[] = base.screen.commits
-    .filter((commit: CommitInfo) => commit.oid !== state.undoneOid)
+    // 撤销掉的那一条与修订时被替换掉的那一条都不再出现在历史里：
+    // 前者总数少一条，后者由修订后的新提交顶上，总数不变。
+    .filter((commit: CommitInfo) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid)
     .slice(0, keep)
     .map((commit: CommitInfo) => ({
     oid: commit.oid,
@@ -665,6 +750,7 @@ function historyEntries(base: SessionBase, state: SessionState): HistoryEntry[] 
     parents: commit.parents,
     files: base.commitFiles.get(commit.oid) ?? [],
     local: false,
+    marks: [],
   }))
   return [...local, ...captured]
 }
@@ -701,6 +787,7 @@ export function historyOf(base: SessionBase, state: SessionState, nowMs: number)
       filesCount: entry.files.length,
       group: groupLabel,
       selected: state.historyOpenOid === entry.oid,
+      marks: entry.marks,
     }
   })
 

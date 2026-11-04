@@ -11,6 +11,13 @@
  */
 import type { FileChange } from './core'
 
+/**
+ * 示例提交说明模板（.gitmessage）。本仓库没有这个文件，原型用它演示「套用模板」这一步：
+ * 真实实现里读的是 git config commit.template 指向的文件，读不到时按钮禁用并说明原因。
+ * 三段骨架是这个仓库提交信息的习惯：先写这次改了什么，再写为什么，最后写怎么验证。
+ */
+export const COMMIT_TEMPLATE = '<这次改了什么：一句话说清对象与动作>\n\n<为什么改：原来哪里不对、谁受影响>\n\n<怎么验证：跑了哪条命令、看到什么结果>'
+
 export const COPY = {
   frame: {
     kicker: 'Prototype: version-control page',
@@ -169,6 +176,55 @@ export const COPY = {
     stashBlocked: '有冲突文件时不能储藏，先解决冲突。',
     menuClose: '收起菜单',
     menuOpen: '更多操作',
+  },
+  /**
+   * 提交域的六个「提交形态与记录方式」入口。它们都属于「这次提交」，
+   * 所以全部收在提交按钮右边的「提交选项」展开区里，不占首屏。
+   * 文案里出现 git 参数的地方一律带一句人话解释，读者不用先去查 --no-verify 是什么。
+   */
+  commitOptions: {
+    triggerLabel: '提交选项',
+    triggerHint: '提交形态、内容来源、提交说明模板、钩子与签名',
+    title: '提交选项',
+    formKey: '提交形态',
+    form: {
+      commit: '新提交',
+      amend: '修订上一条',
+      fixup: 'fixup',
+      squash: 'squash',
+    },
+    formNote: {
+      commit: '在历史最前面加一条新提交。',
+      amend: '替换上一条提交，提交号会变；已经推送过就要强推。',
+      fixup: '带 fixup! 前缀，下次整理历史时压回上一条，说明丢掉。',
+      squash: '带 squash! 前缀，下次整理历史时并进上一条，说明一起留下。',
+    },
+    target: (short: string, subject: string): string => `作用对象 ${short} ${subject}`,
+    targetNone: '还没有可以修订的提交。',
+    contentKey: '内容来源',
+    allTracked: '把未暂存的改动也一起提交',
+    allTrackedNote: (n: number): string => `先暂存这 ${n} 个未暂存的文件再提交，相当于 git commit -a。未跟踪的新文件不算。`,
+    allTrackedEmpty: '没有未暂存的改动可以加进来。',
+    contentNote: '只提交已暂存的内容，其余改动留在工作区。',
+    messageKey: '提交说明',
+    templateApply: '套用 .gitmessage',
+    templateUndo: '撤销套用',
+    templateApplied: '已套用 .gitmessage',
+    templateNote: '三段：改了什么、为什么改、怎么验证。原型用一份示例模板。',
+    templateEmpty: '这个仓库没有 .gitmessage，套不了模板。',
+    recordKey: '记录方式',
+    recordNote: '三项都只影响这一次提交，提交完自动恢复关闭。',
+    skipHooks: '跳过提交钩子',
+    skipHooksNote: '提交前的检查不会跑。',
+    signCommit: '签名提交',
+    signCommitNote: '用本机密钥签名，提交行上会标出来。',
+    signoff: '追加签名行',
+    signoffNote: '说明末尾加一行 Signed-off-by。',
+    autoMessageLead: '说明由面板自动写成',
+    autoMessageNote: '这条提交不手写说明；整理历史时，git 按前缀把它压回上一条。',
+    labelAmend: '修订上一条提交',
+    labelFixup: '生成 fixup 提交',
+    labelSquash: '生成 squash 提交',
   },
   history: {
     searchPlaceholder: (loaded: number): string => `在已加载的 ${loaded} 条提交里筛选`,

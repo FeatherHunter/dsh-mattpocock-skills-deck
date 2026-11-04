@@ -23,6 +23,16 @@ export type ViewId = 'changes' | 'commits' | 'worktrees' | 'stash'
 export type OpName = 'commit' | 'pull' | 'push' | 'fetch'
 export type ChangesFilter = 'all' | 'conflict' | 'staged' | 'unstaged'
 
+/**
+ * 这次提交是什么形态。四种形态都从同一个提交区发起，区别只在它怎么进入历史：
+ *   - commit：在历史最前面加一条新提交；
+ *   - amend：替换上一条提交（git commit --amend），提交号会变；
+ *   - fixup / squash：生成一条带 fixup! / squash! 前缀的提交，等下次整理历史时压回上一条。
+ * 为什么放在一次提交里而不是提交行菜单里：这四种形态都要填说明、都要用已暂存的内容，
+ * 只有「提交」这个动作能同时看见这两样；提交行菜单上是「不需要再写什么」的动作（还原、拣选、撤销）。
+ */
+export type CommitForm = 'commit' | 'amend' | 'fixup' | 'squash'
+
 /** 原型模拟出来的本地提交：字段与真实 CommitInfo 对齐，差异只在 files 也带增删行数。 */
 export interface LocalCommit {
   oid: string
@@ -32,6 +42,11 @@ export interface LocalCommit {
   authorDateMs: number
   parents: string[]
   files: Array<{ path: string; added: number; deleted: number }>
+  /**
+   * 这条提交是怎么记下来的：修订、fixup、squash、跳过钩子、已签名、带签名行。
+   * 历史行上按这组标记补小字，读者不用点开详情才知道「这条是怎么来的」。
+   */
+  marks: string[]
 }
 
 export interface ResultMessage {
@@ -152,6 +167,22 @@ export interface SessionState {
   stashPending: StashPending | null
   /** 被「撤销这次提交」撤掉的那条提交：从历史里暂时隐去，改动回到「已暂存」。 */
   undoneOid: string | null
+  /**
+   * 被「修订上一条」替换掉的那条采集提交：新提交顶上来之后它从历史里隐去，总数不变。
+   * 与 undoneOid 分开记，是因为两者的总数口径不同：撤销少一条，修订一条换一条。
+   */
+  replacedOid: string | null
+  /** 提交区右侧「提交选项」展开区开着没有；默认收起，首屏与定稿截图一致。 */
+  commitOptionsOpen: boolean
+  commitForm: CommitForm
+  /** 内容来源：打开后把未暂存的改动一起提交（git commit -a）。 */
+  commitAllTracked: boolean
+  skipHooks: boolean
+  signCommit: boolean
+  signoff: boolean
+  /** 这一版说明是从 .gitmessage 套来的；撤销套用要恢复成套用之前写的内容。 */
+  templateApplied: boolean
+  messageBeforeTemplate: string
 }
 
 /**
@@ -179,6 +210,14 @@ export type Action =
   | { type: 'message'; value: string }
   | { type: 'commit-start' }
   | { type: 'commit-finish' }
+  | { type: 'commit-options-toggle' }
+  | { type: 'commit-form'; form: CommitForm }
+  | { type: 'commit-all-tracked' }
+  | { type: 'skip-hooks' }
+  | { type: 'sign-commit' }
+  | { type: 'signoff' }
+  | { type: 'template-apply'; body: string }
+  | { type: 'template-undo' }
   | { type: 'op-start'; op: OpName }
   | { type: 'op-finish'; op: OpName; nowMs: number }
   | { type: 'reload-start' }
@@ -281,6 +320,15 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
     stashes: [],
     stashPending: null,
     undoneOid: null,
+    replacedOid: null,
+    commitOptionsOpen: false,
+    commitForm: 'commit',
+    commitAllTracked: false,
+    skipHooks: false,
+    signCommit: false,
+    signoff: false,
+    templateApplied: false,
+    messageBeforeTemplate: '',
   }
 }
 
@@ -396,43 +444,211 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       return { ...state, message: action.value }
     case 'commit-start':
       return enterBusy(state, 'commit')
-    case 'commit-finish': {
-      const staged = state.staged
-      const message = state.message.trim()
-      if (staged.length === 0 || message === '') {
-        return {
-          ...state,
-          busy: null,
-          result: { tone: 'error', text: staged.length === 0 ? '还没有暂存的文件，先暂存要提交的文件。' : '填写提交说明后即可提交。', detail: null, source: 'commit' },
-        }
+    case 'commit-options-toggle':
+      return { ...state, commitOptionsOpen: !state.commitOptionsOpen }
+    case 'commit-form': {
+      if (action.form === state.commitForm) return state
+      // 修订要改的是上一条提交的说明，所以切到「修订上一条」时把那条的说明填进输入框；
+      // 切回新提交时，只有输入框里还是那句原话才清掉，用户自己改过的内容一律保留。
+      const head = headInfoOf(base, state)
+      let message = state.message
+      if (action.form === 'amend' && head !== null && message.trim() === '') message = head.subject
+      else if (action.form === 'commit' && head !== null && message.trim() === head.subject.trim()) message = ''
+      return { ...state, commitForm: action.form, message, templateApplied: false }
+    }
+    case 'commit-all-tracked':
+      return { ...state, commitAllTracked: !state.commitAllTracked }
+    case 'skip-hooks':
+      return { ...state, skipHooks: !state.skipHooks }
+    case 'sign-commit':
+      return { ...state, signCommit: !state.signCommit }
+    case 'signoff':
+      return { ...state, signoff: !state.signoff }
+    case 'template-apply': {
+      if (state.templateApplied) return state
+      return {
+        ...state,
+        message: action.body,
+        messageBeforeTemplate: state.message,
+        templateApplied: true,
       }
-      const files = staged.map((path) => {
+    }
+    case 'template-undo':
+      if (!state.templateApplied) return state
+      return { ...state, message: state.messageBeforeTemplate, templateApplied: false }
+    case 'commit-finish': {
+      const form = state.commitForm
+      const head = headInfoOf(base, state)
+      const message = state.message.trim()
+      const alsoTracked = state.commitAllTracked ? trackedChangesOf(base, state) : []
+      const paths = unique([...state.staged, ...alsoTracked])
+      const remainingUnstaged = state.unstaged.filter((path) => alsoTracked.includes(path) === false)
+      const needsContent = form !== 'amend'
+      if (form === 'amend' && head === null) {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '历史里还没有可以修订的提交。',
+          detail: '「修订上一条」改的是当前分支最前面那条提交。面板没有读到它，先用「新提交」。',
+          source: 'commit',
+        })
+      }
+      if (needsContent && paths.length === 0) {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '还没有已暂存的文件，先暂存要提交的文件。',
+          detail: state.commitAllTracked ? '「把未暂存的改动也一起提交」已经打开，但工作区里没有未暂存的改动可以加进来。' : null,
+          source: 'commit',
+        })
+      }
+      if (form === 'commit' && message === '') {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '填写提交说明后即可提交。',
+          detail: null,
+          source: 'commit',
+        })
+      }
+      if (form === 'amend' && head !== null && message === '') {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '修订要有一条新的提交说明。',
+          detail: '修订会用输入框里的说明替换上一条提交的说明；不想改说明就先把原来的说明填回来。',
+          source: 'commit',
+        })
+      }
+      if (form === 'amend' && head !== null && paths.length === 0 && message === head.subject.trim()) {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '说明和内容都没有变化，不需要修订。',
+          detail: '修订会重写提交号。这一版说明与上一条完全相同，也没有新的已暂存文件。',
+          source: 'commit',
+        })
+      }
+      if ((form === 'fixup' || form === 'squash') && head === null) {
+        return withResult({ ...state, busy: null }, {
+          tone: 'error',
+          text: '历史里还没有可以压缩进去的提交。',
+          detail: 'fixup 与 squash 都是「把这次改动挂到上一条提交上」，没有上一条就无处可挂。',
+          source: 'commit',
+        })
+      }
+      const files = paths.map((path) => {
         const meta = metadataOf(base, path)
         return { path, added: meta?.addedLines ?? 0, deleted: meta?.deletedLines ?? 0 }
       })
+      const now = Date.now()
+      const oid = shortOid() + shortOid() + shortOid() + shortOid() + shortOid() + shortOid()
+      const short = oid.slice(0, 7)
+      const marks = marksOf(state, form)
+      const extraNotes = optionNotesOf(state)
+      const baseReset = {
+        busy: null as null,
+        staged: [] as string[],
+        unstaged: remainingUnstaged,
+        commitAllTracked: false,
+        skipHooks: false,
+        signCommit: false,
+        signoff: false,
+        templateApplied: false,
+      }
+
+      if (form === 'amend' && head !== null) {
+        const amended: LocalCommit = {
+          oid,
+          short,
+          subject: message,
+          author: '辰辰洋洋',
+          authorDateMs: now,
+          parents: head.parents,
+          files: mergeFiles(head.files, files),
+          marks,
+        }
+        const headIsLocal = state.localCommits.length > 0
+        // 上一条是采集来的提交时，把它从历史里隐去，让修订后的新提交顶上来；总数不变。
+        // 上一条本来就是原型里新建的提交时，直接原地换掉，不额外记替换关系。
+        const replacedOid = headIsLocal ? state.replacedOid : head.oid
+        const pushed = state.ahead === 0
+        return withResult({
+          ...state,
+          ...baseReset,
+          message: '',
+          commitForm: 'commit',
+          replacedOid,
+          localCommits: headIsLocal ? [amended, ...state.localCommits.slice(1)] : [amended, ...state.localCommits],
+          ahead: pushed ? 1 : state.ahead,
+          behind: pushed ? state.behind + 1 : state.behind,
+        }, {
+          tone: 'warn',
+          text: paths.length === 0
+            ? `已修订 ${head.short} 的提交说明。`
+            : `已修订 ${head.short}：这条提交现在叫 ${short}。`,
+          detail: (paths.length === 0
+            ? `内容没有变，只改了说明。说明也是提交内容的一部分，所以提交号同样会变。`
+            : `上一条提交被这条替换掉，现在一共 ${amended.files.length} 个文件。提交号变了，历史里那条旧提交不再出现。`)
+            + (pushed ? '这条提交已经推送过，远端还指着旧提交，需要强推才能对齐。' : '这条提交还没有推送，远端不受影响。')
+            + extraNotes,
+          source: 'commit',
+        })
+      }
+
+      if (form === 'fixup' || form === 'squash') {
+        const target = head === null ? '' : head.subject
+        const prefix = form === 'fixup' ? 'fixup!' : 'squash!'
+        const commit: LocalCommit = {
+          oid,
+          short,
+          subject: `${prefix} ${target}`,
+          author: '辰辰洋洋',
+          authorDateMs: now,
+          parents: [head?.oid ?? ''],
+          files,
+          marks,
+        }
+        return withResult({
+          ...state,
+          ...baseReset,
+          ahead: state.ahead + 1,
+          localCommits: [commit, ...state.localCommits],
+        }, {
+          tone: 'ok',
+          text: form === 'fixup'
+            ? `已生成 fixup 提交 ${short}，指向 ${head?.short ?? ''}。`
+            : `已生成 squash 提交 ${short}，指向 ${head?.short ?? ''}。`,
+          detail: (form === 'fixup'
+            ? `说明写成「fixup! ${target}」，这次改动先挂在历史最前面。下次整理历史选「自动吸收 fixup」时，git 会把它压回目标提交，这条说明丢掉。`
+            : `说明写成「squash! ${target}」，这次改动先挂在历史最前面。下次整理历史选「自动吸收 fixup」时，它会和目标提交并成一条，两条说明都留着。`)
+            + extraNotes,
+          source: 'commit',
+        })
+      }
+
       const commit: LocalCommit = {
-        oid: shortOid() + shortOid() + shortOid() + shortOid() + shortOid() + shortOid(),
-        short: shortOid(),
+        oid,
+        short,
         subject: message,
         author: '辰辰洋洋',
-        authorDateMs: Date.now(),
+        authorDateMs: now,
         parents: [state.localCommits[0]?.oid ?? base.screen.commits[0]?.oid ?? ''],
         files,
+        marks,
       }
-      return {
+      return withResult({
         ...state,
-        busy: null,
-        staged: [],
+        ...baseReset,
         message: '',
         ahead: state.ahead + 1,
         localCommits: [commit, ...state.localCommits],
-        result: {
-          tone: 'ok',
-          text: `提交完成：${files.length} 个文件已进入历史。`,
-          detail: '这次提交只包含已暂存的文件。这份清单已经清空，可以接着暂存下一批。',
-          source: 'commit',
-        },
-      }
+      }, {
+        tone: 'ok',
+        text: alsoTracked.length > 0
+          ? `提交完成：${files.length} 个文件已进入历史，其中 ${alsoTracked.length} 个是刚刚一起暂存的。`
+          : `提交完成：${files.length} 个文件已进入历史。`,
+        detail: (alsoTracked.length > 0
+          ? '相当于 git commit -a：未暂存的改动先被暂存，再进入这次提交。未跟踪的新文件不算在内，仍然留在工作区。'
+          : '这次提交只包含已暂存的文件。这份清单已经清空，可以接着暂存下一批。')
+          + extraNotes,
+        source: 'commit',
+      })
     }
     case 'op-start':
       return enterBusy(state, action.op)
@@ -815,6 +1031,9 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         ...state,
         localCommits: localHead !== null ? state.localCommits.slice(1) : state.localCommits,
         undoneOid: localHead !== null ? state.undoneOid : action.oid,
+        // 撤销掉的如果是一条「修订」出来的提交，被它替掉的原提交要回到历史里：
+        // 撤销的意思是「这一步不算了」，原来那条提交本来就没有被真正删掉。
+        replacedOid: localHead !== null && state.localCommits.length === 1 ? null : state.replacedOid,
         staged: unique([...state.staged, ...files]),
         message: state.message.trim() === '' ? subject : state.message,
         ahead: pushed ? state.ahead : Math.max(0, state.ahead - 1),
@@ -881,4 +1100,76 @@ function changeSummary(base: SessionBase, path: string): string {
   return parts.join('，')
 }
 
-export { metadataOf, nameOfPath, changeSummary }
+/** 历史最前面那条提交要写作「修改对象」时用到的字段：本地新提交与采集提交取同一种形状。 */
+interface HeadInfo {
+  oid: string
+  short: string
+  subject: string
+  parents: string[]
+  files: Array<{ path: string; added: number; deleted: number }>
+}
+
+/**
+ * 上一条提交：优先看原型里新建的本地提交，其次看采集来的提交。
+ * 撤销或修订隐去的那一条不算——它已经不在历史里了。
+ */
+function headInfoOf(base: SessionBase, state: SessionState): HeadInfo | null {
+  const local = state.localCommits[0]
+  if (local !== undefined) {
+    return { oid: local.oid, short: local.short, subject: local.subject, parents: local.parents, files: local.files }
+  }
+  const captured = base.screen.commits.find((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid)
+  if (captured === undefined) return null
+  return {
+    oid: captured.oid,
+    short: captured.short,
+    subject: captured.subject,
+    parents: captured.parents,
+    files: base.commitFiles.get(captured.oid) ?? [],
+  }
+}
+
+/**
+ * 「把未暂存的改动也一起提交」能加进来的文件：已跟踪、且有未暂存改动的那几个。
+ * 未跟踪的新文件不算——git commit -a 也不收它们，这是常见误解，原型按 git 的实际行为画。
+ */
+function trackedChangesOf(base: SessionBase, state: SessionState): string[] {
+  return state.unstaged.filter((path) => metadataOf(base, path)?.change !== 'untracked')
+}
+
+/** 修订会把这次的已暂存文件并进上一条提交：同路径以新行数为准，顺序沿用上一条。 */
+function mergeFiles(
+  previous: Array<{ path: string; added: number; deleted: number }>,
+  added: Array<{ path: string; added: number; deleted: number }>,
+): Array<{ path: string; added: number; deleted: number }> {
+  const merged = previous.slice()
+  for (const file of added) {
+    const index = merged.findIndex((row) => row.path === file.path)
+    if (index === -1) merged.push(file)
+    else merged[index] = file
+  }
+  return merged
+}
+
+/** 历史行上那组小字：这条提交是怎么记下来的。 */
+function marksOf(state: SessionState, form: CommitForm): string[] {
+  const marks: string[] = []
+  if (form === 'amend') marks.push('修订')
+  if (form === 'fixup') marks.push('fixup')
+  if (form === 'squash') marks.push('squash')
+  if (state.skipHooks) marks.push('跳过钩子')
+  if (state.signCommit) marks.push('已签名')
+  if (state.signoff) marks.push('签名行')
+  return marks
+}
+
+/** 三个记录方式各自在结果里补一句，读者不用回看展开区才知道点没点对。 */
+function optionNotesOf(state: SessionState): string {
+  const notes: string[] = []
+  if (state.skipHooks) notes.push('这次跳过了 pre-commit 与 commit-msg 两个提交钩子，提交前的检查没有跑。')
+  if (state.signCommit) notes.push('这条提交带签名（原型模拟，没有真的调用本机密钥）。')
+  if (state.signoff) notes.push('说明末尾追加了一行 Signed-off-by: 辰辰洋洋 <chen@example.com>。')
+  return notes.length === 0 ? '' : ' ' + notes.join('')
+}
+
+export { metadataOf, nameOfPath, changeSummary, headInfoOf, trackedChangesOf }

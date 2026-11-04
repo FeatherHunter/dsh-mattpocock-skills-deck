@@ -11,7 +11,7 @@
  *
  * 所有会「看起来像真的写了仓库」的动作都在这里标了原型模拟：只改界面状态，不碰 git。
  */
-import { COPY } from '../data/copy'
+import { COMMIT_TEMPLATE, COPY } from '../data/copy'
 import { whenText } from '../data/format'
 import { buildPrototypeData } from '../data/screen'
 import type { PrototypeData } from '../data/screen'
@@ -23,6 +23,7 @@ import { panelModelOf } from '../domain/select'
 import type { PanelModel } from '../domain/select'
 import { MANAGE_PAGES, createPageState, reducePage, targetOfCapability } from '../domain/pages'
 import type { PageAction, PageId } from '../domain/pages'
+import { capabilityEntryOf } from '../data/capability-entries'
 import { CAPABILITIES } from '../data/capabilities.generated'
 import { PAGE_META } from '../data/pages-copy'
 import { clear, h, icon } from './dom'
@@ -239,9 +240,13 @@ export function mount(root: HTMLElement): void {
     if (target === 'view') {
       nextPages = reducePage(nextPages, { type: 'page-close-all' })
       state = reduce(state, { type: 'view', view: cap.target as 'changes' | 'commits' | 'worktrees' | 'stash' }, base)
+      // 四页签上的能力没有一条能高亮的行：落在提交选项里的那几条直接把展开区打开，
+      // 否则读者会落在一个没有变化、也没有高亮的页签上，以为跳错了地方。
+      const opensOptions = capabilityEntryOf(cap.id)?.form === '提交选项'
+      if (opensOptions && !state.commitOptionsOpen) state = reduce(state, { type: 'commit-options-toggle' }, base)
       nextPages = reducePage(nextPages, { type: 'palette-highlight', id: cap.id })
       pages = nextPages
-      render({ focusKey: 'tab-' + cap.target, scroll: null })
+      render({ focusKey: opensOptions ? 'commit-options' : 'tab-' + cap.target, scroll: null })
       return
     }
     nextPages = reducePage(nextPages, { type: 'page-open', page: target })
@@ -786,6 +791,33 @@ export function mount(root: HTMLElement): void {
         runOp('commit')
         return
       }
+      case 'commit-options-toggle':
+        dispatch({ type: 'commit-options-toggle' }, { focusKey: 'commit-options', scroll: null })
+        return
+      case 'commit-form': {
+        const form = el.dataset.form
+        if (form !== 'commit' && form !== 'amend' && form !== 'fixup' && form !== 'squash') return
+        dispatch({ type: 'commit-form', form }, { focusKey: 'commit-form:' + form, scroll: null })
+        return
+      }
+      case 'commit-all-tracked':
+        dispatch({ type: 'commit-all-tracked' }, { focusKey: 'commit-all-tracked', scroll: null })
+        return
+      case 'skip-hooks':
+        dispatch({ type: 'skip-hooks' }, { focusKey: 'skip-hooks', scroll: null })
+        return
+      case 'sign-commit':
+        dispatch({ type: 'sign-commit' }, { focusKey: 'sign-commit', scroll: null })
+        return
+      case 'signoff':
+        dispatch({ type: 'signoff' }, { focusKey: 'signoff', scroll: null })
+        return
+      case 'template-apply':
+        dispatch({ type: 'template-apply', body: COMMIT_TEMPLATE }, { focusKey: 'commit-template', scroll: null })
+        return
+      case 'template-undo':
+        dispatch({ type: 'template-undo' }, { focusKey: 'commit-template', scroll: null })
+        return
       case 'changes-open-menu': {
         const path = el.dataset.path ?? ''
         const open = state.openMenuPath === path
@@ -1192,7 +1224,9 @@ export function mount(root: HTMLElement): void {
       buttonEl.setAttribute('aria-busy', busy ? 'true' : 'false')
       buttonEl.title = current.disabledReason ?? ''
       const label = buttonEl.querySelector<HTMLElement>('.btn-label')
-      if (label !== null) label.textContent = busy ? COPY.busy.commit : COPY.changes.commitLabel(current.stagedCount)
+      // 按钮的字跟着提交形态与「一起提交」开关变，所以取模型里算好的那一个，
+      // 不能在这里按已暂存数重新拼一遍——那样一敲字就会退回「提交 N 个文件」。
+      if (label !== null) label.textContent = busy ? COPY.busy.commit : current.label
     }
 
     // 提交区最后一行里，左边那个位置在「一句提示」和「禁用原因」之间切换：
@@ -1441,6 +1475,23 @@ export function mount(root: HTMLElement): void {
     }
     const message = params.get('message')
     if (message !== null && message !== '') state = reduce(state, { type: 'message', value: message }, base)
+    // 提交选项的深链：评审要截「修订形态」「fixup 形态」时不用先点开再点三下。
+    // stageall 放在最前面：这两个形态要有已暂存的文件才点得动，截图脚本靠它把状态摆出来。
+    if (params.get('stageall') === '1') state = reduce(state, { type: 'stage-all' }, base)
+    if (params.get('commitoptions') === '1') state = reduce(state, { type: 'commit-options-toggle' }, base)
+    const commitFormParam = params.get('commitform')
+    if (commitFormParam === 'amend' || commitFormParam === 'fixup' || commitFormParam === 'squash' || commitFormParam === 'commit') {
+      state = reduce(state, { type: 'commit-form', form: commitFormParam }, base)
+      // 选了「修订 / fixup / squash」却看不到展开区，读者会以为没生效：顺手把提交选项打开。
+      if (commitFormParam !== 'commit' && !state.commitOptionsOpen) {
+        state = reduce(state, { type: 'commit-options-toggle' }, base)
+      }
+    }
+    if (params.get('commitall') === '1') state = reduce(state, { type: 'commit-all-tracked' }, base)
+    if (params.get('noverify') === '1') state = reduce(state, { type: 'skip-hooks' }, base)
+    if (params.get('sign') === '1') state = reduce(state, { type: 'sign-commit' }, base)
+    if (params.get('signoff') === '1') state = reduce(state, { type: 'signoff' }, base)
+    if (params.get('template') === '1') state = reduce(state, { type: 'template-apply', body: COMMIT_TEMPLATE }, base)
     // 拉取前的确认气泡只出现在「工作区有未提交改动」时，没有入口直接截到它；给评审留一个深链。
     if (params.get('confirm') === '1') {
       state = reduce(state, { type: 'pull-confirm-open', files: dirtyFiles(), dirtyCount: dirtyFiles().length }, base)
@@ -1473,7 +1524,15 @@ export function mount(root: HTMLElement): void {
       const cap = CAPABILITIES.find((item) => item.id === capParam)
       if (cap !== undefined) {
         const target = targetOfCapability(cap)
-        if (target !== 'view') pages = reducePage(pages, { type: 'page-open', page: target })
+        if (target !== 'view') {
+          pages = reducePage(pages, { type: 'page-open', page: target })
+        } else {
+          // 四页签上的能力：先切到它所在的页签；落在提交选项里的那几条把展开区一起打开。
+          state = reduce(state, { type: 'view', view: cap.target as 'changes' | 'commits' | 'worktrees' | 'stash' }, base)
+          if (capabilityEntryOf(cap.id)?.form === '提交选项' && !state.commitOptionsOpen) {
+            state = reduce(state, { type: 'commit-options-toggle' }, base)
+          }
+        }
         pages = reducePage(pages, { type: 'palette-highlight', id: cap.id })
       }
     }

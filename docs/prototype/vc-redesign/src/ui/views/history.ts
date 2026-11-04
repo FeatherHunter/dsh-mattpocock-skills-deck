@@ -12,7 +12,7 @@ import type { CommitDetailModel, CommitRowModel, HistoryModel } from '../../doma
 import { COPY } from '../../data/copy'
 import type { ResultMessage } from '../../domain/session'
 import { icon, h } from '../dom'
-import { button, emptyState, note, patchBlock, resultBanner } from '../primitives'
+import { button, chip, emptyState, note, patchBlock, resultBanner } from '../primitives'
 
 export interface HistoryViewOptions {
   /** 历史动作产生的结果：贴着列表顶端出现，离刚点过的那一行最近。 */
@@ -94,7 +94,11 @@ function renderCommitLine(row: CommitRowModel, model: HistoryModel, options: His
     h('span', { class: 'commit-meta' },
       h('span', { class: 'commit-author', text: row.author }),
       h('span', { class: 'commit-when', text: row.when }),
-      row.filesCount > 0 ? h('span', { class: 'commit-files', text: `${row.filesCount} 个文件` }) : null),
+      row.filesCount > 0 ? h('span', { class: 'commit-files', text: `${row.filesCount} 个文件` }) : null,
+      // 这条提交是怎么记下来的：修订、fixup、跳过钩子、已签名在行上就能看见。
+      row.marks.length === 0
+        ? null
+        : h('span', { class: 'commit-marks' }, ...row.marks.map((mark) => chip(mark, 'warn', { small: true, title: mark })))),
     h('span', { class: 'commit-chevron' }, icon('chevron', 12))),
     h('button', {
       class: `commit-more${menuOpen ? ' is-open' : ''}`,

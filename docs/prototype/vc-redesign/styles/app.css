@@ -934,6 +934,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   border-top: 1px solid var(--line-2);
   background: linear-gradient(180deg, var(--panel), var(--inset));
 }
+.composer { position: relative; }
 .composer .result { margin-top: 0; }
 .composer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10.5px; color: var(--mut); }
 .composer-count { display: inline-flex; align-items: baseline; gap: 4px; }
@@ -982,6 +983,165 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .composer-foot .composer-reason { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; font-size: 10.5px; line-height: 1.45; color: var(--warn); }
 .composer-foot .composer-reason svg { flex: none; }
 .composer-foot .btn { flex: none; margin-left: auto; }
+
+/* ---------- 提交选项：形态、内容来源、说明模板、钩子与签名 ---------- */
+
+/* 入口是贴在提交按钮右侧的一枚箭头：它属于那颗按钮，不新增一行，默认收起时首屏高度不变。
+   展开区夹在输入框与按钮之间，点开以后才出现形态、模板、钩子与签名这四组控件。 */
+.commit-split { display: inline-flex; align-items: stretch; flex: none; margin-left: auto; }
+.commit-split .btn { margin-left: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.commit-options-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-height: 30px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-left: 0;
+  border-radius: 0 var(--r-btn) var(--r-btn) 0;
+  background: var(--raised);
+  color: var(--mut);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.commit-options-toggle:hover { background: var(--raised-2); border-color: var(--mut); color: var(--ink); }
+.commit-options-toggle:active { transform: translateY(1px); }
+.commit-options-toggle.is-on { background: var(--press); border-color: var(--mut); color: var(--ink); }
+.commit-options-caret { font-size: 11px; line-height: 1; transform: translateY(-1px); }
+
+.commit-options {
+  /* 浮在提交区上方：底边贴着提交区的上沿，左右与提交区对齐。
+     面板高度由宿主固定，所以内容超过可视高度时在区内滚动，不把提交按钮挤出面板。 */
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% + 6px);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 336px;
+  overflow-y: auto;
+  padding: 8px 9px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--inset);
+  box-shadow: 0 16px 34px -18px rgba(8, 12, 18, 0.72);
+}
+.opt-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.opt-title { font-size: 10.5px; font-weight: 700; color: var(--ink); letter-spacing: 0.02em; }
+.opt-close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.opt-close:hover { background: var(--hover); color: var(--ink); }
+.opt-line { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 6px 8px; align-items: start; }
+.opt-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.opt-key { padding-top: 4px; font-size: 10px; color: var(--mut); }
+.opt-note { margin: 0; font-size: 10px; line-height: 1.5; color: var(--faint); }
+.opt-records { display: flex; flex-direction: column; gap: 2px; }
+
+.opt-seg { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.opt-seg-btn {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--panel);
+  color: var(--mut);
+  font-size: 10.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.opt-seg-btn:hover { border-color: var(--mut); color: var(--ink); }
+.opt-seg-btn:active { transform: translateY(1px); }
+.opt-seg-btn.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  color: var(--ink);
+}
+
+.opt-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.opt-check:hover { color: var(--ink); }
+.opt-check:disabled { color: var(--faint); cursor: not-allowed; }
+.opt-box {
+  position: relative;
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  background: var(--panel);
+}
+.opt-check.is-on .opt-box { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--panel)); }
+.opt-check.is-on .opt-box::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 4px;
+  height: 8px;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  transform: rotate(42deg);
+}
+.opt-check:disabled .opt-box { opacity: 0.5; }
+.opt-check-label { line-height: 1.4; }
+.opt-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: none;
+  color: var(--info);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.opt-link:hover { border-bottom-color: var(--info); }
+
+/* fixup 与 squash 的说明由面板自动写成，输入框换成这一行只读说明。 */
+.commit-auto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--panel);
+}
+.commit-auto-lead,
+.commit-auto-note { font-size: 10px; line-height: 1.5; color: var(--faint); }
+.commit-auto-text { font-size: 11.5px; line-height: 1.5; color: var(--ink); }
+
+/* 提交行上标出这条提交的来历（修订 / fixup / 跳过钩子 / 已签名），不用点开详情才知道。 */
+.commit-marks { display: inline-flex; gap: 3px; flex-wrap: wrap; }
+
 
 /* ---------- 提交历史 ---------- */
 
@@ -1898,6 +2058,9 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 
 /* 窄面板：行内菜单与确认卡不再缩进，把宽度留给文字。 */
 @container panel (max-width: 359px) {
+  /* 提交选项四组改成上下两行：左边那列术语会和控件抢宽度。 */
+  .opt-line { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .opt-key { padding-top: 0; }
   /* 菜单保持贴右对齐（margin-left:auto），这里只把两侧留白收紧。 */
   .changes-confirm,
   .commit-confirm,

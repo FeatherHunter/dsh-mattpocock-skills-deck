@@ -2,6 +2,7 @@
 "use strict";
 (() => {
   // docs/prototype/vc-redesign/src/data/copy.ts
+  var COMMIT_TEMPLATE = "<\u8FD9\u6B21\u6539\u4E86\u4EC0\u4E48\uFF1A\u4E00\u53E5\u8BDD\u8BF4\u6E05\u5BF9\u8C61\u4E0E\u52A8\u4F5C>\n\n<\u4E3A\u4EC0\u4E48\u6539\uFF1A\u539F\u6765\u54EA\u91CC\u4E0D\u5BF9\u3001\u8C01\u53D7\u5F71\u54CD>\n\n<\u600E\u4E48\u9A8C\u8BC1\uFF1A\u8DD1\u4E86\u54EA\u6761\u547D\u4EE4\u3001\u770B\u5230\u4EC0\u4E48\u7ED3\u679C>";
   var COPY = {
     frame: {
       kicker: "Prototype: version-control page",
@@ -160,6 +161,55 @@
       stashBlocked: "\u6709\u51B2\u7A81\u6587\u4EF6\u65F6\u4E0D\u80FD\u50A8\u85CF\uFF0C\u5148\u89E3\u51B3\u51B2\u7A81\u3002",
       menuClose: "\u6536\u8D77\u83DC\u5355",
       menuOpen: "\u66F4\u591A\u64CD\u4F5C"
+    },
+    /**
+     * 提交域的六个「提交形态与记录方式」入口。它们都属于「这次提交」，
+     * 所以全部收在提交按钮右边的「提交选项」展开区里，不占首屏。
+     * 文案里出现 git 参数的地方一律带一句人话解释，读者不用先去查 --no-verify 是什么。
+     */
+    commitOptions: {
+      triggerLabel: "\u63D0\u4EA4\u9009\u9879",
+      triggerHint: "\u63D0\u4EA4\u5F62\u6001\u3001\u5185\u5BB9\u6765\u6E90\u3001\u63D0\u4EA4\u8BF4\u660E\u6A21\u677F\u3001\u94A9\u5B50\u4E0E\u7B7E\u540D",
+      title: "\u63D0\u4EA4\u9009\u9879",
+      formKey: "\u63D0\u4EA4\u5F62\u6001",
+      form: {
+        commit: "\u65B0\u63D0\u4EA4",
+        amend: "\u4FEE\u8BA2\u4E0A\u4E00\u6761",
+        fixup: "fixup",
+        squash: "squash"
+      },
+      formNote: {
+        commit: "\u5728\u5386\u53F2\u6700\u524D\u9762\u52A0\u4E00\u6761\u65B0\u63D0\u4EA4\u3002",
+        amend: "\u66FF\u6362\u4E0A\u4E00\u6761\u63D0\u4EA4\uFF0C\u63D0\u4EA4\u53F7\u4F1A\u53D8\uFF1B\u5DF2\u7ECF\u63A8\u9001\u8FC7\u5C31\u8981\u5F3A\u63A8\u3002",
+        fixup: "\u5E26 fixup! \u524D\u7F00\uFF0C\u4E0B\u6B21\u6574\u7406\u5386\u53F2\u65F6\u538B\u56DE\u4E0A\u4E00\u6761\uFF0C\u8BF4\u660E\u4E22\u6389\u3002",
+        squash: "\u5E26 squash! \u524D\u7F00\uFF0C\u4E0B\u6B21\u6574\u7406\u5386\u53F2\u65F6\u5E76\u8FDB\u4E0A\u4E00\u6761\uFF0C\u8BF4\u660E\u4E00\u8D77\u7559\u4E0B\u3002"
+      },
+      target: (short, subject) => `\u4F5C\u7528\u5BF9\u8C61 ${short} ${subject}`,
+      targetNone: "\u8FD8\u6CA1\u6709\u53EF\u4EE5\u4FEE\u8BA2\u7684\u63D0\u4EA4\u3002",
+      contentKey: "\u5185\u5BB9\u6765\u6E90",
+      allTracked: "\u628A\u672A\u6682\u5B58\u7684\u6539\u52A8\u4E5F\u4E00\u8D77\u63D0\u4EA4",
+      allTrackedNote: (n) => `\u5148\u6682\u5B58\u8FD9 ${n} \u4E2A\u672A\u6682\u5B58\u7684\u6587\u4EF6\u518D\u63D0\u4EA4\uFF0C\u76F8\u5F53\u4E8E git commit -a\u3002\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u4E0D\u7B97\u3002`,
+      allTrackedEmpty: "\u6CA1\u6709\u672A\u6682\u5B58\u7684\u6539\u52A8\u53EF\u4EE5\u52A0\u8FDB\u6765\u3002",
+      contentNote: "\u53EA\u63D0\u4EA4\u5DF2\u6682\u5B58\u7684\u5185\u5BB9\uFF0C\u5176\u4F59\u6539\u52A8\u7559\u5728\u5DE5\u4F5C\u533A\u3002",
+      messageKey: "\u63D0\u4EA4\u8BF4\u660E",
+      templateApply: "\u5957\u7528 .gitmessage",
+      templateUndo: "\u64A4\u9500\u5957\u7528",
+      templateApplied: "\u5DF2\u5957\u7528 .gitmessage",
+      templateNote: "\u4E09\u6BB5\uFF1A\u6539\u4E86\u4EC0\u4E48\u3001\u4E3A\u4EC0\u4E48\u6539\u3001\u600E\u4E48\u9A8C\u8BC1\u3002\u539F\u578B\u7528\u4E00\u4EFD\u793A\u4F8B\u6A21\u677F\u3002",
+      templateEmpty: "\u8FD9\u4E2A\u4ED3\u5E93\u6CA1\u6709 .gitmessage\uFF0C\u5957\u4E0D\u4E86\u6A21\u677F\u3002",
+      recordKey: "\u8BB0\u5F55\u65B9\u5F0F",
+      recordNote: "\u4E09\u9879\u90FD\u53EA\u5F71\u54CD\u8FD9\u4E00\u6B21\u63D0\u4EA4\uFF0C\u63D0\u4EA4\u5B8C\u81EA\u52A8\u6062\u590D\u5173\u95ED\u3002",
+      skipHooks: "\u8DF3\u8FC7\u63D0\u4EA4\u94A9\u5B50",
+      skipHooksNote: "\u63D0\u4EA4\u524D\u7684\u68C0\u67E5\u4E0D\u4F1A\u8DD1\u3002",
+      signCommit: "\u7B7E\u540D\u63D0\u4EA4",
+      signCommitNote: "\u7528\u672C\u673A\u5BC6\u94A5\u7B7E\u540D\uFF0C\u63D0\u4EA4\u884C\u4E0A\u4F1A\u6807\u51FA\u6765\u3002",
+      signoff: "\u8FFD\u52A0\u7B7E\u540D\u884C",
+      signoffNote: "\u8BF4\u660E\u672B\u5C3E\u52A0\u4E00\u884C Signed-off-by\u3002",
+      autoMessageLead: "\u8BF4\u660E\u7531\u9762\u677F\u81EA\u52A8\u5199\u6210",
+      autoMessageNote: "\u8FD9\u6761\u63D0\u4EA4\u4E0D\u624B\u5199\u8BF4\u660E\uFF1B\u6574\u7406\u5386\u53F2\u65F6\uFF0Cgit \u6309\u524D\u7F00\u628A\u5B83\u538B\u56DE\u4E0A\u4E00\u6761\u3002",
+      labelAmend: "\u4FEE\u8BA2\u4E0A\u4E00\u6761\u63D0\u4EA4",
+      labelFixup: "\u751F\u6210 fixup \u63D0\u4EA4",
+      labelSquash: "\u751F\u6210 squash \u63D0\u4EA4"
     },
     history: {
       searchPlaceholder: (loaded) => `\u5728\u5DF2\u52A0\u8F7D\u7684 ${loaded} \u6761\u63D0\u4EA4\u91CC\u7B5B\u9009`,
@@ -529,6 +579,27 @@
   }
 
   // src/shared/version-control/src/rules.ts
+  var REASONS = {
+    ok: "ok",
+    "nothing-to-stage": "nothing-to-stage",
+    "nothing-staged": "nothing-staged",
+    "no-upstream": "no-upstream",
+    "upstream-gone": "upstream-gone",
+    "detached-head": "detached-head",
+    "conflicts-unresolved": "conflicts-unresolved",
+    "mid-merge": "mid-merge",
+    "mid-rebase": "mid-rebase",
+    "mid-cherry-revert": "mid-cherry-revert",
+    "dirty-tree": "dirty-tree",
+    "behind-remote": "behind-remote",
+    "basis-unknown": "basis-unknown",
+    "bare-repo": "bare-repo",
+    "unknown-operation": "unknown-operation"
+  };
+  var REASON_IDS = Object.keys(REASONS);
+  function decide(verdict, reasons) {
+    return { verdict, reasons: reasons.slice() };
+  }
   function midReasons(s) {
     const out = [];
     if (s.repo.merging) out.push("mid-merge");
@@ -537,48 +608,48 @@
     return out;
   }
   function judgeStage(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    if (s.unstagedCount === 0) return { verdict: "block", reasons: ["nothing-to-stage"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    if (s.unstagedCount === 0) return decide("block", ["nothing-to-stage"]);
     const mid = midReasons(s);
-    if (mid.length > 0) return { verdict: "warn", reasons: mid };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (mid.length > 0) return decide("warn", mid);
+    return decide("allow", ["ok"]);
   }
   function judgeCommit(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    if (s.conflictCount > 0) return { verdict: "block", reasons: ["conflicts-unresolved"] };
-    if (s.stagedCount === 0) return { verdict: "block", reasons: ["nothing-staged"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    if (s.conflictCount > 0) return decide("block", ["conflicts-unresolved"]);
+    if (s.stagedCount === 0) return decide("block", ["nothing-staged"]);
     const mid = midReasons(s);
-    if (s.identity.detached) return { verdict: "warn", reasons: ["detached-head"].concat(mid) };
-    if (mid.length > 0) return { verdict: "warn", reasons: mid };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (s.identity.detached) return decide("warn", ["detached-head", ...mid]);
+    if (mid.length > 0) return decide("warn", mid);
+    return decide("allow", ["ok"]);
   }
   function judgePull(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    if (s.identity.detached) return { verdict: "block", reasons: ["detached-head"] };
-    if (s.identity.sync === "no-upstream") return { verdict: "block", reasons: ["no-upstream"] };
-    if (s.identity.sync === "upstream-gone") return { verdict: "block", reasons: ["upstream-gone"] };
-    if (s.conflictCount > 0) return { verdict: "block", reasons: ["conflicts-unresolved"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    if (s.identity.detached) return decide("block", ["detached-head"]);
+    if (s.identity.sync === "no-upstream") return decide("block", ["no-upstream"]);
+    if (s.identity.sync === "upstream-gone") return decide("block", ["upstream-gone"]);
+    if (s.conflictCount > 0) return decide("block", ["conflicts-unresolved"]);
     const mid = midReasons(s);
-    if (mid.length > 0) return { verdict: "block", reasons: mid };
-    if (s.stagedCount > 0 || s.unstagedCount > 0) return { verdict: "warn", reasons: ["dirty-tree"] };
-    if (s.identity.basisMs === null) return { verdict: "warn", reasons: ["basis-unknown"] };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (mid.length > 0) return decide("block", mid);
+    if (s.stagedCount > 0 || s.unstagedCount > 0) return decide("warn", ["dirty-tree"]);
+    if (s.identity.basisMs === null) return decide("warn", ["basis-unknown"]);
+    return decide("allow", ["ok"]);
   }
   function judgePush(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    if (s.identity.detached) return { verdict: "block", reasons: ["detached-head"] };
-    if (s.identity.sync === "no-upstream") return { verdict: "block", reasons: ["no-upstream"] };
-    if (s.identity.sync === "upstream-gone") return { verdict: "block", reasons: ["upstream-gone"] };
-    if (s.conflictCount > 0) return { verdict: "block", reasons: ["conflicts-unresolved"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    if (s.identity.detached) return decide("block", ["detached-head"]);
+    if (s.identity.sync === "no-upstream") return decide("block", ["no-upstream"]);
+    if (s.identity.sync === "upstream-gone") return decide("block", ["upstream-gone"]);
+    if (s.conflictCount > 0) return decide("block", ["conflicts-unresolved"]);
     const mid = midReasons(s);
-    if (mid.length > 0) return { verdict: "block", reasons: mid };
-    if (s.identity.behind > 0) return { verdict: "block", reasons: ["behind-remote"] };
-    if (s.identity.basisMs === null) return { verdict: "warn", reasons: ["basis-unknown"] };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (mid.length > 0) return decide("block", mid);
+    if (s.identity.behind > 0) return decide("block", ["behind-remote"]);
+    if (s.identity.basisMs === null) return decide("warn", ["basis-unknown"]);
+    return decide("allow", ["ok"]);
   }
   function judgeFetch(s) {
-    if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
-    return { verdict: "allow", reasons: ["ok"] };
+    if (s.repo.bare) return decide("block", ["bare-repo"]);
+    return decide("allow", ["ok"]);
   }
   function judge(screen, op) {
     switch (op) {
@@ -593,7 +664,7 @@
       case "fetch":
         return judgeFetch(screen);
       default:
-        return { verdict: "block", reasons: ["unknown-operation"] };
+        return decide("block", ["unknown-operation"]);
     }
   }
 
@@ -3579,7 +3650,16 @@
       ignored: [],
       stashes: [],
       stashPending: null,
-      undoneOid: null
+      undoneOid: null,
+      replacedOid: null,
+      commitOptionsOpen: false,
+      commitForm: "commit",
+      commitAllTracked: false,
+      skipHooks: false,
+      signCommit: false,
+      signoff: false,
+      templateApplied: false,
+      messageBeforeTemplate: ""
     };
   }
   function unique(paths) {
@@ -3689,43 +3769,188 @@
         return { ...state, message: action.value };
       case "commit-start":
         return enterBusy(state, "commit");
+      case "commit-options-toggle":
+        return { ...state, commitOptionsOpen: !state.commitOptionsOpen };
+      case "commit-form": {
+        if (action.form === state.commitForm) return state;
+        const head = headInfoOf(base, state);
+        let message = state.message;
+        if (action.form === "amend" && head !== null && message.trim() === "") message = head.subject;
+        else if (action.form === "commit" && head !== null && message.trim() === head.subject.trim()) message = "";
+        return { ...state, commitForm: action.form, message, templateApplied: false };
+      }
+      case "commit-all-tracked":
+        return { ...state, commitAllTracked: !state.commitAllTracked };
+      case "skip-hooks":
+        return { ...state, skipHooks: !state.skipHooks };
+      case "sign-commit":
+        return { ...state, signCommit: !state.signCommit };
+      case "signoff":
+        return { ...state, signoff: !state.signoff };
+      case "template-apply": {
+        if (state.templateApplied) return state;
+        return {
+          ...state,
+          message: action.body,
+          messageBeforeTemplate: state.message,
+          templateApplied: true
+        };
+      }
+      case "template-undo":
+        if (!state.templateApplied) return state;
+        return { ...state, message: state.messageBeforeTemplate, templateApplied: false };
       case "commit-finish": {
-        const staged = state.staged;
+        const form = state.commitForm;
+        const head = headInfoOf(base, state);
         const message = state.message.trim();
-        if (staged.length === 0 || message === "") {
-          return {
-            ...state,
-            busy: null,
-            result: { tone: "error", text: staged.length === 0 ? "\u8FD8\u6CA1\u6709\u6682\u5B58\u7684\u6587\u4EF6\uFF0C\u5148\u6682\u5B58\u8981\u63D0\u4EA4\u7684\u6587\u4EF6\u3002" : "\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u540E\u5373\u53EF\u63D0\u4EA4\u3002", detail: null, source: "commit" }
-          };
+        const alsoTracked = state.commitAllTracked ? trackedChangesOf(base, state) : [];
+        const paths = unique([...state.staged, ...alsoTracked]);
+        const remainingUnstaged = state.unstaged.filter((path) => alsoTracked.includes(path) === false);
+        const needsContent = form !== "amend";
+        if (form === "amend" && head === null) {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u5386\u53F2\u91CC\u8FD8\u6CA1\u6709\u53EF\u4EE5\u4FEE\u8BA2\u7684\u63D0\u4EA4\u3002",
+            detail: "\u300C\u4FEE\u8BA2\u4E0A\u4E00\u6761\u300D\u6539\u7684\u662F\u5F53\u524D\u5206\u652F\u6700\u524D\u9762\u90A3\u6761\u63D0\u4EA4\u3002\u9762\u677F\u6CA1\u6709\u8BFB\u5230\u5B83\uFF0C\u5148\u7528\u300C\u65B0\u63D0\u4EA4\u300D\u3002",
+            source: "commit"
+          });
         }
-        const files = staged.map((path) => {
+        if (needsContent && paths.length === 0) {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u8FD8\u6CA1\u6709\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\uFF0C\u5148\u6682\u5B58\u8981\u63D0\u4EA4\u7684\u6587\u4EF6\u3002",
+            detail: state.commitAllTracked ? "\u300C\u628A\u672A\u6682\u5B58\u7684\u6539\u52A8\u4E5F\u4E00\u8D77\u63D0\u4EA4\u300D\u5DF2\u7ECF\u6253\u5F00\uFF0C\u4F46\u5DE5\u4F5C\u533A\u91CC\u6CA1\u6709\u672A\u6682\u5B58\u7684\u6539\u52A8\u53EF\u4EE5\u52A0\u8FDB\u6765\u3002" : null,
+            source: "commit"
+          });
+        }
+        if (form === "commit" && message === "") {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u540E\u5373\u53EF\u63D0\u4EA4\u3002",
+            detail: null,
+            source: "commit"
+          });
+        }
+        if (form === "amend" && head !== null && message === "") {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u4FEE\u8BA2\u8981\u6709\u4E00\u6761\u65B0\u7684\u63D0\u4EA4\u8BF4\u660E\u3002",
+            detail: "\u4FEE\u8BA2\u4F1A\u7528\u8F93\u5165\u6846\u91CC\u7684\u8BF4\u660E\u66FF\u6362\u4E0A\u4E00\u6761\u63D0\u4EA4\u7684\u8BF4\u660E\uFF1B\u4E0D\u60F3\u6539\u8BF4\u660E\u5C31\u5148\u628A\u539F\u6765\u7684\u8BF4\u660E\u586B\u56DE\u6765\u3002",
+            source: "commit"
+          });
+        }
+        if (form === "amend" && head !== null && paths.length === 0 && message === head.subject.trim()) {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u8BF4\u660E\u548C\u5185\u5BB9\u90FD\u6CA1\u6709\u53D8\u5316\uFF0C\u4E0D\u9700\u8981\u4FEE\u8BA2\u3002",
+            detail: "\u4FEE\u8BA2\u4F1A\u91CD\u5199\u63D0\u4EA4\u53F7\u3002\u8FD9\u4E00\u7248\u8BF4\u660E\u4E0E\u4E0A\u4E00\u6761\u5B8C\u5168\u76F8\u540C\uFF0C\u4E5F\u6CA1\u6709\u65B0\u7684\u5DF2\u6682\u5B58\u6587\u4EF6\u3002",
+            source: "commit"
+          });
+        }
+        if ((form === "fixup" || form === "squash") && head === null) {
+          return withResult({ ...state, busy: null }, {
+            tone: "error",
+            text: "\u5386\u53F2\u91CC\u8FD8\u6CA1\u6709\u53EF\u4EE5\u538B\u7F29\u8FDB\u53BB\u7684\u63D0\u4EA4\u3002",
+            detail: "fixup \u4E0E squash \u90FD\u662F\u300C\u628A\u8FD9\u6B21\u6539\u52A8\u6302\u5230\u4E0A\u4E00\u6761\u63D0\u4EA4\u4E0A\u300D\uFF0C\u6CA1\u6709\u4E0A\u4E00\u6761\u5C31\u65E0\u5904\u53EF\u6302\u3002",
+            source: "commit"
+          });
+        }
+        const files = paths.map((path) => {
           const meta = metadataOf(base, path);
           return { path, added: meta?.addedLines ?? 0, deleted: meta?.deletedLines ?? 0 };
         });
-        const commit = {
-          oid: shortOid2() + shortOid2() + shortOid2() + shortOid2() + shortOid2() + shortOid2(),
-          short: shortOid2(),
-          subject: message,
-          author: "\u8FB0\u8FB0\u6D0B\u6D0B",
-          authorDateMs: Date.now(),
-          parents: [state.localCommits[0]?.oid ?? base.screen.commits[0]?.oid ?? ""],
-          files
-        };
-        return {
-          ...state,
+        const now = Date.now();
+        const oid = shortOid2() + shortOid2() + shortOid2() + shortOid2() + shortOid2() + shortOid2();
+        const short = oid.slice(0, 7);
+        const marks = marksOf(state, form);
+        const extraNotes = optionNotesOf(state);
+        const baseReset = {
           busy: null,
           staged: [],
+          unstaged: remainingUnstaged,
+          commitAllTracked: false,
+          skipHooks: false,
+          signCommit: false,
+          signoff: false,
+          templateApplied: false
+        };
+        if (form === "amend" && head !== null) {
+          const amended = {
+            oid,
+            short,
+            subject: message,
+            author: "\u8FB0\u8FB0\u6D0B\u6D0B",
+            authorDateMs: now,
+            parents: head.parents,
+            files: mergeFiles(head.files, files),
+            marks
+          };
+          const headIsLocal = state.localCommits.length > 0;
+          const replacedOid = headIsLocal ? state.replacedOid : head.oid;
+          const pushed = state.ahead === 0;
+          return withResult({
+            ...state,
+            ...baseReset,
+            message: "",
+            commitForm: "commit",
+            replacedOid,
+            localCommits: headIsLocal ? [amended, ...state.localCommits.slice(1)] : [amended, ...state.localCommits],
+            ahead: pushed ? 1 : state.ahead,
+            behind: pushed ? state.behind + 1 : state.behind
+          }, {
+            tone: "warn",
+            text: paths.length === 0 ? `\u5DF2\u4FEE\u8BA2 ${head.short} \u7684\u63D0\u4EA4\u8BF4\u660E\u3002` : `\u5DF2\u4FEE\u8BA2 ${head.short}\uFF1A\u8FD9\u6761\u63D0\u4EA4\u73B0\u5728\u53EB ${short}\u3002`,
+            detail: (paths.length === 0 ? `\u5185\u5BB9\u6CA1\u6709\u53D8\uFF0C\u53EA\u6539\u4E86\u8BF4\u660E\u3002\u8BF4\u660E\u4E5F\u662F\u63D0\u4EA4\u5185\u5BB9\u7684\u4E00\u90E8\u5206\uFF0C\u6240\u4EE5\u63D0\u4EA4\u53F7\u540C\u6837\u4F1A\u53D8\u3002` : `\u4E0A\u4E00\u6761\u63D0\u4EA4\u88AB\u8FD9\u6761\u66FF\u6362\u6389\uFF0C\u73B0\u5728\u4E00\u5171 ${amended.files.length} \u4E2A\u6587\u4EF6\u3002\u63D0\u4EA4\u53F7\u53D8\u4E86\uFF0C\u5386\u53F2\u91CC\u90A3\u6761\u65E7\u63D0\u4EA4\u4E0D\u518D\u51FA\u73B0\u3002`) + (pushed ? "\u8FD9\u6761\u63D0\u4EA4\u5DF2\u7ECF\u63A8\u9001\u8FC7\uFF0C\u8FDC\u7AEF\u8FD8\u6307\u7740\u65E7\u63D0\u4EA4\uFF0C\u9700\u8981\u5F3A\u63A8\u624D\u80FD\u5BF9\u9F50\u3002" : "\u8FD9\u6761\u63D0\u4EA4\u8FD8\u6CA1\u6709\u63A8\u9001\uFF0C\u8FDC\u7AEF\u4E0D\u53D7\u5F71\u54CD\u3002") + extraNotes,
+            source: "commit"
+          });
+        }
+        if (form === "fixup" || form === "squash") {
+          const target = head === null ? "" : head.subject;
+          const prefix = form === "fixup" ? "fixup!" : "squash!";
+          const commit2 = {
+            oid,
+            short,
+            subject: `${prefix} ${target}`,
+            author: "\u8FB0\u8FB0\u6D0B\u6D0B",
+            authorDateMs: now,
+            parents: [head?.oid ?? ""],
+            files,
+            marks
+          };
+          return withResult({
+            ...state,
+            ...baseReset,
+            ahead: state.ahead + 1,
+            localCommits: [commit2, ...state.localCommits]
+          }, {
+            tone: "ok",
+            text: form === "fixup" ? `\u5DF2\u751F\u6210 fixup \u63D0\u4EA4 ${short}\uFF0C\u6307\u5411 ${head?.short ?? ""}\u3002` : `\u5DF2\u751F\u6210 squash \u63D0\u4EA4 ${short}\uFF0C\u6307\u5411 ${head?.short ?? ""}\u3002`,
+            detail: (form === "fixup" ? `\u8BF4\u660E\u5199\u6210\u300Cfixup! ${target}\u300D\uFF0C\u8FD9\u6B21\u6539\u52A8\u5148\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\u3002\u4E0B\u6B21\u6574\u7406\u5386\u53F2\u9009\u300C\u81EA\u52A8\u5438\u6536 fixup\u300D\u65F6\uFF0Cgit \u4F1A\u628A\u5B83\u538B\u56DE\u76EE\u6807\u63D0\u4EA4\uFF0C\u8FD9\u6761\u8BF4\u660E\u4E22\u6389\u3002` : `\u8BF4\u660E\u5199\u6210\u300Csquash! ${target}\u300D\uFF0C\u8FD9\u6B21\u6539\u52A8\u5148\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\u3002\u4E0B\u6B21\u6574\u7406\u5386\u53F2\u9009\u300C\u81EA\u52A8\u5438\u6536 fixup\u300D\u65F6\uFF0C\u5B83\u4F1A\u548C\u76EE\u6807\u63D0\u4EA4\u5E76\u6210\u4E00\u6761\uFF0C\u4E24\u6761\u8BF4\u660E\u90FD\u7559\u7740\u3002`) + extraNotes,
+            source: "commit"
+          });
+        }
+        const commit = {
+          oid,
+          short,
+          subject: message,
+          author: "\u8FB0\u8FB0\u6D0B\u6D0B",
+          authorDateMs: now,
+          parents: [state.localCommits[0]?.oid ?? base.screen.commits[0]?.oid ?? ""],
+          files,
+          marks
+        };
+        return withResult({
+          ...state,
+          ...baseReset,
           message: "",
           ahead: state.ahead + 1,
-          localCommits: [commit, ...state.localCommits],
-          result: {
-            tone: "ok",
-            text: `\u63D0\u4EA4\u5B8C\u6210\uFF1A${files.length} \u4E2A\u6587\u4EF6\u5DF2\u8FDB\u5165\u5386\u53F2\u3002`,
-            detail: "\u8FD9\u6B21\u63D0\u4EA4\u53EA\u5305\u542B\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u3002\u8FD9\u4EFD\u6E05\u5355\u5DF2\u7ECF\u6E05\u7A7A\uFF0C\u53EF\u4EE5\u63A5\u7740\u6682\u5B58\u4E0B\u4E00\u6279\u3002",
-            source: "commit"
-          }
-        };
+          localCommits: [commit, ...state.localCommits]
+        }, {
+          tone: "ok",
+          text: alsoTracked.length > 0 ? `\u63D0\u4EA4\u5B8C\u6210\uFF1A${files.length} \u4E2A\u6587\u4EF6\u5DF2\u8FDB\u5165\u5386\u53F2\uFF0C\u5176\u4E2D ${alsoTracked.length} \u4E2A\u662F\u521A\u521A\u4E00\u8D77\u6682\u5B58\u7684\u3002` : `\u63D0\u4EA4\u5B8C\u6210\uFF1A${files.length} \u4E2A\u6587\u4EF6\u5DF2\u8FDB\u5165\u5386\u53F2\u3002`,
+          detail: (alsoTracked.length > 0 ? "\u76F8\u5F53\u4E8E git commit -a\uFF1A\u672A\u6682\u5B58\u7684\u6539\u52A8\u5148\u88AB\u6682\u5B58\uFF0C\u518D\u8FDB\u5165\u8FD9\u6B21\u63D0\u4EA4\u3002\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u4E0D\u7B97\u5728\u5185\uFF0C\u4ECD\u7136\u7559\u5728\u5DE5\u4F5C\u533A\u3002" : "\u8FD9\u6B21\u63D0\u4EA4\u53EA\u5305\u542B\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u3002\u8FD9\u4EFD\u6E05\u5355\u5DF2\u7ECF\u6E05\u7A7A\uFF0C\u53EF\u4EE5\u63A5\u7740\u6682\u5B58\u4E0B\u4E00\u6279\u3002") + extraNotes,
+          source: "commit"
+        });
       }
       case "op-start":
         return enterBusy(state, action.op);
@@ -4099,6 +4324,9 @@
           ...state,
           localCommits: localHead !== null ? state.localCommits.slice(1) : state.localCommits,
           undoneOid: localHead !== null ? state.undoneOid : action.oid,
+          // 撤销掉的如果是一条「修订」出来的提交，被它替掉的原提交要回到历史里：
+          // 撤销的意思是「这一步不算了」，原来那条提交本来就没有被真正删掉。
+          replacedOid: localHead !== null && state.localCommits.length === 1 ? null : state.replacedOid,
           staged: unique([...state.staged, ...files]),
           message: state.message.trim() === "" ? subject : state.message,
           ahead: pushed ? state.ahead : Math.max(0, state.ahead - 1),
@@ -4153,6 +4381,50 @@
     if (meta.addedLines !== null && meta.addedLines > 0) parts.push(`\u65B0\u589E ${meta.addedLines} \u884C`);
     if (meta.deletedLines !== null && meta.deletedLines > 0) parts.push(`\u5220\u9664 ${meta.deletedLines} \u884C`);
     return parts.join("\uFF0C");
+  }
+  function headInfoOf(base, state) {
+    const local = state.localCommits[0];
+    if (local !== void 0) {
+      return { oid: local.oid, short: local.short, subject: local.subject, parents: local.parents, files: local.files };
+    }
+    const captured = base.screen.commits.find((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid);
+    if (captured === void 0) return null;
+    return {
+      oid: captured.oid,
+      short: captured.short,
+      subject: captured.subject,
+      parents: captured.parents,
+      files: base.commitFiles.get(captured.oid) ?? []
+    };
+  }
+  function trackedChangesOf(base, state) {
+    return state.unstaged.filter((path) => metadataOf(base, path)?.change !== "untracked");
+  }
+  function mergeFiles(previous, added) {
+    const merged = previous.slice();
+    for (const file of added) {
+      const index = merged.findIndex((row) => row.path === file.path);
+      if (index === -1) merged.push(file);
+      else merged[index] = file;
+    }
+    return merged;
+  }
+  function marksOf(state, form) {
+    const marks = [];
+    if (form === "amend") marks.push("\u4FEE\u8BA2");
+    if (form === "fixup") marks.push("fixup");
+    if (form === "squash") marks.push("squash");
+    if (state.skipHooks) marks.push("\u8DF3\u8FC7\u94A9\u5B50");
+    if (state.signCommit) marks.push("\u5DF2\u7B7E\u540D");
+    if (state.signoff) marks.push("\u7B7E\u540D\u884C");
+    return marks;
+  }
+  function optionNotesOf(state) {
+    const notes = [];
+    if (state.skipHooks) notes.push("\u8FD9\u6B21\u8DF3\u8FC7\u4E86 pre-commit \u4E0E commit-msg \u4E24\u4E2A\u63D0\u4EA4\u94A9\u5B50\uFF0C\u63D0\u4EA4\u524D\u7684\u68C0\u67E5\u6CA1\u6709\u8DD1\u3002");
+    if (state.signCommit) notes.push("\u8FD9\u6761\u63D0\u4EA4\u5E26\u7B7E\u540D\uFF08\u539F\u578B\u6A21\u62DF\uFF0C\u6CA1\u6709\u771F\u7684\u8C03\u7528\u672C\u673A\u5BC6\u94A5\uFF09\u3002");
+    if (state.signoff) notes.push("\u8BF4\u660E\u672B\u5C3E\u8FFD\u52A0\u4E86\u4E00\u884C Signed-off-by: \u8FB0\u8FB0\u6D0B\u6D0B <chen@example.com>\u3002");
+    return notes.length === 0 ? "" : " " + notes.join("");
   }
 
   // docs/prototype/vc-redesign/src/domain/handoff.ts
@@ -4572,11 +4844,28 @@
       if (group.id === "staged") return true;
       return group.rows.length > 0;
     });
+    const form = state.commitForm;
+    const head = headInfoOf(base, state);
+    const alsoTracked = state.commitAllTracked ? trackedChangesOf(base, state) : [];
+    const effectiveCount = state.staged.length + alsoTracked.length;
+    const autoMessage = head === null || form !== "fixup" && form !== "squash" ? null : (form === "fixup" ? "fixup! " : "squash! ") + head.subject;
     const commitVerdict = verdictOf(screen, "commit");
-    let disabledReason = commitVerdict.reason;
-    if (state.staged.length === 0) disabledReason = COPY.changes.commitNoStaged;
-    else if (state.conflicts.length > 0) disabledReason = COPY.block["conflicts-unresolved"];
-    else if (state.message.trim() === "") disabledReason = COPY.changes.commitNoMessage;
+    let disabledReason = commitVerdict.reason === COPY.block["nothing-staged"] ? null : commitVerdict.reason;
+    if (disabledReason === null) {
+      if (state.conflicts.length > 0) {
+        disabledReason = COPY.block["conflicts-unresolved"];
+      } else if (form === "amend") {
+        if (head === null) disabledReason = "\u5386\u53F2\u91CC\u8FD8\u6CA1\u6709\u53EF\u4EE5\u4FEE\u8BA2\u7684\u63D0\u4EA4";
+        else if (state.message.trim() === "") disabledReason = COPY.changes.commitNoMessage;
+        else if (effectiveCount === 0 && state.message.trim() === head.subject.trim()) disabledReason = "\u8BF4\u660E\u548C\u5185\u5BB9\u90FD\u6CA1\u6709\u53D8\u5316\uFF0C\u4E0D\u9700\u8981\u4FEE\u8BA2";
+      } else if (effectiveCount === 0) {
+        disabledReason = COPY.changes.commitNoStaged;
+      } else if (form === "commit" && state.message.trim() === "") {
+        disabledReason = COPY.changes.commitNoMessage;
+      }
+    }
+    const commitLabel = form === "amend" ? COPY.commitOptions.labelAmend : form === "fixup" ? COPY.commitOptions.labelFixup : form === "squash" ? COPY.commitOptions.labelSquash : COPY.changes.commitLabel(effectiveCount);
+    const commitHint = form === "amend" ? effectiveCount === 0 ? "\u8FD9\u6B21\u53EA\u6539\u63D0\u4EA4\u8BF4\u660E\uFF0C\u5185\u5BB9\u6CBF\u7528\u4E0A\u4E00\u6761\u63D0\u4EA4\u3002" : "\u8FD9\u6B21\u4F1A\u628A\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u5E76\u8FDB\u4E0A\u4E00\u6761\u63D0\u4EA4\uFF0C\u63D0\u4EA4\u53F7\u4F1A\u53D8\u3002" : form === "fixup" ? "fixup \u63D0\u4EA4\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\uFF0C\u7B49\u6574\u7406\u5386\u53F2\u65F6\u538B\u56DE\u4E0A\u4E00\u6761\u3002" : form === "squash" ? "squash \u63D0\u4EA4\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\uFF0C\u7B49\u6574\u7406\u5386\u53F2\u65F6\u548C\u4E0A\u4E00\u6761\u5E76\u6210\u4E00\u6761\u3002" : alsoTracked.length > 0 ? "\u672A\u6682\u5B58\u7684\u6539\u52A8\u4F1A\u5148\u88AB\u6682\u5B58\uFF0C\u518D\u4E00\u8D77\u63D0\u4EA4\u3002" : COPY.changes.messageHint;
     const changeCount = state.staged.length + state.unstaged.length;
     return {
       stats: [
@@ -4603,10 +4892,25 @@
         stagedCount: state.staged.length,
         message: state.message,
         placeholder: COPY.changes.messagePlaceholder,
-        hint: COPY.changes.messageHint,
+        hint: commitHint,
         disabled: busy || disabledReason !== null,
         disabledReason,
-        busy: state.busy === "commit"
+        busy: state.busy === "commit",
+        label: commitLabel,
+        optionsOpen: state.commitOptionsOpen,
+        options: {
+          form,
+          formNote: COPY.commitOptions.formNote[form],
+          target: head === null ? null : { short: head.short, subject: head.subject },
+          allTracked: state.commitAllTracked,
+          allTrackedCount: trackedChangesOf(base, state).length,
+          skipHooks: state.skipHooks,
+          signCommit: state.signCommit,
+          signoff: state.signoff,
+          templateApplied: state.templateApplied,
+          autoMessage,
+          messageEditable: form === "commit" || form === "amend"
+        }
       }
     };
   }
@@ -4628,11 +4932,12 @@
       authorDateMs: commit.authorDateMs,
       parents: commit.parents,
       files: commit.files,
-      local: true
+      local: true,
+      marks: commit.marks
     }));
     const total = historyTotal(base, state);
     const keep = Math.max(0, total - local.length);
-    const captured = base.screen.commits.filter((commit) => commit.oid !== state.undoneOid).slice(0, keep).map((commit) => ({
+    const captured = base.screen.commits.filter((commit) => commit.oid !== state.undoneOid && commit.oid !== state.replacedOid).slice(0, keep).map((commit) => ({
       oid: commit.oid,
       short: commit.short,
       subject: commit.subject,
@@ -4640,7 +4945,8 @@
       authorDateMs: commit.authorDateMs,
       parents: commit.parents,
       files: base.commitFiles.get(commit.oid) ?? [],
-      local: false
+      local: false,
+      marks: []
     }));
     return [...local, ...captured];
   }
@@ -4670,7 +4976,8 @@
         merge: entry.parents.length > 1,
         filesCount: entry.files.length,
         group: groupLabel,
-        selected: state.historyOpenOid === entry.oid
+        selected: state.historyOpenOid === entry.oid,
+        marks: entry.marks
       };
     });
     let detail = null;
@@ -7182,6 +7489,107 @@
     }
   }
 
+  // docs/prototype/vc-redesign/src/data/capability-entries.ts
+  var TAB_ENTRIES = [
+    // —— 改动页：工作区与暂存 ——
+    { id: "1.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6539\u52A8\u9875\u9876\u90E8\u7684\u4E09\u5F20\u7EDF\u8BA1\u5361\u4E0E\u6587\u4EF6\u5217\u8868", status: "\u5DF2\u753B" },
+    { id: "1.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u6587\u4EF6\u884C\u5C55\u5F00\u540E\u7684\u9010\u5757\u5DEE\u5F02\uFF0C\u6BCF\u4E00\u5757\u53F3\u4FA7\u7ED9\u300C\u6682\u5B58\u8FD9\u4E00\u5757\u300D", status: "\u5F85\u753B", reason: "\u9010\u5757\u6682\u5B58\u9009\u7684\u662F\u300C\u54EA\u4E9B\u884C\u8FDB\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\uFF0C\u6240\u4EE5\u8D34\u5728\u9010\u884C\u5DEE\u5F02\u4E0A\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u90A3\u91CC\u6539\u7684\u662F\u8FD9\u6B21\u63D0\u4EA4\u600E\u4E48\u8BB0\uFF09\uFF0C\u4E5F\u4E0D\u653E\u884C\u5C3E\u83DC\u5355\uFF08\u83DC\u5355\u91CC\u770B\u4E0D\u5230\u662F\u54EA\u4E00\u5757\uFF09\u3002" },
+    { id: "1.3", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6587\u4EF6\u884C\u5C3E\u7684\u300C\u6682\u5B58\u300D", status: "\u5DF2\u753B" },
+    { id: "1.4", form: "\u884C\u5185\u63A7\u4EF6", at: "\u672A\u6682\u5B58\u5206\u7EC4\u6807\u9898\u53F3\u4FA7\u7684\u300C\u5168\u90E8\u6682\u5B58\u300D", status: "\u5DF2\u753B" },
+    { id: "1.5", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6587\u4EF6\u884C\u5C3E\u7684\u300C\u53D6\u6D88\u6682\u5B58\u300D\u4E0E\u5DF2\u6682\u5B58\u5206\u7EC4\u6807\u9898\u7684\u300C\u5168\u90E8\u53D6\u6D88\u6682\u5B58\u300D", status: "\u5DF2\u753B" },
+    { id: "1.6", form: "\u884C\u5C3E\u83DC\u5355", at: "\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u4E22\u5F03\u4FEE\u6539\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "1.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u672A\u6682\u5B58\u5206\u7EC4\u6807\u9898\u53F3\u4FA7\u7684\u300C\u4E22\u5F03\u5168\u90E8\u300D\u4E0E\u8D34\u7EC4\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "1.8", form: "\u884C\u5C3E\u83DC\u5355", at: "\u672A\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u5220\u9664\u8FD9\u4E2A\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "1.9", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u5220\u9664\u8FD9\u4E2A\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5F85\u753B", reason: "\u5B83\u53EA\u4F5C\u7528\u4E8E\u8FD9\u4E00\u884C\u3001\u5220\u6389\u5C31\u627E\u4E0D\u56DE\u6765\uFF0C\u6240\u4EE5\u548C\u300C\u4E22\u5F03\u4FEE\u6539\u300D\u540C\u4E00\u5C42\u653E\u5728\u884C\u5C3E\u83DC\u5355\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u90A3\u91CC\u53EA\u51B3\u5B9A\u8FD9\u6B21\u63D0\u4EA4\u600E\u4E48\u8BB0\uFF09\uFF0C\u4E5F\u4E0D\u5355\u72EC\u5360\u4E00\u5C4F\uFF08\u4E00\u6B21\u53EA\u5220\u4E00\u884C\uFF09\u3002" },
+    { id: "1.10", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u505C\u6B62\u8DDF\u8E2A\uFF0C\u4FDD\u7559\u6587\u4EF6\u300D\u4E0E\u8D34\u884C\u8BF4\u660E", status: "\u5F85\u753B", reason: "\u8BFB\u8005\u662F\u5728\u8FD9\u4E00\u884C\u4E0A\u8BF4\u300C\u522B\u518D\u8DDF\u8E2A\u5B83\u300D\uFF0C\u548C\u52A0\u5165\u5FFD\u7565\u6E05\u5355\u662F\u540C\u4E00\u7C7B\u51B3\u5B9A\uFF0C\u6240\u4EE5\u653E\u884C\u5C3E\u83DC\u5355\uFF1B\u7ED3\u679C\u8981\u8BA9\u8FD9\u4E2A\u6587\u4EF6\u4ECE\u5217\u8868\u6D88\u5931\u3001\u5E76\u5199\u660E\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u8FD8\u5728\u3002" },
+    { id: "1.11", form: "\u884C\u5C3E\u83DC\u5355", at: "\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u91CD\u547D\u540D\u6216\u79FB\u52A8\u300D\uFF0C\u5C55\u5F00\u4E00\u4E2A\u53EA\u586B\u65B0\u8DEF\u5F84\u7684\u8F93\u5165\u6846", status: "\u5F85\u753B", reason: "\u91CD\u547D\u540D\u6539\u7684\u662F\u4E00\u6761\u8DEF\u5F84\uFF0C\u5C5E\u4E8E\u884C\u7EA7\u52A8\u4F5C\uFF0C\u6240\u4EE5\u548C\u4E22\u5F03\u3001\u5FFD\u7565\u653E\u5728\u540C\u4E00\u5F20\u83DC\u5355\u91CC\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u9009\u9879\uFF08\u5B83\u4E0D\u662F\u63D0\u4EA4\u65B9\u5F0F\uFF09\uFF0C\u4E5F\u4E0D\u653E\u4E8C\u7EA7\u9875\uFF08\u4E3A\u4E00\u4E2A\u8DEF\u5F84\u5F00\u4E00\u5C4F\u592A\u91CD\uFF09\u3002" },
+    { id: "1.12", form: "\u884C\u5C3E\u83DC\u5355", at: "\u672A\u8DDF\u8E2A\u6216\u5DF2\u4FEE\u6539\u6587\u4EF6\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u52A0\u5165 .gitignore\u300D", status: "\u5DF2\u753B" },
+    { id: "1.13", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u6587\u4EF6\u884C\u5C55\u5F00\u91CC\u7684\u300C\u8FD9\u6761\u8DEF\u5F84\u4E3A\u4EC0\u4E48\u88AB\u5FFD\u7565\u300D", status: "\u53EA\u8BFB", reason: "git check-ignore \u662F\u53EA\u8BFB\u8BCA\u65AD\uFF0C\u9762\u677F\u53EA\u5C55\u793A\u5B83\u8BFB\u5230\u7684\u89C4\u5219\u4E0E\u6765\u6E90\u6587\u4EF6\uFF0C\u4E0D\u753B\u80FD\u6539\u7684\u63A7\u4EF6\u3002" },
+    // —— 改动页：提交 ——
+    { id: "2.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u533A\u53F3\u4FA7\u7684\u4E3B\u6309\u94AE\u300C\u63D0\u4EA4 N \u4E2A\u6587\u4EF6\u300D", status: "\u5DF2\u753B" },
+    { id: "2.2", form: "\u63D0\u4EA4\u9009\u9879", at: "\u63D0\u4EA4\u533A\u300C\u63D0\u4EA4\u9009\u9879\u300D\u91CC\u7684\u300C\u628A\u672A\u6682\u5B58\u7684\u6539\u52A8\u4E5F\u4E00\u8D77\u63D0\u4EA4\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u51B3\u5B9A\u54EA\u4E9B\u6539\u52A8\u8FDB\u5165\u8FD9\u6B21\u63D0\u4EA4\uFF0C\u548C\u5DF2\u6682\u5B58\u6E05\u5355\u662F\u540C\u4E00\u4EF6\u4E8B\uFF0C\u6240\u4EE5\u653E\u5728\u63D0\u4EA4\u533A\u91CC\u7528\u5F00\u5173\u8868\u8FBE\uFF1B\u4E0D\u653E\u8FDB\u6587\u4EF6\u884C\uFF08\u4E00\u6B21\u63D0\u4EA4\u53EF\u4EE5\u8DE8\u591A\u4E2A\u6587\u4EF6\uFF09\uFF0C\u4E5F\u4E0D\u653E\u63D0\u4EA4\u884C\u83DC\u5355\uFF08\u90A3\u91CC\u6539\u7684\u662F\u5DF2\u7ECF\u8BB0\u4E0B\u6765\u7684\u63D0\u4EA4\uFF09\u3002" },
+    { id: "2.3", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u5F62\u6001\u4E00\u680F\u7684\u300C\u4FEE\u8BA2\u4E0A\u4E00\u6761\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u4FEE\u8BA2\u8981\u91CD\u5199\u8BF4\u660E\u5E76\u590D\u7528\u5DF2\u6682\u5B58\u7684\u5185\u5BB9\uFF0C\u53EA\u6709\u63D0\u4EA4\u533A\u540C\u65F6\u770B\u5F97\u89C1\u8FD9\u4E24\u6837\uFF1B\u63D0\u4EA4\u884C\u83DC\u5355\u53EA\u7559\u7ED9\u4E0D\u9700\u8981\u518D\u5199\u4EC0\u4E48\u7684\u884C\u7EA7\u52A8\u4F5C\uFF08\u8FD8\u539F\u3001\u62E3\u9009\u3001\u64A4\u9500\uFF09\u3002" },
+    { id: "2.4", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u5F62\u6001\u4E00\u680F\u7684\u300Cfixup\u300D\u4E0E\u300Csquash\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u4EEC\u751F\u6210\u7684\u662F\u65B0\u63D0\u4EA4\uFF0C\u53EA\u662F\u5E26 fixup! / squash! \u524D\u7F00\uFF0C\u6240\u4EE5\u548C\u300C\u65B0\u63D0\u4EA4\u300D\u5E76\u5217\u5728\u540C\u4E00\u7EC4\u5F62\u6001\u91CC\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u884C\u83DC\u5355\uFF0C\u56E0\u4E3A\u53D1\u8D77\u65F6\u4ECD\u8981\u9009\u4E2D\u5185\u5BB9\u4E0E\u770B\u8BF4\u660E\u3002" },
+    { id: "2.5", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u8BB0\u5F55\u65B9\u5F0F\u91CC\u7684\u300C\u8DF3\u8FC7\u63D0\u4EA4\u94A9\u5B50\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u51B3\u5B9A\u8FD9\u4E00\u6B21\u63D0\u4EA4\u8DD1\u4E0D\u8DD1\u94A9\u5B50\uFF0C\u5C5E\u4E8E\u8FD9\u6B21\u63D0\u4EA4\u7684\u8BB0\u5F55\u65B9\u5F0F\uFF1B\u5355\u72EC\u4E00\u4E2A\u5F00\u5173\uFF0C\u65C1\u8FB9\u5E38\u9A7B\u300C\u63D0\u4EA4\u524D\u7684\u68C0\u67E5\u4E0D\u4F1A\u8DD1\u300D\u8FD9\u53E5\u540E\u679C\u3002" },
+    { id: "2.6", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u8BB0\u5F55\u65B9\u5F0F\u91CC\u7684\u300C\u7B7E\u540D\u63D0\u4EA4\u300D\u4E0E\u300C\u8FFD\u52A0\u7B7E\u540D\u884C\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u4E24\u8005\u90FD\u6539\u5199\u8FD9\u6B21\u63D0\u4EA4\u7684\u5143\u6570\u636E\uFF0C\u4E00\u4E2A\u6362\u7B7E\u540D\u5757\u3001\u4E00\u4E2A\u52A0\u4E00\u884C\u8BF4\u660E\uFF0C\u653E\u540C\u4E00\u7EC4\u8BFB\u8005\u624D\u770B\u5F97\u51FA\u533A\u522B\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u5F62\u6001\uFF0C\u56E0\u4E3A\u5F62\u6001\u51B3\u5B9A\u8FD9\u6761\u63D0\u4EA4\u8FDB\u4E0D\u8FDB\u5386\u53F2\uFF0C\u4E0D\u51B3\u5B9A\u5B83\u7684\u7B7E\u540D\u3002" },
+    { id: "2.7", form: "\u9762\u677F\u4E4B\u5916", at: "\u63D0\u4EA4\u8BF4\u660E\u8F93\u5165\u6846\u65C1\u5199\u660E\u300C\u5B8C\u6574\u8BF4\u660E\u53BB\u7F16\u8F91\u5668\u91CC\u5199\u300D", status: "\u53EA\u8BFB", reason: "\u6253\u5F00\u7F16\u8F91\u5668\u662F\u9762\u677F\u4E4B\u5916\u7684\u4E8B\uFF0C\u9762\u677F\u53EA\u5728\u8F93\u5165\u6846\u65C1\u5199\u6E05\u8FD9\u6761\u8FB9\u754C\uFF0C\u4E0D\u753B\u534A\u622A\u6309\u94AE\u3002" },
+    { id: "2.8", form: "\u63D0\u4EA4\u9009\u9879", at: "\u300C\u63D0\u4EA4\u9009\u9879\u300D\u63D0\u4EA4\u8BF4\u660E\u91CC\u7684\u300C\u5957\u7528 .gitmessage\u300D", status: "\u672C\u7968\u5DF2\u753B", reason: "\u5B83\u53EA\u6539\u8F93\u5165\u6846\u91CC\u90A3\u6BB5\u5B57\uFF0C\u6240\u4EE5\u7D27\u6328\u7740\u8F93\u5165\u6846\uFF1B\u4E0D\u653E\u8FDB\u63D0\u4EA4\u5F62\u6001\uFF08\u6A21\u677F\u4E0D\u6539\u53D8\u8FD9\u662F\u54EA\u79CD\u63D0\u4EA4\uFF09\uFF0C\u4E5F\u4E0D\u653E\u7BA1\u7406\u9875\uFF08\u586B\u8BF4\u660E\u65F6\u5C31\u5730\u53EF\u7528\u624D\u4E0D\u6253\u65AD\u6253\u5B57\uFF09\u3002" },
+    // —— 提交历史页 ——
+    { id: "3.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u5217\u8868", status: "\u5DF2\u753B" },
+    { id: "3.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u70B9\u5F00\u4E00\u884C\u63D0\u4EA4\u540E\u7684\u8BE6\u60C5\u9875", status: "\u5DF2\u753B" },
+    { id: "3.3", form: "\u53EF\u5C55\u5F00\u533A", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u70B9\u5F00\u67D0\u4E2A\u6587\u4EF6\u7684\u9010\u884C\u5DEE\u5F02", status: "\u5DF2\u753B" },
+    { id: "3.4", form: "\u884C\u5C3E\u83DC\u5355", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u6587\u4EF6\u884C\u7684\u300C\u770B\u8FD9\u4E2A\u6587\u4EF6\u7684\u5386\u53F2\u300D", status: "\u5F85\u753B", reason: "\u5355\u6587\u4EF6\u5386\u53F2\u662F\u4ECE\u4E00\u6761\u63D0\u4EA4\u91CC\u7684\u67D0\u4E2A\u6587\u4EF6\u53D1\u8D77\u7684\u8FFD\u95EE\uFF0C\u5165\u53E3\u8D34\u5728\u90A3\u4E2A\u6587\u4EF6\u884C\u4E0A\uFF1B\u4E0D\u653E\u8FDB\u5168\u5E93\u641C\u7D22\uFF08\u90A3\u91CC\u6309\u8BF4\u660E\u641C\uFF09\uFF0C\u4E5F\u4E0D\u653E\u63D0\u4EA4\u884C\u83DC\u5355\uFF08\u90A3\u91CC\u662F\u5BF9\u6574\u6761\u63D0\u4EA4\u505A\u52A8\u4F5C\uFF09\u3002" },
+    { id: "3.6", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u9876\u90E8\u7684\u7B5B\u9009\u6846", status: "\u5DF2\u753B" },
+    { id: "3.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u63D0\u4EA4\u5386\u53F2\u7B5B\u9009\u6846\u65C1\u7684\u300C\u6309\u4EE3\u7801\u53D8\u5316\u641C\u300D\u8303\u56F4\u5207\u6362", status: "\u5F85\u753B", reason: "\u5B83\u548C\u6309\u8BF4\u660E\u641C\u662F\u540C\u4E00\u4E2A\u641C\u7D22\u6846\u7684\u4E24\u79CD\u8303\u56F4\uFF0C\u505A\u6210\u7B5B\u9009\u6846\u65C1\u8FB9\u7684\u8303\u56F4\u5207\u6362\uFF1B\u4E0D\u5355\u72EC\u5F00\u4E00\u5C4F\uFF0C\u56E0\u4E3A\u7ED3\u679C\u4ECD\u7136\u843D\u5728\u8FD9\u4E2A\u5217\u8868\u91CC\u3002" },
+    { id: "3.8", form: "\u547D\u4EE4\u9762\u677F\u9884\u7F6E", at: "\u63D0\u4EA4\u5386\u53F2\u5DE5\u5177\u6761\u7684\u300C\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528\u300D\uFF0C\u6253\u5F00\u4E00\u4E2A\u4E24\u884C\u9009\u62E9\u8868\u5355", status: "\u5F85\u753B", reason: "\u6BD4\u8F83\u4E24\u4E2A\u5F15\u7528\u8981\u5148\u9009\u4E24\u4E2A\u5BF9\u8C61\uFF0C\u9762\u677F\u91CC\u7ED9\u5B83\u4E00\u5F20\u4E24\u884C\u8868\u5355\uFF1B\u4E0D\u653E\u5728\u63D0\u4EA4\u884C\u83DC\u5355\uFF0C\u56E0\u4E3A\u5B83\u662F\u4E24\u4E24\u6BD4\u8F83\uFF0C\u4E0D\u662F\u5BF9\u4E00\u884C\u505A\u52A8\u4F5C\u3002" },
+    { id: "3.10", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u63D0\u4EA4\u8BE6\u60C5\u9876\u90E8\u7684\u4E00\u884C\u300C\u7248\u672C\u540D\u300D\u8BFB\u6570", status: "\u53EA\u8BFB", reason: "\u7248\u672C\u540D\u662F git describe \u7684\u53EA\u8BFB\u7ED3\u679C\uFF0C\u9762\u677F\u5728\u8BE6\u60C5\u91CC\u7ED9\u4E00\u884C\u8BFB\u6570\uFF0C\u4E0D\u753B\u63A7\u4EF6\u3002" },
+    { id: "3.12", form: "\u53EF\u5C55\u5F00\u533A", at: "\u63D0\u4EA4\u8BE6\u60C5\u5E95\u90E8\u7684\u300C\u63D0\u4EA4\u5907\u6CE8\u300D", status: "\u5F85\u753B", reason: "\u5907\u6CE8\u6302\u5728\u4E00\u6761\u63D0\u4EA4\u4E0A\uFF0C\u8DDF\u7740\u8BE6\u60C5\u8D70\uFF1B\u4E0D\u653E\u8FDB\u5168\u5E93\u641C\u7D22\uFF0C\u56E0\u4E3A\u5B83\u662F\u7ED9\u8FD9\u6761\u63D0\u4EA4\u505A\u7684\u6CE8\u89E3\uFF0C\u4E0D\u662F\u67E5\u627E\u5165\u53E3\u3002" },
+    { id: "3.13", form: "\u53EA\u8BFB\u8BCA\u65AD", at: "\u63D0\u4EA4\u8BE6\u60C5\u91CC\u300C\u53D6\u8FD9\u4E2A\u7248\u672C\u7684\u6587\u4EF6\u5185\u5BB9\u300D\u7684\u53EA\u8BFB\u5F62\u72B6", status: "\u53EA\u8BFB", reason: "\u53D6\u67D0\u4E2A\u7248\u672C\u7684\u6587\u4EF6\u5185\u5BB9\u662F\u53EA\u8BFB\u8BCA\u65AD\uFF0C\u9762\u677F\u5728\u8BE6\u60C5\u91CC\u5C55\u793A\u5B83\u8BFB\u5230\u7684\u6587\u4EF6\u4E0E\u4F53\u79EF\uFF0C\u4E0D\u753B\u6267\u884C\u6309\u94AE\u3002" },
+    // —— 工作区页 ——
+    { id: "9.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5DE5\u4F5C\u533A\u9875\u7684\u5F53\u524D\u5DE5\u4F5C\u533A\u5361\u4E0E\u5176\u4ED6\u5DE5\u4F5C\u533A\u5217\u8868", status: "\u5DF2\u753B" },
+    { id: "9.2", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5DE5\u4F5C\u533A\u9875\u5E95\u90E8\u7684\u300C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u300D\u8868\u5355", status: "\u5F85\u753B", reason: "\u65B0\u5EFA\u5DE5\u4F5C\u533A\u8981\u586B\u8DEF\u5F84\u4E0E\u5206\u652F\uFF0C\u7528\u4E00\u4E2A\u8868\u5355\u6BD4\u5728\u884C\u91CC\u585E\u4E24\u9897\u6309\u94AE\u6E05\u695A\uFF1B\u653E\u5728\u5217\u8868\u4E0B\u65B9\uFF0C\u56E0\u4E3A\u5B83\u4E0D\u5C5E\u4E8E\u4EFB\u4F55\u4E00\u884C\u3002" },
+    { id: "9.3", form: "\u53EF\u5C55\u5F00\u533A", at: "\u300C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u300D\u8868\u5355\u91CC\u7684\u300C\u7528\u5DF2\u6709\u5206\u652F\u300D\uFF0C\u4ECE\u5206\u652F\u6E05\u5355\u91CC\u9009\u4E00\u6761", status: "\u5F85\u753B", reason: "\u5B83\u548C\u65B0\u5EFA\u5DE5\u4F5C\u533A\u662F\u540C\u4E00\u5F20\u8868\u5355\u7684\u7B2C\u4E8C\u79CD\u586B\u6CD5\uFF1A\u8DEF\u5F84\u7167\u586B\uFF0C\u5206\u652F\u6539\u6210\u4ECE\u5DF2\u6709\u6E05\u5355\u91CC\u9009\uFF0C\u6240\u4EE5\u5E76\u8FDB\u540C\u4E00\u5904\u3002" },
+    { id: "9.4", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u79FB\u9664\u5DE5\u4F5C\u533A\u300D\u4E0E\u5185\u8054\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "9.5", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5C55\u5F00\u76EE\u5F55\u4E0D\u5B58\u5728\u7684\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u6E05\u9664\u8BB0\u5F55\u300D", status: "\u5DF2\u753B" },
+    { id: "9.6", form: "\u884C\u5185\u63A7\u4EF6", at: "\u5C55\u5F00\u88AB\u5360\u7528\u7684\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u89E3\u9664\u9501\u5B9A\u300D", status: "\u5DF2\u753B" },
+    { id: "9.7", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u79FB\u52A8\u5DE5\u4F5C\u533A\u300D\uFF0C\u586B\u4E00\u4E2A\u65B0\u76EE\u5F55", status: "\u5F85\u753B", reason: "\u79FB\u52A8\u6539\u7684\u662F\u8FD9\u4E00\u68F5\u7684\u8DEF\u5F84\uFF0C\u5C5E\u4E8E\u5C55\u5F00\u533A\u91CC\u7684\u884C\u7EA7\u52A8\u4F5C\uFF1B\u4E0D\u653E\u8FDB\u65B0\u5EFA\u8868\u5355\uFF08\u5B83\u4E0D\u52A8\u767B\u8BB0\u5185\u5BB9\uFF09\uFF0C\u4E5F\u4E0D\u653E\u9875\u9762\u7EA7\u52A8\u4F5C\uFF08\u4E00\u6B21\u53EA\u79FB\u4E00\u68F5\uFF09\u3002" },
+    { id: "9.8", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u7A00\u758F\u68C0\u51FA\u300D\uFF0C\u9009\u8981\u4FDD\u7559\u7684\u76EE\u5F55", status: "\u5F85\u753B", reason: "\u7A00\u758F\u68C0\u51FA\u6539\u7684\u662F\u8FD9\u4E00\u68F5\u7684\u68C0\u51FA\u8303\u56F4\uFF0C\u8DDF\u7740\u8FD9\u68F5\u8D70\uFF1B\u653E\u5C55\u5F00\u533A\uFF0C\u8BFB\u8005\u80FD\u8FB9\u770B\u5F53\u524D\u8DEF\u5F84\u8FB9\u9009\u4FDD\u7559\u54EA\u4E9B\u76EE\u5F55\u3002" },
+    // —— 储藏页 ——
+    { id: "7.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6539\u52A8\u9875\u63D0\u4EA4\u533A\u53F3\u4E0A\u89D2\u7684\u300C\u50A8\u85CF\u300D", status: "\u5DF2\u753B" },
+    { id: "7.2", form: "\u884C\u5C3E\u83DC\u5355", at: "\u300C\u50A8\u85CF\u300D\u53F3\u4FA7\u7684\u83DC\u5355\u9879\u300C\u8FDE\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u300D", status: "\u5F85\u753B", reason: "\u8FDE\u672A\u8DDF\u8E2A\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u662F\u50A8\u85CF\u52A8\u4F5C\u7684\u4E00\u4E2A\u53D8\u4F53\uFF0C\u6302\u5728\u540C\u4E00\u9897\u300C\u50A8\u85CF\u300D\u4E0A\u6700\u76F4\u63A5\uFF1B\u4E0D\u653E\u8FDB\u50A8\u85CF\u9875\u7B7E\uFF08\u90A3\u6761\u8BB0\u5F55\u5DF2\u7ECF\u751F\u6210\uFF0C\u6765\u4E0D\u53CA\u53CD\u6094\uFF09\u3002" },
+    { id: "7.3", form: "\u884C\u5C3E\u83DC\u5355", at: "\u300C\u50A8\u85CF\u300D\u53F3\u4FA7\u7684\u83DC\u5355\u9879\u300C\u53EA\u50A8\u85CF\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u300D", status: "\u5F85\u753B", reason: "\u540C\u4E0A\uFF1A\u5B83\u662F\u50A8\u85CF\u52A8\u4F5C\u7684\u53D8\u4F53\uFF0C\u548C\u300C\u8FDE\u672A\u8DDF\u8E2A\u4E00\u8D77\u300D\u5E76\u6392\u653E\u5728\u300C\u50A8\u85CF\u300D\u7684\u83DC\u5355\u91CC\uFF0C\u8BFB\u8005\u80FD\u5728\u70B9\u4E4B\u524D\u9009\u6E05\u695A\u6536\u54EA\u4E9B\u3002" },
+    { id: "7.4", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u9875\u7B7E\u7684\u8BB0\u5F55\u5217\u8868", status: "\u5DF2\u753B" },
+    { id: "7.5", form: "\u53EF\u5C55\u5F00\u533A", at: "\u50A8\u85CF\u9875\u6BCF\u884C\u8BB0\u5F55\u4E0B\u9762\u76F4\u63A5\u5217\u51FA\u7684\u6587\u4EF6\u8DEF\u5F84", status: "\u5DF2\u753B" },
+    { id: "7.6", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u7684\u300C\u5E94\u7528\u300D", status: "\u5DF2\u753B" },
+    { id: "7.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u7684\u300C\u5F39\u51FA\u300D", status: "\u5DF2\u753B" },
+    { id: "7.8", form: "\u884C\u5C3E\u83DC\u5355", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u4ECE\u8FD9\u6761\u8BB0\u5F55\u5EFA\u5206\u652F\u300D", status: "\u5F85\u753B", reason: "\u4ECE\u50A8\u85CF\u5EFA\u5206\u652F\u8981\u5148\u7ED9\u5206\u652F\u540D\uFF0C\u5C5E\u4E8E\u5BF9\u8FD9\u6761\u8BB0\u5F55\u505A\u7684\u4E0B\u4E00\u6B65\uFF0C\u6240\u4EE5\u653E\u8FDB\u5B83\u7684\u884C\u83DC\u5355\uFF1B\u4E0D\u653E\u9875\u9762\u7EA7\u52A8\u4F5C\uFF0C\u56E0\u4E3A\u4E00\u6B21\u5904\u7406\u7684\u662F\u8FD9\u4E00\u6761\u8BB0\u5F55\u3002" },
+    { id: "7.9", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u7684\u300C\u4E22\u5F03\u8BB0\u5F55\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
+    { id: "7.10", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u9875\u8BB0\u5F55\u5217\u8868\u4E0A\u65B9\u7684\u300C\u6E05\u7A7A\u5168\u90E8\u8BB0\u5F55\u300D\u4E0E\u786E\u8BA4\u5361", status: "\u5F85\u753B", reason: "\u6E05\u7A7A\u662F\u6574\u9875\u7684\u52A8\u4F5C\uFF0C\u653E\u5728\u5217\u8868\u6807\u9898\u884C\u53F3\u4FA7\uFF1B\u4E0D\u653E\u8FDB\u6BCF\u884C\u7684\u884C\u83DC\u5355\uFF08\u5B83\u4E0D\u662F\u5BF9\u4E00\u6761\u8BB0\u5F55\u505A\u7684\uFF09\uFF0C\u4E5F\u4E0D\u653E\u5371\u9669\u533A\uFF08\u50A8\u85CF\u8BB0\u5F55\u53EA\u5728\u672C\u673A\uFF09\u3002" }
+  ];
+  var PAGE_TITLES = {
+    "branch-tags": "\u5206\u652F\u4E0E\u4E0A\u6E38",
+    remote: "\u8FDC\u7AEF",
+    submodules: "\u5B50\u6A21\u7EC4",
+    maintenance: "\u4ED3\u5E93\u7EF4\u62A4",
+    migrate: "\u8FC1\u79FB\u4E0E\u5BFC\u5165",
+    config: "\u914D\u7F6E",
+    hooks: "\u94A9\u5B50",
+    diagnostics: "\u8BCA\u65AD",
+    platform: "\u5E73\u53F0\u4E0E\u80FD\u529B\u8FB9\u754C",
+    rebase: "\u4EA4\u4E92\u5F0F\u53D8\u57FA",
+    conflicts: "\u51B2\u7A81\u5904\u7F6E",
+    task: "\u957F\u4EFB\u52A1",
+    search: "\u5168\u5E93\u641C\u7D22",
+    manage: "\u7BA1\u7406\u7D22\u5F15"
+  };
+  var ALL_ENTRIES = (() => {
+    const handwritten = new Map(TAB_ENTRIES.map((entry) => [entry.id, entry]));
+    return CAPABILITIES.map((cap) => handwritten.get(cap.id) ?? derivedEntry(cap));
+  })();
+  var ENTRY_BY_ID = new Map(ALL_ENTRIES.map((entry) => [entry.id, entry]));
+  function allCapabilityEntries() {
+    return ALL_ENTRIES;
+  }
+  function capabilityEntryOf(id) {
+    return ENTRY_BY_ID.get(id);
+  }
+  function derivedEntry(cap) {
+    const page = PAGE_TITLES[cap.target] ?? cap.target;
+    if (cap.readOnly) {
+      return {
+        id: cap.id,
+        form: cap.placement === "\u5916" ? "\u9762\u677F\u4E4B\u5916" : "\u53EA\u8BFB\u8BCA\u65AD",
+        at: page + "\u9875\u80FD\u529B\u6E05\u5355\u91CC\u7684\u53EA\u8BFB\u8BF4\u660E",
+        status: "\u53EA\u8BFB",
+        reason: cap.placement === "\u5916" ? "\u8FD9\u6761\u80FD\u529B\u8981\u9762\u677F\u4E4B\u5916\u7684\u5DE5\u5177\u6216\u5E73\u53F0\u624D\u80FD\u505A\uFF0C\u9875\u9762\u53EA\u5199\u6E05\u8FB9\u754C\uFF0C\u4E0D\u753B\u534A\u622A\u6309\u94AE\u3002" : "\u53EA\u8BFB\u80FD\u529B\u53EA\u5C55\u793A\u5B83\u8BFB\u5230\u7684\u5F62\u72B6\uFF0C\u9762\u677F\u4E0D\u63D0\u4F9B\u6267\u884C\u6309\u94AE\u3002"
+      };
+    }
+    if (cap.target === "platform") {
+      return { id: cap.id, form: "\u9875\u9762\u52A8\u4F5C", at: "\u5E73\u53F0\u4E0E\u80FD\u529B\u8FB9\u754C\u9875\u7684\u8BF4\u660E\u884C", status: "\u5DF2\u753B" };
+    }
+    return { id: cap.id, form: "\u9875\u9762\u52A8\u4F5C", at: page + "\u9875\u80FD\u529B\u6E05\u5355\u91CC\u7684\u300C\u6F14\u793A\u8FD9\u6761\u6D41\u7A0B\u300D", status: "\u5DF2\u753B" };
+  }
+
   // docs/prototype/vc-redesign/src/data/pages-copy.ts
   var MANAGE_INDEX = {
     id: "manage",
@@ -7807,21 +8215,24 @@
         stashBtn
       )
     );
-    const textarea = h("textarea", {
-      class: "commit-input",
-      attrs: {
-        id: "commit-message",
-        rows: 2,
-        placeholder: model.composer.placeholder,
-        "data-field": "message",
-        "data-focus-key": "commit-message",
-        "aria-label": "\u63D0\u4EA4\u8BF4\u660E",
-        "aria-describedby": "commit-hint"
-      }
-    });
-    textarea.value = model.composer.message;
+    const messageNode = model.composer.options.messageEditable ? (() => {
+      const textarea = h("textarea", {
+        class: "commit-input",
+        attrs: {
+          id: "commit-message",
+          rows: 2,
+          placeholder: model.composer.placeholder,
+          "data-field": "message",
+          "data-focus-key": "commit-message",
+          "aria-label": "\u63D0\u4EA4\u8BF4\u660E",
+          "aria-describedby": "commit-hint"
+        }
+      });
+      textarea.value = model.composer.message;
+      return textarea;
+    })() : renderAutoMessage(model.composer);
     const commitButton = button({
-      label: COPY.changes.commitLabel(model.composer.stagedCount),
+      label: model.composer.label,
       kind: "primary",
       size: "md",
       disabled: model.composer.disabled,
@@ -7831,6 +8242,18 @@
       action: "commit",
       focusKey: "commit"
     });
+    const optionsToggle = h("button", {
+      class: "commit-options-toggle" + (model.composer.optionsOpen ? " is-on" : ""),
+      attrs: {
+        type: "button",
+        "aria-expanded": model.composer.optionsOpen ? "true" : "false",
+        "aria-haspopup": "true",
+        "aria-label": COPY.commitOptions.triggerLabel,
+        title: COPY.commitOptions.triggerHint,
+        "data-focus-key": "commit-options"
+      },
+      dataset: { action: "commit-options-toggle" }
+    }, h("span", { class: "commit-options-caret", attrs: { "aria-hidden": "true" }, text: "\u2304" }));
     const footLeft = model.composer.disabledReason === null ? h("span", { class: "hint-text", text: model.composer.hint }) : h(
       "span",
       { class: "composer-reason", id: "commit-reason" },
@@ -7842,11 +8265,112 @@
       { class: "composer-foot", id: "commit-hint" },
       footLeft,
       handoffEntry(HANDOFF_ENTRY.changes, "changes"),
-      commitButton
+      h("div", { class: "commit-split" }, commitButton, optionsToggle)
     );
-    composer.append(stagedLine, textarea, foot);
+    composer.append(stagedLine, messageNode, foot);
+    if (model.composer.optionsOpen) composer.append(renderCommitOptions(model.composer));
     view.append(filterRow, list, composer);
     return view;
+  }
+  function renderCommitOptions(composer) {
+    const options = composer.options;
+    const copy = COPY.commitOptions;
+    const panel = h("div", { class: "commit-options", attrs: { role: "dialog", "aria-label": copy.title } });
+    panel.append(h(
+      "div",
+      { class: "opt-head" },
+      h("span", { class: "opt-title", text: copy.title }),
+      h("button", {
+        class: "opt-close",
+        attrs: { type: "button", "aria-label": "\u6536\u8D77\u63D0\u4EA4\u9009\u9879", title: "\u6536\u8D77\u63D0\u4EA4\u9009\u9879", "data-focus-key": "commit-options-close" },
+        dataset: { action: "commit-options-toggle" }
+      }, "\xD7")
+    ));
+    const forms = [
+      ["commit", copy.form.commit],
+      ["amend", copy.form.amend],
+      ["fixup", copy.form.fixup],
+      ["squash", copy.form.squash]
+    ];
+    const seg = h("div", { class: "opt-seg", attrs: { role: "group", "aria-label": copy.formKey } });
+    for (const [form, label] of forms) {
+      seg.append(h("button", {
+        class: "opt-seg-btn" + (options.form === form ? " is-on" : ""),
+        attrs: {
+          type: "button",
+          "aria-pressed": options.form === form ? "true" : "false",
+          "data-focus-key": "commit-form:" + form,
+          title: copy.formNote[form]
+        },
+        dataset: { action: "commit-form", form }
+      }, label));
+    }
+    const group = (key, control, note3) => h(
+      "div",
+      { class: "opt-line" },
+      h("span", { class: "opt-key", text: key }),
+      h(
+        "div",
+        { class: "opt-body" },
+        control,
+        note3 === null ? null : h("p", { class: "opt-note", text: note3 })
+      )
+    );
+    panel.append(group(
+      copy.formKey,
+      seg,
+      options.form === "commit" ? options.formNote : options.formNote + (options.target === null ? " " + copy.targetNone : " " + copy.target(options.target.short, options.target.subject))
+    ));
+    panel.append(group(copy.contentKey, optionSwitch({
+      label: copy.allTracked,
+      note: options.allTrackedCount === 0 ? copy.allTrackedEmpty : copy.allTrackedNote(options.allTrackedCount),
+      on: options.allTracked,
+      action: "commit-all-tracked",
+      focusKey: "commit-all-tracked",
+      disabled: options.allTrackedCount === 0 && options.allTracked === false
+    }), options.allTrackedCount === 0 ? copy.allTrackedEmpty : options.allTracked ? copy.allTrackedNote(options.allTrackedCount) : copy.contentNote));
+    panel.append(group(copy.messageKey, h("button", {
+      class: "opt-link",
+      attrs: { type: "button", "data-focus-key": "commit-template", title: copy.templateNote },
+      dataset: { action: options.templateApplied ? "template-undo" : "template-apply" }
+    }, options.templateApplied ? copy.templateApplied + " \xB7 " + copy.templateUndo : copy.templateApply), copy.templateNote));
+    panel.append(group(copy.recordKey, h(
+      "div",
+      { class: "opt-records" },
+      optionSwitch({ label: copy.skipHooks, note: copy.skipHooksNote, on: options.skipHooks, action: "skip-hooks", focusKey: "skip-hooks" }),
+      optionSwitch({ label: copy.signCommit, note: copy.signCommitNote, on: options.signCommit, action: "sign-commit", focusKey: "sign-commit" }),
+      optionSwitch({ label: copy.signoff, note: copy.signoffNote, on: options.signoff, action: "signoff", focusKey: "signoff" })
+    ), copy.recordNote));
+    return panel;
+  }
+  function optionSwitch(item) {
+    return h(
+      "button",
+      {
+        class: "opt-check" + (item.on ? " is-on" : "") + (item.disabled === true ? " is-off" : ""),
+        attrs: {
+          type: "button",
+          role: "switch",
+          "aria-checked": item.on ? "true" : "false",
+          "data-focus-key": item.focusKey,
+          disabled: item.disabled === true,
+          title: item.note
+        },
+        dataset: { action: item.action }
+      },
+      h("span", { class: "opt-box", attrs: { "aria-hidden": "true" } }),
+      h("span", { class: "opt-check-label", text: item.label })
+    );
+  }
+  function renderAutoMessage(composer) {
+    const copy = COPY.commitOptions;
+    return h(
+      "div",
+      { class: "commit-auto", attrs: { id: "commit-message" } },
+      h("span", { class: "commit-auto-lead", text: copy.autoMessageLead }),
+      h("span", { class: "commit-auto-text mono", text: composer.options.autoMessage ?? "" }),
+      h("span", { class: "commit-auto-note", text: copy.autoMessageNote })
+    );
   }
   function renderGroup(group, model) {
     const section2 = h("section", { class: `group group-${group.id}` });
@@ -8360,7 +8884,9 @@
           { class: "commit-meta" },
           h("span", { class: "commit-author", text: row.author }),
           h("span", { class: "commit-when", text: row.when }),
-          row.filesCount > 0 ? h("span", { class: "commit-files", text: `${row.filesCount} \u4E2A\u6587\u4EF6` }) : null
+          row.filesCount > 0 ? h("span", { class: "commit-files", text: `${row.filesCount} \u4E2A\u6587\u4EF6` }) : null,
+          // 这条提交是怎么记下来的：修订、fixup、跳过钩子、已签名在行上就能看见。
+          row.marks.length === 0 ? null : h("span", { class: "commit-marks" }, ...row.marks.map((mark) => chip(mark, "warn", { small: true, title: mark })))
         ),
         h("span", { class: "commit-chevron" }, icon("chevron", 12))
       ),
@@ -9099,11 +9625,16 @@
   }
   function coverageNote() {
     const count = (placement) => CAPABILITIES.filter((cap) => cap.placement === placement).length;
+    const entries = allCapabilityEntries();
+    const tally = (status) => entries.filter((entry) => entry.status === status).length;
     return h(
       "p",
       { class: "coverage-note" },
       chip("\u8986\u76D6\u53E3\u5F84", "info", { small: true }),
       h("span", { text: "162 \u6761\u80FD\u529B\u5168\u90E8\u6709\u843D\u70B9\uFF1A\u547D\u4EE4\u9762\u677F\u53EF\u6309\u540D\u79F0\u4E0E\u4F4D\u7F6E\u641C\u7D22\uFF0C\u6BCF\u4E2A\u9875\u9762\u5E95\u90E8\u6309 #1588 \u7684\u7F16\u53F7\u9010\u6761\u5217\u51FA\u3002\u516D\u6761\u6CA1\u6709\u9762\u677F\u5165\u53E3\u7684\uFF08\u53D1\u8865\u4E01\u90AE\u4EF6\u4E0E\u5E73\u53F0\u4E94\u6761\uFF09\u5728\u300C\u5E73\u53F0\u4E0E\u8FB9\u754C\u300D\u91CC\u9010\u6761\u53EA\u8BFB\u8BF4\u660E\u3002" }),
+      h("span", {
+        text: "\u5165\u53E3\u5F62\u6001\u4E0E\u843D\u70B9\u9010\u6761\u8BB0\u5728 capability-entries.md\uFF1A\u5DF2\u753B " + tally("\u5DF2\u753B") + " \u6761\uFF0C\u672C\u7248\u8865\u9F50 " + tally("\u672C\u7968\u5DF2\u753B") + " \u6761\uFF08\u63D0\u4EA4\u533A\u7684\u5F62\u6001\u3001\u5185\u5BB9\u6765\u6E90\u3001\u8BF4\u660E\u6A21\u677F\u3001\u94A9\u5B50\u4E0E\u7B7E\u540D\uFF09\uFF0C\u53E6\u6709 " + tally("\u5F85\u753B") + " \u6761\u5199\u660E\u51B3\u5B9A\u3001\u7559\u7ED9\u540E\u7EED\u5207\u7247\u3002"
+      }),
       h("span", { class: "coverage-count mono", text: "\u76F4 " + count("\u76F4") + " \xB7 \u6298 " + count("\u6298") + " \xB7 \u8BCA " + count("\u8BCA") + " \xB7 \u5916 " + count("\u5916") })
     );
   }
@@ -10098,9 +10629,15 @@
     const meta = PAGE_META[cap.target];
     return (meta === void 0 ? cap.target : meta.title) + " \u203A " + cap.entry;
   }
+  function sublineOf(cap) {
+    const entry = capabilityEntryOf(cap.id);
+    if (entry === void 0) return locationOf(cap) + " \xB7 " + cap.command;
+    return locationOf(cap) + " \xB7 " + entry.form + " \xB7 " + entry.at;
+  }
   function matches(cap, query) {
     if (query === "") return true;
-    const hay = (cap.id + " " + cap.name + " " + cap.command + " " + cap.entry + " " + cap.domain + " " + locationOf(cap)).toLocaleLowerCase();
+    const entry = capabilityEntryOf(cap.id);
+    const hay = (cap.id + " " + cap.name + " " + cap.command + " " + cap.entry + " " + cap.domain + " " + locationOf(cap) + " " + (entry === void 0 ? "" : entry.form + " " + entry.at + " " + (entry.reason ?? ""))).toLocaleLowerCase();
     return hay.includes(query);
   }
   var MAX_ROWS = 80;
@@ -10122,7 +10659,8 @@
         chip(cap.level, levelTone(cap.level), { small: true }),
         chip(PLACEMENT_LABEL[cap.placement] ?? cap.placement, "muted", { small: true })
       ),
-      h("span", { class: "palette-row-sub", text: locationOf(cap) + " \xB7 " + cap.command })
+      // 子行先写「在哪一页的哪个控件」，再写 git 命令：读者找入口时看前半句就够，命令留给核对。
+      h("span", { class: "palette-row-sub", text: sublineOf(cap) })
     ));
     const empty = hits.length === 0 ? h("p", { class: "palette-empty", text: "\u6CA1\u6709\u5339\u914D\u7684\u80FD\u529B\uFF1A\u6362\u4E00\u4E2A\u66F4\u77ED\u7684\u5173\u952E\u5B57\uFF0C\u6216\u76F4\u63A5\u8F93\u5165\u80FD\u529B\u7F16\u53F7\uFF08\u4F8B\u5982 11.6\uFF09\u3002" }) : null;
     const more = hits.length > MAX_ROWS ? h("p", { class: "palette-more", text: "\u8FD8\u6709 " + (hits.length - MAX_ROWS) + " \u6761\u6CA1\u663E\u793A\uFF0C\u518D\u8F93\u5165\u51E0\u4E2A\u5B57\u7F29\u5C0F\u8303\u56F4\u3002" }) : null;
@@ -10149,7 +10687,7 @@
           { class: "palette-foot" },
           h("span", { class: "mono", text: "\u5171 " + CAPABILITIES.length + " \u6761\u80FD\u529B" }),
           h("span", { text: "\u5339\u914D " + hits.length + " \u6761" }),
-          h("span", { class: "palette-hint", text: "Enter \u6253\u5F00\u7B2C\u4E00\u6761 \xB7 Esc \u5173\u95ED \xB7 \u9009\u4E2D\u540E\u8DF3\u5230\u5BF9\u5E94\u9875\u9762\u5E76\u9AD8\u4EAE" })
+          h("span", { class: "palette-hint", text: "Enter \u6253\u5F00\u7B2C\u4E00\u6761 \xB7 Esc \u5173\u95ED \xB7 \u9009\u4E2D\u540E\u8DF3\u5230\u5BF9\u5E94\u9875\u9762\uFF1B\u56DB\u9875\u7B7E\u4E0A\u7684\u80FD\u529B\u4F1A\u5207\u5230\u90A3\u4E2A\u9875\u7B7E\uFF0C\u63D0\u4EA4\u9009\u9879\u91CC\u7684\u51E0\u6761\u4F1A\u76F4\u63A5\u628A\u5C55\u5F00\u533A\u6253\u5F00" })
         )
       )
     );
@@ -10276,9 +10814,11 @@
       if (target === "view") {
         nextPages = reducePage(nextPages, { type: "page-close-all" });
         state = reduce(state, { type: "view", view: cap.target }, base);
+        const opensOptions = capabilityEntryOf(cap.id)?.form === "\u63D0\u4EA4\u9009\u9879";
+        if (opensOptions && !state.commitOptionsOpen) state = reduce(state, { type: "commit-options-toggle" }, base);
         nextPages = reducePage(nextPages, { type: "palette-highlight", id: cap.id });
         pages = nextPages;
-        render({ focusKey: "tab-" + cap.target, scroll: null });
+        render({ focusKey: opensOptions ? "commit-options" : "tab-" + cap.target, scroll: null });
         return;
       }
       nextPages = reducePage(nextPages, { type: "page-open", page: target });
@@ -10785,6 +11325,33 @@
           runOp("commit");
           return;
         }
+        case "commit-options-toggle":
+          dispatch({ type: "commit-options-toggle" }, { focusKey: "commit-options", scroll: null });
+          return;
+        case "commit-form": {
+          const form = el.dataset.form;
+          if (form !== "commit" && form !== "amend" && form !== "fixup" && form !== "squash") return;
+          dispatch({ type: "commit-form", form }, { focusKey: "commit-form:" + form, scroll: null });
+          return;
+        }
+        case "commit-all-tracked":
+          dispatch({ type: "commit-all-tracked" }, { focusKey: "commit-all-tracked", scroll: null });
+          return;
+        case "skip-hooks":
+          dispatch({ type: "skip-hooks" }, { focusKey: "skip-hooks", scroll: null });
+          return;
+        case "sign-commit":
+          dispatch({ type: "sign-commit" }, { focusKey: "sign-commit", scroll: null });
+          return;
+        case "signoff":
+          dispatch({ type: "signoff" }, { focusKey: "signoff", scroll: null });
+          return;
+        case "template-apply":
+          dispatch({ type: "template-apply", body: COMMIT_TEMPLATE }, { focusKey: "commit-template", scroll: null });
+          return;
+        case "template-undo":
+          dispatch({ type: "template-undo" }, { focusKey: "commit-template", scroll: null });
+          return;
         case "changes-open-menu": {
           const path = el.dataset.path ?? "";
           const open = state.openMenuPath === path;
@@ -11181,7 +11748,7 @@
         buttonEl.setAttribute("aria-busy", busy ? "true" : "false");
         buttonEl.title = current.disabledReason ?? "";
         const label = buttonEl.querySelector(".btn-label");
-        if (label !== null) label.textContent = busy ? COPY.busy.commit : COPY.changes.commitLabel(current.stagedCount);
+        if (label !== null) label.textContent = busy ? COPY.busy.commit : current.label;
       }
       const reason = composer.querySelector(".composer-reason");
       const hint = composer.querySelector(".hint-text");
@@ -11402,6 +11969,20 @@
       }
       const message = params.get("message");
       if (message !== null && message !== "") state = reduce(state, { type: "message", value: message }, base);
+      if (params.get("stageall") === "1") state = reduce(state, { type: "stage-all" }, base);
+      if (params.get("commitoptions") === "1") state = reduce(state, { type: "commit-options-toggle" }, base);
+      const commitFormParam = params.get("commitform");
+      if (commitFormParam === "amend" || commitFormParam === "fixup" || commitFormParam === "squash" || commitFormParam === "commit") {
+        state = reduce(state, { type: "commit-form", form: commitFormParam }, base);
+        if (commitFormParam !== "commit" && !state.commitOptionsOpen) {
+          state = reduce(state, { type: "commit-options-toggle" }, base);
+        }
+      }
+      if (params.get("commitall") === "1") state = reduce(state, { type: "commit-all-tracked" }, base);
+      if (params.get("noverify") === "1") state = reduce(state, { type: "skip-hooks" }, base);
+      if (params.get("sign") === "1") state = reduce(state, { type: "sign-commit" }, base);
+      if (params.get("signoff") === "1") state = reduce(state, { type: "signoff" }, base);
+      if (params.get("template") === "1") state = reduce(state, { type: "template-apply", body: COMMIT_TEMPLATE }, base);
       if (params.get("confirm") === "1") {
         state = reduce(state, { type: "pull-confirm-open", files: dirtyFiles(), dirtyCount: dirtyFiles().length }, base);
       }
@@ -11431,7 +12012,14 @@
         const cap = CAPABILITIES.find((item) => item.id === capParam);
         if (cap !== void 0) {
           const target = targetOfCapability(cap);
-          if (target !== "view") pages = reducePage(pages, { type: "page-open", page: target });
+          if (target !== "view") {
+            pages = reducePage(pages, { type: "page-open", page: target });
+          } else {
+            state = reduce(state, { type: "view", view: cap.target }, base);
+            if (capabilityEntryOf(cap.id)?.form === "\u63D0\u4EA4\u9009\u9879" && !state.commitOptionsOpen) {
+              state = reduce(state, { type: "commit-options-toggle" }, base);
+            }
+          }
           pages = reducePage(pages, { type: "palette-highlight", id: cap.id });
         }
       }

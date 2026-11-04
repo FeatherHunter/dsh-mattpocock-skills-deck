@@ -9,10 +9,10 @@
  * 「就近」是这一版的硬规则：行级动作的结果不放到页面底部的结果条里，
  * 而是紧贴着改动列表的顶端出现；确认卡紧贴着触发它的那一行出现。
  */
-import type { ChangesModel, ChangesPendingModel, FileRowModel, GroupModel } from '../../domain/select'
+import type { ChangesModel, ChangesPendingModel, ComposerModel, FileRowModel, GroupModel } from '../../domain/select'
 import { COPY } from '../../data/copy'
 import { HANDOFF_ENTRY } from '../../domain/handoff'
-import type { ResultMessage } from '../../domain/session'
+import type { CommitForm, ResultMessage } from '../../domain/session'
 import { icon, h } from '../dom'
 import { badgeLetter, button, chip, emptyState, note, patchBlock, resultBanner } from '../primitives'
 import { handoffEntry } from './handoff'
@@ -81,22 +81,29 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
         : null,
       stashBtn))
 
-  const textarea = h('textarea', {
-    class: 'commit-input',
-    attrs: {
-      id: 'commit-message',
-      rows: 2,
-      placeholder: model.composer.placeholder,
-      'data-field': 'message',
-      'data-focus-key': 'commit-message',
-      'aria-label': '提交说明',
-      'aria-describedby': 'commit-hint',
-    },
-  })
-  textarea.value = model.composer.message
+  // fixup 与 squash 的说明由面板自动写，输入框换成一行只读的自动说明；
+  // 别的形态仍然是可写的输入框，修订时里面预填上一条提交的说明。
+  const messageNode = model.composer.options.messageEditable
+    ? (() => {
+      const textarea = h('textarea', {
+        class: 'commit-input',
+        attrs: {
+          id: 'commit-message',
+          rows: 2,
+          placeholder: model.composer.placeholder,
+          'data-field': 'message',
+          'data-focus-key': 'commit-message',
+          'aria-label': '提交说明',
+          'aria-describedby': 'commit-hint',
+        },
+      })
+      textarea.value = model.composer.message
+      return textarea
+    })()
+    : renderAutoMessage(model.composer)
 
   const commitButton = button({
-    label: COPY.changes.commitLabel(model.composer.stagedCount),
+    label: model.composer.label,
     kind: 'primary',
     size: 'md',
     disabled: model.composer.disabled,
@@ -106,6 +113,20 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
     action: 'commit',
     focusKey: 'commit',
   })
+  // 「提交选项」的入口是贴在主按钮右边的一枚箭头：它属于这颗按钮，不新增一行、也不改首屏高度，
+  // 展开区里的形态、模板、钩子与签名只在点开之后出现。
+  const optionsToggle = h('button', {
+    class: 'commit-options-toggle' + (model.composer.optionsOpen ? ' is-on' : ''),
+    attrs: {
+      type: 'button',
+      'aria-expanded': model.composer.optionsOpen ? 'true' : 'false',
+      'aria-haspopup': 'true',
+      'aria-label': COPY.commitOptions.triggerLabel,
+      title: COPY.commitOptions.triggerHint,
+      'data-focus-key': 'commit-options',
+    },
+    dataset: { action: 'commit-options-toggle' },
+  }, h('span', { class: 'commit-options-caret', attrs: { 'aria-hidden': 'true' }, text: '⌄' }))
 
   // 提交区最后一行：左边是禁用原因或一句提示，右边是提交按钮，同一行、同一基线。
   // 原因与按钮说的是同一件事（为什么现在点不了），各占一行只会把提交区撑高、把列表压矮。
@@ -117,10 +138,115 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   const foot = h('div', { class: 'composer-foot', id: 'commit-hint' },
     footLeft,
     handoffEntry(HANDOFF_ENTRY.changes, 'changes'),
-    commitButton)
-  composer.append(stagedLine, textarea, foot)
+    h('div', { class: 'commit-split' }, commitButton, optionsToggle))
+  composer.append(stagedLine, messageNode, foot)
+  // 提交选项贴在提交区上方浮起来，不再挤占文件列表：它是一次临时选择（形态、模板、钩子、签名），
+  // 松开以后文件列表还是原来那么高。这和分支浮层、行菜单是同一种「贴触发点的浮层」。
+  if (model.composer.optionsOpen) composer.append(renderCommitOptions(model.composer))
   view.append(filterRow, list, composer)
   return view
+}
+
+/**
+ * 提交选项展开区：形态、作用对象、内容来源、说明模板与三个记录方式。
+ *
+ * 为什么这六条都放在提交区而不是提交行菜单里：它们改的是「这次提交写什么、怎么记」，
+ * 而提交行菜单上的还原、拣选、撤销改的是「已经记下来的那条提交」。前者需要输入框与已暂存清单，
+ * 只有提交区同时看得见这两样；后者不需要再写什么，所以在行上就地做。
+ */
+function renderCommitOptions(composer: ComposerModel): HTMLElement {
+  const options = composer.options
+  const copy = COPY.commitOptions
+  const panel = h('div', { class: 'commit-options', attrs: { role: 'dialog', 'aria-label': copy.title } })
+  panel.append(h('div', { class: 'opt-head' },
+    h('span', { class: 'opt-title', text: copy.title }),
+    h('button', {
+      class: 'opt-close',
+      attrs: { type: 'button', 'aria-label': '收起提交选项', title: '收起提交选项', 'data-focus-key': 'commit-options-close' },
+      dataset: { action: 'commit-options-toggle' },
+    }, '×')))
+
+  const forms: Array<[CommitForm, string]> = [
+    ['commit', copy.form.commit],
+    ['amend', copy.form.amend],
+    ['fixup', copy.form.fixup],
+    ['squash', copy.form.squash],
+  ]
+  const seg = h('div', { class: 'opt-seg', attrs: { role: 'group', 'aria-label': copy.formKey } })
+  for (const [form, label] of forms) {
+    seg.append(h('button', {
+      class: 'opt-seg-btn' + (options.form === form ? ' is-on' : ''),
+      attrs: {
+        type: 'button',
+        'aria-pressed': options.form === form ? 'true' : 'false',
+        'data-focus-key': 'commit-form:' + form,
+        title: copy.formNote[form],
+      },
+      dataset: { action: 'commit-form', form },
+    }, label))
+  }
+  // 四组都按「左边一行术语、右边控件与一句后果」排；窄到 359 以下时自动改成上下两行。
+  const group = (key: string, control: HTMLElement, note: string | null): HTMLElement =>
+    h('div', { class: 'opt-line' },
+      h('span', { class: 'opt-key', text: key }),
+      h('div', { class: 'opt-body' },
+        control,
+        note === null ? null : h('p', { class: 'opt-note', text: note })))
+
+  panel.append(group(copy.formKey, seg,
+    options.form === 'commit' ? options.formNote : options.formNote + (options.target === null
+      ? ' ' + copy.targetNone
+      : ' ' + copy.target(options.target.short, options.target.subject))))
+
+  panel.append(group(copy.contentKey, optionSwitch({
+    label: copy.allTracked,
+    note: options.allTrackedCount === 0 ? copy.allTrackedEmpty : copy.allTrackedNote(options.allTrackedCount),
+    on: options.allTracked,
+    action: 'commit-all-tracked',
+    focusKey: 'commit-all-tracked',
+    disabled: options.allTrackedCount === 0 && options.allTracked === false,
+  }), options.allTrackedCount === 0
+    ? copy.allTrackedEmpty
+    : options.allTracked ? copy.allTrackedNote(options.allTrackedCount) : copy.contentNote))
+
+  panel.append(group(copy.messageKey, h('button', {
+    class: 'opt-link',
+    attrs: { type: 'button', 'data-focus-key': 'commit-template', title: copy.templateNote },
+    dataset: { action: options.templateApplied ? 'template-undo' : 'template-apply' },
+  }, options.templateApplied ? copy.templateApplied + ' · ' + copy.templateUndo : copy.templateApply), copy.templateNote))
+
+  panel.append(group(copy.recordKey, h('div', { class: 'opt-records' },
+    optionSwitch({ label: copy.skipHooks, note: copy.skipHooksNote, on: options.skipHooks, action: 'skip-hooks', focusKey: 'skip-hooks' }),
+    optionSwitch({ label: copy.signCommit, note: copy.signCommitNote, on: options.signCommit, action: 'sign-commit', focusKey: 'sign-commit' }),
+    optionSwitch({ label: copy.signoff, note: copy.signoffNote, on: options.signoff, action: 'signoff', focusKey: 'signoff' })), copy.recordNote))
+  return panel
+}
+
+/** 一个开关：方框 + 名字 + 一句「打开以后会怎样」，整行是一个按钮，键盘只停一次。 */
+function optionSwitch(item: { label: string; note: string; on: boolean; action: string; focusKey: string; disabled?: boolean }): HTMLElement {
+  return h('button', {
+    class: 'opt-check' + (item.on ? ' is-on' : '') + (item.disabled === true ? ' is-off' : ''),
+    attrs: {
+      type: 'button',
+      role: 'switch',
+      'aria-checked': item.on ? 'true' : 'false',
+      'data-focus-key': item.focusKey,
+      disabled: item.disabled === true,
+      title: item.note,
+    },
+    dataset: { action: item.action },
+  },
+  h('span', { class: 'opt-box', attrs: { 'aria-hidden': 'true' } }),
+  h('span', { class: 'opt-check-label', text: item.label }))
+}
+
+/** fixup / squash 形态下替代输入框的一行：写明说明会被自动写成什么，以及为什么不让人改。 */
+function renderAutoMessage(composer: ComposerModel): HTMLElement {
+  const copy = COPY.commitOptions
+  return h('div', { class: 'commit-auto', attrs: { id: 'commit-message' } },
+    h('span', { class: 'commit-auto-lead', text: copy.autoMessageLead }),
+    h('span', { class: 'commit-auto-text mono', text: composer.options.autoMessage ?? '' }),
+    h('span', { class: 'commit-auto-note', text: copy.autoMessageNote }))
 }
 
 function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
