@@ -565,6 +565,12 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1864-snapshot-detail': 47,
   'verify-1864-snapshot-detail-replay': 35,
   'verify-1864-snapshot-detail-view': 25,
+  // 2026-11-04 #1865：评论与评审进快照库。第一扇守库层（真 SQLite）：评论按页写入并推进游标、
+  // 评论正文与作者信息落库、评审整组替换不残留、版本门对这两组同样生效、关库重开后都还在；
+  // 第二扇守宿主那两条电话：详情与「加载更多」把评论按页写库、重启后都从库出（取数次数为 0）、
+  // 断网时交回上次已知。条数按单跑实测登记（46 条、53 条）。
+  'verify-1865-snapshot-comments': 46,
+  'verify-1865-snapshot-comments-replay': 53,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

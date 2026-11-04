@@ -17,7 +17,8 @@
 // 这一层只做接线，合并规则全在 kernel/snapshot-merge.ts；详情返回形状保持原样，只是多一个 snapshot 字段。
 import { createDetailSnapshotMerge } from './detail-snapshot-merge.js'
 // #1864：详情读结果按组写进本地快照库，并优先从库里读（详情本地优先、过期才取数）。
-import { detailOfProjection } from './snapshot-library-adapter.js'
+// #1865：评论也从库里读（读方向的换算与「加载更多」那一页都在 snapshot-library-view.ts）。
+import { detailOfProjection, storedCommentPage } from './snapshot-library-view.js'
 // #1864：详情新鲜度的唯一来源是中央时间参数，不在本文件写数字。
 import { ISSUE_DETAIL_LOCAL_TTL_MS } from '../../../shared/time-config/src/values.js'
 
@@ -339,12 +340,28 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       // effort 维度：评论也按 effort 寻址（不带 = 全仓库；多 effort 同号时后端会诚实报 conflict）
       if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
       const key: string = String(n).padStart(2, '0')
+      // #1865：这一页库里已经取到过就直接从库交回，一次取数都不发。判据是「库里还有第 loaded + 1 条」
+      // 而且这份详情还不算旧（与 #1864 的详情本地优先同一条 TTL）；库里没有这一页才去后端。
+      const lib: any = (typeof deps.getSnapshotLibrary === 'function') ? await deps.getSnapshotLibrary().catch(function () { return null }) : null
+      const libKey: any = lib ? { workspaceRoot: cwd, backend: String(opened.backendId || ''), repoIdentity: String(repoRef.refId || '') } : null
+      const effortIdOfComments: string = (repoRef.effortId !== undefined && repoRef.effortId !== null) ? String(repoRef.effortId) : ''
+      if (libKey) {
+        const local: any = await readLocalDetail(lib, libKey, key, String(n), effortIdOfComments)
+        if (local && local.issue && isFreshDetail(local.issue)) {
+          const storedPage: any = storedCommentPage(local.issue, loaded, COMMENTS_PAGE)
+          if (storedPage) return { ok: true, nodes: storedPage.nodes, pageInfo: storedPage.pageInfo }
+        }
+      }
       const r: any = await opened.call(function (session: any, opCtx: any) {
         if (!session || typeof session.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + opened.backendId + "' 未实现 get" } }
         return session.get(repoRef, key, { comments: { first: want } }, opCtx)
       })
       if (!r || r.ok !== true) return getFailure(r)
       const iss: any = r.data
+      // #1865：这一页按组写进库并推进游标。写失败不影响这次回包（下一趟还会再取）。
+      if (lib && libKey) {
+        try { await lib.recordIssueComments(Object.assign({ issue: iss }, libKey)) } catch (eW) { /* 写库失败不影响这次回包 */ }
+      }
       const all: any = (iss.comments || []).map(function(c: any){ return { author: c.author || { login: '' }, authorAssociation: c.authorAssociation || '', body: c.body || '', createdAt: c.createdAt || '', updatedAt: c.updatedAt || '' } })
       // 客户端拿到 nodes 后是逐条追加（src/client/kernel/api-io.ts 里的 existing.push），
       // 交全量会把已经加载过的评论再插一遍；这里只交 loaded 之后的新增段。

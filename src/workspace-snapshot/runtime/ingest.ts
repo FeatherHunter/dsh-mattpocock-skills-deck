@@ -23,6 +23,8 @@ import { applyIssueAssignees, applyIssueLabels } from '../persistence/issue-grou
 import { ensureIssueId, findIssueId } from '../persistence/issue-identity-write.js'
 import { fillIssueRow, replaceIssueRow } from '../persistence/issue-row-write.js'
 import { applyIssueMergeInfo, applyIssueSubIssues } from '../persistence/issue-scalar-write.js'
+import { applyIssueComments } from '../persistence/comment-write.js'
+import { applyIssueReviews } from '../persistence/review-write.js'
 import { readMergeVersion } from '../persistence/schema.js'
 
 /** 各组在 issue_group 里的物理名字。组名是对外契约的一部分，不要在这里改成别的写法。 */
@@ -34,6 +36,8 @@ const GROUP_PARENTS = 'parents'
 const GROUP_BLOCKED_BY = 'blockedBy'
 const GROUP_SUB_ISSUES = 'subIssues'
 const GROUP_MERGE_INFO = 'mergeInfo'
+const GROUP_COMMENTS = 'comments'
+const GROUP_REVIEW = 'review'
 
 /** 本批实际表达的组。没出现的组不参与版本门，也不盖章。 */
 interface ExpressedGroup {
@@ -47,6 +51,8 @@ interface ExpressedGroup {
     | 'blockedBy'
     | 'subIssues'
     | 'mergeInfo'
+    | 'comments'
+    | 'review'
 }
 
 export interface IngestWritesResult {
@@ -112,6 +118,8 @@ function collectExpressedGroups(writes: readonly IssueWrite[]): ExpressedGroup[]
     if (write.groups.blockedBy !== undefined) out.push({ write, group: 'blockedBy' })
     if (write.groups.subIssues !== undefined) out.push({ write, group: 'subIssues' })
     if (write.groups.mergeInfo !== undefined) out.push({ write, group: 'mergeInfo' })
+    if (write.groups.comments !== undefined) out.push({ write, group: 'comments' })
+    if (write.groups.review !== undefined) out.push({ write, group: 'review' })
   }
   return out
 }
@@ -137,7 +145,7 @@ function applyIssueWrite(
   if (typeof write.effortId !== 'string') throw new Error('写入缺少 effortId')
   if (typeof write.key !== 'string' || write.key.length === 0) throw new Error('写入缺少 key')
 
-  const { row, body, labels, assignees, parents, blockedBy, subIssues, mergeInfo } = write.groups
+  const { row, body, labels, assignees, parents, blockedBy, subIssues, mergeInfo, comments, review } = write.groups
   if (row !== undefined) {
     const decision = decideRowMerge(null, row)
     if (decision.kind === 'remove') {
@@ -195,6 +203,19 @@ function applyIssueWrite(
     const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
     applyIssueMergeInfo(db, issueId, mergeInfo)
     stampGroup(db, issueId, GROUP_MERGE_INFO, mergeInfo, nowMs, version)
+  }
+
+  // 评论要同时推进「取到第几条」的游标，所以把写入时刻一起交下去（游标行的 updated_ms 用它）。
+  if (comments !== undefined) {
+    const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
+    applyIssueComments(db, issueId, comments, nowMs)
+    stampGroup(db, issueId, GROUP_COMMENTS, comments, nowMs, version)
+  }
+
+  if (review !== undefined) {
+    const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
+    applyIssueReviews(db, issueId, review)
+    stampGroup(db, issueId, GROUP_REVIEW, review, nowMs, version)
   }
 }
 

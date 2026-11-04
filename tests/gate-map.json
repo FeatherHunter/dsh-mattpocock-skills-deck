@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T23:16:49.585Z",
+  "generatedAt": "2026-11-03T23:56:54.813Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 561,
-  "gateCount": 561,
-  "attributedGates": 505,
+  "chainLength": 563,
+  "gateCount": 563,
+  "attributedGates": 507,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 103,
+  "completionRecordedGates": 105,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 885,
+  "graphFileCount": 891,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6506,6 +6506,38 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 47,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1865-snapshot-comments-replay.ts",
+      "file": "tests/verify-1865-snapshot-comments-replay.ts",
+      "guards": [
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/snapshot-library-view.ts",
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 53,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1865-snapshot-comments.ts",
+      "file": "tests/verify-1865-snapshot-comments.ts",
+      "guards": [
+        "src/workspace-snapshot"
+      ],
+      "dirs": [
+        "src/workspace-snapshot"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 46,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -14512,6 +14544,7 @@
       "node tests/verify-1863-snapshot-cold-start.ts",
       "node tests/verify-1863-snapshot-library-replay.ts",
       "node tests/verify-1864-snapshot-detail-replay.ts",
+      "node tests/verify-1865-snapshot-comments-replay.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -15172,7 +15205,8 @@
       "node tests/verify-1862-snapshot-database.ts",
       "node tests/verify-1862-snapshot-merge.ts",
       "node tests/verify-1863-snapshot-edges.ts",
-      "node tests/verify-1864-snapshot-detail.ts"
+      "node tests/verify-1864-snapshot-detail.ts",
+      "node tests/verify-1865-snapshot-comments.ts"
     ],
     "src/workspace-snapshot/runtime": [
       "node tests/verify-time-config.ts"
@@ -15468,9 +15502,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 908,
+    "fileCount": 914,
     "dirCount": 92,
-    "coveredFileCount": 908,
+    "coveredFileCount": 914,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 70,
@@ -16033,6 +16067,7 @@
       "src/refresh/rooms/host/snapshot-build.ts",
       "src/refresh/rooms/host/snapshot-decoration.ts",
       "src/refresh/rooms/host/snapshot-library-adapter.ts",
+      "src/refresh/rooms/host/snapshot-library-view.ts",
       "src/refresh/rooms/host/snapshot-library.ts",
       "src/refresh/rooms/host/thin-row-fetch.ts",
       "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
@@ -16357,18 +16392,23 @@
       "src/workspace-snapshot/contract/index.ts",
       "src/workspace-snapshot/contract/types.ts",
       "src/workspace-snapshot/merge/collection.ts",
+      "src/workspace-snapshot/merge/paged.ts",
       "src/workspace-snapshot/merge/row.ts",
       "src/workspace-snapshot/merge/scalar.ts",
       "src/workspace-snapshot/merge/version-gate.ts",
       "src/workspace-snapshot/model/types.ts",
       "src/workspace-snapshot/node-ambient.d.ts",
+      "src/workspace-snapshot/persistence/actor-write.ts",
+      "src/workspace-snapshot/persistence/comment-write.ts",
       "src/workspace-snapshot/persistence/database.ts",
+      "src/workspace-snapshot/persistence/fetch-cursor.ts",
       "src/workspace-snapshot/persistence/issue-body-write.ts",
       "src/workspace-snapshot/persistence/issue-edge-write.ts",
       "src/workspace-snapshot/persistence/issue-groups-write.ts",
       "src/workspace-snapshot/persistence/issue-identity-write.ts",
       "src/workspace-snapshot/persistence/issue-row-write.ts",
       "src/workspace-snapshot/persistence/issue-scalar-write.ts",
+      "src/workspace-snapshot/persistence/review-write.ts",
       "src/workspace-snapshot/persistence/schema.ts",
       "src/workspace-snapshot/projection/detail.ts",
       "src/workspace-snapshot/projection/edges.ts",
@@ -16585,7 +16625,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 58
+        "fileCount": 59
       },
       {
         "path": "src/shared/command-cleanup",
@@ -16621,7 +16661,7 @@
       },
       {
         "path": "src/workspace-snapshot/merge",
-        "fileCount": 4
+        "fileCount": 5
       },
       {
         "path": "src/workspace-snapshot/model",
@@ -16629,7 +16669,7 @@
       },
       {
         "path": "src/workspace-snapshot/persistence",
-        "fileCount": 8
+        "fileCount": 12
       },
       {
         "path": "src/workspace-snapshot/projection",

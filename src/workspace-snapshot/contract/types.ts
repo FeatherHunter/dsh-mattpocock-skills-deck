@@ -11,9 +11,11 @@ import type {
   ListQuery,
   SnapshotActor,
   SnapshotBackend,
+  SnapshotComment,
   SnapshotDiagnostic,
   SnapshotLabel,
   SnapshotMode,
+  SnapshotReview,
   SubIssueCountsValue,
 } from '../model/types.js'
 
@@ -31,10 +33,12 @@ export type {
   ListQuery,
   SnapshotActor,
   SnapshotBackend,
+  SnapshotComment,
   SnapshotDiagnostic,
   SnapshotDiagnosticCode,
   SnapshotLabel,
   SnapshotMode,
+  SnapshotReview,
   SubIssueCountsValue,
 } from '../model/types.js'
 
@@ -64,6 +68,10 @@ export interface GroupWrite<T> {
  * 正文、子票计数、合并信息各自独立成组，不塞进 row：row 是「整行我都知道」的语义，
  * 详情读结果未必知道这几项，混进 row 会把上一次从列表学到的计数一起抹掉。
  * mergeInfo 的值直接是合并时间的毫秒数；complete + null 表示确认还没合并。
+ *
+ * 评论与评审各有自己的组（#1865）。评论是按页取回来的「从头开始的前几条」，所以 truncated
+ * 只覆盖前几条、不删已知的后面几条；complete 才是「整组换掉」。评审整组替换，contract 里
+ * 没有评审 id，顺序就是唯一稳定的东西。
  */
 export interface IssueGroupsWrite {
   row?: GroupWrite<IssueRowValue | null>
@@ -77,6 +85,13 @@ export interface IssueGroupsWrite {
   subIssues?: GroupWrite<SubIssueCountsValue | null>
   /** 合并信息（合并时间的毫秒数）；complete + null = 确认还没合并。 */
   mergeInfo?: GroupWrite<number | null>
+  /**
+   * 评论（按取回顺序的前几条）；complete + 空数组 = 确认没有评论。
+   * 每次写这一组都要同时告诉库里「取到第几条了」，所以这一组的值只能是数组，不能是 null。
+   */
+  comments?: GroupWrite<SnapshotComment[]>
+  /** 评审（按顺序）；complete + 空数组 = 确认没有评审。 */
+  review?: GroupWrite<SnapshotReview[]>
 }
 
 /**

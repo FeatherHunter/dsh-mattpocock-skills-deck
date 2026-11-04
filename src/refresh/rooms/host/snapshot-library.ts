@@ -22,7 +22,8 @@ import type {
   SnapshotBackend,
   WorkspaceSnapshotHandle,
 } from '../../../workspace-snapshot/contract/types.js'
-import { detailIssueWriteOf, issueWritesOf, snapshotOfProjection } from './snapshot-library-adapter.js'
+import { commentPageWriteOf, detailIssueWriteOf, issueWritesOf } from './snapshot-library-adapter.js'
+import { snapshotOfProjection } from './snapshot-library-view.js'
 
 // 开库走契约入口；上面那行环境声明把快照树用到的最小 Node 能力借给本文件（与宿主其余
 // 「不挂整包 Node 类型」的写法同一口径）。说明符写成字面量，依赖图才看得见「刷新 → 契约」这条边。
@@ -243,6 +244,27 @@ export async function readIssueDetail(input: ReadIssueDetailInput): Promise<Issu
   } catch (e) {
     return null
   }
+}
+
+/**
+ * 把一页评论写进库（#1865）。每取一页调一次：评论按页覆盖（truncated 只覆盖从头数的前几条，
+ * complete 整组替换），同时推进「取到第几条」的游标，下一次加载更多从这里接着走。
+ *
+ * 只表达评论这一组：这条电话要回来的是一整张票，但它是为了加载更多发的，重写行与正文只会
+ * 把详情那边刚写好的组时刻推新。写库失败不影响这次回包（调用方照旧把新增段交回界面）。
+ */
+export async function recordIssueComments(input: RecordIssueDetailInput): Promise<RecordIssueDetailResult> {
+  if (!input.issue || input.issue.key == null) return { ok: true, mergeVersion: null }
+  const writes: IssueWrite[] = [commentPageWriteOf(input.issue)]
+  if (!writes[0] || Object.keys(writes[0].groups).length === 0) return { ok: true, mergeVersion: null }
+  const handle = await handleOf(input)
+  if (!handle) return { ok: false, mergeVersion: null, reason: 'unavailable' }
+  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+  if (!result.committed && result.reason === 'stale') {
+    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+  }
+  if (!result.committed) return { ok: false, mergeVersion: null, reason: result.reason }
+  return { ok: true, mergeVersion: result.mergeVersion }
 }
 
 /** 测试与进程收尾用：关掉所有缓存句柄；之后再用会重新开库。 */

@@ -347,7 +347,10 @@ export const IssueDetail = function (props: any): any {
       //   （手上根本没有这份数据），但那只是「还没拿到」，不是「不能评论」——
       //   拉取请求，或详情回来说这个后端不带评论能力，才算真只读。
       // #1783：评论未知时置灰只是「这一趟还没拿到」，不是「不能评论」，不许落成只读提示。
-      const readOnlyKnown = fromPullRequest || (!!detail && !canComment && !commentsUnknown)
+      // #1865：从本地快照库读回来的详情（fromSnapshot）评论是知道的（库里有那一组），但输入框
+      //   仍然要等这一趟详情取数成功才给（写评论是 #1866 的事）。这时也不许说「只读」——
+      //   后端明明能收评论，只是这一页的数据是上次的；顶上那句「上次数据（时间）」已经说清了。
+      const readOnlyKnown = fromPullRequest || (!!detail && !canComment && !commentsUnknown && detail.fromSnapshot !== true)
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, [
         // 顶部固定行（#565 粘性固定，随滚动保持可见；#763 单行逐字折叠：越窄越收，只剩图标，不放省略号）
         // 折叠顺序：返回按钮的字先收（返回列表→返回→只剩图标），再收面包屑，再收快照提示，

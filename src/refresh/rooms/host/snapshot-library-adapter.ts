@@ -11,38 +11,38 @@
  *
  * #1864 起详情也走同一套换算：正文、子票计数、合并信息各自成组，不塞进行组——行组是
  * 「整行我都知道」的语义，详情读结果未必知道这几项，混进去会把列表学到的值一起抹掉。
+ *
+ * #1865 起评论与评审也成组：评论按页写、按页读（游标在库里），评审整组替换。评论组的完整度
+ * 由「取到的条数够不够票面总数」决定：够就是 complete，不够才是 truncated；票面总数不知道时
+ * 只敢说 truncated——宁可下次再取一趟，也不能把「只取到前几条」说成「一共就这几条」。
+ *
+ * 读方向（库里的投影 → tracker 的 Issue / 界面认的详情形状）在同一目录的 snapshot-library-view.ts。
  */
-import type { Issue, IssueFieldStates, RepositoryRef } from '../../../tracker/contract/entities.js'
+import type { Comment, Issue, IssueFieldStates, Review } from '../../../tracker/contract/entities.js'
 import type {
-  GroupState,
-  IssueDetail,
   IssueGroupsWrite,
   IssueRowValue,
   IssueWrite,
-  ListIssue,
-  ListIssueRef,
-  ListProjection,
   SnapshotActor,
+  SnapshotComment,
   SnapshotLabel,
+  SnapshotReview,
 } from '../../../workspace-snapshot/contract/types.js'
-import { assembleSnapshot } from '../../../host/tracker/snapshotAssemble.js'
 
 /** 写入来源标签，落进 issue_group.source；排查时能分清这批数据是列表电话还是详情电话给的。 */
 const SOURCE_LIST = 'refresh-list'
 const OPERATION_LIST = 'list'
 const SOURCE_DETAIL = 'refresh-detail'
 const OPERATION_DETAIL = 'get'
+// #1865：评论分页是另一条电话（wf.issueComments），来源与操作名单独记，排查时一眼看得出来。
+const SOURCE_COMMENTS = 'refresh-comments'
+const OPERATION_COMMENTS = 'listComments'
 
 /** ISO 时间转毫秒；空串、null、解析不了都回 null（不写 0，0 会被当成 1970 年的真实时间）。 */
 export function msOf(value: unknown): number | null {
   if (typeof value !== 'string' || !value) return null
   const parsed = Date.parse(value)
   return Number.isFinite(parsed) ? parsed : null
-}
-
-/** 毫秒转 ISO；null / 非有限数回 null。 */
-export function isoOf(value: unknown): string | null {
-  return (typeof value === 'number' && Number.isFinite(value)) ? new Date(value).toISOString() : null
 }
 
 function nonEmptyString(value: unknown): string | null {
@@ -183,7 +183,7 @@ export function issueWriteOf(issue: Issue): IssueWrite {
 }
 
 /**
- * 一张票的组写入（详情电话）：比列表多表达正文。
+ * 一张票的组写入（详情电话）：比列表多表达正文、评论与评审。
  *
  * 正文按组写：complete + 空串 = 确认没有正文，完整取到的正文整组换掉。
  * 详情是完整行来源，所以行组、标签、指派都按 complete 写（缺的字段就是确认没有）。
@@ -194,8 +194,116 @@ export function detailIssueWriteOf(issue: Issue): IssueWrite {
   // 详情读结果里标签/指派是完整来源（有就给，没有就是确认没有）。
   if (!Array.isArray(issue.labels)) write.groups.labels = complete([], SOURCE_DETAIL, OPERATION_DETAIL)
   if (!Array.isArray(issue.assignees)) write.groups.assignees = complete([], SOURCE_DETAIL, OPERATION_DETAIL)
+  const comments = commentsGroupOf(issue, SOURCE_DETAIL, OPERATION_DETAIL)
+  if (comments !== undefined) write.groups.comments = comments
+  const review = reviewsGroupOf(issue, SOURCE_DETAIL, OPERATION_DETAIL)
+  if (review !== undefined) write.groups.review = review
   write.groups.row = complete(issueRowValueOf(issue), SOURCE_DETAIL, OPERATION_DETAIL)
   return write
+}
+
+/**
+ * 一张票的组写入（评论分页电话）：只表达评论这一组。
+ *
+ * 为什么只写评论：这条电话要回来的是一整张票，但它是为了「加载更多」发的；把行、正文、标签
+ * 一起重写一遍既没必要，也会把详情那边刚写好的组时刻推新，让详情看起来比实际新。
+ */
+export function commentPageWriteOf(issue: Issue): IssueWrite {
+  const groups: IssueGroupsWrite = {}
+  const comments = commentsGroupOf(issue, SOURCE_COMMENTS, OPERATION_COMMENTS)
+  if (comments !== undefined) groups.comments = comments
+  return { effortId: String(issue.effortId || ''), key: String(issue.key), groups }
+}
+
+/** 票面评论总数：后端给了总数才算知道；不知道时回 null（不许拿已取条数冒充总数）。 */
+function commentTotalOf(issue: Issue): number | null {
+  const states = issue.fieldStates
+  if (states && states.comments) {
+    if (!states.comments.known) return null
+    const value = states.comments.value
+    return typeof value === 'number' && isFinite(value) && value >= 0 ? Math.floor(value) : null
+  }
+  const raw = issue.commentCount
+  return typeof raw === 'number' && isFinite(raw) && raw >= 0 ? Math.floor(raw) : null
+}
+
+/** 契约的评论数组 → 库里的评论值。时间换算成毫秒；后端没给作者就整个字段不写。 */
+function commentsOf(issue: Issue): SnapshotComment[] {
+  return (Array.isArray(issue.comments) ? issue.comments : [])
+    .filter((item) => item && typeof item.body === 'string')
+    .map((item: Comment) => {
+      const out: SnapshotComment = { body: item.body }
+      if (typeof item.id === 'string' && item.id) out.backendId = item.id
+      if (item.author && typeof item.author.login === 'string' && item.author.login) {
+        out.author = {
+          login: item.author.login,
+          kind: item.author.kind ?? null,
+          name: item.author.name ?? null,
+          avatarUrl: item.author.avatarUrl ?? null,
+        }
+      }
+      if (typeof item.authorAssociation === 'string') out.authorAssociation = item.authorAssociation
+      out.createdAtMs = msOf(item.createdAt)
+      out.updatedAtMs = msOf(item.updatedAt)
+      out.editedAtMs = msOf(item.editedAt)
+      return out
+    })
+}
+
+/** 契约的评审数组 → 库里的评审值。评审没有 id，顺序就是唯一稳定的东西。 */
+function reviewsOf(reviews: readonly Review[]): SnapshotReview[] {
+  return reviews.map((item) => {
+    const out: SnapshotReview = { state: String(item.state || '') }
+    if (item.reviewer && typeof item.reviewer.login === 'string' && item.reviewer.login) {
+      out.reviewer = {
+        login: item.reviewer.login,
+        kind: item.reviewer.kind ?? null,
+        name: item.reviewer.name ?? null,
+        avatarUrl: item.reviewer.avatarUrl ?? null,
+      }
+    }
+    out.submittedAtMs = msOf(item.submittedAt)
+    return out
+  })
+}
+
+/**
+ * 评论组。三态优先：后端明确说评论总数不知道（fieldStates.comments 未知）就只盖章。
+ * 有评论数组才表达这一组（列表读结果根本不带评论，不能拿它清空详情取回来的评论）。
+ * 完整度按「取到的条数够不够票面总数」：够才是 complete；总数不知道时只敢说 truncated。
+ */
+function commentsGroupOf(
+  issue: Issue,
+  source: string,
+  operation: string,
+): IssueGroupsWrite['comments'] {
+  const states = issue.fieldStates
+  if (states && states.comments && !states.comments.known) {
+    return unknownGroup(states.comments.reason, source, operation) as IssueGroupsWrite['comments']
+  }
+  if (!Array.isArray(issue.comments)) return undefined
+  const items = commentsOf(issue)
+  const total = commentTotalOf(issue)
+  const completeness = total !== null && items.length >= total ? 'complete' : 'truncated'
+  return { completeness, value: items, source, operation }
+}
+
+/**
+ * 评审组。契约说「没有评审给 []」，三态里有 review 就按它；两者都没有就不表达这一组
+ * （没有拉取请求能力的后端根本没有评审这回事，写成「确认没有」会是假的）。
+ */
+function reviewsGroupOf(
+  issue: Issue,
+  source: string,
+  operation: string,
+): IssueGroupsWrite['review'] {
+  const states = issue.fieldStates
+  if (states && states.review) {
+    if (!states.review.known) return unknownGroup(states.review.reason, source, operation) as IssueGroupsWrite['review']
+    return complete(reviewsOf(states.review.value || []), source, operation)
+  }
+  if (Array.isArray(issue.reviews)) return complete(reviewsOf(issue.reviews), source, operation)
+  return undefined
 }
 
 /**
@@ -208,114 +316,4 @@ export function issueWritesOf(rows: Issue[]): IssueWrite[] {
   return (Array.isArray(rows) ? rows : [])
     .filter((row) => row && row.key != null && row.isPullRequest !== true)
     .map(issueWriteOf)
-}
-
-function refOf(item: ListIssueRef): any {
-  const ref: any = { key: String(item.key), title: String(item.title || '') }
-  if (item.state === 'open' || item.state === 'closed') ref.state = item.state
-  if (item.type) ref.type = item.type
-  return ref
-}
-
-/**
- * 一行库记录 → tracker 契约里的 Issue 形状。
- *
- * body 这里一律给空串：正文属于详情（#1864），首屏容器树与胶囊不需要它；
- * 有了空 body，组装层解析地图/规格正文只会得到空区块，不会报错。
- * blockedBy 只在库里确实有这组记录时才出现：缺席表示「能力没有」，[] 表示「确认没有」。
- */
-export function issueOfRow(item: ListIssue): Issue {
-  const row = item.row
-  const effortId = String(item.effortId || '')
-  const issue: Issue = {
-    key: String(item.key),
-    effortId,
-    type: (row.type === 'map' || row.type === 'spec') ? row.type : 'issue',
-    title: String(row.title || ''),
-    state: row.state === 'closed' ? 'closed' : 'open',
-    body: '',
-    url: String(row.url || ''),
-    createdAt: isoOf(row.createdAtMs) || '',
-    updatedAt: isoOf(row.updatedAtMs) || '',
-    closedAt: isoOf(row.closedAtMs),
-    parentKey: item.parents.length ? String(item.parents[0]) : null,
-  }
-  if (item.labels.length) issue.labels = item.labels.map((l) => ({ name: l.name, color: l.color || '', ...(l.description ? { description: l.description } : {}) }))
-  if (item.assignees.length) issue.assignees = item.assignees.map((a) => ({ login: a.login, ...(a.name ? { name: a.name } : {}), ...(a.avatarUrl ? { avatarUrl: a.avatarUrl } : {}) }))
-  if (item.groups.blockedBy !== null) issue.blockedBy = item.blockedBy.map((ref) => refOf(ref))
-  if (typeof row.isPullRequest === 'boolean') issue.isPullRequest = row.isPullRequest
-  if (typeof row.commentCount === 'number') issue.commentCount = row.commentCount
-  if (row.stateReason) issue.reason = row.stateReason
-  if (typeof item.mergedAtMs === 'number') issue.mergedAt = isoOf(item.mergedAtMs)
-  if (row.status) issue.status = row.status
-  if (row.statusVisible) issue.statusVisible = row.statusVisible
-  if (row.statusSource === 'visible' || row.statusSource === 'hidden' || row.statusSource === 'default') issue.statusSource = row.statusSource
-  return issue
-}
-
-/** 一次列表投影 → 与在线组装同形的快照主体（容器树、子票、瘦身行都在里面）。 */
-export function snapshotOfProjection(repo: RepositoryRef, projection: ListProjection): any {
-  return assembleSnapshot(repo, projection.issues.map(issueOfRow))
-}
-
-/** 库里的一组三态 → 界面读得懂的三态（只留完整度、原因与时刻）。 */
-function groupInfoOf(state: GroupState | null): any {
-  if (!state) return null
-  return { completeness: state.completeness, reason: state.reason, lastQueriedMs: state.lastQueriedMs }
-}
-
-function nodesOf(refs: ListIssueRef[]): any[] {
-  return refs.map((ref) => {
-    const number = /^\d+$/.test(ref.key) ? Number(ref.key) : ref.key
-    const node: any = { number, title: ref.title || '' }
-    if (ref.state === 'closed') node.state = 'CLOSED'
-    else if (ref.state === 'open') node.state = 'OPEN'
-    return node
-  })
-}
-
-/**
- * 库里的详情投影 → 界面认的详情形状（GraphQL 连接那套字段）。
- *
- * 三条约定：
- *  1. 正文不知道时整个字段不写（undefined）：写空串会让界面把「没取过」画成「无描述」。
- *  2. 评论这一组 #1864 还没落库，所以 comments 一律不写；界面按「评论未知」处理，
- *     不把它说成「只读」或「评论 (0)」（评论分页是 #1865）。
- *  3. 各组三态放进 snapshotGroups，上次已知时刻放进 lastKnownAtMs：界面靠这两样分开画
- *     「确认没有」与「不知道」。
- */
-export function detailOfProjection(issue: IssueDetail): any {
-  const out: any = {
-    number: /^\d+$/.test(issue.key) ? Number(issue.key) : issue.key,
-    key: issue.key,
-    effortId: issue.effortId,
-    title: issue.row.title || '',
-    state: issue.row.state === 'closed' ? 'CLOSED' : 'OPEN',
-    url: issue.row.url || '',
-    updatedAt: isoOf(issue.row.updatedAtMs) || '',
-    createdAt: isoOf(issue.row.createdAtMs) || '',
-    closedAt: isoOf(issue.row.closedAtMs),
-    labels: { nodes: issue.labels.map((l) => ({ name: l.name, color: l.color || '' })) },
-    assignees: { nodes: issue.assignees.map((a) => ({ login: a.login })) },
-    blockedBy: { nodes: nodesOf(issue.blockedBy) },
-    blocking: { nodes: nodesOf(issue.blocking) },
-    subIssues: { totalCount: issue.subIssues ? issue.subIssues.total : issue.children.length, nodes: nodesOf(issue.children) },
-    isPullRequest: issue.row.isPullRequest === true,
-    mergedAt: isoOf(issue.mergedAtMs),
-    fromSnapshot: true,
-    referenceSkeleton: issue.referenceSkeleton,
-    lastKnownAtMs: issue.lastKnownAtMs,
-    snapshotGroups: {
-      row: groupInfoOf(issue.groups.row),
-      body: groupInfoOf(issue.groups.body),
-      labels: groupInfoOf(issue.groups.labels),
-      assignees: groupInfoOf(issue.groups.assignees),
-      parents: groupInfoOf(issue.groups.parents),
-      blockedBy: groupInfoOf(issue.groups.blockedBy),
-      subIssues: groupInfoOf(issue.groups.subIssues),
-      mergeInfo: groupInfoOf(issue.groups.mergeInfo),
-    },
-  }
-  if (issue.body !== null) out.body = issue.body
-  return out
 }

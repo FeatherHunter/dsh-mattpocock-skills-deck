@@ -17,13 +17,17 @@ import type {
   IssueDetailProjection,
   IssueDetailQuery,
   IssueRowValue,
+  SnapshotComment,
+  SnapshotReview,
   SubIssueCountsValue,
 } from '../model/types.js'
+import { readFetchCursor } from '../persistence/fetch-cursor.js'
+import { COMMENTS_GROUP } from '../persistence/comment-write.js'
 import { readMergeVersion } from '../persistence/schema.js'
 import { readIssueDetailEdges } from './edges.js'
 import { readAssignees, readGroupStates, readLabels } from './members.js'
 
-/** 详情要读的八组。顺序固定：门禁与排查都按这一份看。 */
+/** 详情要读的十组。顺序固定：门禁与排查都按这一份看。 */
 const DETAIL_GROUPS = [
   'row',
   'body',
@@ -33,6 +37,8 @@ const DETAIL_GROUPS = [
   'blockedBy',
   'subIssues',
   'mergeInfo',
+  'comments',
+  'review',
 ] as const
 
 interface DetailRow {
@@ -103,6 +109,8 @@ export function readIssueDetailProjection(
     blockedBy: stateOf('blockedBy'),
     subIssues: stateOf('subIssues'),
     mergeInfo: stateOf('mergeInfo'),
+    comments: stateOf('comments'),
+    review: stateOf('review'),
   }
   const issue: IssueDetail = {
     effortId: row.effort_id,
@@ -117,11 +125,84 @@ export function readIssueDetailProjection(
     children: edges.children,
     subIssues: subIssuesOf(row, groups.subIssues),
     mergedAtMs: nullableNumber(row.merged_at_ms),
+    comments: readComments(db, issueId),
+    commentsCursor: cursorTextOf(db, issueId),
+    reviews: readReviews(db, issueId),
     groups,
     lastKnownAtMs: lastQueriedOf(groups),
     referenceSkeleton: groups.row === null,
   }
   return { mergeVersion, generatedAtMs: nowMs, issue }
+}
+
+/**
+ * 评论按 position 读回（#1865）。位置就是顺序，也是这一组的身份：后端每次从第 0 条开始给，
+ * 所以库里第几行就是「从头数第几条」。作者从 actor 表 join 回来，作者信息只在库里存一份。
+ */
+function readComments(db: DatabaseSync, issueId: number): SnapshotComment[] {
+  const rows = db.prepare(
+    `SELECT c.backend_id AS backend_id, c.author_association AS author_association,
+            c.body AS body, c.created_at_ms AS created_at_ms,
+            c.updated_at_ms AS updated_at_ms, c.edited_at_ms AS edited_at_ms,
+            a.login AS login, a.kind AS kind, a.name AS name, a.avatar_url AS avatar_url
+       FROM comment c LEFT JOIN actor a ON a.actor_id = c.author_id
+      WHERE c.issue_id = ? ORDER BY c.position`,
+  ).all(issueId) as Array<{
+    backend_id: string | null
+    author_association: string | null
+    body: string
+    created_at_ms: number | null
+    updated_at_ms: number | null
+    edited_at_ms: number | null
+    login: string | null
+    kind: string | null
+    name: string | null
+    avatar_url: string | null
+  }>
+  return rows.map((row) => {
+    const comment: SnapshotComment = {
+      authorAssociation: row.author_association,
+      body: row.body,
+      createdAtMs: nullableNumber(row.created_at_ms),
+      updatedAtMs: nullableNumber(row.updated_at_ms),
+      editedAtMs: nullableNumber(row.edited_at_ms),
+    }
+    if (row.backend_id !== null) comment.backendId = row.backend_id
+    if (row.login !== null) {
+      comment.author = { login: row.login, kind: row.kind, name: row.name, avatarUrl: row.avatar_url }
+    }
+    return comment
+  })
+}
+
+/** 评审按 position 读回。 */
+function readReviews(db: DatabaseSync, issueId: number): SnapshotReview[] {
+  const rows = db.prepare(
+    `SELECT r.state AS state, r.submitted_at_ms AS submitted_at_ms,
+            a.login AS login, a.kind AS kind, a.name AS name, a.avatar_url AS avatar_url
+       FROM review r LEFT JOIN actor a ON a.actor_id = r.reviewer_id
+      WHERE r.issue_id = ? ORDER BY r.position`,
+  ).all(issueId) as Array<{
+    state: string
+    submitted_at_ms: number | null
+    login: string | null
+    kind: string | null
+    name: string | null
+    avatar_url: string | null
+  }>
+  return rows.map((row) => {
+    const review: SnapshotReview = { state: row.state, submittedAtMs: nullableNumber(row.submitted_at_ms) }
+    if (row.login !== null) {
+      review.reviewer = { login: row.login, kind: row.kind, name: row.name, avatarUrl: row.avatar_url }
+    }
+    return review
+  })
+}
+
+/** 评论游标（取到第几条）；没有游标行时给 null，界面据此知道「评论从没取过」。 */
+function cursorTextOf(db: DatabaseSync, issueId: number): string | null {
+  const current = readFetchCursor(db, issueId, COMMENTS_GROUP)
+  return current === null ? null : String(current)
 }
 
 /**

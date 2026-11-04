@@ -206,7 +206,8 @@ async function main(): Promise<void> {
       'B9 回包带各组三态（界面分得清确认没有与不知道）', second && second.issue && groupsOf(second.issue).body)
     check(second && second.issue && typeof second.issue.lastKnownAtMs === 'number' && second.issue.lastKnownAtMs > 0,
       'B10 回包带上次已知时刻', second && second.issue && second.issue.lastKnownAtMs)
-    check(second && second.issue && second.issue.comments === undefined, 'B11 评论还没进库时不假装有（#1865 才落评论）', second && second.issue && second.issue.comments)
+    check(second && second.issue && second.issue.comments && second.issue.comments.nodes.length === 2,
+      'B11 评论也从库读出（#1865 起评论按页落库，回放时一起交回）', second && second.issue && second.issue.comments)
 
     // ── C. 重启（关掉进程内的库句柄）后仍然不用重取 ──────────────────────────────
     closeSnapshotLibraries()

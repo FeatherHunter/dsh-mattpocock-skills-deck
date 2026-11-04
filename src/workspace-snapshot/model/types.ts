@@ -80,6 +80,44 @@ export interface SnapshotActor {
   avatarUrl?: string | null
 }
 
+/**
+ * 一条评论。
+ *
+ * 后端 id 是可选的：GitHub 与 GitLab 给得出来，本地 Markdown 的评论区只有手写标题，
+ * 没有稳定标识（见 src/tracker/rooms/markdown/issues-read.ts 的游标说明）。所以库里的身份
+ * 不是它，而是「这张票的第几个」——评论按 position 存，翻页从头上重取时按位置覆盖。
+ *
+ * 时间全部是 UTC 毫秒整数；没有的时间给 null，不拿 0 冒充 1970 年。
+ */
+export interface SnapshotComment {
+  /** 后端给的评论 id；给不了就省略（不能拿它当身份，理由见上）。 */
+  backendId?: string | null
+  /** 谁写的；后端没给作者信息时省略。 */
+  author?: SnapshotActor | null
+  /** 作者与仓库的关系（GitHub 的 OWNER/MEMBER/CONTRIBUTOR/NONE；本地是空串）。 */
+  authorAssociation?: string | null
+  /** 正文（Markdown 原文）。这一格必填：后端给不出正文时写空串，不写 null。 */
+  body: string
+  createdAtMs?: number | null
+  updatedAtMs?: number | null
+  editedAtMs?: number | null
+}
+
+/**
+ * 一条评审记录。
+ *
+ * 契约里没有评审 id（见 src/tracker/contract/entities.ts 的 Review），所以这一组只能整组替换、
+ * 按顺序存：两次取回之间唯一稳定的东西就是「第几条」。没有评审能力或从没取过时，库里没有组记录。
+ */
+export interface SnapshotReview {
+  /** 评审结论（开放文字），保留写法 approved / changes_requested / commented / dismissed。 */
+  state: string
+  /** 给出这条评审的人；没有就不写。 */
+  reviewer?: SnapshotActor | null
+  /** 给出评审的时间（UTC 毫秒）；没有就不写。 */
+  submittedAtMs?: number | null
+}
+
 /** 一组的元信息：完整度、来源渠道、读操作名、上次查询时间。 */
 export interface GroupState {
   completeness: GroupCompleteness
@@ -149,10 +187,13 @@ export interface ListQuery {
 }
 
 /**
- * 详情读的八组三态。没有出现的组在库里没有记录（从没取过），值给 null。
+ * 详情读的十组三态。没有出现的组在库里没有记录（从没取过），值给 null。
  *
  * 界面靠它区分「确认没有」与「不知道」：completeness 是 complete 且值为空 = 确认没有；
  * 这里是 null（从没取过）或 unknown（带 reason）= 不知道。
+ *
+ * 评论与评审各有自己的组（#1865）：评论按页取，truncated 表示「只拿到前几条」；
+ * 评审整组替换，complete 时的空数组才是「确认没有评审」。
  */
 export interface DetailGroupStates {
   row: GroupState | null
@@ -163,6 +204,8 @@ export interface DetailGroupStates {
   blockedBy: GroupState | null
   subIssues: GroupState | null
   mergeInfo: GroupState | null
+  comments: GroupState | null
+  review: GroupState | null
 }
 
 /**
@@ -193,6 +236,18 @@ export interface IssueDetail {
   children: ListIssueRef[]
   subIssues: SubIssueCountsValue | null
   mergedAtMs: number | null
+  /**
+   * 评论，按取回顺序（#1865）。空数组有两种意思，看 groups.comments：complete 是「确认没有」，
+   * truncated 是「一条都没拿到」，unknown 或没有组记录是「不知道」。
+   */
+  comments: SnapshotComment[]
+  /**
+   * 评论取到第几条（fetch_cursor 里那个游标，十进制文本）；null = 从没取过。
+   * 界面拿它当「加载更多」的起点：已显示的条数比它少时，先补库里的，不必重取。
+   */
+  commentsCursor: string | null
+  /** 评审，按取回顺序；是否「确认没有」同样看 groups.review。 */
+  reviews: SnapshotReview[]
   groups: DetailGroupStates
   /** 这些组里最后一次被查询的时刻；界面用它说「上次已知是什么时候」。0 = 从来没有过。 */
   lastKnownAtMs: number

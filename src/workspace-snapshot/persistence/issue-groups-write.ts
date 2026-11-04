@@ -7,6 +7,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { GroupWrite } from '../contract/types.js'
 import type { SnapshotActor, SnapshotLabel } from '../model/types.js'
 import { decideCollectionMerge } from '../merge/collection.js'
+import { upsertActor } from './actor-write.js'
 
 /**
  * 标签组。complete 整组替换、complete 空清空；truncated 只补旧组没有的标签。
@@ -115,32 +116,6 @@ export function applyIssueAssignees(
     ).run(issueId, actorId, nextPosition)
     if (Number(result.changes) > 0) nextPosition += 1
   }
-}
-
-function upsertActor(db: DatabaseSync, item: SnapshotActor, overwrite: boolean): number {
-  if (!item || typeof item.login !== 'string' || item.login.length === 0) {
-    throw new Error('assignees 写入里的指派人缺少 login')
-  }
-  if (overwrite) {
-    db.prepare(
-      `INSERT INTO actor (login, kind, name, avatar_url) VALUES (?, ?, ?, ?)
-       ON CONFLICT(login) DO UPDATE SET
-         kind = excluded.kind, name = excluded.name, avatar_url = excluded.avatar_url`,
-    ).run(item.login, item.kind ?? null, item.name ?? null, item.avatarUrl ?? null)
-  } else {
-    db.prepare(
-      `INSERT INTO actor (login, kind, name, avatar_url) VALUES (?, ?, ?, ?)
-       ON CONFLICT(login) DO UPDATE SET
-         kind = COALESCE(excluded.kind, actor.kind),
-         name = COALESCE(excluded.name, actor.name),
-         avatar_url = COALESCE(excluded.avatar_url, actor.avatar_url)`,
-    ).run(item.login, item.kind ?? null, item.name ?? null, item.avatarUrl ?? null)
-  }
-  const row = db.prepare('SELECT actor_id FROM actor WHERE login = ?').get(item.login) as
-    | { actor_id?: number }
-    | null
-  if (!row) throw new Error(`actor 写入后读不回：${item.login}`)
-  return Number(row.actor_id)
 }
 
 /** 下一批追加位置。空组从 0 开始。 */
