@@ -15,6 +15,8 @@
  * 后续接回宿主时替换的只是「谁去执行」，状态变化原样保留。
  */
 
+import { COPY } from '../data/copy'
+
 /** 结果出现的位置：这是「结果不能堆在页面底部」的具体落点。 */
 export type ResultSource = 'sync' | 'reload' | 'commit' | 'copy' | 'ai' | 'branch' | 'worktree' | 'changes' | 'stash' | 'history'
 /** 结果与「下一步」提示的四种语气；muted 表示没有紧迫性，不改变颜色语义。 */
@@ -112,7 +114,7 @@ export interface StashPending {
  * 为什么放在状态里而不是视图里：确认卡开着的时候，列表的其它操作应当不可点，
  * 这条判定必须和「点击会不会生效」用同一份状态，不能视图自己记一个变量。
  */
-export type ChangesPendingKind = 'discard' | 'discard-all' | 'ignore' | 'delete-untracked' | 'resolve-ours' | 'resolve-theirs'
+export type ChangesPendingKind = 'discard' | 'discard-all' | 'ignore' | 'delete-untracked' | 'delete-tracked' | 'untrack' | 'resolve-ours' | 'resolve-theirs'
 
 export interface ChangesPending {
   kind: ChangesPendingKind
@@ -160,6 +162,11 @@ export interface SessionState {
   changesPending: ChangesPending | null
   /** 哪一行的「更多」菜单被点开了：菜单紧贴这一行画，不再另开一层页面。 */
   openMenuPath: string | null
+  /** 哪一行正在改路径（改名与移动共用一张表单），以及表单里正在敲的新路径。 */
+  renamePath: string | null
+  renameDraft: string
+  /** 改过名的文件：旧路径 → 新路径。读数与差异仍按旧路径查，列表上按新路径画。 */
+  renames: Array<{ from: string; to: string }>
   /** 原型里「已经加入 .gitignore」的文件：接回宿主后它们会在下一次读取时从列表消失。 */
   ignored: string[]
   /** 储藏清单：按 git stash 的顺序，最近一条在最前面。 */
@@ -250,6 +257,10 @@ export type Action =
   | { type: 'changes-pending'; pending: ChangesPending | null }
   | { type: 'changes-apply' }
   | { type: 'changes-open-menu'; path: string | null }
+  | { type: 'rename-open'; path: string }
+  | { type: 'rename-draft'; value: string }
+  | { type: 'rename-cancel' }
+  | { type: 'rename-apply' }
   | { type: 'demo-conflicts' }
   | { type: 'stash-create' }
   | { type: 'stash-apply'; id: string }
@@ -316,6 +327,9 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
     prunedWorktrees: [],
     changesPending: null,
     openMenuPath: null,
+    renamePath: null,
+    renameDraft: '',
+    renames: [],
     ignored: [],
     stashes: [],
     stashPending: null,
@@ -733,6 +747,39 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       return { ...state, changesPending: action.pending, openMenuPath: null }
     case 'changes-open-menu':
       return { ...state, openMenuPath: action.path, changesPending: null }
+    case 'rename-open':
+      // 改名与移动是同一张表单：改的是这条路径本身，所以贴着这一行展开，不做成整页。
+      return { ...state, openMenuPath: null, renamePath: action.path, renameDraft: action.path }
+    case 'rename-draft':
+      return { ...state, renameDraft: action.value }
+    case 'rename-cancel':
+      return { ...state, renamePath: null, renameDraft: '' }
+    case 'rename-apply': {
+      const from = state.renamePath
+      if (from === null) return state
+      const to = state.renameDraft.trim().replace(/\\/g, '/')
+      if (to === '') {
+        return withResult(state, { tone: 'error', text: COPY.changes.renameEmpty, detail: null, source: 'changes' })
+      }
+      if (to === from) {
+        return withResult(state, { tone: 'error', text: COPY.changes.renameSame, detail: null, source: 'changes' })
+      }
+      return withResult({
+        ...state,
+        staged: unique([...state.staged.filter((item) => item !== from), to]),
+        unstaged: state.unstaged.filter((item) => item !== from),
+        renames: [...state.renames.filter((entry) => entry.to !== from), { from, to }],
+        renamePath: null,
+        renameDraft: '',
+        openFile: state.openFile === from ? to : state.openFile,
+        openMenuPath: null,
+      }, {
+        tone: 'ok',
+        text: `已把 ${nameOfPath(from)} 改名为 ${nameOfPath(to)}。`,
+        detail: 'git mv 同时改磁盘上的名字并把这次改名暂存起来，所以它出现在「已暂存」里；提交之后新路径才进入历史。',
+        source: 'changes',
+      })
+    }
     case 'changes-apply': {
       const pending = state.changesPending
       if (pending === null) return state
@@ -785,6 +832,34 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
             tone: 'warn',
             text: `已删除未跟踪文件 ${name}。`,
             detail: '它从来没有进过 git 历史，删除以后没有任何地方能找回。原型不会真的删磁盘上的文件。',
+            source: 'changes',
+          })
+        }
+        case 'delete-tracked': {
+          // 已跟踪文件删掉之后，这次删除本身是一条已暂存的改动：它要跟别的改动一起提交才进历史。
+          if (path === null || (!state.unstaged.includes(path) && !state.staged.includes(path))) return cleared
+          return withResult({
+            ...cleared,
+            staged: unique([...state.staged.filter((item) => item !== path), path]),
+            unstaged: state.unstaged.filter((item) => item !== path),
+            openFile: state.openFile === path ? null : state.openFile,
+          }, {
+            tone: 'warn',
+            text: `已删除 ${name}，这次删除已经暂存。`,
+            detail: '文件从磁盘与 git 索引里一起删掉。删除本身是一条已暂存的改动，和别的改动一起提交之后才会进历史；面板不能撤回这一步。',
+            source: 'changes',
+          })
+        }
+        case 'untrack': {
+          if (path === null || !state.unstaged.includes(path)) return cleared
+          return withResult({
+            ...cleared,
+            unstaged: state.unstaged.filter((item) => item !== path),
+            openFile: state.openFile === path ? null : state.openFile,
+          }, {
+            tone: 'info',
+            text: `已停止跟踪 ${name}，文件还在磁盘上。`,
+            detail: 'git rm --cached 只把它从索引里拿掉：文件不会消失，但下次提交之后 git 不再跟踪它的改动，别人拉取时也不会再拿到它。想让它以后不再出现，可以顺手把它加进 .gitignore。',
             source: 'changes',
           })
         }

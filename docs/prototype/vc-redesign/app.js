@@ -134,6 +134,9 @@
       menuDiscard: "\u4E22\u5F03\u4FEE\u6539",
       menuIgnore: "\u52A0\u5165 .gitignore",
       menuDelete: "\u5220\u9664\u8FD9\u4E2A\u6587\u4EF6",
+      menuDeleteTracked: "\u5220\u9664\u5DF2\u8DDF\u8E2A\u7684\u6587\u4EF6",
+      menuUntrack: "\u505C\u6B62\u8DDF\u8E2A\uFF0C\u4FDD\u7559\u6587\u4EF6",
+      menuRename: "\u91CD\u547D\u540D\u6216\u79FB\u52A8",
       menuResolveOurs: "\u7528\u5F53\u524D\u5206\u652F\u7684\u7248\u672C\u89E3\u51B3",
       menuResolveTheirs: "\u7528\u5BF9\u65B9\u7684\u7248\u672C\u89E3\u51B3",
       discardAll: "\u4E22\u5F03\u5168\u90E8",
@@ -151,6 +154,19 @@
       confirmIgnoreBody: "\u6587\u4EF6\u4ECD\u5728\u78C1\u76D8\u4E0A\uFF0Cgit \u4ECE\u4E0B\u4E00\u6B21\u8BFB\u53D6\u8D77\u4E0D\u518D\u8DDF\u8E2A\u5B83\u3002\u5DF2\u7ECF\u63D0\u4EA4\u8FDB\u5386\u53F2\u7684\u5185\u5BB9\u4E0D\u53D7\u5F71\u54CD\u3002",
       confirmDeleteTitle: (name) => `\u5220\u9664\u672A\u8DDF\u8E2A\u6587\u4EF6 ${name}\uFF1F`,
       confirmDeleteBody: "\u8FD9\u4E2A\u6587\u4EF6\u4ECE\u6765\u6CA1\u6709\u8FDB\u8FC7 git \u5386\u53F2\uFF0C\u5220\u9664\u4EE5\u540E\u6CA1\u6709\u4EFB\u4F55\u5730\u65B9\u80FD\u627E\u56DE\u3002",
+      confirmDeleteTrackedTitle: (name) => `\u5220\u9664 ${name}\uFF1F`,
+      confirmDeleteTrackedBody: "\u6587\u4EF6\u4F1A\u4ECE\u78C1\u76D8\u4E0E git \u7D22\u5F15\u91CC\u4E00\u8D77\u5220\u6389\uFF0C\u8FD9\u6B21\u5220\u9664\u672C\u8EAB\u53D8\u6210\u4E00\u6761\u5DF2\u6682\u5B58\u7684\u6539\u52A8\uFF0C\u548C\u522B\u7684\u6539\u52A8\u4E00\u8D77\u63D0\u4EA4\u624D\u4F1A\u8FDB\u5386\u53F2\u3002",
+      confirmDeleteTracked: "\u786E\u8BA4\u5220\u9664",
+      confirmUntrackTitle: (name) => `\u505C\u6B62\u8DDF\u8E2A ${name}\uFF1F`,
+      confirmUntrackBody: "\u53EA\u628A\u6587\u4EF6\u4ECE git \u7D22\u5F15\u91CC\u62FF\u6389\uFF0C\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u539F\u6837\u4FDD\u7559\u3002\u4E0B\u6B21\u63D0\u4EA4\u4E4B\u540E\u5B83\u5C31\u4E0D\u518D\u88AB\u8DDF\u8E2A\uFF0C\u522B\u4EBA\u62C9\u53D6\u65F6\u4E5F\u4E0D\u4F1A\u518D\u62FF\u5230\u5B83\u3002",
+      confirmUntrack: "\u505C\u6B62\u8DDF\u8E2A",
+      renameTitle: "\u91CD\u547D\u540D\u6216\u79FB\u52A8",
+      renamePlaceholder: "\u65B0\u7684\u8DEF\u5F84\uFF0C\u4F8B\u5982 src/client/views/NewName.ts",
+      renameSubmit: "\u4FDD\u5B58\u65B0\u8DEF\u5F84",
+      renameCancel: "\u53D6\u6D88",
+      renameHint: "\u6574\u6761\u8DEF\u5F84\u90FD\u8981\u5199\u5168\uFF1B\u53EA\u6539\u6587\u4EF6\u540D\u65F6\uFF0C\u76EE\u5F55\u90E8\u5206\u7167\u6284\u3002git mv \u4F1A\u540C\u65F6\u6539\u78C1\u76D8\u4E0A\u7684\u540D\u5B57\u5E76\u628A\u8FD9\u6B21\u6539\u540D\u6682\u5B58\u8D77\u6765\u3002",
+      renameEmpty: "\u65B0\u8DEF\u5F84\u4E0D\u80FD\u4E3A\u7A7A\u3002",
+      renameSame: "\u65B0\u8DEF\u5F84\u548C\u539F\u6765\u4E00\u6837\uFF0C\u6CA1\u6709\u53EF\u6539\u7684\u3002",
       confirmResolveOursTitle: (name) => `\u7528\u5F53\u524D\u5206\u652F\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF1F`,
       confirmResolveOursBody: "\u5BF9\u65B9\u5206\u652F\u91CC\u7684\u6539\u52A8\u4F1A\u88AB\u4E22\u6389\uFF0C\u6587\u4EF6\u4F1A\u76F4\u63A5\u53D8\u4E3A\u5DF2\u6682\u5B58\u3002",
       confirmResolveTheirsTitle: (name) => `\u7528\u5BF9\u65B9\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF1F`,
@@ -3647,6 +3663,9 @@
       prunedWorktrees: [],
       changesPending: null,
       openMenuPath: null,
+      renamePath: null,
+      renameDraft: "",
+      renames: [],
       ignored: [],
       stashes: [],
       stashPending: null,
@@ -4032,6 +4051,38 @@
         return { ...state, changesPending: action.pending, openMenuPath: null };
       case "changes-open-menu":
         return { ...state, openMenuPath: action.path, changesPending: null };
+      case "rename-open":
+        return { ...state, openMenuPath: null, renamePath: action.path, renameDraft: action.path };
+      case "rename-draft":
+        return { ...state, renameDraft: action.value };
+      case "rename-cancel":
+        return { ...state, renamePath: null, renameDraft: "" };
+      case "rename-apply": {
+        const from = state.renamePath;
+        if (from === null) return state;
+        const to = state.renameDraft.trim().replace(/\\/g, "/");
+        if (to === "") {
+          return withResult(state, { tone: "error", text: COPY.changes.renameEmpty, detail: null, source: "changes" });
+        }
+        if (to === from) {
+          return withResult(state, { tone: "error", text: COPY.changes.renameSame, detail: null, source: "changes" });
+        }
+        return withResult({
+          ...state,
+          staged: unique([...state.staged.filter((item) => item !== from), to]),
+          unstaged: state.unstaged.filter((item) => item !== from),
+          renames: [...state.renames.filter((entry) => entry.to !== from), { from, to }],
+          renamePath: null,
+          renameDraft: "",
+          openFile: state.openFile === from ? to : state.openFile,
+          openMenuPath: null
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u628A ${nameOfPath(from)} \u6539\u540D\u4E3A ${nameOfPath(to)}\u3002`,
+          detail: "git mv \u540C\u65F6\u6539\u78C1\u76D8\u4E0A\u7684\u540D\u5B57\u5E76\u628A\u8FD9\u6B21\u6539\u540D\u6682\u5B58\u8D77\u6765\uFF0C\u6240\u4EE5\u5B83\u51FA\u73B0\u5728\u300C\u5DF2\u6682\u5B58\u300D\u91CC\uFF1B\u63D0\u4EA4\u4E4B\u540E\u65B0\u8DEF\u5F84\u624D\u8FDB\u5165\u5386\u53F2\u3002",
+          source: "changes"
+        });
+      }
       case "changes-apply": {
         const pending = state.changesPending;
         if (pending === null) return state;
@@ -4084,6 +4135,33 @@
               tone: "warn",
               text: `\u5DF2\u5220\u9664\u672A\u8DDF\u8E2A\u6587\u4EF6 ${name}\u3002`,
               detail: "\u5B83\u4ECE\u6765\u6CA1\u6709\u8FDB\u8FC7 git \u5386\u53F2\uFF0C\u5220\u9664\u4EE5\u540E\u6CA1\u6709\u4EFB\u4F55\u5730\u65B9\u80FD\u627E\u56DE\u3002\u539F\u578B\u4E0D\u4F1A\u771F\u7684\u5220\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u3002",
+              source: "changes"
+            });
+          }
+          case "delete-tracked": {
+            if (path === null || !state.unstaged.includes(path) && !state.staged.includes(path)) return cleared;
+            return withResult({
+              ...cleared,
+              staged: unique([...state.staged.filter((item) => item !== path), path]),
+              unstaged: state.unstaged.filter((item) => item !== path),
+              openFile: state.openFile === path ? null : state.openFile
+            }, {
+              tone: "warn",
+              text: `\u5DF2\u5220\u9664 ${name}\uFF0C\u8FD9\u6B21\u5220\u9664\u5DF2\u7ECF\u6682\u5B58\u3002`,
+              detail: "\u6587\u4EF6\u4ECE\u78C1\u76D8\u4E0E git \u7D22\u5F15\u91CC\u4E00\u8D77\u5220\u6389\u3002\u5220\u9664\u672C\u8EAB\u662F\u4E00\u6761\u5DF2\u6682\u5B58\u7684\u6539\u52A8\uFF0C\u548C\u522B\u7684\u6539\u52A8\u4E00\u8D77\u63D0\u4EA4\u4E4B\u540E\u624D\u4F1A\u8FDB\u5386\u53F2\uFF1B\u9762\u677F\u4E0D\u80FD\u64A4\u56DE\u8FD9\u4E00\u6B65\u3002",
+              source: "changes"
+            });
+          }
+          case "untrack": {
+            if (path === null || !state.unstaged.includes(path)) return cleared;
+            return withResult({
+              ...cleared,
+              unstaged: state.unstaged.filter((item) => item !== path),
+              openFile: state.openFile === path ? null : state.openFile
+            }, {
+              tone: "info",
+              text: `\u5DF2\u505C\u6B62\u8DDF\u8E2A ${name}\uFF0C\u6587\u4EF6\u8FD8\u5728\u78C1\u76D8\u4E0A\u3002`,
+              detail: "git rm --cached \u53EA\u628A\u5B83\u4ECE\u7D22\u5F15\u91CC\u62FF\u6389\uFF1A\u6587\u4EF6\u4E0D\u4F1A\u6D88\u5931\uFF0C\u4F46\u4E0B\u6B21\u63D0\u4EA4\u4E4B\u540E git \u4E0D\u518D\u8DDF\u8E2A\u5B83\u7684\u6539\u52A8\uFF0C\u522B\u4EBA\u62C9\u53D6\u65F6\u4E5F\u4E0D\u4F1A\u518D\u62FF\u5230\u5B83\u3002\u60F3\u8BA9\u5B83\u4EE5\u540E\u4E0D\u518D\u51FA\u73B0\uFF0C\u53EF\u4EE5\u987A\u624B\u628A\u5B83\u52A0\u8FDB .gitignore\u3002",
               source: "changes"
             });
           }
@@ -4728,7 +4806,8 @@
     return `${date.getMonth() + 1} \u6708 ${date.getDate()} \u65E5`;
   }
   function fileRowOf(base, state, path, options) {
-    const meta = metadataOf(base, path);
+    const renamedFrom = state.renames.find((entry) => entry.to === path)?.from ?? null;
+    const meta = metadataOf(base, renamedFrom ?? path);
     const change = meta?.change ?? "modified";
     const badge = changeBadge(change);
     const { dir, name } = splitPath(path);
@@ -4767,7 +4846,11 @@
       canDiscard: !busy && !options.conflict && !options.staged && !isUntracked,
       canIgnore: !busy && !options.conflict && !options.staged && isUntracked,
       canDeleteUntracked: !busy && !options.conflict && !options.staged && isUntracked,
-      resolvable: !busy && options.conflict
+      canDeleteTracked: !busy && !options.conflict && !options.staged && !isUntracked,
+      canUntrack: !busy && !options.conflict && !options.staged && !isUntracked,
+      canRename: !busy && !options.conflict && !options.staged && !isUntracked,
+      resolvable: !busy && options.conflict,
+      renamedFrom
     };
   }
   function pendingOf(base, state) {
@@ -4802,6 +4885,10 @@
         return { kind: pending.kind, path, title: COPY.changes.confirmIgnoreTitle(name), body: COPY.changes.confirmIgnoreBody, meta: null, confirmLabel: COPY.changes.confirmIgnore, danger: false };
       case "delete-untracked":
         return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTitle(name), body: COPY.changes.confirmDeleteBody, meta: null, confirmLabel: COPY.changes.confirmDelete, danger: true };
+      case "delete-tracked":
+        return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTrackedTitle(name), body: COPY.changes.confirmDeleteTrackedBody, meta: metaText, confirmLabel: COPY.changes.confirmDeleteTracked, danger: true };
+      case "untrack":
+        return { kind: pending.kind, path, title: COPY.changes.confirmUntrackTitle(name), body: COPY.changes.confirmUntrackBody, meta: null, confirmLabel: COPY.changes.confirmUntrack, danger: false };
       case "resolve-ours":
         return { kind: pending.kind, path, title: COPY.changes.confirmResolveOursTitle(name), body: COPY.changes.confirmResolveOursBody, meta: null, confirmLabel: COPY.changes.confirmResolve, danger: true };
       case "resolve-theirs":
@@ -4894,6 +4981,7 @@
       stashReason: state.conflicts.length > 0 ? COPY.block["conflicts-unresolved"] : null,
       openMenuPath: state.openMenuPath,
       pending: pendingOf(base, state),
+      rename: state.renamePath === null ? null : { path: state.renamePath, draft: state.renameDraft },
       ignoredNote: state.ignored.length === 0 ? null : COPY.changes.ignoredNote(state.ignored.length),
       composer: {
         stagedCount: state.staged.length,
@@ -8508,6 +8596,7 @@
     rowNode.append(main, actions);
     const wrap = h("div", { class: "file-row-wrap" }, rowNode);
     if (menuOpen) wrap.append(renderRowMenu(row, model));
+    if (model.rename !== null && model.rename.path === row.fullPath) wrap.append(renderRenameForm(model.rename));
     if (pendingHere && model.pending !== null) wrap.append(renderConfirmCard(model.pending));
     if (row.expanded) {
       const body = h("div", { class: "file-detail" });
@@ -8525,6 +8614,9 @@
       dataset: { action, ...dataset }
     }, label);
     if (row.canDiscard) menu.append(item(COPY.changes.menuDiscard, "changes-pending", { kind: "discard", path: row.fullPath }, true));
+    if (row.canRename) menu.append(item(COPY.changes.menuRename, "rename-open", { path: row.fullPath }));
+    if (row.canUntrack) menu.append(item(COPY.changes.menuUntrack, "changes-pending", { kind: "untrack", path: row.fullPath }));
+    if (row.canDeleteTracked) menu.append(item(COPY.changes.menuDeleteTracked, "changes-pending", { kind: "delete-tracked", path: row.fullPath }, true));
     if (row.canIgnore) menu.append(item(COPY.changes.menuIgnore, "changes-pending", { kind: "ignore", path: row.fullPath }));
     if (row.canDeleteUntracked) menu.append(item(COPY.changes.menuDelete, "changes-pending", { kind: "delete-untracked", path: row.fullPath }, true));
     if (row.resolvable) {
@@ -8539,6 +8631,35 @@
     }, COPY.changes.menuClose));
     void model;
     return menu;
+  }
+  function renderRenameForm(rename) {
+    const copy = COPY.changes;
+    const input = h("input", {
+      class: "rename-input",
+      attrs: {
+        type: "text",
+        value: rename.draft,
+        placeholder: copy.renamePlaceholder,
+        "data-field": "rename",
+        "data-focus-key": "rename-input",
+        autocomplete: "off",
+        spellcheck: "false",
+        "aria-label": copy.renameTitle
+      }
+    });
+    return h(
+      "div",
+      { class: "rename-form", attrs: { role: "group", "aria-label": copy.renameTitle } },
+      h("h3", { class: "rename-title", text: copy.renameTitle }),
+      input,
+      h("p", { class: "rename-hint", text: copy.renameHint }),
+      h(
+        "div",
+        { class: "rename-actions" },
+        button({ label: copy.renameCancel, kind: "ghost", size: "sm", action: "rename-cancel", focusKey: "rename-cancel" }),
+        button({ label: copy.renameSubmit, kind: "secondary", size: "sm", action: "rename-apply", focusKey: "rename-apply" })
+      )
+    );
   }
   function renderConfirmCard(pending) {
     const card = h(
@@ -11374,9 +11495,19 @@
           dispatch({ type: "changes-open-menu", path: open ? null : path }, { focusKey: `row-more:${path}` });
           return;
         }
+        case "rename-open": {
+          dispatch({ type: "rename-open", path: el.dataset.path ?? "" }, { focusKey: "rename-input", scroll: null });
+          return;
+        }
+        case "rename-cancel":
+          dispatch({ type: "rename-cancel" }, { focusKey: lastFocusKey, scroll: null });
+          return;
+        case "rename-apply":
+          dispatch({ type: "rename-apply" }, { focusKey: "rename-apply", scroll: null });
+          return;
         case "changes-pending": {
           const kind = el.dataset.kind;
-          if (kind !== "discard" && kind !== "discard-all" && kind !== "ignore" && kind !== "delete-untracked" && kind !== "resolve-ours" && kind !== "resolve-theirs") return;
+          if (kind !== "discard" && kind !== "discard-all" && kind !== "ignore" && kind !== "delete-untracked" && kind !== "delete-tracked" && kind !== "untrack" && kind !== "resolve-ours" && kind !== "resolve-theirs") return;
           const pendingKind = kind;
           const path = el.dataset.path ?? null;
           dispatch({ type: "changes-pending", pending: { kind: pendingKind, path } }, { focusKey: "changes-cancel", scroll: null });
@@ -11731,7 +11862,9 @@
       if (!(target instanceof HTMLTextAreaElement) && !(target instanceof HTMLInputElement)) return;
       if (event instanceof InputEvent && event.isComposing) return;
       const field = target.dataset.field;
-      if (field === "message") {
+      if (field === "rename") {
+        dispatch({ type: "rename-draft", value: target.value }, { focusKey: "rename-input", scroll: null });
+      } else if (field === "message") {
         const next = reduce(state, { type: "message", value: target.value }, base);
         if (next === state) return;
         state = next;
@@ -11952,7 +12085,7 @@
         state = reduce(state, { type: "changes-open-menu", path: menuPath }, base);
       }
       const changePending = params.get("cpending");
-      if (changePending === "discard" || changePending === "discard-all" || changePending === "ignore" || changePending === "delete-untracked" || changePending === "resolve-ours" || changePending === "resolve-theirs") {
+      if (changePending === "discard" || changePending === "discard-all" || changePending === "ignore" || changePending === "delete-untracked" || changePending === "delete-tracked" || changePending === "untrack" || changePending === "resolve-ours" || changePending === "resolve-theirs") {
         state = reduce(state, { type: "changes-pending", pending: { kind: changePending, path: params.get("cpath") ?? null } }, base);
       }
       const commitMenu = params.get("commitmenu");

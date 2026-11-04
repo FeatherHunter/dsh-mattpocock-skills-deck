@@ -96,8 +96,14 @@ export interface FileRowModel {
   canDiscard: boolean
   canIgnore: boolean
   canDeleteUntracked: boolean
+  /** 已跟踪的文件才有这三个动作：删除、停止跟踪、改名。 */
+  canDeleteTracked: boolean
+  canUntrack: boolean
+  canRename: boolean
   /** 冲突行：可以按当前分支或对方的版本就地解决。 */
   resolvable: boolean
+  /** 这条行是改名后的新路径时，记着它原来的路径：读数与差异仍按旧路径取。 */
+  renamedFrom: string | null
 }
 
 export interface GroupModel {
@@ -183,6 +189,8 @@ export interface ChangesModel {
   /** 哪一行的「更多」菜单开着：菜单紧贴这一行画。 */
   openMenuPath: string | null
   pending: ChangesPendingModel | null
+  /** 哪一行正在改路径：表单贴在这一行下面，整张表只有一张。 */
+  rename: { path: string; draft: string } | null
   /** 加入 .gitignore 之后的一行说明：文件还在磁盘上，只是 git 不再跟踪。 */
   ignoredNote: string | null
 }
@@ -483,7 +491,10 @@ function fileRowOf(
   path: string,
   options: { staged: boolean; conflict: boolean },
 ): FileRowModel {
-  const meta = metadataOf(base, path)
+  // 改过名的文件：列表上按新路径画，变更类型与增删行数仍按旧路径查，
+  // 否则改名之后这一行会突然变成「无法判定变更类型」、增删行数也没了。
+  const renamedFrom = state.renames.find((entry) => entry.to === path)?.from ?? null
+  const meta = metadataOf(base, renamedFrom ?? path)
   const change: FileChange = meta?.change ?? 'modified'
   const badge = changeBadge(change)
   const { dir, name } = splitPath(path)
@@ -522,7 +533,11 @@ function fileRowOf(
     canDiscard: !busy && !options.conflict && !options.staged && !isUntracked,
     canIgnore: !busy && !options.conflict && !options.staged && isUntracked,
     canDeleteUntracked: !busy && !options.conflict && !options.staged && isUntracked,
+    canDeleteTracked: !busy && !options.conflict && !options.staged && !isUntracked,
+    canUntrack: !busy && !options.conflict && !options.staged && !isUntracked,
+    canRename: !busy && !options.conflict && !options.staged && !isUntracked,
     resolvable: !busy && options.conflict,
+    renamedFrom,
   }
 }
 
@@ -563,6 +578,10 @@ function pendingOf(base: SessionBase, state: SessionState): ChangesPendingModel 
       return { kind: pending.kind, path, title: COPY.changes.confirmIgnoreTitle(name), body: COPY.changes.confirmIgnoreBody, meta: null, confirmLabel: COPY.changes.confirmIgnore, danger: false }
     case 'delete-untracked':
       return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTitle(name), body: COPY.changes.confirmDeleteBody, meta: null, confirmLabel: COPY.changes.confirmDelete, danger: true }
+    case 'delete-tracked':
+      return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTrackedTitle(name), body: COPY.changes.confirmDeleteTrackedBody, meta: metaText, confirmLabel: COPY.changes.confirmDeleteTracked, danger: true }
+    case 'untrack':
+      return { kind: pending.kind, path, title: COPY.changes.confirmUntrackTitle(name), body: COPY.changes.confirmUntrackBody, meta: null, confirmLabel: COPY.changes.confirmUntrack, danger: false }
     case 'resolve-ours':
       return { kind: pending.kind, path, title: COPY.changes.confirmResolveOursTitle(name), body: COPY.changes.confirmResolveOursBody, meta: null, confirmLabel: COPY.changes.confirmResolve, danger: true }
     case 'resolve-theirs':
@@ -688,6 +707,7 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
     stashReason: state.conflicts.length > 0 ? COPY.block['conflicts-unresolved'] : null,
     openMenuPath: state.openMenuPath,
     pending: pendingOf(base, state),
+    rename: state.renamePath === null ? null : { path: state.renamePath, draft: state.renameDraft },
     ignoredNote: state.ignored.length === 0 ? null : COPY.changes.ignoredNote(state.ignored.length),
     composer: {
       stagedCount: state.staged.length,

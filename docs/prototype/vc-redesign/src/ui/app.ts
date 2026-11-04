@@ -824,9 +824,20 @@ export function mount(root: HTMLElement): void {
         dispatch({ type: 'changes-open-menu', path: open ? null : path }, { focusKey: `row-more:${path}` })
         return
       }
+      case 'rename-open': {
+        // 菜单项点下去就换成表单：菜单自己收起，光标落在输入框里，读者可以直接改路径。
+        dispatch({ type: 'rename-open', path: el.dataset.path ?? '' }, { focusKey: 'rename-input', scroll: null })
+        return
+      }
+      case 'rename-cancel':
+        dispatch({ type: 'rename-cancel' }, { focusKey: lastFocusKey, scroll: null })
+        return
+      case 'rename-apply':
+        dispatch({ type: 'rename-apply' }, { focusKey: 'rename-apply', scroll: null })
+        return
       case 'changes-pending': {
         const kind = el.dataset.kind
-        if (kind !== 'discard' && kind !== 'discard-all' && kind !== 'ignore' && kind !== 'delete-untracked' && kind !== 'resolve-ours' && kind !== 'resolve-theirs') return
+        if (kind !== 'discard' && kind !== 'discard-all' && kind !== 'ignore' && kind !== 'delete-untracked' && kind !== 'delete-tracked' && kind !== 'untrack' && kind !== 'resolve-ours' && kind !== 'resolve-theirs') return
         const pendingKind: ChangesPendingKind = kind
         const path = el.dataset.path ?? null
         dispatch({ type: 'changes-pending', pending: { kind: pendingKind, path } }, { focusKey: 'changes-cancel', scroll: null })
@@ -1185,7 +1196,9 @@ export function mount(root: HTMLElement): void {
     if (!(target instanceof HTMLTextAreaElement) && !(target instanceof HTMLInputElement)) return
     if (event instanceof InputEvent && event.isComposing) return
     const field = target.dataset.field
-    if (field === 'message') {
+    if (field === 'rename') {
+      dispatch({ type: 'rename-draft', value: target.value }, { focusKey: 'rename-input', scroll: null })
+    } else if (field === 'message') {
       const next = reduce(state, { type: 'message', value: target.value }, base)
       if (next === state) return
       state = next
@@ -1442,7 +1455,7 @@ export function mount(root: HTMLElement): void {
       state = reduce(state, { type: 'changes-open-menu', path: menuPath }, base)
     }
     const changePending = params.get('cpending')
-    if (changePending === 'discard' || changePending === 'discard-all' || changePending === 'ignore' || changePending === 'delete-untracked' || changePending === 'resolve-ours' || changePending === 'resolve-theirs') {
+    if (changePending === 'discard' || changePending === 'discard-all' || changePending === 'ignore' || changePending === 'delete-untracked' || changePending === 'delete-tracked' || changePending === 'untrack' || changePending === 'resolve-ours' || changePending === 'resolve-theirs') {
       state = reduce(state, { type: 'changes-pending', pending: { kind: changePending, path: params.get('cpath') ?? null } }, base)
     }
     // 提交行的菜单与撤销确认：oid 由评审从页面上抄，深链不替他们猜。

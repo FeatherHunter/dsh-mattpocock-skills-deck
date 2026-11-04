@@ -390,6 +390,7 @@ function renderFileRow(row: FileRowModel, model: ChangesModel): HTMLElement {
   const wrap = h('div', { class: 'file-row-wrap' }, rowNode)
   // 菜单紧贴着发起它的那一行：不弹到页面另一头，也不盖住别的行。
   if (menuOpen) wrap.append(renderRowMenu(row, model))
+  if (model.rename !== null && model.rename.path === row.fullPath) wrap.append(renderRenameForm(model.rename))
   if (pendingHere && model.pending !== null) wrap.append(renderConfirmCard(model.pending))
   if (row.expanded) {
     const body = h('div', { class: 'file-detail' })
@@ -411,6 +412,11 @@ function renderRowMenu(row: FileRowModel, model: ChangesModel): HTMLElement {
     }, label)
 
   if (row.canDiscard) menu.append(item(COPY.changes.menuDiscard, 'changes-pending', { kind: 'discard', path: row.fullPath }, true))
+  // 已跟踪文件的行级动作：改名、停止跟踪、删除。三者都只作用于这一行，
+  // 而且都不需要提交说明，所以和「丢弃修改」放在同一张菜单里。
+  if (row.canRename) menu.append(item(COPY.changes.menuRename, 'rename-open', { path: row.fullPath }))
+  if (row.canUntrack) menu.append(item(COPY.changes.menuUntrack, 'changes-pending', { kind: 'untrack', path: row.fullPath }))
+  if (row.canDeleteTracked) menu.append(item(COPY.changes.menuDeleteTracked, 'changes-pending', { kind: 'delete-tracked', path: row.fullPath }, true))
   if (row.canIgnore) menu.append(item(COPY.changes.menuIgnore, 'changes-pending', { kind: 'ignore', path: row.fullPath }))
   if (row.canDeleteUntracked) menu.append(item(COPY.changes.menuDelete, 'changes-pending', { kind: 'delete-untracked', path: row.fullPath }, true))
   if (row.resolvable) {
@@ -426,6 +432,31 @@ function renderRowMenu(row: FileRowModel, model: ChangesModel): HTMLElement {
   // 菜单是交互控件，拿掉 data-focus-key 之外的焦点逻辑由 app.ts 统一恢复。
   void model
   return menu
+}
+
+/** 改名与移动同一张表单：紧贴这一行展开，只填新路径，写清 git mv 会同时做哪两件事。 */
+function renderRenameForm(rename: { path: string; draft: string }): HTMLElement {
+  const copy = COPY.changes
+  const input = h('input', {
+    class: 'rename-input',
+    attrs: {
+      type: 'text',
+      value: rename.draft,
+      placeholder: copy.renamePlaceholder,
+      'data-field': 'rename',
+      'data-focus-key': 'rename-input',
+      autocomplete: 'off',
+      spellcheck: 'false',
+      'aria-label': copy.renameTitle,
+    },
+  })
+  return h('div', { class: 'rename-form', attrs: { role: 'group', 'aria-label': copy.renameTitle } },
+    h('h3', { class: 'rename-title', text: copy.renameTitle }),
+    input,
+    h('p', { class: 'rename-hint', text: copy.renameHint }),
+    h('div', { class: 'rename-actions' },
+      button({ label: copy.renameCancel, kind: 'ghost', size: 'sm', action: 'rename-cancel', focusKey: 'rename-cancel' }),
+      button({ label: copy.renameSubmit, kind: 'secondary', size: 'sm', action: 'rename-apply', focusKey: 'rename-apply' })))
 }
 
 /** 危险动作确认卡：紧贴触发行或分组标题，写清会动什么、丢什么、能不能撤回。 */

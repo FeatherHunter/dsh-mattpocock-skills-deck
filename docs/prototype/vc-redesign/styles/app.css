@@ -987,6 +987,15 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
    它不挤进脚注那一行——窄档下禁用原因和它是两件都要读的事，合在一行两边都会被压断。 */
 .composer-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 
+/* ---------- 改名表单：贴着这一行展开，只填新路径 ---------- */
+
+.rename-form { margin: 4px 8px 8px; padding: 8px 9px 9px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--inset); }
+.rename-title { margin: 0 0 5px; font-size: 11px; font-weight: 700; color: var(--ink); }
+.rename-input { width: 100%; height: 26px; padding: 0 7px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--panel); color: var(--ink); font: 11px/1.5 var(--mono); }
+.rename-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.rename-hint { margin: 4px 0 0; font-size: 10px; line-height: 1.5; color: var(--faint); }
+.rename-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+
 /* ---------- 提交选项：形态、内容来源、说明模板、钩子与签名 ---------- */
 
 /* 入口是贴在提交按钮右侧的一枚箭头：它属于那颗按钮，不新增一行，默认收起时首屏高度不变。

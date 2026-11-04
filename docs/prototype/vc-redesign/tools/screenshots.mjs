@@ -84,6 +84,11 @@ const SHOTS = [
   // 不用打开浮层就知道这一次提交会跳检查、带签名行。
   { name: '79-commit-flags-460', query: 'noverify=1&signoff=1' },
   { name: '80-commit-flags-light-300', query: 'noverify=1&signoff=1', width: 300, theme: 'light' },
+  // 已跟踪文件的行级动作：改名（贴行表单）、停止跟踪与删除（贴行确认卡）。
+  // 路径直接写原文：脚本用 URLSearchParams 拼查询串，会替我们正确转义；预先编码会被二次编码成 %252F。
+  { name: '81-rename-form-460', query: 'menu=src/client/views/shared/workRouteTable.ts', clicks: ['[data-action="rename-open"]'], scrollTo: '.rename-form' },
+  { name: '82-untrack-confirm-460', query: 'cpending=untrack&cpath=src/client/views/shared/workRouteTable.ts' },
+  { name: '83-delete-tracked-confirm-460', query: 'cpending=delete-tracked&cpath=src/client/views/shared/workRouteTable.ts' },
 ]
 
 async function main() {
