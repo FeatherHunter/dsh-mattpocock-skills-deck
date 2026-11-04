@@ -70,6 +70,10 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
 - **迁移**：结构升级走 `persistence/migrate.ts` 的加列/建表语句，不再整库重建；只有迁移失败、或库结构
   比本代码新，才回退到整库重建并落诊断。
 - **同步簿记**：水印、世代号、待办与「整仓是否完整取过」的标记都在 `meta` 里，与数据同生共死。
+  句柄上读写的口是 `readSyncBookkeeping()` / `writeSyncBookkeeping()`；行级增量要把「变化的那几行」
+  与簿记一起提交时，用 `ingest({ startMergeVersion, writes, sync })` 一个事务写下去（#1888）。
+  `sync.expectedGeneration` 是库这一侧的世代门：库里世代号与它不等就整批丢弃（回 `stale`），
+  行与簿记一个字节都不动。只写簿记的那一趟不动 `merge_version`（版本号只由数据提交推进）。
 
 ## 门禁
 
@@ -91,5 +95,8 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   再更新界面；发评论失败时库不改；落库失败时不并进快照（界面保持旧值）。
 - `tests/verify-1866-write-ui.ts`：评论输入框的判据（库里评论组知道就给）、写失败不乐观更新、
   「发出去了但没存进本地库」这句文案中英各一份。
+- `tests/verify-1888-changes-to-store.ts`：后台发现的变化先写进库——差分基线从库读、水印/世代号/待办
+  写进库级元信息并在关库重开后仍在、库写入失败时内存副本不改、迟到的整池结果被世代号挡住、
+  行级增量的回包键集与改造前一致。
 
 单扇跑法：`node --import ./scripts/ts-hook.mts tests/verify-1862-snapshot-database.ts`。

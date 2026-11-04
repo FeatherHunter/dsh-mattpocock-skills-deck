@@ -18,6 +18,9 @@ import type {
   OpenWorkspaceSnapshotOptions,
   OpenWorkspaceSnapshotResult,
   SnapshotMode,
+  SyncBookkeeping,
+  SyncBookkeepingResult,
+  SyncBookkeepingWrite,
   WorkspaceSnapshotHandle,
   WriteBatch,
 } from '../contract/types.js'
@@ -40,6 +43,7 @@ import {
   readMergeVersion,
   type SnapshotIdentity,
 } from '../persistence/schema.js'
+import { applySyncBookkeepingRow, readSyncBookkeepingRow } from '../persistence/sync-bookkeeping.js'
 import { openWritableDatabase, describeError } from './open-schema.js'
 import { readListProjection } from '../projection/list.js'
 import { readIssueDetailProjection } from '../projection/detail.js'
@@ -192,7 +196,7 @@ export function openWorkspaceSnapshot(
         return { committed: false, reason: 'readonly' }
       }
       const startedAt = now()
-      const result = ingestWrites(db, batch.writes, batch.startMergeVersion, startedAt)
+      const result = ingestWrites(db, batch.writes, batch.startMergeVersion, startedAt, batch.sync)
       const elapsedMs = now() - startedAt
       if (result.committed) {
         logSnapshot(logEvent, 'info', 'workspaceSnapshot.ingest', {
@@ -202,7 +206,12 @@ export function openWorkspaceSnapshot(
           mergeVersion: result.mergeVersion,
           elapsedMs,
         })
-        return { committed: true, mergeVersion: result.mergeVersion as number, commentPositions: result.commentPositions }
+        return {
+          committed: true,
+          mergeVersion: result.mergeVersion as number,
+          commentPositions: result.commentPositions,
+          ...(result.sync ? { sync: result.sync } : null),
+        }
       }
       const reason = result.reason ?? 'write-failed'
       logSnapshot(logEvent, reason === 'stale' ? 'warn' : 'error', 'workspaceSnapshot.ingest', {
@@ -214,6 +223,30 @@ export function openWorkspaceSnapshot(
         elapsedMs,
       })
       return { committed: false, reason, detail: result.detail }
+    },
+    readSyncBookkeeping(): SyncBookkeeping {
+      ensureOpen()
+      return readSyncBookkeepingRow(db)
+    },
+    writeSyncBookkeeping(write: SyncBookkeepingWrite): SyncBookkeepingResult {
+      ensureOpen()
+      if (mode !== 'writable') {
+        return { committed: false, state: readSyncBookkeepingRow(db), reason: 'readonly' }
+      }
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        const current = readSyncBookkeepingRow(db)
+        const applied = applySyncBookkeepingRow(db, write, current)
+        if (!applied.committed) {
+          db.exec('ROLLBACK')
+          return { committed: false, state: applied.state, reason: 'stale' }
+        }
+        db.exec('COMMIT')
+        return { committed: true, state: applied.state }
+      } catch (error) {
+        try { db.exec('ROLLBACK') } catch { /* 事务可能已因约束错误自动回滚 */ }
+        return { committed: false, state: readSyncBookkeepingRow(db), reason: 'write-failed', detail: describeError(error) }
+      }
     },
     markMissing(entries: readonly MissingTicket[], startMergeVersion: number): MarkMissingResult {
       ensureOpen()

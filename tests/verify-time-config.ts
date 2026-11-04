@@ -539,6 +539,8 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（退避结论的输出），不是输入参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
+  // #1888：行级增量的同步簿记搬进库之后，待办里记的「什么时候记下这条待办」是状态字段，调 YAML 改不了它。
+  { file: 'src/refresh/rooms/host/row-patch-state.ts', name: 'pendingAtMs', reason: '待办里记下的时刻（什么时候记下这条待办），随状态一起读写，不是可调参数' },
   { file: 'src/host/versionControlFirstScreen.ts', name: 'readAtMs', reason: '读钟时刻（这一趟首屏聚合读取是什么时候开始的），不是可调参数' },
   { file: 'src/host/versionControlSyncCheck.ts', name: 'readAtMs', reason: '读钟时刻（这一趟同步预检是什么时候读的现场），不是可调参数' },
   // #1756：克隆预检与执行的回包都带自己那一刻的读钟时刻，用来和票据过期对上，不是可调参数。
@@ -633,6 +635,12 @@ const EXEMPTS: ExemptRow[] = [
   // #1862 工作区快照库：租约与开库诊断路径上的两个名字是读钟或测量值，不是可调时长。
   { file: 'src/workspace-snapshot/runtime/lease.ts', name: 'nowMs', reason: '读钟时刻（调用方注入的时钟），抢租约与续租时写进 meta，不是可调参数' },
   { file: 'src/workspace-snapshot/runtime/open.ts', name: 'elapsedMs', reason: '测量用局部变量（开库耗时），写进诊断日志，不是可调参数' },
+  // #1888：库里的同步簿记三格（水印、待办与它们各自的时刻、上次完整枚举的时刻）都是状态字段，
+  //   随库持久化；它们记录「发生了什么时候的事」，不是本文件决定的可调时长。
+  { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'watermarkMs', reason: '上次扫到哪儿的时刻（库里的状态字段），不是可调参数' },
+  { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'pendingAtMs', reason: '待办里记下的时刻（什么时候记下这条待办），库里的状态字段，不是可调参数' },
+  { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'atMs', reason: '待办 JSON 里记下的时刻（与 pendingAtMs 同一件事的另一种写法），不是可调参数' },
+  { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'fullEnumerationMs', reason: '上一次完整枚举发生在什么时候的时刻（库里的状态字段，用来判库有没有取全），不是可调参数' },
 ]
 
 // 时间味判定，两类都认：

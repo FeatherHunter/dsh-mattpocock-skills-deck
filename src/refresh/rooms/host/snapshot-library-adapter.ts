@@ -348,6 +348,30 @@ export function issueWritesOf(rows: Issue[], backend = ''): IssueWrite[] {
     .map((row) => issueWriteOf(row, backend))
 }
 
+// #1888：后台探测补到的变化行，来源与操作名单独一档，排查时一眼分得清「这一行是探测补的」
+// 还是「列表/详情/写回执取回来的」。
+export const PATCH_SOURCE = 'refresh-patch'
+
+/**
+ * 一张票的变化行 → 组写入（#1888）。
+ *
+ * 换算是同一套（issueWriteOf）：变的那几行与列表读结果同形，行、标签、指派、父票、阻塞、
+ * 子票计数、合并信息各按组写，不因为「它是探测补的」就少写一组。这里只把来源与操作名换成
+ * refresh-patch 那一档，看库就知道这一行是谁写的；后端能力差异照旧按同一个口子标 unknown。
+ */
+export function changeIssueWriteOf(issue: Issue, operation: string, backend = ''): IssueWrite {
+  const write = issueWriteOf(issue, backend)
+  const groups = write.groups as Record<string, { source?: string | null, operation?: string | null } | undefined>
+  for (const name of Object.keys(groups)) {
+    const group = groups[name]
+    if (!group) continue
+    group.source = PATCH_SOURCE
+    group.operation = operation
+  }
+  applyBackendCapabilityGaps(write.groups, backend, PATCH_SOURCE, operation, false)
+  return write
+}
+
 // #1866：写回执的来源与操作名单独一档，排查时一眼分得清「这条数据是写完读回来的」还是「列表取回来的」。
 export const RECEIPT_SOURCE = 'refresh-write'
 

@@ -14,6 +14,9 @@
  *     不许把调用方的工具调用带崩（#1870 起只写宿主内存那一份，旧的整份磁盘快照已退役）。
  */
 import { createPatchForHost } from './refresh-assembly.js'
+// #1888：行级增量的差分基线、水印/世代号/待办、变化行的写入都走快照库；这一层只把库门面与
+// 仓库键交给 row-patch，库的身份拼接规则只有 ./patch-library-ports.ts 这一份。
+import { createPatchLibraryPorts } from './patch-library-ports.js'
 // #1870：基线索引与索引扫描用的是同一份实现（kernel 那一份会把地图容器与地图子票一起算进来）。
 // 以前这里注入的是宿主入口手写的那一小段，它只遍历快照的 issues 数组：挂在 maps 下面的子票
 // 一个都不在其中，于是子票一有变化就被判成「多出一条票」，整池重建。判据一源，别再抄第二份。
@@ -53,6 +56,17 @@ export function createPatchWiring(deps: PatchWiringDeps): { patchOf: () => any }
         openSession: openSession, // #1444：薄行取数改走只读会话（取数文件不再经 send/runGh）
         // 与活跃集合、写事件白名单同一把短散列：不一致就会让探测这条路每一笔都被判「推迟」。
         workspaceKeyOf: workspaceKeyOf,
+        // #1888：差分基线、水印/世代号/待办、变化行都先写进快照库。库门面或仓库键没接时，
+        // 这一道口的方法回 null，row-patch 照旧只写宿主内存副本（旧行为不变）。
+        library: createPatchLibraryPorts({
+          getSnapshotLibrary: (typeof d.getSnapshotLibrary === 'function')
+            ? function (): any { return d.getSnapshotLibrary() }
+            : null,
+          getRepoKey: (typeof d.getRepoKey === 'function')
+            ? function (cwd: any): any { return d.getRepoKey(cwd) }
+            : null,
+          backendIdOf: function (): string { return String(backendIdOf() || '') },
+        }),
         // #1866：写回执先提交进本地快照库，提交成功调用方才并进快照（界面才更新）。
         // 库门面没注入或打不开时回「降级」：这一趟按老路继续（内存加磁盘），不假装写进了库；
         // 门面在、但事务没提交（版本门丢弃或者写失败）时回 ok:false，调用方据此保持旧值。
