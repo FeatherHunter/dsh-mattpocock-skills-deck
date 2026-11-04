@@ -10,9 +10,11 @@
 //      「已并入 / 没并入」名单折叠；
 //   ② 标签：标签行（名字、附注标记、提交号、标签说明与时间）；
 //   ③ 上游跟踪：四条事实（当前分支、上游、领先 / 落后、上游依据）。
-// 每行左边三行字回答「它是什么、现在什么状态、最近发生了什么」，右边是该行的动作（原型只有一颗
-// 「在浮层里看」；本产品这一页就是管理面，所以行尾放真动作：切换、删除、重命名与更多动作）。
-// 页尾保留十个写动作的折叠区（新建分支、切提交、设上游、写说明、建标签等没有逐行入口的动作），
+// #1881 收口后每行左边仍是三行字（它是什么、现在什么状态、最近发生了什么），右边只留两件：
+// 「切换」直给（这一页最常做的事），其余五个低频整理动作（删除分支、重命名、切到这个提交、
+// 设置或取消上游、写分支说明）收进行尾一颗「⋯」菜单。页尾折叠区只剩两条没有行内入口的写动作：
+// 新建并切换分支、建标签。卡片的行序先当前分支，其余保持读数的顺序——读者打开这一页第一眼要看到「我在哪」。
+// ② ③ 两段与它们共用的小工具住在 vcBranchSections.ts（#1881 拆出：本文件当时已用到 346 / 350 有效行）。
 // 最后才是确认卡与结果——结果永远贴在触发它的那一块之后。
 //
 // 两条硬约束（改之前先看）：
@@ -28,34 +30,25 @@ declare const vcBranchDegradedOf: any
 declare const VC_BRANCH_OP_IDS: any[]
 declare const VC_BRANCH_WRITE_OPS: any[]
 declare const VC_BRANCH_ACTIONS: any[]
-declare const vcWhenText: any
-// 来自页面骨架原语 vcPageHead.ts（#1829 阶段 4）：分区、事实网格、对象行三件，本页正文都用它画。
+// ② ③ 两段与它们共用的小工具（#1881 拆到 vcBranchSections.ts，注入次序排在本文件之前）。
+declare const vcBranchTextOf: any
+declare const vcBranchOidTextOf: any
+declare const vcBranchWhenOf: any
+declare const vcBranchEmptyOf: any
+declare const vcBranchTagsSectionOf: any
+declare const vcBranchTrackingSectionOf: any
+// 来自页面骨架原语 vcPageHead.ts（#1829 阶段 4）：分区与对象行两件，本页正文用它画。
 declare function vcPageSectionNode(h: any, t: any, o: any): any
 declare function vcPageObjRowNode(h: any, t: any, o: any): any
-declare function vcPageFactGridNode(h: any, t: any, o: any): any
-
-// 提交号只取前 7 位：行里放整串 40 位会把 300 宽撑破；短号只是标识，不承担唯一定位。
-const vcBranchOidTextOf = function (oid: any) { const s = String(oid === null || oid === undefined ? '' : oid); return s.length > 7 ? s.slice(0, 7) : s }
-
-// 词条取值：叶子内部统一过 t，调用方只给键；t 缺席时回键本身（独立求值的那几扇门禁不传词表）。
-const vcBranchTextOf = function (t: any, key: string, vars?: any): string {
-  return typeof t !== 'function' ? key : (vars ? String(t(key, vars)) : String(t(key)))
-}
 
 // 三颗筛选胶囊：全部 / 当前分支 / 未并入当前分支。文案来自词表，值只认这三个标识。
 const vcBranchFiltersOf = function (_t: any) {
   return [{ id: 'all', label: 'vc.shell.branch2.filterAll' }, { id: 'current', label: 'vc.shell.branch2.filterCurrent' }, { id: 'unmerged', label: 'vc.shell.branch2.filterUnmerged' }]
 }
 
-// 提交时间怎么说交给 vcText 的同一个判据（一周内相对、更早绝对）；这条叶子被单独求值时
-//   （verify-1586-branches 只拼 vcBranches + 本文件）没有那个函数，就如实不画时间，不自己编一个。
-const vcBranchWhenOf = function (t: any, nowMs: any, ms: any) {
-  if (!(Number(nowMs) > 0)) return ''
-  if (typeof vcWhenText !== 'function') return ''
-  return String(vcWhenText(t, Number(nowMs), ms) || '')
-}
-
-// 筛选与搜索：只筛画出来的行，不动读数本身；顺序与 board.branches 完全一致（BR20 判顺序）。
+// 筛选与搜索：只筛画出来的行，不动读数本身。留下来的行先按「当前分支排第一」整理，
+// 其余保持 board.branches 的读数顺序（#1881）：只把当前那一行挪到最前，不做整体重排，
+// 所以 4.8 的两张名单与行内的先后都不受影响（BR20 判顺序时也照这条规则给期望）。
 const vcBranchMatchedOf = function (board: any, filter: any, query: any) {
   const rows: any[] = Array.isArray(board.branches) ? board.branches : []
   const notMerged: any[] = Array.isArray(board.notMerged) ? board.notMerged : []
@@ -69,6 +62,14 @@ const vcBranchMatchedOf = function (board: any, filter: any, query: any) {
     if (filter === 'unmerged' && notMerged.indexOf(name) < 0) continue
     if (q !== '' && name.toLowerCase().indexOf(q) < 0) continue
     out.push(b)
+  }
+  for (let i = 1; i < out.length; i += 1) {
+    const b = out[i]
+    if (b.current === true || (currentName !== '' && String(b.name || '') === currentName)) {
+      out.splice(i, 1)
+      out.unshift(b)
+      break
+    }
   }
   return out
 }
@@ -110,19 +111,36 @@ const vcBranchMergeTextOf = function (t: any, board: any, name: string) {
 }
 
 // 一行输入 + 一颗执行按钮的动作行：行内菜单与页尾表单共用这一份画法。
-//   [data-vc-op-row] 必须是输入框的祖先，vcRealBranchFieldsOf 靠它 querySelector 读输入值。
+//   [data-vc-op-row] 必须是输入框的祖先，vcRealBranchFieldsOf 靠它 querySelector 读输入值；
+//   spec.danger 只给「删除分支」这类危险动作加红边（形状与别的按钮一致，不靠大小抢注意力）。
 const vcBranchOpRowOf = function (h: any, t: any, spec: any) {
   const kids: any[] = [h('span', { key: 'label', className: 'vcs-branch2-op-label' }, t(spec.label))]
   if (spec.form) kids.push(h('input', { key: 'input', type: 'text', className: 'vcs-branch2-input', 'data-vc-branch-input': spec.kind, placeholder: t(spec.hint || 'vc.shell.branch2.inputHint'), defaultValue: String(spec.value || '') }))
-  kids.push(h('button', { key: 'go', type: 'button', className: 'vcs-branch2-act', 'data-vc-branch-action': spec.kind, 'data-vc-op': spec.op, 'data-vc-branch-form': spec.form ? '1' : '0', 'data-press': 'button', 'data-log': 'vc.branch.page.go.' + spec.kind }, t('vc.shell.branch2.go')))
+  const cls = 'vcs-branch2-act' + (spec.danger === true ? ' vcs-branch2-danger' : '')
+  kids.push(h('button', { key: 'go', type: 'button', className: cls, 'data-vc-branch-action': spec.kind, 'data-vc-op': spec.op, 'data-vc-branch-form': spec.form ? '1' : '0', 'data-press': 'button', 'data-log': 'vc.branch.page.go.' + spec.kind }, t('vc.shell.branch2.go')))
   return h('div', { key: spec.op, className: 'vcs-branch2-op', 'data-vc-op-row': spec.op }, kids)
+}
+
+// 行尾那颗「⋯」菜单（#1881）：五个低频整理动作按「删除 → 重命名 → 切到这个提交 → 设置或取消上游 →
+//   写分支说明」排。菜单里每一项都是 vcBranchOpRowOf 画的一行，data-vc-op 与能力号不变；
+//   分支名不从菜单上取——事件委托按最近的 data-vc-branch-row 认行，所以行上那个属性不能丢。
+const vcBranchMenuOf = function (h: any, t: any, name: string) {
+  const label = t('vc.shell.branch2.moreActions')
+  return h('details', { key: 'menu', className: 'vcs-branch2-more', 'data-vc-branch-menu': name }, [
+    h('summary', { key: 'sum', className: 'vcs-branch2-menu', title: label, 'aria-label': label, 'data-press': 'button', 'data-log': 'vc.branch.page.menu' }, '⋯'),
+    vcBranchOpRowOf(h, t, { op: '4.6', kind: 'delete', label: 'vc.shell.branch2.delete', danger: true }),
+    vcBranchOpRowOf(h, t, { op: '4.5', kind: 'rename', label: 'vc.shell.branch2.rename', form: true, hint: 'vc.shell.branch2.renameHint', value: name + ' ' }),
+    vcBranchOpRowOf(h, t, { op: '4.4', kind: 'detach', label: 'vc.shell.branch2.detach', form: true }),
+    vcBranchOpRowOf(h, t, { op: '4.7', kind: 'upstream', label: 'vc.shell.branch2.upstream', form: true }),
+    vcBranchOpRowOf(h, t, { op: '4.13', kind: 'describe', label: 'vc.shell.branch2.describe', form: true }),
+  ])
 }
 
 // 一条分支行（原型 obj-row 的三行结构）：
 //   标题行 = 等宽分支名 + 当前分支标记 + 提交短号；事实行 = 上游关系、领先落后、并入情况；
 //   说明行 = 最近提交时间 · 分支说明（说明来自 git config，读回包里本来就有）。
-// 行尾四颗入口：切换、删除两颗直给；重命名与其余真实动作（切提交 / 设上游 / 写说明）各收进一个
-//   折叠菜单——它们要点开才有输入框，直给会把一屏撑成表单堆。
+// 行尾两件（#1881）：「切换」直给，「⋯」里收着其余五个整理动作——直给四个会把行撑成两行，
+//   而且红色的「删除」与常用的「切换」并排时是同一种视觉重量。
 const vcBranchRowOf = function (h: any, t: any, board: any, o: any, b: any) {
   const name = String(b.name || '')
   const titleKids: any[] = [h('span', { key: 'name', className: 'vcs-branch2-name' }, name)]
@@ -149,42 +167,9 @@ const vcBranchRowOf = function (h: any, t: any, board: any, o: any, b: any) {
   if (subParts.length > 0) main.push(h('span', { key: 'sub', className: 'obj-sub' }, subParts.join(' · ')))
   const side: any[] = [
     h('button', { key: 'switch', type: 'button', className: 'vcs-branch2-act', 'data-vc-branch-action': 'switch', 'data-vc-op': '4.3', 'data-vc-branch-name': name, 'data-vc-branch-form': '0', 'data-press': 'button', 'data-log': 'vc.branch.page.act.switch' }, t('vc.shell.branch2.switch')),
-    h('button', { key: 'delete', type: 'button', className: 'vcs-branch2-act vcs-branch2-danger', 'data-vc-branch-action': 'delete', 'data-vc-op': '4.6', 'data-vc-branch-name': name, 'data-vc-branch-form': '0', 'data-press': 'button', 'data-log': 'vc.branch.page.act.delete' }, t('vc.shell.branch2.delete')),
-    h('details', { key: 'rename', className: 'vcs-branch2-more' }, [
-      h('summary', { key: 'sum', 'data-press': 'button', 'data-log': 'vc.branch.page.rename' }, t('vc.shell.branch2.rename')),
-      vcBranchOpRowOf(h, t, { op: '4.5', kind: 'rename', label: 'vc.shell.branch2.rename', form: true, hint: 'vc.shell.branch2.renameHint', value: name + ' ' }),
-    ]),
-    h('details', { key: 'more', className: 'vcs-branch2-more' }, [
-      h('summary', { key: 'sum', 'data-press': 'button', 'data-log': 'vc.branch.page.more' }, t('vc.shell.branch2.moreActions')),
-      vcBranchOpRowOf(h, t, { op: '4.4', kind: 'detach', label: 'vc.shell.branch2.detach', form: true }),
-      vcBranchOpRowOf(h, t, { op: '4.7', kind: 'upstream', label: 'vc.shell.branch2.upstream', form: true }),
-      vcBranchOpRowOf(h, t, { op: '4.13', kind: 'describe', label: 'vc.shell.branch2.describe', form: true }),
-    ]),
+    vcBranchMenuOf(h, t, name),
   ]
   return vcPageObjRowNode(h, t, { main: main, side: side, attrs: { 'data-vc-branch-row': name } })
-}
-
-// 一条标签行：名字 + 附注标记 + 提交短号；下一行是打标签的时间与标签说明。
-//   行尾两颗：验签（4.12，只读动作，走预检电话）与删除（4.11，危险动作，先确认卡后执行）。
-//   data-vc-tag-name 必须挂在行上：容器的事件委托按行取标签名（vcRealDelegate 读的是行属性）。
-const vcBranchTagRowOf = function (h: any, t: any, o: any, tag: any) {
-  const name = String(tag.name || '')
-  const titleKids: any[] = [h('span', { key: 'name', className: 'vcs-branch2-name' }, name)]
-  const oid = vcBranchOidTextOf(tag.oid)
-  if (oid !== '') titleKids.push(h('span', { key: 'oid', className: 'obj-oid vcs-branch2-oid' }, oid))
-  if (tag.annotated === true) titleKids.push(h('span', { key: 'ann', className: 'vcs-branch2-tag' }, t('vc.shell.branch2.annotated')))
-  const when = vcBranchWhenOf(t, o.nowMs, tag.atMs)
-  const subject = String(tag.subject || '')
-  const subParts: string[] = []
-  if (when !== '') subParts.push(when)
-  if (subject !== '') subParts.push(subject)
-  const main: any[] = [h('span', { key: 'title', className: 'obj-title' }, titleKids)]
-  if (subParts.length > 0) main.push(h('span', { key: 'sub', className: 'obj-sub' }, subParts.join(' · ')))
-  const side: any[] = [
-    h('button', { key: 'verify', type: 'button', className: 'vcs-branch2-act', 'data-vc-tag-action': 'verify', 'data-vc-op': '4.12', 'data-press': 'button', 'data-log': 'vc.branch.page.tag.verify' }, t('vc.shell.branch2.verify')),
-    h('button', { key: 'delete', type: 'button', className: 'vcs-branch2-act vcs-branch2-danger', 'data-vc-tag-action': 'delete', 'data-vc-op': '4.11', 'data-press': 'button', 'data-log': 'vc.branch.page.tag.delete' }, t('vc.shell.branch2.tagDelete')),
-  ]
-  return vcPageObjRowNode(h, t, { main: main, side: side, attrs: { 'data-vc-tag-row': name, 'data-vc-tag-name': name, 'data-vc-tag-annotated': tag.annotated === true ? '1' : '0' } })
 }
 
 // 降级说明：低版本 git 把新建/切换改走 checkout 等价动作；替代做法逐条来自能力账本，界面不自己编。
@@ -220,14 +205,6 @@ const vcBranchSearchNodeOf = function (h: any, t: any, o: any) {
   return h('label', { key: 'search', className: 'page-search' }, [
     h('span', { key: 'sr', className: 'sr-only' }, t('vc.shell.branch2.searchPlaceholder')),
     h('input', input),
-  ])
-}
-
-// 段内空态：一句话说清这里为什么是空的，再补一句下一步；绝不画假行。
-const vcBranchEmptyOf = function (h: any, t: any, titleKey: string, nextKey: string, cls: string) {
-  return h('div', { key: 'empty', className: cls }, [
-    h('span', { key: 'title', className: 'vcs-branch2-empty-title' }, t(titleKey)),
-    h('span', { key: 'next', className: 'vcs-branch2-empty-next' }, t(nextKey)),
   ])
 }
 
@@ -278,60 +255,6 @@ const vcBranchBranchesSectionOf = function (h: any, t: any, board: any, view: an
   })
 }
 
-// ② 标签段：一行一个标签；没有标签时给空态，不画空列表。
-const vcBranchTagsSectionOf = function (h: any, t: any, board: any, view: any) {
-  const tags: any[] = Array.isArray(board.tags) ? board.tags : []
-  const kids: any[] = []
-  if (tags.length > 0) {
-    kids.push(h('div', { key: 'rows', className: 'obj-list', 'data-vc-tag-list': String(tags.length) }, tags.map(function (tag: any) { return vcBranchTagRowOf(h, t, view, tag) })))
-  } else {
-    kids.push(h('div', { key: 'empty', className: 'vcs-branch2-list', 'data-vc-tag-list': '0' }, [
-      vcBranchEmptyOf(h, t, 'vc.shell.branch2.noTags', 'vc.shell.branch2.noTagsNext', 'vcs-branch2-empty'),
-    ]))
-  }
-  return vcPageSectionNode(h, t, {
-    title: 'vc.shell.branch2.section.tags',
-    countText: vcBranchTextOf(t, 'vc.shell.branch2.tagsCount', { n: String(tags.length) }),
-    note: 'vc.shell.branch2.note.tags',
-    children: kids,
-  })
-}
-
-// ③ 上游跟踪段：四条事实。值全部来自这一次读回包，缺哪一条就说「没有」，不补 0、不编依据。
-const vcBranchTrackingSectionOf = function (h: any, t: any, board: any) {
-  const rows: any[] = Array.isArray(board.branches) ? board.branches : []
-  const currentName = board.current ? String(board.current.name || '') : ''
-  let currentRow: any = null
-  for (let i = 0; i < rows.length; i += 1) if (rows[i] && (rows[i].current === true || String(rows[i].name || '') === currentName)) currentRow = rows[i]
-  const upstream = currentRow ? String(currentRow.upstream || '') : ''
-  const ahead = currentRow ? Number(currentRow.ahead) || 0 : 0
-  const behind = currentRow ? Number(currentRow.behind) || 0 : 0
-  const currentGone = !!(currentRow && currentRow.gone === true)
-  const syncText = upstream === ''
-    ? vcBranchTextOf(t, 'vc.shell.branch2.noUpstream')
-    : (currentGone
-      ? vcBranchTextOf(t, 'vc.shell.branch2.upstreamGone')
-      : (ahead === 0 && behind === 0
-        ? vcBranchTextOf(t, 'vc.shell.branch2.inSync')
-        : vcBranchTextOf(t, 'vc.shell.branch2.aheadBehind', { ahead: String(ahead), behind: String(behind) })))
-  // 读时刻只用来算「读于多久之前」这一句：它不是可调时长，所以不新起一个带时间后缀的名字。
-  const readAt = Number(board.readAtMs) || 0
-  const basis = readAt > 0
-    ? vcBranchTextOf(t, 'vc.shell.branch2.basis.known', { when: vcBranchWhenOf(t, readAt, readAt) })
-    : vcBranchTextOf(t, 'vc.shell.branch2.basis.unknown')
-  const facts: any[] = [
-    { key: 'vc.shell.branch2.fact.current', value: currentName || vcBranchTextOf(t, 'vc.shell.branch2.unknown'), mono: currentName !== '', attrs: { 'data-vc-branch-current': currentName } },
-    { key: 'vc.shell.branch2.fact.upstream', value: upstream === '' ? vcBranchTextOf(t, 'vc.shell.branch2.noUpstream') : upstream, mono: upstream !== '' },
-    { key: 'vc.shell.branch2.fact.sync', value: syncText },
-    { key: 'vc.shell.branch2.fact.basis', value: basis },
-  ]
-  return vcPageSectionNode(h, t, {
-    title: 'vc.shell.branch2.section.tracking',
-    note: 'vc.shell.branch2.note.tracking',
-    children: [vcPageFactGridNode(h, t, { facts: facts })],
-  })
-}
-
 // 「这一次没读到」的两种情形，说清同一件事：没读到什么、为什么，还有没有旧数据可看。
 //   ① 有旧数据：贴在正文最上面一条常驻提示，明说下面那片是上一次读到的；
 //   ② 没有旧数据：由 vcBranchNoDataOf 顶替三段正文，页面不会只剩空白。
@@ -374,12 +297,18 @@ const vcBranchNoDataOf = function (h: any, t: any, opts: any, state: string) {
   return h('div', { key: 'nodata', className: 'vcs-branch2-nodata', 'data-vc-branch2-empty': '1', 'data-vc-branch-state': state || 'idle' }, kids)
 }
 
-// 页尾：十个写动作的入口，默认收起，DOM 与 data-vc-branch-forms 一直在（818 BR21 / D30 都读它）。
+// 页尾只留两条没有行内入口的写动作（#1881）：新建并切换分支（4.2）与建标签（4.10）。
+//   其余八条都已经在行里（切换 / 行内「⋯」菜单 / 标签行），页尾再画一遍会让读者先判断
+//   「这两个是不是一回事」。行数写进 data-vc-branch-forms，818 BR20d 按它判。
+const VC_BRANCH_FOOTER_OPS: string[] = ['4.2', '4.10']
+
+// 页尾：两条写动作的入口，默认收起，DOM 与 data-vc-branch-forms 一直在（818 BR21 / D30 都读它）。
 //   需要输入的动作各带一个 [data-vc-branch-input]，vcRealBranchFieldsOf 按 kind 拆参数。
 const vcBranchFormsOf = function (h: any, t: any) {
   const rows: any[] = []
   for (let i = 0; i < VC_BRANCH_ACTIONS.length; i += 1) {
     const act = VC_BRANCH_ACTIONS[i]
+    if (VC_BRANCH_FOOTER_OPS.indexOf(String(act.op)) < 0) continue
     const kids: any[] = [h('span', { key: 'label', className: 'vcs-branch2-op-label' }, t(act.label))]
     if (act.form) kids.push(h('input', { key: 'input', type: 'text', className: 'vcs-branch2-input', 'data-vc-branch-input': act.kind, placeholder: t('vc.shell.branch2.inputHint') }))
     kids.push(h('button', { key: 'go', type: 'button', className: 'vcs-branch2-act', 'data-vc-branch-action': act.kind, 'data-vc-op': act.op, 'data-vc-branch-form': act.form ? '1' : '0', 'data-press': 'button', 'data-log': 'vc.branch.page.go.' + act.kind }, t('vc.shell.branch2.go')))

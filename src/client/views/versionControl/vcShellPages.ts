@@ -200,8 +200,10 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   // #1860 四个一级页签按原型从身份行下面直接铺正文：没有页头标题、没有导语、没有页内说明块。
   //   二级页（管理九分区、搜索页等）仍是原来的页头 + 正文两段式，本票不动它们。
   const isTabPage = VC_TAB_PAGES.indexOf(page) >= 0
+  // #1881：分支与标签页的页头不画「N 条能力」计数——那枚数字指向一份已经退役、不在页面上的清单。
+  //   其余页照旧；九张分区页要不要一起去留给 #1848，所以这里还留了一个可透传的开关。
   const head = Object.assign({}, vcPageHeadNode(h, t, {
-    page: page, back: opts.back === true, backLog: opts.backLog,
+    page: page, back: opts.back === true, backLog: opts.backLog, hideCount: opts.hideCount === true || page === 'branch-tags',
   }), { key: 'meta' })
   if (!isTabPage) children.push.apply(children, vcPageNotesOf(h, t, page))
   // #1840 管理索引屏：页头之后整屏都是索引（说明句、九张卡、两条跨区入口、覆盖口径），

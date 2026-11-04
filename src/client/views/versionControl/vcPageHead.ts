@@ -7,6 +7,9 @@
 // 的屏幕因此也不需要再传 hideSub 把空行藏起来。
 // 文字形参一律收词条键：叶子内部统一过 t，调用方不自己拼文案，也不把中文写进组件。
 // 能力计数只在账本给出正数时出现；任务页与索引屏不在 16 页能力账本里，页头因此不画计数。
+// #1881 起页头多一个可选开关 hideCount：传 true 时连账本里有的正数也不画。第一个用它是分支与标签页——
+// 那枚「13 条能力」指向一份已经退役、不在页面上的清单；默认行为一个字不变，其余页面要不要一起收
+// 留给 #1848（它负责九张分区页的统一走查）。
 //
 // 图标：原型用内联 SVG（back / chevron），插件这边不再拿字符拼箭头——字符在不同字体下大小与基线
 // 都不一样，且读屏会把它念出来。vcPageIconOf 只给页头与骨架原语用，路径直接照抄原型 dom.ts。
@@ -72,7 +75,8 @@ export const vcPageHeadNode = function (h: any, t: any, o: any) {
   titleRow.push(h('h2', { key: 'title', className: 'vcs-page-title' }, t('vc.shell.page.' + page)))
   const count = Number(PAGE_COUNTS[page] || 0)
   // 任务页与未知页没有账本条目（undefined 经 Number 得 NaN），一律按 0 处理，不画空计数。
-  if (count > 0) titleRow.push(h('span', { key: 'count', className: 'vcs-page-count' }, t('vc.shell.page.caps', { n: count })))
+  // hideCount 是 #1881 的退出开关：只有显式 true 才收起，缺省与 false 都照旧画。
+  if (count > 0 && opts.hideCount !== true) titleRow.push(h('span', { key: 'count', className: 'vcs-page-count' }, t('vc.shell.page.caps', { n: count })))
   return h('div', { className: 'vcs-page-meta vcs-page-head', 'data-vc-page-head': page }, [
     h('div', { key: 'title-row', className: 'vcs-page-title-row' }, titleRow),
     h('p', { key: 'lede', className: 'vcs-page-lede' }, t('vc.shell.page.note.' + page)),

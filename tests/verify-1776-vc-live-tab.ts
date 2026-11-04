@@ -631,6 +631,15 @@ async function scenarioManage() {
   check(countKin(host, 'wf.gitBranchWrite') === branchWritesBefore + 1 && String(writeArgs.ticketId || '') === 'br-ticket' && writeArgs.confirmed === true, 'T24d 确认后才凭票发执行电话 wf.gitBranchWrite（带预检拿到的 ticketId、confirmed=true）')
   check(countKin(host, 'wf.gitBranches') > branchesBefore, 'T24e 写成功后重读分支板（wf.gitBranches 再发一次）')
   check(!!m.q('[data-vc-branch2] [data-vc-result="ok"]'), 'T24f 分支动作的结果回到触发点（结果块 data-vc-result=ok）')
+  // #1881：行尾只剩「切换」+「⋯」。删除分支不再平铺在行上，而是收进菜单；
+  //   事件委托按最近的 data-vc-branch-row 认行，所以点菜单里那一项要带出这条分支的名字。
+  const delInMenu = m.q('[data-vc-branch-row="feat/x"] [data-vc-branch-menu] [data-vc-branch-action="delete"]')
+  check(!!delInMenu && !m.q('[data-vc-branch-row="feat/x"] .obj-side > [data-vc-branch-action="delete"]'), 'T24g 删除分支收进行内「⋯」菜单（行尾只剩切换与菜单开关，不再并排两颗动作）')
+  const delCheckBefore = countKin(host, 'wf.gitBranchCheck')
+  if (delInMenu) await m.click(delInMenu)
+  const delCheckLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitBranchCheck' })
+  const delCheckArgs = (delCheckLog[delCheckLog.length - 1] || {}).args || {}
+  check(countKin(host, 'wf.gitBranchCheck') === delCheckBefore + 1 && String(delCheckArgs.op || '') === 'delete' && String(delCheckArgs.name || '') === 'feat/x', 'T24h 点菜单里的「删除分支」：委托按行取到分支名 feat/x，先发预检电话（不直接执行）')
 
   // ---- 远端写三段式（#1776 M4b）：提交表单先发预检电话签票 → 确认卡 → 凭票发执行电话，成功后重读列表 ----
   await m.click('[data-vc-back]')
@@ -695,7 +704,9 @@ async function scenarioManage() {
   const landingCases = [
     { action: 'list', page: 'branch-tags', sel: '[data-vc-branch-query]' },
     { action: 'create', page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="create"]' },
-    { action: 'delete', page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="delete"]' },
+    // #1881：删除分支不再平铺在页尾，它收在每条分支行的「⋯」菜单里；落点是菜单开关本身，
+    //   焦点到位时 vcRealFocusLandingOf 会把菜单展开，读者接着就能看到那一项。
+    { action: 'delete', page: 'branch-tags', sel: '[data-vc-branch-menu] > summary' },
     { action: 'merge', page: 'conflicts', sel: '[data-vc-conflicts-op="merge"]' },
     { action: 'rebase', page: 'rebase', sel: '[data-vc-rebase-op="rebase-onto"]' },
   ]

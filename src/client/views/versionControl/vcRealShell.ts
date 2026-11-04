@@ -79,7 +79,9 @@ export const vcRealSelectCapOf = function (getNav: any, setNav: any): any {
 const VC_REAL_BRANCH_LANDING: any = {
   list: { page: 'branch-tags', sel: '[data-vc-branch-query]' },
   create: { page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="create"]' },
-  delete: { page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="delete"]' },
+  // #1881：页尾不再有删除按钮——删除分支收在每行的「⋯」菜单里，所以落点是菜单开关本身。
+  //   落地时 vcRealFocusLandingOf 会把菜单展开再把焦点放到 summary 上，读者接着按 Enter 就进菜单。
+  delete: { page: 'branch-tags', sel: '[data-vc-branch-menu] > summary' },
   merge: { page: 'conflicts', sel: '[data-vc-conflicts-op="merge"]' },
   rebase: { page: 'rebase', sel: '[data-vc-rebase-op="rebase-onto"]' },
 }

@@ -134,6 +134,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcShellPrimitives.js',
   'src/client/views/versionControl/vcPalette.js',
   'src/client/views/versionControl/vcBranches.js', // #1746：分支与标签业务面板（十三条能力入口、预检与确认、结果贴点；排在页面壳之前，壳里会调它）
+  'src/client/views/versionControl/vcBranchSections.js', // #1881：本页后两段正文（标签、上游跟踪）与四件小工具，注入次序在视图叶子之前，叶子渲染时要调它
   'src/client/views/versionControl/vcBranchPage.js', // #1829 阶段 3：分支与标签页的视图叶子（静态树 vcBranchTreeOf 画页面结构，组件 vcBranchPageOf 供壳挂载）
   // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）。
   'src/client/views/versionControl/vcHistory.js',
@@ -1752,7 +1753,7 @@ async function main() {
   check(attrValuesOf(brPanel, 'data-vc-branch-row').join(',') === 'main,feature' && attrValuesOf(brPanel, 'data-vc-tag-row').join(',') === 'v1.0.0,v1.1.0', 'BR20 面板逐分支、逐标签画行')
   check(attrValuesOf(brPanel, 'data-vc-tag-annotated').join(',') === '0,1', 'BR20b 附注标签与轻量标签分得开（4.11 删除时说清删的是什么）')
   check(Array.from(new Set(attrValuesOf(brPanel, 'data-vc-op'))).sort().join(',') === '4.10,4.11,4.12,4.13,4.2,4.3,4.4,4.5,4.6,4.7', 'BR20c 十条写动作各有 data-vc-op（能力号与账本一致）')
-  check(attrValuesOf(brPanel, 'data-vc-branch-ops')[0] === '13' && attrValuesOf(brPanel, 'data-vc-branch-writes')[0] === '9' && attrValuesOf(brPanel, 'data-vc-branch-forms')[0] === '10' && attrValuesOf(brPanel, 'data-vc-branch-checks')[0] === '1', 'BR20d 面板声明十三条能力入口、九个凭票写动作、十个表单入口与一条预检电话')
+  check(attrValuesOf(brPanel, 'data-vc-branch-ops')[0] === '13' && attrValuesOf(brPanel, 'data-vc-branch-writes')[0] === '9' && attrValuesOf(brPanel, 'data-vc-branch-forms')[0] === '2' && attrValuesOf(brPanel, 'data-vc-branch-checks')[0] === '1', 'BR20d 面板声明十三条能力入口、九个凭票写动作、两个页尾表单入口与一条预检电话（#1881：页尾只剩两条没有行内入口的写动作）')
   check(attrValuesOf(brPanel, 'data-vc-branch-current')[0] === 'main' && brPanel.indexOf('data-vc-branch-upstream="origin/main"') >= 0 && brPanel.indexOf('主干') >= 0, 'BR20e 当前分支、上游与分支说明都画出来（说明来自读回包，不另读）')
   check(attrValuesOf(brPanel, 'data-vc-branch-merged')[0] === '1' && attrValuesOf(brPanel, 'data-vc-branch-notmerged')[0] === '1', 'BR20f 4.8 已并入与没并入两张名单一起画')
   // #1881：标签名必须挂在「行」上——容器的事件委托是按行取名字的（vcRealDelegate 读 data-vc-tag-row 上的
@@ -1766,8 +1767,24 @@ async function main() {
   const goneSaid = brGonePanel.indexOf('上游已不存在') >= 0 || brGonePanel.indexOf('vc.shell.branch2.upstreamGone') >= 0
   const flatSaid = brGonePanel.indexOf('与上游齐平') >= 0 || brGonePanel.indexOf('vc.shell.branch2.inSync') >= 0
   check(goneSaid && !flatSaid, 'BR20h 上游被删时画「上游已不存在」，不说「与上游齐平」')
+  // #1881：行尾只剩「切换」+「⋯」——删除 / 重命名 / 切提交 / 设上游 / 写说明收进菜单，
+  //   页尾只剩两条没有行内入口的新建动作（4.2 新建并切换分支、4.10 建标签）。
+  //   菜单里的动作仍带 data-vc-op（能力号不变），分支名仍由行上的 data-vc-branch-row 给委托层。
+  const menuSegmentOf = function (name) {
+    const text = String(brPanel)
+    const at = text.indexOf('data-vc-branch-menu="' + name + '"')
+    if (at < 0) return ''
+    const rest = text.slice(at)
+    const next = rest.indexOf('data-vc-branch-row="')
+    return next < 0 ? rest : rest.slice(0, next)
+  }
+  const menuNames = attrValuesOf(brPanel, 'data-vc-branch-menu')
+  const menuOps = attrValuesOf(menuSegmentOf('main'), 'data-vc-op').join(',')
+  const footerAt = String(brPanel).indexOf('data-vc-branch-forms')
+  const footerOps = footerAt < 0 ? '' : attrValuesOf(String(brPanel).slice(footerAt), 'data-vc-op').join(',')
+  check(menuNames.join(',') === 'main,feature' && menuOps === '4.6,4.5,4.4,4.7,4.13' && footerOps === '4.2,4.10', 'BR20i 每行一颗「⋯」菜单，菜单里按序是删除 / 重命名 / 切提交 / 设上游 / 写说明；页尾只剩新建并切换分支与建标签（实得菜单 ' + menuOps + '；页尾 ' + footerOps + '）')
   const brEmpty = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: null, onRetry: function () {} }))
-  check(attrValuesOf(brEmpty, 'data-vc-branch2-empty')[0] === '1' && attrValuesOf(brEmpty, 'data-vc-branch-row').length === 0 && attrValuesOf(brEmpty, 'data-vc-branch2-retry').length === 1, 'BR21 没读数时画空态与重试，不画假分支（十条写动作入口仍在：' + attrValuesOf(brEmpty, 'data-vc-branch-forms')[0] + '）')
+  check(attrValuesOf(brEmpty, 'data-vc-branch2-empty')[0] === '1' && attrValuesOf(brEmpty, 'data-vc-branch-row').length === 0 && attrValuesOf(brEmpty, 'data-vc-branch2-retry').length === 1, 'BR21 没读数时画空态与重试，不画假分支（页尾两条新建入口仍在：' + attrValuesOf(brEmpty, 'data-vc-branch-forms')[0] + '）')
   const brConfirm = VIEW.vcBranchConfirmOf(brCheckReply)
   const brPanelFull = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: brBoardOf(), confirm: brConfirm, result: VIEW.vcBranchResultOf(brFailReply) }))
   check(!!brConfirm && brPanelFull.indexOf('data-vc-confirm="1"') >= 0 && (brPanelFull.match(/data-vc-confirm-seg="/g) || []).length === 4, 'BR22 确认卡贴在面板里、四段齐全（动词与对象用预检回包给的）')

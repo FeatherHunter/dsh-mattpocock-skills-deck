@@ -866,6 +866,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcCommitPage', file: 'src/client/views/versionControl/vcCommitPage.ts' }, // #1743 提交页正文（八条能力的主入口、多行说明、确认卡与结果都在面板里；排在页面壳之前，壳要调它）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
   { id: 'vcBranches', file: 'src/client/views/versionControl/vcBranches.ts' }, // #1746 分支与标签业务面板（4.1–4.13 十三条入口、dryRun 判定、确认卡与结果；由页面壳挂进分支与标签页）
+  { id: 'vcBranchSections', file: 'src/client/views/versionControl/vcBranchSections.ts' }, // #1881 从本页视图叶子拆出的后两段正文（标签、上游跟踪）与四件小工具：叶子当时已用到 346 / 350 有效行，行内菜单要加就只能先拆
   { id: 'vcBranchPage', file: 'src/client/views/versionControl/vcBranchPage.ts' }, // #1829 阶段 3 分支与标签页的视图叶子（页头、筛选与搜索、分支卡片、标签、页尾折叠；静态树 vcBranchTreeOf 供门禁，组件 vcBranchPageOf 供页面壳）
   { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
   { id: 'vcStashOps', file: 'src/client/views/versionControl/vcStashOps.ts' }, // #1751 贮藏页的数据与动作层（首屏贮藏片怎么读、十条动作怎么拼、回包怎么落状态；不画界面）

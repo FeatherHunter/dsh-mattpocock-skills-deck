@@ -44,7 +44,9 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 //   这里仍只拼数据层 + 视图叶子，断言一条不动。
 // #1858：页面正文改用页面骨架原语（分区 / 事实网格 / 对象行）画三段，所以把 vcPageHead 这一叶也拼进来；
 //   叶子里的 vcPageHeadNode 只在渲染期被调用，静态拼接不影响本文件的其它断言。
-const CLIENT_FILES = ['src/shared/version-control/src/branch-decisions.ts', 'src/client/views/versionControl/vcBranches.ts', 'src/client/views/versionControl/vcPageHead.ts', 'src/client/views/versionControl/vcBranchPage.ts']
+// #1881：后两段正文（标签、上游跟踪）搬到 vcBranchSections.ts，拼在视图叶子之前；不带上它，
+//   渲染那一棵静态树时会读到未定义的 vcBranchTagsSectionOf，D27 一类的行断言会当成页面没画出来。
+const CLIENT_FILES = ['src/shared/version-control/src/branch-decisions.ts', 'src/client/views/versionControl/vcBranches.ts', 'src/client/views/versionControl/vcPageHead.ts', 'src/client/views/versionControl/vcBranchSections.ts', 'src/client/views/versionControl/vcBranchPage.ts']
 const CLIENT_EXPORTS = ['BRANCH_REASONS', 'BRANCH_REASON_IDS', 'BRANCH_OP_IDS', 'BRANCH_WRITE_KINDS', 'branchNameProblem', 'tagNameProblem',
   'upstreamNameProblem', 'descriptionTextProblem', 'decideBranchSwitch', 'decideBranchDelete', 'decideBranchCreate', 'decideTagCreate',
   'decideDescriptionWrite', 'branchReasonText', 'VC_BRANCHES_PHONE', 'VC_BRANCH_CHECK_PHONE', 'VC_BRANCH_WRITE_PHONE', 'VC_BRANCH_BOARD_CONTRACT',

@@ -25,7 +25,8 @@
 //
 // 每档判定（PASS）的口径：壳根的 data-vc-page / data-vc-width / data-vc-skin 与目标一致；页头是「分支与标签」；
 // 正文三段按序是 分支 → 标签 → 上游跟踪；两段标题上的条数与夹具一致；分支行、标签行按读数画出来；
-// 三颗筛选胶囊与搜索框在；四条上游事实在；页尾写动作折叠区仍是十行；没有横向溢出、关键句没有被截断。
+// 三颗筛选胶囊与搜索框在；四条上游事实在；当前分支排第一行、其余按读数顺序；页尾只剩两条新建入口
+// （新建并切换分支、建标签）；没有横向溢出、关键句没有被截断。
 
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -1219,6 +1220,12 @@ function checkBranchPage(facts: BranchPageFacts, fixture: FixtureFacts, width: n
     facts.counts.join(' | '))
   push('branch-rows', facts.branchRows.length === fixture.branchCount && fixture.branches.every((name) => facts.branchRows.indexOf(name) >= 0),
     '分支行逐条画出来（' + String(fixture.branchCount) + ' 行）', facts.branchRows.join(','))
+  // #1881：当前分支必须排第一行，其余保持读数的顺序。夹具的分支清单来自 for-each-ref（字母序），
+  //   当前分支 main 排在中间，所以这条判据只有页面真做了「当前分支先排」才过得去。
+  const restRows = facts.branchRows.slice(1)
+  const restExpected = fixture.branches.filter((name) => name !== facts.current)
+  push('branch-order', facts.current !== null && facts.current !== '' && facts.branchRows[0] === facts.current && restRows.join(',') === restExpected.join(','),
+    '当前分支排第一行，其余保持读数顺序', facts.branchRows.join(','))
   // 票面点名的五个区块里，领先与落后必须真的画出来：夹具里有一条领先、一条落后，画不出来就是这一行没走到。
   push('ahead-shown', facts.rowMetas.some((meta) => meta.indexOf('领先') >= 0), '至少一条分支行画出「领先 N」', facts.rowMetas.join(' | ').slice(0, 200))
   push('behind-shown', facts.rowMetas.some((meta) => meta.indexOf('落后') >= 0), '至少一条分支行画出「落后 N」', facts.rowMetas.join(' | ').slice(0, 200))
@@ -1229,7 +1236,7 @@ function checkBranchPage(facts: BranchPageFacts, fixture: FixtureFacts, width: n
   push('search', facts.hasQuery, '按分支名搜索的输入框在', String(facts.hasQuery))
   push('tracking-facts', facts.facts.join(',') === '当前分支,上游,领先 / 落后,上游依据', '上游跟踪段是四条事实', facts.facts.join(','))
   push('tracking-current', facts.current !== null && facts.current.length > 0, '当前分支读数画出来了', String(facts.current))
-  push('write-forms', facts.forms === '10', '页尾仍收着十个写动作入口', String(facts.forms))
+  push('write-forms', facts.forms === '2', '页尾只剩两条新建入口（新建并切换分支、建标签）', String(facts.forms))
   push('no-empty', facts.noData === false, '有读数时不画「还没读到」的空态', String(facts.noData))
   push('no-horizontal-overflow',
     facts.docOverflow.scrollW <= facts.innerW + 1 && (facts.pageOverflow === null || facts.pageOverflow.scrollW <= facts.pageOverflow.clientW + 1),
