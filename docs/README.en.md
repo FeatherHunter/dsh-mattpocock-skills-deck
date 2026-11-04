@@ -243,6 +243,8 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 | [@tafcear](https://github.com/tafcear) | 🌹🌹 | [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) [#432](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/432) |
 | [@xiSage](https://github.com/xiSage) | 🌹🌹 | [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) |
 | [@angenet](https://github.com/angenet) | 🌹🌹 | [#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295) |
+| [@liuke101](https://github.com/liuke101) | 🌹 | [#1875](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1875) |
+| [@f2406293319-star](https://github.com/f2406293319-star) | 🌹 | [#1859](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1859) |
 | [@Creativeguys037](https://github.com/Creativeguys037) | 🌹 | [#1781](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1781) |
 | [@jimorsm](https://github.com/jimorsm) | 🌹 | [#1779](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1779) |
 | [@clipsheep6](https://github.com/clipsheep6) | 🌹 | [#1767](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1767) |
