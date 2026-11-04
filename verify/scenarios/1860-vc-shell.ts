@@ -2126,6 +2126,133 @@ async function captureAt(
   return { observation: observation, evidence: evidence, failed: failed, softFailed: checks.softFailed, view: view, width: width, skin: skin }
 }
 
+
+// —— 真机交互：齿轮进管理索引、命令面板的 Esc / 点遮罩 / 焦点回位 ——
+//
+// 票面验收第 3 条要求这几组交互与原型一致。浏览器门禁已经逐条断言过，这里补一次真机点击：
+// 用适配器的原生点击走真实鼠标，量的是「装了候选包的 DSH 面板」而不是 jsdom 或门禁拼出来的页面。
+
+const GEAR_BTN_SELECTOR = '[data-vc-gear-btn]'
+const SEARCH_ENTRY_SELECTOR = '[data-vc-search-entry]'
+const PALETTE_SELECTOR = '[data-vc-palette]'
+const PALETTE_BACKDROP_SELECTOR = '[data-vc-palette-backdrop]'
+
+/** 读当前焦点落在哪颗入口上：面板关掉以后焦点要回到打开它的那颗按钮。 */
+function focusEntryScript(): string {
+  return scriptOf([
+    '(function () {',
+    '  var a = document.activeElement;',
+    '  if (!a) { return { where: ' + JSON.stringify('none') + ', search: false, gear: false }; }',
+    '  return {',
+    '    where: String(a.getAttribute(' + JSON.stringify('aria-label') + ') || a.tagName),',
+    '    search: a.hasAttribute(' + JSON.stringify('data-vc-search-entry') + '),',
+    '    gear: a.hasAttribute(' + JSON.stringify('data-vc-gear-btn') + '),',
+    '  };',
+    '})()',
+  ])
+}
+
+const PAGE_ATTR_SCRIPT = '(function () { var r = document.querySelector(' + JSON.stringify(VC_ROOT_SELECTOR) + '); return r ? r.getAttribute(' + JSON.stringify('data-vc-page') + ') : null })()'
+const BACK_COUNT_SCRIPT = 'document.querySelectorAll(' + JSON.stringify('button[data-vc-back]') + ').length'
+
+/** 等某个选择器从页面上消失。 */
+async function waitGone(page: PageHandle, selector: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!(await exists(page, selector))) return true
+    await sleep(300)
+  }
+  return false
+}
+
+interface InteractionCheck {
+  readonly id: string
+  readonly ok: boolean
+  readonly expected: string
+  readonly actual: string
+}
+
+/** 真机点一遍身份行的两颗入口与面板关闭方式；返回一条硬检查用的观测。 */
+async function runInteraction(context: ScenarioContext, page: PageHandle, raw: RawBrowserPage): Promise<ScenarioObservation> {
+  const facts: Record<string, unknown> = {}
+  const items: InteractionCheck[] = []
+  const add = (id: string, ok: boolean, expected: string, actual: string): void => {
+    items.push({ id: id, ok: ok, expected: expected, actual: actual })
+  }
+  const evidence: string[] = []
+
+  // 从改动页开始：二级页返回时要回到来源页签。
+  const tab = await openTab(page, raw, 'changes')
+  add('interact-source-tab', tab.ok, '先停在改动页', tab.detail)
+  await sleep(600)
+
+  const gearClick = await clickPage(page, raw, GEAR_BTN_SELECTOR)
+  facts.gearClick = gearClick
+  const gearOpen = await waitFor(page, GEAR_INDEX_SELECTOR, 5000)
+  add('interact-gear-open', gearOpen, '点齿轮后管理索引 [data-vc-gear-index] 挂出来', gearOpen ? '挂出来了（' + gearClick.detail + '）' : '没挂出来：' + gearClick.detail)
+  if (gearOpen) {
+    const shot = await captureScreenshot(context, page, 'interaction', 'gear-index', '真机点齿轮进管理索引')
+    evidence.push(...shot.paths)
+    const backs = await evaluateThrough<number>(page, BACK_COUNT_SCRIPT)
+    const backCount = backs.ok ? backs.value : -1
+    add('interact-gear-back-single', backCount === 1, '管理索引上只有一颗返回键', String(backCount) + ' 颗')
+    const backClick = await clickPage(page, raw, BACK_BUTTON)
+    facts.backClick = backClick
+    const closed = await waitGone(page, GEAR_INDEX_SELECTOR, 5000)
+    const pageAttr = await evaluateThrough<string | null>(page, PAGE_ATTR_SCRIPT)
+    const backTo = pageAttr.ok ? pageAttr.value : null
+    add('interact-gear-back-returns', closed && backTo === 'changes', '点返回键回到来源页签（改动）', (closed ? '索引已关' : '索引还在') + '，data-vc-page=' + String(backTo))
+  }
+
+  const openPalette = async (checkId: string, round: string): Promise<boolean> => {
+    const clicked = await clickPage(page, raw, SEARCH_ENTRY_SELECTOR)
+    facts[round + 'PaletteClick'] = clicked
+    const opened = await waitFor(page, PALETTE_SELECTOR, 5000)
+    add(checkId, opened, '点放大镜后命令面板 [data-vc-palette] 挂出来', opened ? '挂出来了（' + clicked.detail + '）' : '没挂出来：' + clicked.detail)
+    return opened
+  }
+
+  if (await openPalette('interact-palette-open', 'first')) {
+    const esc = typeof raw.press === 'function' ? await raw.press('Escape') : { ok: false }
+    facts.escape = esc.ok === true
+    const closed = await waitGone(page, PALETTE_SELECTOR, 5000)
+    const focus = await evaluateThrough<Record<string, unknown>>(page, focusEntryScript())
+    const focusOk = focus.ok && focus.value.search === true
+    add('interact-palette-esc', closed, '按 Esc 关掉命令面板', closed ? '关掉了' : '还开着')
+    add('interact-palette-focus-return', focusOk, '关掉后焦点回到放大镜那颗按钮', focus.ok ? '焦点在 ' + String(focus.value.where) : '读不到焦点')
+    facts.focusAfterEscape = focus.ok ? focus.value : { error: focus.error.message }
+  }
+
+  if (await openPalette('interact-palette-reopen', 'second')) {
+    const backdrop = await evaluateThrough<{ ok: boolean; reason?: string }>(page, domClickScript(PALETTE_BACKDROP_SELECTOR))
+    facts.backdropClick = backdrop.ok ? backdrop.value : { error: backdrop.error.message }
+    const closed = await waitGone(page, PALETTE_SELECTOR, 5000)
+    const focus = await evaluateThrough<Record<string, unknown>>(page, focusEntryScript())
+    const focusOk = focus.ok && focus.value.search === true
+    add('interact-palette-backdrop', closed, '点遮罩也关掉命令面板', closed ? '关掉了' : '还开着')
+    add('interact-palette-focus-backdrop', focusOk, '点遮罩关掉后焦点也回到放大镜', focus.ok ? '焦点在 ' + String(focus.value.where) : '读不到焦点')
+    facts.focusAfterBackdrop = focus.ok ? focus.value : { error: focus.error.message }
+  }
+
+  const failed = items.filter((item) => !item.ok).map((item) => item.id)
+  facts.items = items
+  facts.failed = failed
+  const recorded = await recordBoth(context, 'interaction', 'interaction.json', facts, '真机交互逐项结果')
+  evidence.push(...recorded)
+  return observe({
+    checkId: CHECK_ID + '-interact',
+    title: '真机交互：齿轮、命令面板与焦点回位',
+    ok: failed.length === 0,
+    status: failed.length === 0 ? 'pass' : 'fail',
+    hard: true,
+    detail: failed.length === 0 ? String(items.length) + ' 项交互都符合票面' : '没过的检查：' + failed.join('、'),
+    expected: '齿轮进管理索引、返回键唯一且回到来源页签、命令面板 Esc 与点遮罩都能关且焦点回原位',
+    actual: failed.length === 0 ? '符合（' + String(items.length) + ' 项）' : '没过的检查：' + failed.join('、'),
+    hint: '先看 interaction.json 的 where 字段与截图',
+    evidence: evidence,
+  })
+}
+
 /** 页面首次打开：清掉首开遮罩，确认停在同源登录后的欢迎屏。 */
 async function waitForHostReady(page: PageHandle, raw: RawBrowserPage, tokenUrl: string, originUrl: string): Promise<{ ok: boolean; detail: string; facts: Record<string, unknown> }> {
   const facts: Record<string, unknown> = {}
@@ -2269,6 +2396,22 @@ async function runSweep(context: ScenarioContext): Promise<ScenarioObservation[]
         observations.push(captures[captures.length - 1].observation)
       }
     }
+  }
+
+  // 截完图再点交互：这一步会把页面切回改动页并开关几次浮层，放在取证之后不干扰截图与读数。
+  console.log('[1860] 真机交互：齿轮、命令面板与焦点回位')
+  try {
+    observations.push(await runInteraction(context, page, raw))
+  } catch (error) {
+    observations.push(observe({
+      checkId: CHECK_ID + '-interact',
+      title: '真机交互：齿轮、命令面板与焦点回位',
+      ok: false,
+      status: 'fail',
+      hard: true,
+      detail: '交互检查抛错：' + messageOf(error),
+      evidence: [],
+    }))
   }
 
   const passed = captures.filter((capture) => capture.observation.status === 'pass').length
