@@ -326,6 +326,19 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
         }) },
         blocking: { nodes: [] },
       } }
+      // #1870：拉取请求那三格照契约原样交回（isPullRequest / mergedAt / reviews）。
+      // 以前这里逐字段挑，三格被丢掉了，界面只能回落到快照行：第一次点开一张拉取请求时，
+      // 「这是 PR、只读、已合并」全靠那一行凑，详情回包自己说不出来。
+      // 三态口径与契约一致：字段在就交（false / null / [] 都是「明确知道」），不在就整个省掉（不知道）。
+      // 评审只留界面认的三样（结论、评审人登录名、时间），与库里读回来的详情同形，两条来源画出来一样。
+      if (typeof iss.isPullRequest === 'boolean') out.issue.isPullRequest = iss.isPullRequest
+      if (iss.mergedAt !== undefined) out.issue.mergedAt = iss.mergedAt
+      if (Array.isArray(iss.reviews)) out.issue.reviews = iss.reviews.map(function (rv: any): any {
+        const one: any = { state: String((rv && rv.state) || '') }
+        if (rv && rv.reviewer && rv.reviewer.login) one.reviewer = { login: String(rv.reviewer.login) }
+        if (rv && rv.submittedAt) one.submittedAt = rv.submittedAt
+        return one
+      })
       return out
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }

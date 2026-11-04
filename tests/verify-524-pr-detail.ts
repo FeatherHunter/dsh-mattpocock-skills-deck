@@ -5,10 +5,11 @@
 // comment-thread-fetch.handleIssueDetail（本地快照库优先、库里没有才经会话 get），判据保持不变：
 // 标记对不对、失败是否如实、以及这一路一次外部命令都不发。
 //
-// 拉取请求的 isPullRequest / mergedAt / reviews 三格不在这条宿主方法的回包里——#1444 把 wf.issueDetail
-// 接到它上面时就不再给这三格了（旧模块的那三格从来没到过界面，那个模块没有调用点）。界面读的是
-// 快照行（detailProjection 的 reviews、IssueDetail 的 fromPullRequest 回落到 snapIssue），
-// 那几格由详情落库之后的库行承担；这一条只钉回包形状与失败口径，不假装回包里有它们。
+// #1870：拉取请求的 isPullRequest / mergedAt / reviews 三格现在就在这条宿主方法的回包里。
+// 从前它逐字段挑，把三格丢掉了，界面只能回落到快照行（IssueDetail 的 fromPullRequest 与
+// detailProjection 的 reviews）——第一次点开一张拉取请求时，「这是 PR、只读、已合并」全靠那一行凑，
+// 详情回包自己说不出来。现在按契约原样交回：字段在就写（false / null / [] 都是明确知道），
+// 不在就整个省掉（不知道）。
 //
 // 运行：node --import ./scripts/ts-hook.mts tests/verify-524-pr-detail.ts
 import path from 'node:path'
@@ -69,12 +70,41 @@ async function main() {
     check(gets[0].ctx && gets[0].ctx.caller === 'refresh' && gets[0].ref.refId === 'o/r', '会话上下文带 caller=refresh，仓库坐标是 owner/name')
     check(r.issue.blockedBy && r.issue.blockedBy.nodes.length === 1 && r.issue.blockedBy.nodes[0].number === 7 && r.issue.blockedBy.nodes[0].state === 'OPEN', '阻塞边回详情页认的 {nodes:[{number,title,state}]} 形状（来自这一趟 get 自带的那一份）')
     check(execs.length === 0, '这一趟一次外部命令都没发（实发 ' + execs.length + ' 次）')
+    // 三格：第一次点开就能从回包本身看出这是拉取请求（不再依赖快照行）。
+    check(r.issue.isPullRequest === true, '回包直说这是拉取请求（界面不必再回落到快照行）')
+    check(r.issue.mergedAt === null, '合并时间照契约给：还没合并是 null（明确知道，不是不知道）')
+    check(Array.isArray(r.issue.reviews) && r.issue.reviews.length === 1 && r.issue.reviews[0].state === 'APPROVED' && r.issue.reviews[0].reviewer.login === 'rv' && r.issue.reviews[0].submittedAt === 'rv-t', '评审按界面认的形状交回（结论 + 评审人登录名 + 时间）')
   }
   {
     const { h } = stub()
     const r = await h.handleIssueDetail({ number: 7, cwd: 'cwd' })
     check(r && r.ok === true && r.issue && r.issue.number === 7 && r.issue.state === 'OPEN', '普通工单号仍绿（会话 get 命中，不误标状态）')
     check(r && r.issue && r.issue.subIssues && Array.isArray(r.issue.subIssues.nodes), '子票连接照旧带（清单仍由快照/地图那条路提供）')
+    check(r.issue.isPullRequest === false, '普通工单明确写 false（与「不知道」分得开）')
+    check(Array.isArray(r.issue.reviews) && r.issue.reviews.length === 0, '没有评审给空数组（明确知道），不是省掉这一格')
+  }
+  {
+    // 契约没表达这三格的后端（本地 Markdown 这类没有拉取请求能力的）：回包也不许凭空写，
+    // 界面据此说「不知道」，而不是把它说成「不是 PR」「没有评审」。
+    const noPrSession: any = {
+      get: async () => ({
+        ok: true,
+        data: { key: '5', effortId: 'e', type: 'issue', title: '标题', state: 'open', body: '', url: '', createdAt: 'c', updatedAt: 'u', closedAt: null, parentKey: null },
+      }),
+    }
+    const h = mod.createCommentThreads({
+      normCwd: async (c: any) => c,
+      errText: (e: any) => String((e && e.message) || e),
+      execProc: async () => ({}),
+      setCache: () => {}, getCache: () => null,
+      openSession: async (cwd: string) => ({
+        ok: true, backendId: 'markdown', repoRef: { backend: 'markdown', refId: 'ws', name: 'ws', url: '' },
+        call: (fn: any) => fn(noPrSession, { cwd: cwd }),
+      }),
+    })
+    const r = await h.handleIssueDetail({ number: 5, cwd: 'cwd' })
+    check(r && r.ok === true, '后端没有拉取请求能力时详情照常回')
+    check(r.issue.isPullRequest === undefined && r.issue.mergedAt === undefined && r.issue.reviews === undefined, '契约没表达时不写这三格（不知道 ≠ 不是 PR / 没有评审）')
   }
   {
     const { h, execs } = stub()
