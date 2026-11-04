@@ -3730,7 +3730,7 @@
       case "demo-worktrees":
         return { ...state, demoWorktrees: true };
       case "view":
-        return { ...state, view: action.view };
+        return { ...state, view: action.view, commitOptionsOpen: false };
       case "tick":
         return { ...state };
       case "stage": {
@@ -3872,7 +3872,11 @@
           skipHooks: false,
           signCommit: false,
           signoff: false,
-          templateApplied: false
+          templateApplied: false,
+          // 提交完成之后这次的选择已经用掉了：形态回到「新提交」，展开区收起
+          // （展开区里每一项都是「这一次提交」的设置，留着它只会让人以为还有效）。
+          commitForm: "commit",
+          commitOptionsOpen: false
         };
         if (form === "amend" && head !== null) {
           const amended = {
@@ -3892,7 +3896,6 @@
             ...state,
             ...baseReset,
             message: "",
-            commitForm: "commit",
             replacedOid,
             localCommits: headIsLocal ? [amended, ...state.localCommits.slice(1)] : [amended, ...state.localCommits],
             ahead: pushed ? 1 : state.ahead,
@@ -4865,7 +4868,11 @@
       }
     }
     const commitLabel = form === "amend" ? COPY.commitOptions.labelAmend : form === "fixup" ? COPY.commitOptions.labelFixup : form === "squash" ? COPY.commitOptions.labelSquash : COPY.changes.commitLabel(effectiveCount);
-    const commitHint = form === "amend" ? effectiveCount === 0 ? "\u8FD9\u6B21\u53EA\u6539\u63D0\u4EA4\u8BF4\u660E\uFF0C\u5185\u5BB9\u6CBF\u7528\u4E0A\u4E00\u6761\u63D0\u4EA4\u3002" : "\u8FD9\u6B21\u4F1A\u628A\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u5E76\u8FDB\u4E0A\u4E00\u6761\u63D0\u4EA4\uFF0C\u63D0\u4EA4\u53F7\u4F1A\u53D8\u3002" : form === "fixup" ? "fixup \u63D0\u4EA4\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\uFF0C\u7B49\u6574\u7406\u5386\u53F2\u65F6\u538B\u56DE\u4E0A\u4E00\u6761\u3002" : form === "squash" ? "squash \u63D0\u4EA4\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\uFF0C\u7B49\u6574\u7406\u5386\u53F2\u65F6\u548C\u4E0A\u4E00\u6761\u5E76\u6210\u4E00\u6761\u3002" : alsoTracked.length > 0 ? "\u672A\u6682\u5B58\u7684\u6539\u52A8\u4F1A\u5148\u88AB\u6682\u5B58\uFF0C\u518D\u4E00\u8D77\u63D0\u4EA4\u3002" : COPY.changes.messageHint;
+    const commitHint = form === "amend" ? effectiveCount === 0 ? "\u8FD9\u6B21\u53EA\u6539\u63D0\u4EA4\u8BF4\u660E\uFF0C\u5185\u5BB9\u6CBF\u7528\u4E0A\u4E00\u6761\u63D0\u4EA4\u3002" : "\u8FD9\u6B21\u4F1A\u628A\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u5E76\u8FDB\u4E0A\u4E00\u6761\u63D0\u4EA4\uFF0C\u63D0\u4EA4\u53F7\u4F1A\u53D8\u3002" : form === "fixup" ? "fixup \u63D0\u4EA4\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\uFF0C\u7B49\u6574\u7406\u5386\u53F2\u65F6\u538B\u56DE\u4E0A\u4E00\u6761\u3002" : form === "squash" ? "squash \u63D0\u4EA4\u6302\u5728\u5386\u53F2\u6700\u524D\u9762\uFF0C\u7B49\u6574\u7406\u5386\u53F2\u65F6\u548C\u4E0A\u4E00\u6761\u5E76\u6210\u4E00\u6761\u3002" : alsoTracked.length > 0 ? "\u4F1A\u5148\u6682\u5B58\u8FD9 " + alsoTracked.length + " \u4E2A\u5DF2\u8DDF\u8E2A\u7684\u6539\u52A8\uFF1B\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u4E0D\u7B97\u3002" : COPY.changes.messageHint;
+    const recordFlags = [];
+    if (state.skipHooks) recordFlags.push({ label: COPY.commitOptions.skipHooks, hint: COPY.commitOptions.skipHooksNote });
+    if (state.signCommit) recordFlags.push({ label: COPY.commitOptions.signCommit, hint: COPY.commitOptions.signCommitNote });
+    if (state.signoff) recordFlags.push({ label: COPY.commitOptions.signoff, hint: COPY.commitOptions.signoffNote });
     const changeCount = state.staged.length + state.unstaged.length;
     return {
       stats: [
@@ -4897,6 +4904,7 @@
         disabledReason,
         busy: state.busy === "commit",
         label: commitLabel,
+        flags: recordFlags,
         optionsOpen: state.commitOptionsOpen,
         options: {
           form,
@@ -8242,14 +8250,15 @@
       action: "commit",
       focusKey: "commit"
     });
+    const flagNames = model.composer.flags.map((flag) => flag.label).join("\u3001");
     const optionsToggle = h("button", {
       class: "commit-options-toggle" + (model.composer.optionsOpen ? " is-on" : ""),
       attrs: {
         type: "button",
         "aria-expanded": model.composer.optionsOpen ? "true" : "false",
         "aria-haspopup": "true",
-        "aria-label": COPY.commitOptions.triggerLabel,
-        title: COPY.commitOptions.triggerHint,
+        "aria-label": flagNames === "" ? COPY.commitOptions.triggerLabel : COPY.commitOptions.triggerLabel + "\uFF08\u5DF2\u5F00\u542F\uFF1A" + flagNames + "\uFF09",
+        title: flagNames === "" ? COPY.commitOptions.triggerHint : COPY.commitOptions.triggerHint + "\u3002\u5DF2\u5F00\u542F\uFF1A" + flagNames,
         "data-focus-key": "commit-options"
       },
       dataset: { action: "commit-options-toggle" }
@@ -8260,6 +8269,11 @@
       icon("alert", 12),
       h("span", { text: model.composer.disabledReason })
     );
+    const flagNode = model.composer.flags.length === 0 ? null : h(
+      "div",
+      { class: "composer-flags", attrs: { role: "status", "aria-label": "\u8FD9\u6B21\u63D0\u4EA4\u5DF2\u6253\u5F00\u7684\u8BB0\u5F55\u65B9\u5F0F" } },
+      ...model.composer.flags.map((flag) => chip(flag.label, flag.label === COPY.commitOptions.skipHooks ? "warn" : "info", { small: true, title: flag.hint }))
+    );
     const foot = h(
       "div",
       { class: "composer-foot", id: "commit-hint" },
@@ -8267,7 +8281,9 @@
       handoffEntry(HANDOFF_ENTRY.changes, "changes"),
       h("div", { class: "commit-split" }, commitButton, optionsToggle)
     );
-    composer.append(stagedLine, messageNode, foot);
+    composer.append(stagedLine, messageNode);
+    if (flagNode !== null) composer.append(flagNode);
+    composer.append(foot);
     if (model.composer.optionsOpen) composer.append(renderCommitOptions(model.composer));
     view.append(filterRow, list, composer);
     return view;
@@ -11807,6 +11823,11 @@
         repaint({ focusKey: `handoff-${previous}` });
         return;
       }
+      if (event.key === "Escape" && state.commitOptionsOpen) {
+        event.preventDefault();
+        dispatch({ type: "commit-options-toggle" }, { focusKey: "commit-options" });
+        return;
+      }
       if (event.key === "Escape" && state.changesPending !== null) {
         event.preventDefault();
         dispatch({ type: "changes-pending", pending: null }, { focusKey: lastFocusKey });
@@ -11882,6 +11903,9 @@
       if (state.branchOpen && target.closest(".branch-pop") === null && target.closest('[data-action="branch-open"]') === null) {
         state = reduce(state, { type: "branch-close" }, base);
         repaint({ focusKey: "branch-open" });
+      }
+      if (state.commitOptionsOpen && target.closest(".commit-options") === null && target.closest('[data-action="commit-options-toggle"]') === null) {
+        dispatch({ type: "commit-options-toggle" }, { focusKey: lastFocusKey });
       }
       const insideTransient = target.closest(".row-menu, .row-more, .row-act, .commit-menu, .commit-more, .changes-confirm, .commit-confirm") !== null;
       if (!insideTransient && (commitMenuOid !== null || commitConfirmOid !== null || state.openMenuPath !== null)) {

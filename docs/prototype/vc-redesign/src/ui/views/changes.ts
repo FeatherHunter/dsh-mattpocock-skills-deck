@@ -115,14 +115,17 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   })
   // 「提交选项」的入口是贴在主按钮右边的一枚箭头：它属于这颗按钮，不新增一行、也不改首屏高度，
   // 展开区里的形态、模板、钩子与签名只在点开之后出现。
+  // 展开区收起以后，跳过钩子 / 签名 / 签名行在别处看不出来：把它们的名字写进箭头自己的说明里，
+  // 读屏器停在箭头上就能听到「已开启：跳过钩子」，不用先把展开区点开。
+  const flagNames = model.composer.flags.map((flag) => flag.label).join('、')
   const optionsToggle = h('button', {
     class: 'commit-options-toggle' + (model.composer.optionsOpen ? ' is-on' : ''),
     attrs: {
       type: 'button',
       'aria-expanded': model.composer.optionsOpen ? 'true' : 'false',
       'aria-haspopup': 'true',
-      'aria-label': COPY.commitOptions.triggerLabel,
-      title: COPY.commitOptions.triggerHint,
+      'aria-label': flagNames === '' ? COPY.commitOptions.triggerLabel : COPY.commitOptions.triggerLabel + '（已开启：' + flagNames + '）',
+      title: flagNames === '' ? COPY.commitOptions.triggerHint : COPY.commitOptions.triggerHint + '。已开启：' + flagNames,
       'data-focus-key': 'commit-options',
     },
     dataset: { action: 'commit-options-toggle' },
@@ -135,11 +138,19 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
     ? h('span', { class: 'hint-text', text: model.composer.hint })
     : h('span', { class: 'composer-reason', id: 'commit-reason' },
       icon('alert', 12), h('span', { text: model.composer.disabledReason }))
+  // 记录方式一开着就单独占一行，贴在提交按钮上方：跳过钩子会改变提交前检查，
+  // 不能只活在收起后的展开区里；塞进脚注那一行会和禁用原因抢宽度，窄档下两边都读不成句。
+  const flagNode = model.composer.flags.length === 0
+    ? null
+    : h('div', { class: 'composer-flags', attrs: { role: 'status', 'aria-label': '这次提交已打开的记录方式' } },
+      ...model.composer.flags.map((flag) => chip(flag.label, flag.label === COPY.commitOptions.skipHooks ? 'warn' : 'info', { small: true, title: flag.hint })))
   const foot = h('div', { class: 'composer-foot', id: 'commit-hint' },
     footLeft,
     handoffEntry(HANDOFF_ENTRY.changes, 'changes'),
     h('div', { class: 'commit-split' }, commitButton, optionsToggle))
-  composer.append(stagedLine, messageNode, foot)
+  composer.append(stagedLine, messageNode)
+  if (flagNode !== null) composer.append(flagNode)
+  composer.append(foot)
   // 提交选项贴在提交区上方浮起来，不再挤占文件列表：它是一次临时选择（形态、模板、钩子、签名），
   // 松开以后文件列表还是原来那么高。这和分支浮层、行菜单是同一种「贴触发点的浮层」。
   if (model.composer.optionsOpen) composer.append(renderCommitOptions(model.composer))

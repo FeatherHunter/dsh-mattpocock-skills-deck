@@ -80,6 +80,10 @@ const SHOTS = [
   { name: '77-commit-fixup-460', query: 'stageall=1&commitoptions=1&commitform=fixup' },
   // fixup 执行后：历史最前面多一条带 fixup 标记的提交。
   { name: '78-commit-fixup-history-460', query: 'stageall=1&commitoptions=1&commitform=fixup', clicks: [{ click: '[data-action="commit"]', wait: 1000 }, '#tab-commits'] },
+  // 记录方式开着、展开区收起：跳过钩子与签名行以标签形式贴在提交按钮左边，
+  // 不用打开浮层就知道这一次提交会跳检查、带签名行。
+  { name: '79-commit-flags-460', query: 'noverify=1&signoff=1' },
+  { name: '80-commit-flags-light-300', query: 'noverify=1&signoff=1', width: 300, theme: 'light' },
 ]
 
 async function main() {

@@ -126,6 +126,13 @@ export interface CommitOptionsModel {
   messageEditable: boolean
 }
 
+/** 一条「开着但收起后看不见」的记录方式：名字与原因一起做成一枚贴着提交按钮的小标签。 */
+export interface ComposerFlagModel {
+  label: string
+  /** 悬停时补一句后果，例如「提交前的检查不会跑」。 */
+  hint: string
+}
+
 export interface ComposerModel {
   stagedCount: number
   message: string
@@ -136,6 +143,12 @@ export interface ComposerModel {
   busy: boolean
   /** 主按钮上的字：跟着提交形态变，读者不用打开展开区就知道这一下会做什么。 */
   label: string
+  /**
+   * 已经打开、但收起展开区之后在别处看不出来的选项（跳过钩子、签名、签名行）。
+   * 这三项一旦打开就会改变这一次提交被怎么记下来，所以必须在按钮旁边就说出来；
+   * 形态、-a 与模板各自会改按钮文字或输入框，不用再列一遍。
+   */
+  flags: ComposerFlagModel[]
   optionsOpen: boolean
   options: CommitOptionsModel
 }
@@ -644,8 +657,15 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
       : form === 'squash'
         ? 'squash 提交挂在历史最前面，等整理历史时和上一条并成一条。'
         : alsoTracked.length > 0
-          ? '未暂存的改动会先被暂存，再一起提交。'
+          // 只写「未暂存的改动」会让人以为未跟踪的新文件也算进来：它们不在这一批里，必须点名。
+          ? '会先暂存这 ' + alsoTracked.length + ' 个已跟踪的改动；未跟踪的新文件不算。'
           : COPY.changes.messageHint
+
+  // 三个记录方式各自会让这次提交按另一种方式被记下来，收起展开区之后就只剩这里能看见。
+  const recordFlags: ComposerFlagModel[] = []
+  if (state.skipHooks) recordFlags.push({ label: COPY.commitOptions.skipHooks, hint: COPY.commitOptions.skipHooksNote })
+  if (state.signCommit) recordFlags.push({ label: COPY.commitOptions.signCommit, hint: COPY.commitOptions.signCommitNote })
+  if (state.signoff) recordFlags.push({ label: COPY.commitOptions.signoff, hint: COPY.commitOptions.signoffNote })
 
   const changeCount = state.staged.length + state.unstaged.length
   return {
@@ -678,6 +698,7 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
       disabledReason,
       busy: state.busy === 'commit',
       label: commitLabel,
+      flags: recordFlags,
       optionsOpen: state.commitOptionsOpen,
       options: {
         form,

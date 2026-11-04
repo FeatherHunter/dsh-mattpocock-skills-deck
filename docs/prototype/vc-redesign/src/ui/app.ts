@@ -1293,6 +1293,13 @@ export function mount(root: HTMLElement): void {
       repaint({ focusKey: `handoff-${previous}` })
       return
     }
+    // 提交选项盖在文件列表上，Esc 先收它：读者点开看一眼再想回去看文件时，
+    // 不该先去够那颗箭头。焦点回到箭头本身，下一次 Tab 仍然从这里往下走。
+    if (event.key === 'Escape' && state.commitOptionsOpen) {
+      event.preventDefault()
+      dispatch({ type: 'commit-options-toggle' }, { focusKey: 'commit-options' })
+      return
+    }
     if (event.key === 'Escape' && state.changesPending !== null) {
       event.preventDefault()
       dispatch({ type: 'changes-pending', pending: null }, { focusKey: lastFocusKey })
@@ -1374,6 +1381,10 @@ export function mount(root: HTMLElement): void {
     if (state.branchOpen && target.closest('.branch-pop') === null && target.closest('[data-action="branch-open"]') === null) {
       state = reduce(state, { type: 'branch-close' }, base)
       repaint({ focusKey: 'branch-open' })
+    }
+    // 提交选项也是一层贴着的浮层：点它自己和那颗箭头以外的地方都收起，和行菜单同一套规矩。
+    if (state.commitOptionsOpen && target.closest('.commit-options') === null && target.closest('[data-action="commit-options-toggle"]') === null) {
+      dispatch({ type: 'commit-options-toggle' }, { focusKey: lastFocusKey })
     }
     const insideTransient = target.closest('.row-menu, .row-more, .row-act, .commit-menu, .commit-more, .changes-confirm, .commit-confirm') !== null
     if (!insideTransient && (commitMenuOid !== null || commitConfirmOid !== null || state.openMenuPath !== null)) {

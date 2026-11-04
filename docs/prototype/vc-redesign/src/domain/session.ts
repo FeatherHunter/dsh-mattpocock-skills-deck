@@ -405,7 +405,8 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
     case 'demo-worktrees':
       return { ...state, demoWorktrees: true }
     case 'view':
-      return { ...state, view: action.view }
+      // 换页签等于离开这次提交：展开区收起，不把盖在列表上的浮层带到别的页签去。
+      return { ...state, view: action.view, commitOptionsOpen: false }
     case 'tick':
       return { ...state }
     case 'stage': {
@@ -550,6 +551,10 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         signCommit: false,
         signoff: false,
         templateApplied: false,
+        // 提交完成之后这次的选择已经用掉了：形态回到「新提交」，展开区收起
+        // （展开区里每一项都是「这一次提交」的设置，留着它只会让人以为还有效）。
+        commitForm: 'commit' as CommitForm,
+        commitOptionsOpen: false,
       }
 
       if (form === 'amend' && head !== null) {
@@ -572,7 +577,6 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
           ...state,
           ...baseReset,
           message: '',
-          commitForm: 'commit',
           replacedOid,
           localCommits: headIsLocal ? [amended, ...state.localCommits.slice(1)] : [amended, ...state.localCommits],
           ahead: pushed ? 1 : state.ahead,

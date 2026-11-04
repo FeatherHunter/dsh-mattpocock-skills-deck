@@ -983,6 +983,9 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .composer-foot .composer-reason { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; font-size: 10.5px; line-height: 1.45; color: var(--warn); }
 .composer-foot .composer-reason svg { flex: none; }
 .composer-foot .btn { flex: none; margin-left: auto; }
+/* 已打开的记录方式单独一行，贴在提交按钮上方：跳过钩子这类选项收起展开区之后只有这里看得见。
+   它不挤进脚注那一行——窄档下禁用原因和它是两件都要读的事，合在一行两边都会被压断。 */
+.composer-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 
 /* ---------- 提交选项：形态、内容来源、说明模板、钩子与签名 ---------- */
 
