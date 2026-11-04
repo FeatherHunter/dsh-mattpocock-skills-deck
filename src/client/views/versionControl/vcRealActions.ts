@@ -28,7 +28,9 @@ declare function vcStashTicketOf(reply: any): any
 declare function vcStashCheckCallOf(call: any, cwd: any, input: any): any
 declare function vcStashWriteCallOf(call: any, cwd: any, input: any, ticketId: any, requestId: any): any
 declare function vcStashCheckConfirmOf(payload: any, reply: any, requestId: any): any
-declare function vcStashApplyReply(state: any, reply: any): any
+declare function vcStashApplyReply(state: any, reply: any, opts?: any): any
+declare function vcStashDetailPatch(state: any, selector: any, patch: any): any
+declare function vcStashAutoRunOf(deps: any): any
 declare function vcReadFirstScreenSliceOf(reads: any, id: any): any
 declare function vcFirstScreenSliceOf(reads: any, id: any): any
 declare function vcFirstScreenSliceStateOf(reads: any, id: any): any
@@ -41,6 +43,10 @@ declare function vcChangesRowKeyOf(op: any, payload: any): string
 declare function vcWorktreesUiOf(ui: any): any
 declare function createWorktreesOpsOf(deps: any): any
 declare function vcFailureOf(reply: any): any
+// #1860 D7：改动页展开一行时按路径读一次工作区差异（不带提交号 = 相对 HEAD），读数住在 reads.diffs。
+declare function vcReadDiff(reads: any, call: any, cwd: any, path: any, untracked: any): any
+declare function vcApplyDiffReply(currentReads: any, nextReads: any): any
+declare function vcMarkDiffLoading(reads: any, key: any): any
 
 // 本层看到的宿主电话：call(phone, args) 回 Promise（容器负责把全局 host.call 包一层兜底）。
 export const VC_REAL_REFRESH_MOMENTS: string[] = ['enter', 'task-done', 'manual']
@@ -213,7 +219,17 @@ export const vcRealActionsOf = function (deps: any): any {
     stashEdit: function (patch: any): void {
       const ui: any = uiNow()
       const base: any = Object.assign({}, vcStashStateNew(), ui.stash || {})
-      setUi(Object.assign({}, ui, { stash: Object.assign({}, base, patch || {}) }))
+      const p: any = Object.assign({}, patch || {})
+      // detailClose 不是状态字段，是一条命令：把那条记录的详情从 details 里摘掉（收起文件清单）。
+      const close: string = p.detailClose === undefined ? '' : String(p.detailClose)
+      delete p.detailClose
+      const next: any = close === '' ? Object.assign({}, base, p) : vcStashDetailPatch(Object.assign({}, base, p), close, null)
+      setUi(Object.assign({}, ui, { stash: next }))
+    },
+    // #1860 D8：记录行一挂出来就自动读前十条的「查看内容」。排队、去重与回包落地在 vcStashOps 叶里
+    //   （vcStashAutoRunOf），这里只把它接到容器的状态口子上。
+    stashAutoShow: function (selectors: any): any {
+      return vcStashAutoRunOf({ selectors: selectors, call: call, cwd: cwd, getUi: function () { return vcRealCurrentUiOf(d) }, setUi: setUi })
     },
     // 提交面板：vcCommitOpsOf 的 deps 要这一帧的 ui 对象；写成功后按「任务完成」重读首屏。
     commitOps: function (): any {
@@ -252,7 +268,9 @@ export const vcRealCurrentUiOf = function (deps: any): any {
 
 // 改动页 13 条动作的处理器：状态由容器持有（values 与 rows），这里只做电话与落状态。
 //   begin 先走预检电话拿 120 秒票；危险动作停确认卡，其余直接凭票执行；run 只认确认卡给的票。
-export const vcRealChangesHandlersOf = function (state: any, setState: any, call: any, cwd: any, translate: any, gate: any): any {
+// readsApi 是容器的读数口子（{ get, set }）：行展开要读补丁（#1860 D7），补丁住在 reads.diffs 里而不是
+//   改动页自己的 values/rows 里 —— 与历史详情、diffOps 同一条缓存与 stale-drop 通路，不另开一份。
+export const vcRealChangesHandlersOf = function (state: any, setState: any, call: any, cwd: any, translate: any, gate: any, readsApi?: any): any {
   const t = typeof translate === 'function' ? translate : function (key: string) { return key }
   const s: any = state || {}
   // 每次改动都交给容器的函数式更新：异步回包落地时按「当前态」算下一态，不会被旧的闭包快照覆盖。
@@ -332,6 +350,30 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
       })
     },
     cancel: function (op: any, payload?: any): void { putRow(op, { busy: false, confirm: null }, payload) },
+    // 展开 / 收起一行：收起只改 values，不再发电话；展开时这一路径已经有读数（读到或正在读）就复用，
+    //   否则读一次。同一路径连点两下只会起一个 git 进程（第二下在 loading 里直接返回）。
+    onOpen: function (path: any, row: any): void {
+      const key: string = String(path || '')
+      const open: boolean = String(values.openPath || '') === key
+      handlers.onValue('openPath', open ? '' : key)
+      if (open) return
+      const have: any = ((readsApi && readsApi.get && readsApi.get().diffs) || {})[key]
+      if (have && (have.state === 'ok' || have.state === 'loading')) return
+      handlers.diffLoad(key, row)
+    },
+    // 读这一行的补丁：先写「正在读」再发电话，回包按代际号落地（晚到的旧回包丢掉），换工作区后在飞的那一枪作废。
+    diffLoad: function (path: any, row: any): any {
+      const api: any = readsApi || {}
+      if (typeof api.get !== 'function' || typeof api.set !== 'function') return Promise.resolve(null)
+      const key: string = String(path || '')
+      api.set(vcMarkDiffLoading(api.get(), key))
+      return Promise.resolve(vcReadDiff(api.get(), call, cwd, key, row && row.untracked === true)).then(function (next: any) {
+        api.set(function (cur: any) { return vcApplyDiffReply(cur, next) })
+        return next
+      })
+    },
+    // 读失败后重试：不论当前是什么状态都重发一次（用户在失败块上点了重试，就是在说「再读一遍」）。
+    onDiffRetry: function (path: any, row: any): any { return handlers.diffLoad(path, row) },
     read: function (op: any, payload: any): any {
       return gated('changes-read', op, payload, function () { return handlers.readNow(op, payload) })
     },

@@ -2155,6 +2155,11 @@ function focusEntryScript(): string {
 const PAGE_ATTR_SCRIPT = '(function () { var r = document.querySelector(' + JSON.stringify(VC_ROOT_SELECTOR) + '); return r ? r.getAttribute(' + JSON.stringify('data-vc-page') + ') : null })()'
 const BACK_COUNT_SCRIPT = 'document.querySelectorAll(' + JSON.stringify('button[data-vc-back]') + ').length'
 
+// #1860 D7：改动页的工作区文件行（未跟踪文件不适用——宿主对它们直接回「没有可比旧版本」，读不到逐行内容）。
+const CHANGES_FILE_ROW = '[data-vc-file-row]:not([data-vc-file-change="untracked"]) [data-vc-file-open]'
+const CHANGES_DIFF_BLOCK = '[data-vc-changes-diff]'
+const CHANGES_DIFF_LINES_SCRIPT = 'document.querySelectorAll(' + JSON.stringify('[data-vc-changes-diff] [data-vc-diff-line]') + ').length'
+
 /** 等某个选择器从页面上消失。 */
 async function waitGone(page: PageHandle, selector: string, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
@@ -2232,6 +2237,28 @@ async function runInteraction(context: ScenarioContext, page: PageHandle, raw: R
     add('interact-palette-backdrop', closed, '点遮罩也关掉命令面板', closed ? '关掉了' : '还开着')
     add('interact-palette-focus-backdrop', focusOk, '点遮罩关掉后焦点也回到放大镜', focus.ok ? '焦点在 ' + String(focus.value.where) : '读不到焦点')
     facts.focusAfterBackdrop = focus.ok ? focus.value : { error: focus.error.message }
+  }
+
+  // #1860 D7：改动页的文件行点开是逐行差异。点一次展开、再点一次收起、第三次展开命中缓存（DOM 里仍是同一块）。
+  const fileRow = await clickPage(page, raw, CHANGES_FILE_ROW)
+  facts.fileRowClick = fileRow
+  const diffShown = await waitFor(page, CHANGES_DIFF_BLOCK, 8000)
+  const diffLines = await evaluateThrough<number>(page, CHANGES_DIFF_LINES_SCRIPT)
+  const lineCount = diffLines.ok ? diffLines.value : -1
+  add('interact-file-diff-open', diffShown && lineCount > 0, '点工作区里的文件行，这一行下面出现逐行差异',
+    diffShown ? '差异块出现了，逐行 ' + String(lineCount) + ' 行' : '没等到差异块：' + fileRow.detail)
+  if (diffShown) {
+    const shot = await captureScreenshot(context, page, 'interaction', 'changes-diff', '真机展开一行看逐行差异')
+    evidence.push(...shot.paths)
+    const collapse = await clickPage(page, raw, CHANGES_FILE_ROW)
+    const gone = await waitGone(page, CHANGES_DIFF_BLOCK, 5000)
+    add('interact-file-diff-collapse', gone, '再点一次同一行收起差异块', gone ? '收起了（' + collapse.detail + '）' : '还开着')
+    const again = await clickPage(page, raw, CHANGES_FILE_ROW)
+    const back = await waitFor(page, CHANGES_DIFF_BLOCK, 5000)
+    const againLines = await evaluateThrough<number>(page, CHANGES_DIFF_LINES_SCRIPT)
+    const againCount = againLines.ok ? againLines.value : -1
+    add('interact-file-diff-cached', back && againCount === lineCount, '第三次展开仍是同一份补丁（收起不丢读数，不重读）',
+      (back ? '又展开了' : '没展开：' + again.detail) + '，逐行 ' + String(againCount) + ' 行（首次 ' + String(lineCount) + ' 行）')
   }
 
   const failed = items.filter((item) => !item.ok).map((item) => item.id)

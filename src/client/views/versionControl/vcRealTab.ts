@@ -26,10 +26,12 @@ declare function vcRealSkinOf(bodyEl: any): string
 declare function vcRealCommitTargetsOf(reads: any): any[]
 declare function vcRealChangesSeedOf(reads: any): any
 declare function vcRealActionsOf(deps: any): any
-declare function vcRealChangesHandlersOf(state: any, setState: any, call: any, cwd: any, translate: any, gate: any): any
+declare function vcRealChangesHandlersOf(state: any, setState: any, call: any, cwd: any, translate: any, gate: any, readsApi?: any): any
 declare function vcRealDelegateOf(callbacks: any): any
 declare function vcRealMigrateFieldsOf(rootEl: any, action: any): any
 declare function vcStashStateNew(): any
+declare function vcStashEntriesOf(reads: any): any[]
+declare function vcStashAutoKickOf(deps: any): string[]
 declare function vcFirstScreenSliceStateOf(reads: any, id: any): string
 declare function vcFirstScreenSliceErrorOf(reads: any, id: any): any
 declare function vcPageDepthOf(page: any): number
@@ -184,6 +186,7 @@ export const VcRealTab = function (props: any) {
     setNavState(vcRealDeepLinkNavOf(vcRealDeepLinkOf(props)) || vcRealInitialNav())
     setChangesState({ values: vcRealChangesSeedOf(vcRealReadsNew(cwd)).values, rows: {} })
     setManageState(vcRealManageNew())
+    stashAutoSeen.current = {}
     pollerRef.current = null
     if (!vcRealCwdEmptyOf(cwd)) actionsRef.current.refresh('enter')
   }, [cwd])
@@ -220,6 +223,13 @@ export const VcRealTab = function (props: any) {
     const timer: any = typeof setInterval === 'function' ? setInterval(function () { poller.tick() }, interval) : null
     return function () { if (timer !== null && typeof clearInterval === 'function') clearInterval(timer) }
   }, [cwd, nav.page, manage.tasks && manage.tasks.running])
+  // #1860 D8：贮藏页的记录一挂出来就自动读前十条的「查看内容」，文件清单直接铺开（排队与去重在 vcStashOps 叶）。
+  //   seen 记着已经请求过的选择器：这个 effect 每帧都问一次「还有谁没读」，不记就会把同一条反复排队。
+  const stashAutoSeen: any = React.useRef({})
+  React.useEffect(function () {
+    if (nav.page !== 'stash') return
+    vcStashAutoKickOf({ state: Object.assign({}, vcStashStateNew(), ui.stash || {}), entries: vcStashEntriesOf(vcRealSeedOf(reads, nav, 0, null)), seen: stashAutoSeen.current, fire: actions.stashAutoShow })
+  })
   // 提交页的只读动作：打开改动页时读一次提交表单（wf.gitCommitForm）；换工作区后 cwd 变了会再读一次。
   const commitFormCwdRef: any = React.useRef('')
   React.useEffect(function () {
@@ -271,12 +281,18 @@ export const VcRealTab = function (props: any) {
   const seed: any = vcRealSeedOf(reads, nav, nowTick, tr)
   const stash: any = Object.assign({}, vcStashStateNew(), ui.stash || {})
   const changesSeed: any = vcRealChangesSeedOf(reads)
-  const changeHandlers: any = vcRealChangesHandlersOf({ values: changes.values, rows: changes.rows }, setChangesState, callHost, cwd, tr, actions.gate)
+  // 第七个参数是读数口子：行展开读到的补丁要落进 reads.diffs（与历史详情同一个缓存），不落进改动页自己的状态。
+  const changeHandlers: any = vcRealChangesHandlersOf({ values: changes.values, rows: changes.rows }, setChangesState, callHost, cwd, tr, actions.gate, {
+    get: function () { return readsRef.current },
+    set: setReads,
+  })
   changeHandlers.onDone = function () { actionsRef.current.refresh('task-done') }
   const changesModel: any = {
     counts: changesSeed.counts,
     values: changes.values,
     rows: changes.rows,
+    // #1860 D7：展开行要画的补丁读数（键是裸路径，与 vcReadDiff / vcMarkDiffLoading 同一口径）。
+    diffs: reads.diffs || {},
     handlers: changeHandlers,
     // #1829 首屏文件行读的是首屏 changes 片里归一后的两组 FileEntry；筛选值住在 values.filter（默认 all）。
     files: changesSeed.files,

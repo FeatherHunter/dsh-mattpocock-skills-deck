@@ -10,10 +10,13 @@
 //   危险动作（丢弃、删除未跟踪文件）由处理器先出确认卡，这里只把卡画在行里。
 // 展开与菜单用的是改动页的 values（openPath / menuPath），不另开一份容器状态：
 //   页面切换后回到改动页，展开行与菜单自然复位到「都没开」，与原型「切走再回来保持滚动位置」不冲突。
-// 首屏读数只有路径与增删行数，没有逐行差异，所以行主体点开只写一句「这个视图没有逐行差异读数」；
-//   这条与「原型点开是差异块」的差别已经写进 #1860 的偏差表。
+// 行主体点开是逐行差异（#1860 D7）：首屏只带路径与增删行数，补丁按需向宿主读一次（wf.gitDiff，不带提交号
+//   就是「工作区相对 HEAD」），读数住在容器的 reads.diffs 里，所以切走页签再回来还是那一份，不重发；
+//   同一路径正在读或已经读到时不重复发（见 vcRealChangesHandlersOf 的 onOpen）。
+//   差异块由 vcHistoryDetail 叶的 vcChangeFileDiffOf 画（与历史详情同一份读数形状、不同类名）。
 
 declare function vcChangesOpMetaOf(op: any): any
+declare function vcChangeFileDiffOf(h: any, t: any, o: any): any
 declare function vcChangesOpVerbKeyOf(op: any): string
 declare function vcChangesTargetOf(op: any, values: any, t: any): string
 declare function vcChangesRowKeyOf(op: any, payload: any): string
@@ -147,6 +150,7 @@ const vcChangesFileRowNode = function (h: any, t: any, row: any, ctx: any) {
   const path = String(row.path || '')
   const change = String(row.change || 'modified')
   const rows: any = ctx.rows || {}
+  const diffs: any = ctx.diffs || {}
   const handlers: any = ctx.handlers || {}
   const values: any = ctx.values || {}
   const onValue = function (field: string, value: any) { if (typeof handlers.onValue === 'function') handlers.onValue(field, value) }
@@ -192,8 +196,21 @@ const vcChangesFileRowNode = function (h: any, t: any, row: any, ctx: any) {
       onClick: function () { onValue('menuPath', menuOpen ? '' : path) },
     }, h('span', { key: 'dots', className: 'row-more-dots' }, '⋯')))
   }
+  // 行主体就是「展开 / 收起」：点整行，或用键盘回车 / 空格。读差异由容器那一层发（界面不自己拼电话）。
+  const toggle = function () { if (typeof handlers.onOpen === 'function') handlers.onOpen(path, row) }
   const rowKids: any[] = [
-    h('div', { key: 'main', className: 'file-main', role: 'button', tabIndex: 0, 'aria-expanded': open ? 'true' : 'false', 'aria-label': path + '：' + statusText, 'data-vc-file-open': path, title: path }, kinds),
+    h('div', {
+      key: 'main', className: 'file-main', role: 'button', tabIndex: 0,
+      'aria-expanded': open ? 'true' : 'false', 'aria-label': path + '：' + statusText,
+      'data-vc-file-open': path, 'data-press': 'button', 'data-log': 'vc.changes.file.open', title: path,
+      onClick: toggle,
+      onKeyDown: function (ev: any) {
+        const key: string = String((ev && ev.key) || '')
+        if (key !== 'Enter' && key !== ' ') return
+        if (ev && typeof ev.preventDefault === 'function') ev.preventDefault()
+        toggle()
+      },
+    }, kinds),
     h('span', { key: 'acts', className: 'file-actions' }, acts),
   ]
   const wrapKids: any[] = [h('div', {
@@ -220,11 +237,12 @@ const vcChangesFileRowNode = function (h: any, t: any, row: any, ctx: any) {
       onClick: function () { onValue('menuPath', '') },
     }, t('vc.changes.view.menuClose'))])))
   }
-  // 展开块：首屏没有逐行差异，只写清「这里为什么没有差异」，不画假补丁。
+  // 展开块：这一行的补丁。读数没到就是「正在读」，读失败给重试，其余情形各说各的（见 vcChangeFileDiffOf）。
   if (open) {
-    wrapKids.push(h('div', { key: 'detail', className: 'file-detail' }, [
-      h('p', { key: 'note', className: 'file-detail-note' }, t('vc.changes.view.rowDiffUnavailable')),
-    ]))
+    wrapKids.push(vcChangeFileDiffOf(h, t, {
+      path: path, read: diffs[path] || null,
+      onRetry: function () { if (typeof handlers.onDiffRetry === 'function') handlers.onDiffRetry(path, row) },
+    }))
   }
   // 确认卡与结果按「哪颗按钮触发的」逐个画：同一行里两颗动作可以各有一张卡/一条结果，键带动作名以免撞 key。
   const allOps: string[] = [primaryOp].concat(menuOps)
@@ -299,7 +317,7 @@ export const vcChangesViewNode = function (h: any, t: any, o: any) {
   const conflictRows: any[] = unstagedRows.filter(function (row: any) { return row && row.conflict === true })
   const plainUnstaged: any[] = unstagedRows.filter(function (row: any) { return !row || row.conflict !== true })
   const onFilter = function (next: any) { if (typeof handlers.onValue === 'function') handlers.onValue('filter', String(next)) }
-  const ctx: any = { rows: changes.rows || {}, handlers: handlers, values: values }
+  const ctx: any = { rows: changes.rows || {}, diffs: changes.diffs || {}, handlers: handlers, values: values }
   const known: boolean = Number(counts.staged || 0) + Number(counts.unstaged || 0) + Number(counts.untracked || 0) + Number(counts.conflicts || 0) > 0
   const kids: any[] = [
     h('div', { key: 'stats', className: 'stats', 'data-vc-changes-stats': '1' }, [

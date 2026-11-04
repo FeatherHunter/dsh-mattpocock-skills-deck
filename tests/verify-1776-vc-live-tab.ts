@@ -857,7 +857,9 @@ async function scenarioM4d() {
   const gateNeedle = 'actions.gate'
   check(readSource('src/client/views/versionControl/vcRealTab.js').indexOf(gateNeedle) >= 0, 'T33c 自证：容器把在途闸交给改动页处理器（源码里有 actions.gate，改法能命中）')
   const noGateHost = makeHost({})
-  const noGate = buildView(noGateHost, { 'src/client/views/versionControl/vcRealTab.js': function (code) { return code.replace(', actions.gate)', ')') } })
+  // #1860 D7 起这一行多传了读数口子（差异读数住在容器里），所以改坏点从「右括号前」挪到「闸参数本身」：
+  //   只删掉 actions.gate 这一个实参，其余照原样，才真的等于「把在途闸拿掉」。
+  const noGate = buildView(noGateHost, { 'src/client/views/versionControl/vcRealTab.js': function (code) { return code.replace(', tr, actions.gate,', ', tr,') } })
   const ng = mountOf(noGate, { st: { cwd: CWD } })
   await React.act(async function () { ng.root.render(React.createElement(noGate.VersionControlTab, { st: { cwd: CWD } })) })
   await settle()
@@ -1021,6 +1023,188 @@ async function scenarioHistoryRedesign() {
   check(!m.q('[data-vc-history-detail="1"]') && m.qa('[data-vc-history-row]').length === 3, 'T36q 「返回提交历史」回到列表，不再画详情')
   await m.unmount()
 }
+// ---------------- 场景十一：改动页文件行展开读逐行差异（#1860 D7） ----------------
+// 依据：改动页原型点开一行是差异块（docs/prototype/vc-redesign/src/ui/views/changes.ts 的 file-detail），
+//   而真实读数里没有逐行内容，只能按需向宿主读一次。这一段验的是「点了之后真的打了哪个电话、界面怎么变」：
+//   同一路径连点只起一枪、收起后再展开命中缓存、未跟踪直接说「没有可比旧版本」、读失败给重试且重试真会重发。
+async function scenarioChangesDiff() {
+  console.log('\n== 场景十一：改动页展开一行读逐行差异（wf.gitDiff 按需） ==')
+  const snap = snapshotOf()
+  snap.slices.changes.data = {
+    staged: [{ path: 's1.txt', change: 'modified', staged: true, addedLines: 2, deletedLines: 1 }],
+    unstaged: [
+      { path: 'u1.txt', status: ' M', staged: false, untracked: false, change: 'modified', addedLines: 3, deletedLines: 1 },
+      { path: 'n1.txt', status: '??', staged: false, untracked: true, change: 'untracked' },
+    ],
+    stagedCount: 1, unstagedCount: 2, conflictCount: 0, lineCountsKnown: true,
+  }
+  const diffCalls = []
+  const lines = {
+    'u1.txt': [{ kind: 'filehead', text: 'diff --git a/u1.txt b/u1.txt' }, { kind: 'hunk', text: '@@ -1 +1,3 @@' }, { kind: 'add', text: '+新的一行' }, { kind: 'del', text: '-旧的一行' }],
+    's1.txt': [{ kind: 'hunk', text: '@@ -2 +2 @@' }, { kind: 'context', text: ' 同上下文' }, { kind: 'add', text: '+暂存的一行' }],
+    'e1.txt': null,
+  }
+  const host = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
+      'wf.gitDiff': function (args) {
+        const path = String((args || {}).path || '')
+        diffCalls.push({ path: path, untracked: (args || {}).untracked === true, cwd: String((args || {}).cwd || '') })
+        if (path === 'n1.txt') return { ok: true, path: path, lines: [], truncated: false, reason: 'untracked-no-diff' }
+        if (lines[path] === null || lines[path] === undefined) return { ok: false, error: { kind: 'env', message: '读不到这个文件的差异' } }
+        return { ok: true, path: path, lines: lines[path], truncated: false, reason: 'ok' }
+      },
+    },
+  })
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  check(!m.q('[data-vc-changes-diff]'), 'T37 改动页默认没有任何差异块（补丁按需读，不在首屏预读）')
+  check(diffCalls.length === 0, 'T37b 进入改动页没有发 wf.gitDiff（首屏那片只带路径与增删行数）')
+
+  const uMain = m.q('[data-vc-file-open="u1.txt"]')
+  check(!!uMain && String(uMain.getAttribute('role')) === 'button' && String(uMain.getAttribute('aria-expanded')) === 'false',
+    'T37c 文件行主体是按原型画的可点行（role=button，默认 aria-expanded=false）')
+  if (uMain) await m.click(uMain)
+  await waitFor(function () { return !!m.q('[data-vc-changes-diff="u1.txt"]') })
+  const uBlock = m.q('[data-vc-changes-diff="u1.txt"]')
+  check(!!uBlock && String((m.q('[data-vc-file-open="u1.txt"]') || {}).getAttribute('aria-expanded')) === 'true',
+    'T37d 点一行就在这一行下面展开差异块（aria-expanded 跟着变 true）')
+  check(diffCalls.length === 1 && diffCalls[0].path === 'u1.txt' && diffCalls[0].untracked === false && diffCalls[0].cwd === CWD,
+    'T37e 展开时按路径发一次 wf.gitDiff（不带提交号看工作区，untracked=false，cwd 是当前工作区）')
+  const kinds = m.qa('[data-vc-changes-diff="u1.txt"] [data-vc-diff-line]').map(function (el) { return String(el.getAttribute('data-vc-diff-line')) })
+  check(kinds.join(',') === 'filehead,hunk,add,del', 'T37f 补丁逐行按种类画出来（' + (kinds.join(',') || '空') + '）')
+  const addLine = m.q('[data-vc-changes-diff="u1.txt"] [data-vc-diff-line="add"]')
+  check(!!addLine && String(addLine.className || '').indexOf('diff-add') >= 0 && String(addLine.textContent || '').indexOf('新的一行') >= 0,
+    'T37g 差异行用原型的 .diff-* 类名上色，行内容就是宿主回包里的原文')
+
+  await m.click('[data-vc-file-open="u1.txt"]')
+  check(!m.q('[data-vc-changes-diff="u1.txt"]') && String((m.q('[data-vc-file-open="u1.txt"]') || {}).getAttribute('aria-expanded')) === 'false',
+    'T37h 再点一次收起差异块，行回到 aria-expanded=false')
+  await m.click('[data-vc-file-open="u1.txt"]')
+  check(!!m.q('[data-vc-changes-diff="u1.txt"]') && diffCalls.length === 1,
+    'T37i 收起后再展开命中缓存，不再发第二枪 wf.gitDiff（同一路径只起过一个 git 进程）')
+
+  const nMain = m.q('[data-vc-file-open="n1.txt"]')
+  if (nMain) await m.click(nMain)
+  await waitFor(function () { return !!m.q('[data-vc-changes-diff="n1.txt"]') })
+  check(!!m.q('[data-vc-changes-diff="n1.txt"] [data-vc-changes-diff-untracked]') && diffCalls.some(function (c) { return c.path === 'n1.txt' && c.untracked === true }),
+    'T37j 未跟踪文件展开时说清「没有可比的旧版本」，并且这一枪带 untracked=true（宿主会直接回这个结论，不起进程）')
+
+  const sMain = m.q('[data-vc-file-open="s1.txt"]')
+  if (sMain) await m.click(sMain)
+  await waitFor(function () { return !!m.q('[data-vc-changes-diff="s1.txt"]') })
+  check(m.qa('[data-vc-changes-diff="s1.txt"] [data-vc-diff-line]').length === 3, 'T37k 已暂存的文件同样能展开看补丁（读的是相对 HEAD 的工作区差异）')
+
+  // 读失败那一支：另起一份宿主，只让 e1.txt 读不到，验「失败块 + 重试按钮 + 重试真的重发」。
+  const failSnap = snapshotOf()
+  failSnap.slices.changes.data = { staged: [], unstaged: [{ path: 'e1.txt', status: ' M', staged: false, untracked: false, change: 'modified' }], stagedCount: 0, unstagedCount: 1, conflictCount: 0, lineCountsKnown: true }
+  let failCalls = 0
+  let failNow = true
+  const badHost = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: failSnap, readAtMs: NOW } },
+      'wf.gitDiff': function () {
+        failCalls += 1
+        if (failNow) return { ok: false, error: { kind: 'env', message: '读不到这个文件的差异' } }
+        return { ok: true, path: 'e1.txt', lines: [{ kind: 'add', text: '+读到了' }], truncated: false, reason: 'ok' }
+      },
+    },
+  })
+  const badView = buildView(badHost, null)
+  const b = mountOf(badView, { st: { cwd: CWD } })
+  await React.act(async function () { b.root.render(React.createElement(badView.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await b.click('[data-vc-file-open="e1.txt"]')
+  await waitFor(function () { return !!b.q('[data-vc-changes-diff-error]') })
+  check(!!b.q('[data-vc-changes-diff="e1.txt"] [data-vc-changes-diff-error]') && !!b.q('[data-vc-changes-diff-retry="e1.txt"]'),
+    'T37l 读失败时把失败那一句贴在行里，并给出重试按钮（不是空白，也不是假的「没有差异」）')
+  failNow = false
+  await b.click('[data-vc-changes-diff-retry="e1.txt"]')
+  await waitFor(function () { return !!b.q('[data-vc-changes-diff="e1.txt"] [data-vc-diff-line="add"]') })
+  check(failCalls === 2 && !!b.q('[data-vc-changes-diff="e1.txt"] [data-vc-diff-line="add"]'),
+    'T37m 点重试真的重发一枪（共 2 枪），读回来之后失败块换成补丁')
+  await b.unmount()
+  await m.unmount()
+}
+// ---------------- 场景十二：贮藏记录行自动读文件清单（#1860 D8） ----------------
+// 依据：票面验收「不点任何按钮就能看到文件清单；失败那一行给重试；条数超过 10 条时后续按需」。
+//   这一段验三件事：开屏自动读最新的十条（不多发）、自动读不往页顶贴结果条、读失败那一行给重试且重试真会重发。
+async function scenarioStashAutoDetail() {
+  console.log('\n== 场景十二：贮藏记录行自动读文件清单（wf.gitStash op=show） ==')
+  const entries = []
+  for (let i = 0; i < 12; i += 1) {
+    entries.push({ selector: 'stash@{' + i + '}', oid: String(i).repeat(40), subject: '第 ' + i + ' 条贮藏', atMs: NOW - i * 60000 })
+  }
+  const snap = snapshotOf()
+  snap.slices.stashes.data = { entries: entries }
+  const showCalls = []
+  const showReply = function (selector) {
+    return { ok: true, op: 'show', selector: selector, oid: 'x'.repeat(40), files: [selector.replace(/[{}@]/g, '') + '-a.txt'], fileCount: 1, patch: 'diff --git a/x b/x\n+' + selector + '\n', truncated: false }
+  }
+  const host = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
+      'wf.gitStash': function (args) {
+        const op = String((args || {}).op || '')
+        if (op !== 'show') return { ok: true, op: op, entries: entries, recent: [] }
+        showCalls.push(String((args || {}).selector || ''))
+        return showReply(String((args || {}).selector || ''))
+      },
+    },
+  })
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await m.click('[data-vc-tab="stash"]')
+  await waitFor(function () { return m.qa('[data-vc-stash-detail]').length >= 10 })
+  check(showCalls.length === 10, 'T38 进贮藏页自动读最新的 10 条「查看内容」（实发 ' + showCalls.length + ' 枪，票面上限 10）')
+  check(showCalls.indexOf('stash@{0}') >= 0 && showCalls.indexOf('stash@{9}') >= 0 && showCalls.indexOf('stash@{10}') < 0 && showCalls.indexOf('stash@{11}') < 0,
+    'T38b 自动读的是最新那 10 条（stash@{0}–@{9}），更旧的两条不预读：' + showCalls.join(','))
+  const newest = m.q('[data-vc-stash-detail="stash@{0}"]')
+  check(!!newest && m.qa('[data-vc-stash-detail="stash@{0}"] [data-vc-stash-file]').length === 1,
+    'T38c 不点任何按钮，最新那条记录下面就铺开了文件清单')
+  check(!m.q('[data-vc-stash-result]'), 'T38d 自动读不往页顶贴结果条（十条一起读时报十条「查看内容完成」会盖掉真正该看的提示）')
+  const oldest = m.q('[data-vc-stash-entry="stash@{11}"]')
+  const oldestHint = oldest && oldest.querySelector('[data-vc-stash-detail]')
+  check(!!oldest && !oldestHint && !!oldest.querySelector('[data-vc-stash-op="show"]'),
+    'T38e 排在自动读取范围之外的那条仍写着「点查看内容才给」，按需按钮还在')
+
+  // 读失败那一支：让 stash@{0} 读不到，验失败块 + 重试按钮 + 重试真的重发。
+  let failNow = true
+  let failCalls = 0
+  const badHost = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
+      'wf.gitStash': function (args) {
+        const op = String((args || {}).op || '')
+        const selector = String((args || {}).selector || '')
+        if (op !== 'show') return { ok: true, op: op, entries: entries, recent: [] }
+        failCalls += 1
+        if (selector === 'stash@{0}' && failNow) return { ok: false, op: 'show', selector: selector, error: { kind: 'exit', message: '这条读不到' } }
+        return showReply(selector)
+      },
+    },
+  })
+  const badView = buildView(badHost, null)
+  const b = mountOf(badView, { st: { cwd: CWD } })
+  await React.act(async function () { b.root.render(React.createElement(badView.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await b.click('[data-vc-tab="stash"]')
+  await waitFor(function () { return !!b.q('[data-vc-stash-detail-pending="err"]') })
+  check(!!b.q('[data-vc-stash-detail-pending="err"]') && !!b.q('[data-vc-stash-detail-retry="stash@{0}"]'),
+    'T38f 自动读失败的那一条把失败贴在行里，并给重试按钮（不装作没有这条内容）')
+  failNow = false
+  const before = failCalls
+  await b.click('[data-vc-stash-detail-retry="stash@{0}"]')
+  await waitFor(function () { return !!b.q('[data-vc-stash-detail="stash@{0}"] [data-vc-stash-file]') })
+  check(failCalls === before + 1 && !!b.q('[data-vc-stash-detail="stash@{0}"] [data-vc-stash-file]'),
+    'T38g 点重试真的重发一枪，读回来之后失败块换成文件清单')
+  await b.unmount()
+  await m.unmount()
+}
 // ---------------- main ----------------
 async function main() {
   const locUrl = (f) => pathToFileURL(path.join(ROOT, sourcePath(f))).href
@@ -1043,6 +1227,8 @@ async function main() {
   await scenarioAiHandoff()
   await scenarioM4d()
   await scenarioHistoryRedesign()
+  await scenarioChangesDiff()
+  await scenarioStashAutoDetail()
 
   console.log('\n断言 ' + total + ' 条，失败 ' + failed + ' 条')
   printGateResult('verify-1776-vc-live-tab', total, failed ? 1 : 0)

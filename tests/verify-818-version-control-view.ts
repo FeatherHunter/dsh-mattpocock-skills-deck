@@ -159,8 +159,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcTaskPanel.js',
   // #1742 改动页操作面板（13 条动作的渲染面板）：页面壳只在传了改动读数时才挂它；与构建同序，排在页面壳之前。
   'src/client/views/versionControl/vcChangesPage.js',
-  // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
+  // #1751 贮藏页三片（与构建同序）：先动作与数据层，再记录下面那片文件清单的画法，最后是页面本体。
   'src/client/views/versionControl/vcStashOps.js',
+  'src/client/views/versionControl/vcStashDetail.js', // #1860 D8：文件清单的四种画法（读到 / 正在读或失败 / 点才给 / 兜底）
   'src/client/views/versionControl/vcStashPage.js',
   // #1761 诊断页两片（与构建同序）：先数据与动作层，再页面正文；页面壳只在诊断页且拿到读数时挂它。
   'src/client/views/versionControl/vcDiagnostics.js',
@@ -1832,7 +1833,7 @@ async function main() {
   check(dropConfirmHtml.indexOf('stash@{0}') >= 0 && dropConfirmHtml.indexOf('第一条贮藏') >= 0, 'Z16r 确认卡说清删的是哪一条（对象级信息，不只说「删除」）')
   const clearConfirmHtml = stashPageOf(stashEntries, 'git version 2.49.0', Object.assign(VIEW.vcStashStateNew(), { confirm: { op: 'clear', selector: '', subject: '' } }))
   check(clearConfirmHtml.indexOf('data-vc-stash-confirm="clear"') >= 0, 'Z16s 全清同样走确认卡（clear 与 drop 两条毁档都要确认）')
-  const detailState = Object.assign(VIEW.vcStashStateNew(), { detail: { selector: 'stash@{0}', files: ['a.txt', 'b.txt'], fileCount: 2, patch: 'diff --git a/a.txt b/a.txt\n+stash-me\n', truncated: true } })
+  const detailState = Object.assign(VIEW.vcStashStateNew(), { details: { 'stash@{0}': { selector: 'stash@{0}', files: ['a.txt', 'b.txt'], fileCount: 2, patch: 'diff --git a/a.txt b/a.txt\n+stash-me\n', truncated: true, state: 'ok' } } })
   const detailHtml = stashPageOf(stashEntries, 'git version 2.49.0', detailState)
   check(detailHtml.indexOf('data-vc-stash-detail="stash@{0}"') >= 0 && attrValuesOf(detailHtml, 'data-vc-stash-file').join(',') === 'a.txt,b.txt', 'Z16t 查看内容：就地铺开涉及的文件清单')
   check(detailHtml.indexOf('data-vc-stash-patch="1"') >= 0 && detailHtml.indexOf('+stash-me') >= 0, 'Z16u 查看内容：差异原文一并铺开（不是只给文件名单）')

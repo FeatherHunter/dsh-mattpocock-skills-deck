@@ -868,6 +868,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcBranchPage', file: 'src/client/views/versionControl/vcBranchPage.ts' }, // #1829 阶段 3 分支与标签页的视图叶子（页头、筛选与搜索、分支卡片、标签、页尾折叠；静态树 vcBranchTreeOf 供门禁，组件 vcBranchPageOf 供页面壳）
   { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
   { id: 'vcStashOps', file: 'src/client/views/versionControl/vcStashOps.ts' }, // #1751 贮藏页的数据与动作层（首屏贮藏片怎么读、十条动作怎么拼、回包怎么落状态；不画界面）
+  { id: 'vcStashDetail', file: 'src/client/views/versionControl/vcStashDetail.ts' }, // #1860 D8 贮藏记录下面那片文件清单的四种画法（读到了 / 正在读或读失败 / 点才给 / 记录消失后的兜底），排在正文之前
   { id: 'vcStashPage', file: 'src/client/views/versionControl/vcStashPage.ts' }, // #1751 贮藏页的入口与真实动作画法（十条动作、确认卡、最近丢弃、版本门提示；由页面壳挂进贮藏页）
   { id: 'vcDiagnostics', file: 'src/client/views/versionControl/vcDiagnostics.ts' }, // #1761 诊断页的数据与动作层（域 13 只读查询与二分、5.12 替换对象；不画界面）
   { id: 'vcDiagnosticsPage', file: 'src/client/views/versionControl/vcDiagnosticsPage.ts' }, // #1761 诊断页正文（十四条能力各一个入口、13.13 只读展示、13.3/13.14 只放指针；壳要调它）

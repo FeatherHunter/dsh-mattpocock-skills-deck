@@ -57,6 +57,62 @@ const vcHistoryFileDiffOf = function (h: any, t: any, o: any) {
   return h('div', { key: 'diff', className: 'file-detail', 'data-vc-file-diff': path }, kids)
 }
 
+// 改动页行里的差异块（#1860 D7）：与上面那一块读同一份读数形状，版式换成原型的 `.diff-*` 行——改动页的
+//   原型样式表（vcProtoChanges 那一叶）只认这几个类名，行号也由 CSS 计数器画，所以这里不写 `vcs-hist-*`。
+//   五种状态各说各的：读取中 / 读失败带重试 / 二进制 / 没有差异（未跟踪与无基线各一句）/ 太长被截断。
+//   为什么单开一份而不改上面那一块：历史详情的行样式是 #1829 定稿、已过审的样子，动它等于改历史页；
+//   两块共用同一批词条，只有类名不同。
+export const vcChangeFileDiffOf = function (h: any, t: any, o: any) {
+  const opts = o || {}
+  const read = opts.read || null
+  const path = String(opts.path || '')
+  const kids: any[] = []
+  const note = function (key: string, attr: string, text: string) {
+    const attrs: any = { key: key, className: 'note file-detail-note' }
+    if (attr !== '') attrs[attr] = '1'
+    kids.push(h('p', attrs, text))
+  }
+  const state: string = read ? String(read.state || 'idle') : 'idle'
+  const reason: string = read ? String(read.reason || '') : ''
+  if (!read || state === 'idle' || state === 'loading') {
+    note('loading', 'data-vc-changes-diff-state', t('vc.shell.history.diffLoading'))
+  } else if (state === 'err') {
+    note('err', 'data-vc-changes-diff-error', t('vc.shell.history.diffError'))
+    kids.push(h('button', {
+      key: 'retry', type: 'button', className: 'vcs-hist-diff-retry', 'data-vc-changes-diff-retry': path,
+      'data-press': 'button', 'data-log': 'vc.changes.diff-retry',
+      onClick: function () { if (typeof opts.onRetry === 'function') opts.onRetry() },
+    }, t('vc.shell.history.diffRetry')))
+  } else if (reason === 'binary-diff') {
+    note('binary', 'data-vc-changes-diff-binary', t('vc.shell.history.diffBinary'))
+  } else if (reason === 'untracked-no-diff') {
+    note('untracked', 'data-vc-changes-diff-untracked', t('vc.changes.view.diffUntracked'))
+  } else if (reason === 'no-commit-baseline') {
+    note('baseline', 'data-vc-changes-diff-baseline', t('vc.changes.view.diffNoBaseline'))
+  } else {
+    if (read.truncated === true) note('trunc', 'data-vc-changes-diff-truncated', t('vc.shell.history.diffTruncated'))
+    const lines = Array.isArray(read.lines) ? read.lines : []
+    if (!lines.length) {
+      note('none', 'data-vc-changes-diff-none', t('vc.shell.history.diffNoDiff'))
+    } else {
+      kids.push(h('pre', { key: 'lines', className: 'patch', 'data-vc-changes-diff-lines': '1' }, lines.map(function (line: any, i: number) {
+        const kind: string = String(line.kind || 'context')
+        return h('code', {
+          key: 'l' + i,
+          className: 'diff-line ' + (VC_DIFF_LINE_CLASS[kind] || VC_DIFF_LINE_CLASS.context),
+          'data-vc-diff-line': kind,
+        }, line.text === '' ? ' ' : String(line.text === undefined || line.text === null ? '' : line.text))
+      })))
+    }
+  }
+  return h('div', { key: 'diff', className: 'file-detail', 'data-vc-file-diff': path, 'data-vc-changes-diff': path }, kids)
+}
+
+// 差异行种类 → 原型类名（docs/prototype/vc-redesign/styles/app.css 的 .diff-*）：改动页的样式表按这几个类名上色。
+const VC_DIFF_LINE_CLASS: Record<string, string> = {
+  add: 'diff-add', del: 'diff-del', context: 'diff-ctx', hunk: 'diff-hunk', filehead: 'diff-head', 'no-newline': 'diff-note',
+}
+
 // 一行元信息：左侧标签（等宽小字），右侧值。四行是原型里的「提交 / 作者 / 提交时间 / 父提交」。
 const vcHistoryMetaRowOf = function (h: any, key: string, label: string, value: any) {
   return h('div', { key: key, className: 'meta-row vcs-hist-meta-row' }, [

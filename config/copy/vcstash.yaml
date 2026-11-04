@@ -45,7 +45,10 @@ zh:
   vc.stash.detail.truncated: 差异太大，这里显示的是截断后的内容。
   vc.stash.detail.close: 收起
   vc.stash.pathsNote: 记录里保存的是改动当时的样子。应用回工作区以后，要重新暂存再提交。
-  vc.stash.pathsHint: 点「查看内容」后，这里列出这条记录涉及的文件。
+  vc.stash.pathsHint: 一屏只自动读最新的 10 条；这条排在后面，点「查看内容」读它的文件清单。
+  vc.stash.detail.loading: 正在读这条记录的文件清单……
+  vc.stash.detail.error: 这条记录的文件清单没读成。
+  vc.stash.detail.retry: 重试读这条记录
   vc.stash.emptyHint: 在「改动」页签里点「储藏」，就能把当时的改动打包收好。
   vc.stash.more.title: 更多贮藏操作（新建、清空、最近丢弃）
   vc.stash.recent.title: 最近丢弃
@@ -117,7 +120,10 @@ en:
   vc.stash.detail.truncated: The diff is too large; this is a truncated view.
   vc.stash.detail.close: Collapse
   vc.stash.pathsNote: "The entry keeps the changes as they were when stashed. After applying them back, stage and commit again."
-  vc.stash.pathsHint: Choose "Inspect content" to list the files this entry touches here.
+  vc.stash.pathsHint: Only the newest 10 entries load automatically; choose "Inspect content" to list the files this entry touches.
+  vc.stash.detail.loading: Reading the file list of this entry…
+  vc.stash.detail.error: This entry's file list could not be read.
+  vc.stash.detail.retry: Retry reading this entry
   vc.stash.emptyHint: Click Stash in the Changes tab to package the current changes.
   vc.stash.more.title: More stash actions (create, clear, recently dropped)
   vc.stash.recent.title: Recently dropped

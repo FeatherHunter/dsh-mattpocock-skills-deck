@@ -80,6 +80,7 @@ function buildStashLeaves() {
     'src/shared/version-control/src/stash-rules.ts',
     'src/client/views/versionControl/vcStashOps.ts',
     'src/client/views/versionControl/vcShellPrimitives.ts',
+    'src/client/views/versionControl/vcStashDetail.ts',
     'src/client/views/versionControl/vcStashPage.ts',
   ]
   const src = files.map((f) => spliceableJs(f)).join('\n')
@@ -337,7 +338,8 @@ async function main() {
   const recentPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([]), state: recentState })
   check(attrsOf(recentPage, 'data-vc-stash-recent').join(',') === '1', '最近丢弃区带真实条数')
   check(attrsOf(recentPage, 'data-vc-stash-restore').length === 1, '丢弃的条目有恢复按钮')
-  const detailState = Object.assign(leaf.vcStashStateNew(), { detail: { selector: 'stash@{0}', oid: 'd'.repeat(40), files: ['a.txt', 'b.txt'], fileCount: 2, patch: '+x', truncated: true } })
+  // #1860 D8：详情按选择器存在 details 里（一屏前十条自动读），每份带 state。
+  const detailState = Object.assign(leaf.vcStashStateNew(), { details: { 'stash@{0}': { selector: 'stash@{0}', oid: 'd'.repeat(40), files: ['a.txt', 'b.txt'], fileCount: 2, patch: '+x', truncated: true, state: 'ok' } } })
   const detailPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([]), state: detailState })
   check(attrsOf(detailPage, 'data-vc-stash-file').slice(0, 2).join(',') === 'a.txt,b.txt', '查看内容后就地铺开涉及的文件')
   check(attrsOf(detailPage, 'data-vc-stash-truncated').length === 1, '差异被截断时如实标记')

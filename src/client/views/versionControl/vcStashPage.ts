@@ -43,6 +43,12 @@ declare function vcStashWhenOf(atMs: any): string
 // 来自同层叶子 vcText.ts：一个时刻怎么念（一周以内「3 小时前」，更早写精确时刻）。
 declare function vcWhenText(t: any, nowMs: any, ms: any): string
 declare function vcStashFailKeyOf(kind: any): string
+// 记录下面那块文件清单的四种画法在 vcStashDetail 叶里（#1860 D8：正文贴着行数上限，画法搬出去）：
+declare function vcStashPathsBlockOf(h: any, t: any, detail: any, ctx: any): any
+declare function vcStashPathsPendingOf(h: any, t: any, detail: any, ctx: any, quietActions: any[]): any
+declare function vcStashPathsHintNode(h: any, t: any, quietActions: any[]): any
+declare function vcStashDetailFallbackBlockOf(h: any, t: any, detail: any, ctx: any): any
+declare function vcStashDetailOf(state: any, selector: any): any
 
 /** 真源标识：门禁按这一行找本文件，改路径要一起改门禁。 */
 export const VC_STASH_PAGE_SOURCE = 'src/client/views/versionControl/vcStashPage.ts'
@@ -66,33 +72,6 @@ const vcStashEntrySubjectOf = function (t: any, entry: any): string {
   return text === '' ? vcStashText(t, 'vc.stash.entry.unknownSubject', null) : text
 }
 
-/** 记录下面那片文件清单：查看内容拿到回包后才铺得出来；差异正文、截断说明与收起都放在同一块里。 */
-const vcStashPathsBlockOf = function (h: any, t: any, detail: any, ctx: any): any {
-  const files = Array.isArray(detail.files) ? detail.files : []
-  const kids: any[] = [
-    h('p', { key: 'note', className: 'stash-paths-note' }, vcStashText(t, 'vc.stash.pathsNote', null)),
-    h('ul', { key: 'files', className: 'stash-path-list', 'data-vc-stash-detail-files': '1' }, files.map(function (file: string): any {
-      return h('li', { key: file, className: 'stash-path mono', 'aria-label': file, title: file, 'data-vc-stash-file': file }, file)
-    })),
-    h('pre', { key: 'patch', className: 'stash-patch mono', 'data-vc-stash-patch': '1' }, String(detail.patch)),
-  ]
-  if (detail.truncated) kids.push(h('p', { key: 'trunc', className: 'stash-truncated', 'data-vc-stash-truncated': '1' }, vcStashText(t, 'vc.stash.detail.truncated', null)))
-  kids.push(h('button', {
-    key: 'close', type: 'button', className: 'btn btn-ghost btn-sm',
-    'data-vc-stash-detail-close': '1', 'data-press': 'button', 'data-log': 'vc.stash.detail-close',
-    onClick: function () { ctx.edit({ detail: null }) },
-  }, [h('span', { key: 'label', className: 'btn-label' }, vcStashText(t, 'vc.stash.detail.close', null))]))
-  return h('div', { key: 'paths', className: 'stash-paths', 'data-vc-stash-detail': String(detail.selector) }, kids)
-}
-
-/** 没看过内容的那一条：只说清文件清单在哪一步出现；查看与建分支两颗安静按钮也放在这里。 */
-const vcStashPathsHintNode = function (h: any, t: any, quietActions: any[]): any {
-  return h('div', { key: 'paths', className: 'stash-paths' }, [
-    h('p', { key: 'note', className: 'stash-paths-note' }, vcStashText(t, 'vc.stash.pathsHint', null)),
-    quietActions.length > 0 ? h('div', { key: 'acts', className: 'stash-paths-acts' }, quietActions) : null,
-  ])
-}
-
 /** 一条记录：原型的三段（id 行 / 元信息 / 三颗主按钮）+ 记录下面的文件清单与安静按钮 + 确认卡。 */
 const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
   const selector = String(entry.selector || '')
@@ -100,8 +79,11 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
   // 时间印法跟原型一致：一周以内说相对时间（「刚刚」「3 小时前」），更早才写精确时刻。
   //   容器没传当前时刻时（静态渲染、门禁直接调页面叶子）退回精确写法，读数形状不因调用方改变。
   const when = Number(ctx.nowMs) > 0 ? vcWhenText(t, ctx.nowMs, entry.atMs) : vcStashWhenOf(entry.atMs)
-  const detail = ctx.detail && String(ctx.detail.selector || '') === selector ? ctx.detail : null
-  const filesKnown = !!(detail && Array.isArray(detail.files))
+  // #1860 D8：详情按选择器存在 state.details 里（一屏前十条自动读），每份带 state：
+  //   ok 画文件清单；loading / err 由 vcStashPathsPendingOf 画一句状态话（失败再补重试）；没有才是「点才给」。
+  const detail = vcStashDetailOf(ctx.state, selector)
+  const detailState = detail ? String(detail.state || 'ok') : ''
+  const filesKnown = detailState === 'ok' && Array.isArray(detail.files)
   const fileNote = filesKnown
     ? vcStashText(t, 'vc.stash.entry.files', { n: String(detail.fileCount) })
     : vcStashText(t, 'vc.stash.entry.filesUnknown', null)
@@ -157,10 +139,12 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
       h('div', { key: 'main', className: 'stash-main' }, [idLine, metaLine]),
       h('div', { key: 'acts', className: 'stash-actions' }, mainActions),
     ]),
-    detail ? vcStashPathsBlockOf(h, t, detail, ctx) : vcStashPathsHintNode(h, t, quietActions),
+    detailState === 'ok'
+      ? vcStashPathsBlockOf(h, t, detail, ctx)
+      : (detail ? vcStashPathsPendingOf(h, t, detail, ctx, quietActions) : vcStashPathsHintNode(h, t, quietActions)),
   ]
-  if (detail) {
-    // 查看内容之后，安静的查看/建分支按钮接在清单块下面。
+  if (detailState === 'ok') {
+    // 读到了之后，安静的查看/建分支按钮接在清单块下面（读的中途与失败时它们已经在状态块里）。
     const tail: any[] = quietActions.slice()
     children.push(h('div', { key: 'quiet', className: 'stash-paths-acts' }, tail))
   }
@@ -306,20 +290,6 @@ const vcStashResultBlockOf = function (h: any, t: any, state: any): any {
   ])
 }
 
-/** 兜底详情：记录已经从列表里消失而详情还在状态里时，铺在列表之后，别让人看不到刚查看的内容。 */
-const vcStashDetailFallbackBlockOf = function (h: any, t: any, detail: any, ctx: any): any {
-  const files = Array.isArray(detail.files) ? detail.files : []
-  return h('section', { key: 'detail-fallback', className: 'stash-paths', 'data-vc-stash-detail': String(detail.selector) }, [
-    h('p', { key: 'note', className: 'stash-paths-note' }, vcStashText(t, 'vc.stash.pathsNote', null)),
-    h('ul', { key: 'files', className: 'stash-path-list', 'data-vc-stash-detail-files': '1' }, files.map(function (file: string): any {
-      return h('li', { key: file, className: 'stash-path mono', 'aria-label': file, title: file, 'data-vc-stash-file': file }, file)
-    })),
-    h('pre', { key: 'patch', className: 'stash-patch mono', 'data-vc-stash-patch': '1' }, String(detail.patch)),
-    detail.truncated ? h('p', { key: 'trunc', className: 'stash-truncated', 'data-vc-stash-truncated': '1' }, vcStashText(t, 'vc.stash.detail.truncated', null)) : null,
-    h('button', { key: 'close', type: 'button', className: 'btn btn-ghost btn-sm', 'data-vc-stash-detail-close': '1', 'data-press': 'button', 'data-log': 'vc.stash.detail-close', onClick: function () { ctx.edit({ detail: null }) } }, [h('span', { key: 'label', className: 'btn-label' }, vcStashText(t, 'vc.stash.detail.close', null))]),
-  ])
-}
-
 /**
  * 贮藏页根节点：原型的三块（标题与说明 / 边界说明 / 记录与确认卡）常驻；
  * 原型没有但功能要用的入口（新建三条、列出、清空、最近丢弃）收进页底 details，默认收起。
@@ -343,12 +313,13 @@ export const vcStashPageNode = function (h: any, t: any, opts: any): any {
     nowMs: Number(o.nowMs) > 0 ? Number(o.nowMs) : 0,
     versionText: versionText,
     message: String(state.message || ''),
-    detail: state.detail,
     pending: pending,
     branchFor: state.branch && state.branch.selector ? String(state.branch.selector) : '',
     branchName: state.branch && state.branch.name ? String(state.branch.name) : '',
     act: act,
     edit: edit,
+    // 收起某一条的详情：把它从 details 里摘掉，记录行回到「点查看内容才给」那一种（其余记录不受影响）。
+    closeDetail: function (selector: any): void { edit({ detailClose: String(selector || '') }) },
     actConfirmed: function (): void {
       const payload = vcStashConfirmPayloadOf(state.confirm)
       if (payload && !pending) act(payload)
@@ -356,8 +327,13 @@ export const vcStashPageNode = function (h: any, t: any, opts: any): any {
   }
   const sorted = entries.slice().sort(function (a: any, b: any) { return (Number(b.atMs) || 0) - (Number(a.atMs) || 0) })
   const rows = sorted.map(function (entry: any) { return vcStashRowOf(h, t, entry, ctx) })
-  const detailMatched = state.detail ? sorted.some(function (entry: any) { return String(entry.selector || '') === String(state.detail.selector || '') }) : false
-  const detailFallbackNode = state.detail && !detailMatched ? vcStashDetailFallbackBlockOf(h, t, state.detail, ctx) : null
+  // 兜底：某些详情对应的记录已经从列表里消失（被丢弃或其余实例动过）时，铺在列表之后，别让人找不到刚看过的内容。
+  const details: any = state.details || {}
+  const orphans: any[] = Object.keys(details)
+    .filter(function (k: string) { return !sorted.some(function (entry: any) { return String(entry.selector || '') === k }) })
+    .map(function (k: string) { return details[k] })
+    .filter(function (one: any) { return !!one && String(one.state || 'ok') === 'ok' })
+  const detailFallbackNode = orphans.length > 0 ? h('div', { key: 'detail-fallback-all' }, orphans.map(function (one: any) { return vcStashDetailFallbackBlockOf(h, t, one, ctx) })) : null
   const branchErr = state.branch && state.branch.errorKey
     ? h('p', { key: 'branch-err', className: 'note note-error', 'data-vc-stash-branch-err': state.branch.errorKey }, vcStashText(t, state.branch.errorKey, null))
     : null

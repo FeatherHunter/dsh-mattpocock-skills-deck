@@ -153,8 +153,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcTaskPanel.js',
   // #1742 改动页操作面板（13 条动作的渲染面板）：页面壳只在传了改动读数时才挂它；与构建同序，排在页面壳之前。
   'src/client/views/versionControl/vcChangesPage.js',
-  // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
+  // #1751 贮藏页三片（与构建同序）：先动作与数据层，再文件清单的画法（#1860 D8），最后是页面本体。
   'src/client/views/versionControl/vcStashOps.js',
+  'src/client/views/versionControl/vcStashDetail.js',
   'src/client/views/versionControl/vcStashPage.js',
   // #1761 诊断页两片（与构建同序）：先数据与动作层，再页面正文；页面壳只在诊断页且拿到读数时挂它。
   'src/client/views/versionControl/vcDiagnostics.js',
