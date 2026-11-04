@@ -24,11 +24,14 @@ import {
   SNAPSHOT_SCHEMA_VERSION,
   type SnapshotIdentity,
 } from '../persistence/schema.js'
+import { migrateSchema } from '../persistence/migrate.js'
 import { logSnapshot, shortHash } from './log.js'
 
 export interface OpenedWritable {
   db: DatabaseSync
   journalMode: string
+  /** 这一次开库把结构从哪一版迁上来的（没迁过就是 undefined）。开库那条日志用它说清「这次没重建」。 */
+  migratedFrom?: number
 }
 
 /**
@@ -90,8 +93,40 @@ export function openWritableDatabase(
     }
   }
 
-  if (version !== SNAPSHOT_SCHEMA_VERSION) {
-    return resetForSchema(db, dbPath, identity, nowMs, diagnostics, logEvent, `库结构版本 ${version}`)
+  // 版本落后：先走显式迁移（加列/建表，数据留着）；迁移失败才退到整库重建。
+  // 版本比本代码新：说明有人拿新版本的插件写过这个库，只能重建，不能按旧结构读。
+  if (version < SNAPSHOT_SCHEMA_VERSION) {
+    let migratedFrom = version
+    try {
+      migrateSchema(db, version, SNAPSHOT_SCHEMA_VERSION)
+    } catch (error) {
+      return resetForSchema(db, dbPath, identity, nowMs, diagnostics, logEvent, `迁移失败（从版本 ${version}）：${describeError(error)}`)
+    }
+    const meta = readMetaIdentity(db)
+    if (!meta) {
+      return resetForSchema(db, dbPath, identity, nowMs, diagnostics, logEvent, `迁移后 meta 行缺失（从版本 ${version}）`)
+    }
+    if (meta.backend !== identity.backend || meta.repoIdentity !== identity.repoIdentity || meta.workspaceRoot !== identity.workspaceRoot) {
+      closeDatabase(db)
+      removeDatabaseFiles(dbPath)
+      const fresh = createEmptyDatabase(dbPath, identity, nowMs)
+      diagnostics.push({
+        code: 'identity-mismatch-rebuilt',
+        message: '快照库身份与本次工作区不符，已整库重建，避免串数据',
+        detail: `旧身份：backend=${meta.backend}, repo=${meta.repoIdentity}`,
+      })
+      logSnapshot(logEvent, 'warn', 'workspaceSnapshot.corrupt', {
+        stage: 'identity',
+        action: 'rebuilt',
+        oldBackend: meta.backend,
+        oldRepoHash: shortHash(meta.repoIdentity),
+      })
+      return fresh
+    }
+    return { db, journalMode, migratedFrom }
+  }
+  if (version > SNAPSHOT_SCHEMA_VERSION) {
+    return resetForSchema(db, dbPath, identity, nowMs, diagnostics, logEvent, `库结构版本 ${version} 比本代码新`)
   }
 
   const meta = readMetaIdentity(db)

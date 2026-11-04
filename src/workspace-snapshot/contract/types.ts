@@ -132,6 +132,26 @@ export interface IssueWrite {
 }
 
 /**
+ * 一条「某张票不在了」。身份是 (effortId, key)，与普通写入同一套坐标。
+ * 写在契约层而不是 runtime 里：句柄签名要用它，而 runtime 依赖契约、不能反向。
+ */
+export interface MissingTicket {
+  effortId: string
+  key: string
+}
+
+/** markMissing 的回执。committed 为真表示墓碑真的写进去了（或本来就没有要写的）。 */
+export interface MarkMissingResult {
+  committed: boolean
+  /** 提交后的库版本；没提交时是当前版本。 */
+  mergeVersion: number
+  /** 真的写进墓碑的条数（库里不认识的票号会被跳过）。 */
+  marked: number
+  reason?: 'stale' | 'write-failed' | 'readonly'
+  detail?: string
+}
+
+/**
  * 一批读结果。startMergeVersion 是调用方开始读这批数据时看到的版本（readList / getMergeVersion
  * 返回的那个）。事务里发现任一被表达组的 written_version 比它大，说明期间有别的写者先提交了，
  * 整批丢弃，避免用旧读结果覆盖新数据。
@@ -193,6 +213,11 @@ export interface WorkspaceSnapshotHandle {
   /** 当前库里的合并版本；只读句柄也能读。 */
   getMergeVersion(): number
   ingest(batch: WriteBatch): IngestResult
+  /**
+   * 把一批「这张票不在了」写进墓碑（#1886）。库只增不删：行留着，墓碑让回放不再画它。
+   * 票重新出现时由普通写入清掉墓碑，所以这不是永久判决。只读句柄拒绝。
+   */
+  markMissing(entries: readonly MissingTicket[], startMergeVersion: number): MarkMissingResult
   readList(query?: ListQuery): ListProjection
   /**
    * 读一张票的详情：行、正文、标签、指派、父子、阻塞、被阻塞、子票、合并信息与各组三态。

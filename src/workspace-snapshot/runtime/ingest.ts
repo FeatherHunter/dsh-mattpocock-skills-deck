@@ -94,9 +94,15 @@ export function ingestWrites(
 
     const nextVersion = readMergeVersion(db) + 1
     const commentPositions: number[] = []
+    const bumpChangeVersion = db.prepare('UPDATE issue SET last_change_version = ? WHERE effort_id = ? AND key = ?')
+    const clearTombstone = db.prepare('DELETE FROM issue_tombstone WHERE issue_id = (SELECT issue_id FROM issue WHERE effort_id = ? AND key = ?)')
     for (const write of writes) {
       const appliedPosition = applyIssueWrite(db, write, nowMs, nextVersion)
       if (appliedPosition !== null) commentPositions.push(appliedPosition)
+      // 这一批写过哪张票，就把它的「最后变化版本」推到这个版本：变化集靠它回答「v12 之后变了哪几行」。
+      bumpChangeVersion.run(nextVersion, write.effortId, write.key)
+      // 重新出现的票把墓碑清掉——墓碑只表达「这一版里它不在」，不是永久判决。
+      clearTombstone.run(write.effortId, write.key)
     }
     db.prepare('UPDATE meta SET merge_version = ?, last_write_ms = ? WHERE id = 1')
       .run(nextVersion, nowMs)
