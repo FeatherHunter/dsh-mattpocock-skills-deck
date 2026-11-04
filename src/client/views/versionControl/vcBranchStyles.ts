@@ -51,7 +51,10 @@ export const VC_BRANCH_STYLE_TEXT: string[] = [
   // 删除分支 / 删除标签这一颗是危险动作：红边红字，但形状与别的按钮一致（不让它靠大小抢注意力）。
   '[data-vc-shell] .vcs-branch2-danger{border-color:color-mix(in srgb,var(--vcs-danger) 55%,var(--vcs-line-2));background:color-mix(in srgb,var(--vcs-danger) 7%,var(--vcs-raised));color:var(--vcs-danger)}',
   '[data-vc-shell] .vcs-branch2-danger:hover{background:var(--vcs-danger-soft);border-color:var(--vcs-danger);color:var(--vcs-danger)}',
-  // 行内展开的动作块（重命名 / 更多动作）：summary 画成一颗次要按钮，展开后在行内铺满一整行。
+  // 行内展开的动作块（#1881 的行尾「⋯」菜单）：summary 画成一颗次要按钮，展开后在行内铺满一整行。
+  //   .obj-side 平时最多占 55%，菜单若被关在这半行里，五条动作每条都要折成两三行；所以有菜单展开的那一行
+  //   把侧栏放宽到整行。:has 不支持的宿主会忽略这一条，退回 55% 的旧样子，不影响菜单本身可用。
+  '[data-vc-shell] .vcs-branch2 .obj-row:has(.vcs-branch2-more[open]) .obj-side{max-width:100%;flex:1 1 100%}',
   '[data-vc-shell] .vcs-branch2-more{display:inline-block;min-width:0}',
   '[data-vc-shell] .vcs-branch2-more[open]{flex:1 1 100%}',
   '[data-vc-shell] .vcs-branch2-more>summary{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:0 9px;border:1px solid var(--vcs-line-2);border-radius:var(--vcs-r-btn);background:var(--vcs-raised);color:var(--vcs-ink2);font-size:11px;font-weight:650;line-height:1.4;white-space:nowrap;cursor:pointer;list-style:none}',

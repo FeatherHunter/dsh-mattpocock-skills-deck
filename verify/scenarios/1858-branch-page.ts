@@ -1395,6 +1395,66 @@ async function interactionAt(
   const queryOk = !typed || (afterQuery.ok && afterQuery.value.branchRows.length === 1)
   const shot = await captureScreenshot(context, page, '1858-branch-tags-filtered-460-dark')
   if (shot.path !== null) paths.push(shot.path)
+
+  // #1881：这一票把删除 / 重命名 / 切换提交 / 设上游 / 写说明收进了行尾的「⋯」菜单，标签行上仍有只读验签
+  //   与删除。结构判据只能证明它们在 DOM 里，证明不了点得动，所以真机上各点一次并留截图。
+  //   顺序是：开菜单 → 读五项 → 关菜单 → 点验签 → 点删除标签看确认卡 → 取消（标签一颗不少）。
+  const openMenu = await clickSelector(page, raw, '[data-vc-branch-row] [data-vc-branch-menu] > summary')
+  await sleep(400)
+  const menuProbe = await evaluateThrough<{ ops: string[]; labels: string[] }>(page, scriptOf([
+    '(function () {',
+    '  var box = document.querySelector("[data-vc-branch-menu][open]")',
+    '  if (box === null) return null',
+    '  var ops = []',
+    '  box.querySelectorAll("[data-vc-op-row]").forEach(function (row) { ops.push(String(row.getAttribute("data-vc-op-row") || "")) })',
+    '  var labels = []',
+    '  box.querySelectorAll(".vcs-branch2-op-label").forEach(function (el) { labels.push(String(el.textContent || "").trim()) })',
+    '  return { ops: ops, labels: labels }',
+    '})()',
+  ]))
+  const menuShot = await captureScreenshot(context, page, '1858-branch-tags-row-menu-460-dark')
+  if (menuShot.path !== null) paths.push(menuShot.path)
+  const closeMenu = await clickSelector(page, raw, '[data-vc-branch-menu][open] > summary')
+  await sleep(250)
+  const tagVerify = await clickDataAttr(page, raw, 'data-vc-tag-action', 'verify')
+  await sleep(900)
+  const verifyShot = await captureScreenshot(context, page, '1858-branch-tags-tag-verify-460-dark')
+  if (verifyShot.path !== null) paths.push(verifyShot.path)
+  const verifyProbe = await evaluateThrough<string>(page, '(function () { var el = document.querySelector("[data-vc-branch2] [data-vc-result]"); return el === null ? "" : String(el.getAttribute("data-vc-result") || "") })()')
+  const tagDelete = await clickDataAttr(page, raw, 'data-vc-tag-action', 'delete')
+  // 删除标签要走一次预检电话（这里实测 3 秒多），确认卡不是点完就有：等到卡片出现再截图与点取消。
+  const confirmVisible = '(function () { return document.querySelector("[data-vc-branch2] [data-vc-confirm]") !== null })()'
+  let confirmShownValue = false
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const probe = await evaluateThrough<boolean>(page, confirmVisible)
+    if (probe.ok && probe.value === true) { confirmShownValue = true; break }
+    await sleep(200)
+  }
+  // 确认卡贴在面板最后，截图前先把它滚进视野，证据里才看得到卡本身（而不只是上方的标签行）。
+  await evaluateThrough<boolean>(page, '(function () { var el = document.querySelector("[data-vc-branch2] [data-vc-confirm]"); if (el === null) return false; if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center" }); return true })()')
+  await sleep(300)
+  const deleteShot = await captureScreenshot(context, page, '1858-branch-tags-tag-delete-confirm-460-dark')
+  if (deleteShot.path !== null) paths.push(deleteShot.path)
+  const cancelDelete = await clickSelector(page, raw, '[data-vc-branch2] [data-vc-confirm-cancel]')
+  let confirmGoneValue = false
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const probe = await evaluateThrough<boolean>(page, confirmVisible)
+    if (probe.ok && probe.value === false) { confirmGoneValue = true; break }
+    await sleep(200)
+  }
+  const afterCancel = await evaluateThrough<BranchPageFacts>(page, inspectScript())
+  const menuOps = menuProbe.ok && menuProbe.value !== null ? menuProbe.value.ops : []
+  const menuLabels = menuProbe.ok && menuProbe.value !== null ? menuProbe.value.labels : []
+  const tagCountKept = before.ok && afterCancel.ok && afterCancel.value.tagRows.length === before.value.tagRows.length
+  const menuOk = openMenu.ok && menuOps.join(',') === '4.6,4.5,4.4,4.7,4.13'
+  const verifyOk = tagVerify.ok && verifyProbe.ok && verifyProbe.value !== ''
+  const cancelOk = tagDelete.ok && confirmShownValue && cancelDelete.ok && confirmGoneValue && tagCountKept
+  facts.rowMenu = { open: openMenu, ops: menuOps, labels: menuLabels, closed: closeMenu }
+  facts.tagVerify = { click: tagVerify, result: verifyProbe.ok ? verifyProbe.value : String(verifyProbe.ok ? '' : verifyProbe.error.message) }
+  facts.tagDelete = { click: tagDelete, confirmShown: confirmShownValue, cancel: cancelDelete, confirmGone: confirmGoneValue, tagsKept: tagCountKept }
+  const menuSaved = await recordEvidence(context, checkId + '-row-menu.json', { facts: facts, menu: menuOps, labels: menuLabels }, '行尾「⋯」菜单的五项、标签验签与删除标签的确认卡')
+  if (menuSaved !== null) paths.push(menuSaved)
+
   const saved = await recordEvidence(context, checkId + '.json', facts, '筛选与搜索在真机上的前后行数')
   if (saved !== null) paths.push(saved)
   return [observe({
@@ -1407,6 +1467,20 @@ async function interactionAt(
     expected: '点筛选后只留没并入的分支；输入 release 后只剩同名分支',
     actual: JSON.stringify(facts).slice(0, 600),
     hint: '看证据里的 afterFilter / afterQuery 行列表',
+    evidence: paths,
+  }), observe({
+    checkId: checkId + '-row-menu',
+    title: '行尾「⋯」菜单、标签验签与删除标签的确认卡在真机上都点得动',
+    ok: menuOk && verifyOk && cancelOk,
+    status: menuOk && verifyOk && cancelOk ? 'pass' : 'fail',
+    hard: false,
+    detail: (menuOk ? '菜单打开后五项按序在（' + menuOps.join(' / ') + '）' : '菜单里读到的不是五项（实得 ' + (menuOps.join(',') || '没有') + '）')
+      + '；' + (verifyOk ? '标签验签点完出了结果块（结果 ' + String(verifyProbe.ok ? verifyProbe.value : '') + '；夹具里的标签没有签名，fail 是如实结论）' : '标签验签发出去没有结果块')
+      + '；' + (cancelOk ? '删除标签先出确认卡、点取消后卡片收起且标签数不变' : '删除标签的确认卡或取消这一步没走通'),
+    expected: '点行尾「⋯」能展开菜单并读到 4.6 / 4.5 / 4.4 / 4.7 / 4.13 五项；标签行的「验签」只读、点了有结果；'
+      + '「删除标签」先出确认卡，点取消后卡片消失、标签一颗不少',
+    actual: JSON.stringify({ rowMenu: facts.rowMenu, tagVerify: facts.tagVerify, tagDelete: facts.tagDelete }).slice(0, 900),
+    hint: '看证据里的 row-menu 截图与 ' + checkId + '-row-menu.json；菜单里读不到五项时先看 [data-vc-branch-menu] 是否展开',
     evidence: paths,
   })]
 }
