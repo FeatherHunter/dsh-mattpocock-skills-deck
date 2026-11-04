@@ -449,7 +449,31 @@
       showPaths: "\u770B\u770B\u8FD9\u4EFD\u8BB0\u5F55\u91CC\u6709\u54EA\u4E9B\u6587\u4EF6",
       hidePaths: "\u6536\u8D77\u6587\u4EF6\u6E05\u5355",
       boundary: "\u50A8\u85CF\u8BB0\u5F55\u53EA\u5728\u672C\u5730\uFF0C\u4E0D\u4F1A\u63A8\u9001\u3002\u5E94\u7528\u56DE\u5DE5\u4F5C\u533A\u65F6\u6309\u8BB0\u5F55\u91CC\u7684\u987A\u5E8F\u6062\u590D\u3002",
-      restoreNote: (n) => `\u5E94\u7528\u65F6\u4F1A\u6062\u590D ${n} \u4E2A\u6587\u4EF6\uFF0C\u5DF2\u5B58\u5728\u7684\u540C\u540D\u6539\u52A8\u4F1A\u88AB\u5408\u5E76\u6216\u63D0\u793A\u51B2\u7A81\u3002`
+      restoreNote: (n) => `\u5E94\u7528\u65F6\u4F1A\u6062\u590D ${n} \u4E2A\u6587\u4EF6\uFF0C\u5DF2\u5B58\u5728\u7684\u540C\u540D\u6539\u52A8\u4F1A\u88AB\u5408\u5E76\u6216\u63D0\u793A\u51B2\u7A81\u3002`,
+      variantsTitle: "\u50A8\u85CF\u65B9\u5F0F",
+      variantsHint: "\u4E09\u79CD\u6536\u6CD5\u6536\u8FDB\u53BB\u7684\u6587\u4EF6\u4E0D\u4E00\u6837\uFF0C\u6536\u5B8C\u5DE5\u4F5C\u533A\u5269\u4E0B\u4EC0\u4E48\u4E5F\u4E0D\u4E00\u6837\u3002",
+      variantAll: "\u50A8\u85CF\u5168\u90E8\u5DF2\u8DDF\u8E2A\u7684\u6539\u52A8",
+      variantAllNote: "git stash\uFF1A\u53EA\u6536\u5DF2\u8DDF\u8E2A\u7684\u6587\u4EF6\uFF0C\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u7559\u5728\u5DE5\u4F5C\u533A\u3002",
+      variantUntracked: "\u8FDE\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF",
+      variantUntrackedNote: "git stash -u\uFF1A\u65B0\u6587\u4EF6\u4E5F\u4E00\u8D77\u6536\u8D70\uFF0C\u5DE5\u4F5C\u533A\u53D8\u5E72\u51C0\u3002",
+      variantStaged: "\u53EA\u50A8\u85CF\u5DF2\u6682\u5B58\u7684\u6539\u52A8",
+      variantStagedNote: "git stash push --staged\uFF1A\u53EA\u6536\u7D22\u5F15\u91CC\u7684\u90A3\u4E00\u4EFD\uFF0C\u5DE5\u4F5C\u533A\u7684\u6539\u52A8\u4ECD\u7136\u5728\u3002",
+      menuMore: "\u8FD9\u6761\u8BB0\u5F55\u7684\u66F4\u591A\u64CD\u4F5C",
+      menuBranch: "\u4ECE\u8FD9\u6761\u8BB0\u5F55\u5EFA\u5206\u652F",
+      menuClose: "\u6536\u8D77\u83DC\u5355",
+      branchTitle: "\u4ECE\u8FD9\u6761\u8BB0\u5F55\u5EFA\u5206\u652F",
+      branchName: "\u5206\u652F\u540D",
+      branchHint: "git stash branch\uFF1A\u65B0\u5206\u652F\u4ECE\u50A8\u85CF\u5F53\u65F6\u7684\u63D0\u4EA4\u5F00\u59CB\uFF0C\u50A8\u85CF\u5185\u5BB9\u76F4\u63A5\u843D\u5230\u5DE5\u4F5C\u533A\uFF0C\u8FD9\u6761\u8BB0\u5F55\u968F\u4E4B\u7528\u6389\u3002",
+      branchApply: "\u5EFA\u5206\u652F\u5E76\u5E94\u7528",
+      branchEmpty: "\u5148\u7ED9\u5206\u652F\u8D77\u4E2A\u540D\u5B57\u3002",
+      branchTaken: (name) => `\u5206\u652F ${name} \u5DF2\u7ECF\u5B58\u5728\u3002`,
+      branchCreated: (name, id, n) => `\u5DF2\u4ECE ${id} \u5EFA\u5206\u652F ${name}\uFF0C\u8BB0\u5F55\u91CC\u7684 ${n} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002`,
+      clearAction: "\u6E05\u7A7A\u5168\u90E8\u8BB0\u5F55",
+      clearTitle: (n) => `\u6E05\u7A7A\u8FD9 ${n} \u6761\u50A8\u85CF\u8BB0\u5F55\uFF1F`,
+      clearBody: "\u8BB0\u5F55\u91CC\u7684\u6539\u52A8\u4F1A\u88AB\u4E00\u8D77\u5220\u6389\uFF0C\u4E0D\u80FD\u64A4\u56DE\uFF1B\u5DE5\u4F5C\u533A\u4E0E\u63D0\u4EA4\u5386\u53F2\u4E0D\u53D7\u5F71\u54CD\u3002",
+      clearConfirm: "\u786E\u8BA4\u6E05\u7A7A",
+      clearCancel: "\u53D6\u6D88",
+      cleared: (n) => `\u5DF2\u6E05\u7A7A ${n} \u6761\u50A8\u85CF\u8BB0\u5F55\u3002`
     },
     /**
      * AI 交接的全部文案。入口上的那几句故意写成问句：它们要让人意识到
@@ -3828,6 +3852,11 @@
       ignored: [],
       stashes: [],
       stashPending: null,
+      stashMenuOpen: false,
+      stashMenuId: null,
+      stashBranchId: null,
+      stashBranchDraft: "",
+      stashClearPending: false,
       undoneOid: null,
       replacedOid: null,
       commitOptionsOpen: false,
@@ -4765,14 +4794,25 @@
           source: "branch"
         });
       }
+      /*
+       * 储藏有三种收法，git 的行为不一样，所以做成同一颗按钮下的三个变体：
+       *   all（默认）：只收已跟踪的改动，未跟踪的新文件留在工作区——这是 git stash 的默认行为；
+       *   untracked：连未跟踪的一起收走（git stash -u）；
+       *   staged：只收索引里的那一份（git stash push --staged），工作区里的改动仍在。
+       */
       case "stash-create": {
         if (state.busy !== null || state.reloading) return state;
         if (state.conflicts.length > 0) {
           return withResult(state, { tone: "error", text: "\u6709\u51B2\u7A81\u6587\u4EF6\u65F6\u4E0D\u80FD\u50A8\u85CF\u3002", detail: "\u50A8\u85CF\u4F1A\u628A\u5DE5\u4F5C\u533A\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u51B2\u7A81\u6587\u4EF6\u6CA1\u6709\u53EF\u4EE5\u5B89\u5168\u6062\u590D\u7684\u7248\u672C\u3002\u5148\u89E3\u51B3\u51B2\u7A81\uFF0C\u518D\u50A8\u85CF\u5269\u4E0B\u7684\u6539\u52A8\u3002", source: "changes" });
         }
-        const paths = unique([...state.staged, ...state.unstaged]);
+        const mode = action.mode ?? "all";
+        const isUntracked = (path) => metadataOf(base, path)?.change === "untracked";
+        const untracked = state.unstaged.filter(isUntracked);
+        const trackedUnstaged = state.unstaged.filter((path) => !isUntracked(path));
+        const paths = mode === "staged" ? state.staged : mode === "untracked" ? unique([...state.staged, ...state.unstaged]) : unique([...state.staged, ...trackedUnstaged]);
         if (paths.length === 0) {
-          return withResult(state, { tone: "info", text: "\u5DE5\u4F5C\u533A\u662F\u5E72\u51C0\u7684\uFF0C\u6CA1\u6709\u53EF\u50A8\u85CF\u7684\u5185\u5BB9\u3002", detail: null, source: "changes" });
+          const empty = mode === "staged" ? { text: "\u7D22\u5F15\u91CC\u6CA1\u6709\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\uFF0C\u6CA1\u6709\u53EF\u50A8\u85CF\u7684\u5185\u5BB9\u3002", detail: "\u300C\u53EA\u50A8\u85CF\u5DF2\u6682\u5B58\u7684\u6539\u52A8\u300D\u6536\u7684\u662F\u7D22\u5F15\u91CC\u7684\u90A3\u4E00\u4EFD\uFF1B\u5148\u628A\u8981\u6536\u7684\u6587\u4EF6\u6682\u5B58\u8D77\u6765\u3002" } : mode === "untracked" ? { text: "\u5DE5\u4F5C\u533A\u662F\u5E72\u51C0\u7684\uFF0C\u6CA1\u6709\u53EF\u50A8\u85CF\u7684\u5185\u5BB9\u3002", detail: null } : { text: "\u6CA1\u6709\u53EF\u50A8\u85CF\u7684\u5185\u5BB9\u3002", detail: untracked.length > 0 ? `\u5DE5\u4F5C\u533A\u91CC\u53EA\u6709 ${untracked.length} \u4E2A\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\uFF1B\u9ED8\u8BA4\u50A8\u85CF\u4E0D\u6536\u5B83\u4EEC\uFF0C\u8981\u6536\u5C31\u9009\u300C\u8FDE\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u300D\u3002` : "\u5DE5\u4F5C\u533A\u4E0E\u7D22\u5F15\u90FD\u662F\u5E72\u51C0\u7684\u3002" };
+          return withResult({ ...state, stashMenuOpen: false }, { tone: "info", text: empty.text, detail: empty.detail, source: "changes" });
         }
         const branchName = state.branches.find((row) => row.current)?.name ?? base.branch ?? "detached";
         const message = state.message.trim() === "" ? `WIP on ${branchName}` : state.message.trim();
@@ -4782,16 +4822,19 @@
           whenMs: Date.now(),
           paths
         };
+        const resting = mode === "staged" ? unique([...state.unstaged, ...state.staged]) : mode === "untracked" ? [] : untracked;
+        const detail = mode === "staged" ? `\u53EA\u6536\u8D70\u7D22\u5F15\u91CC\u7684\u90A3\u4E00\u4EFD\uFF1A\u8FD9 ${paths.length} \u4E2A\u6587\u4EF6\u7684\u6539\u52A8\u4ECD\u7559\u5728\u5DE5\u4F5C\u533A\uFF0C\u91CD\u65B0\u53D8\u6210\u672A\u6682\u5B58\u3002` : mode === "untracked" ? `\u50A8\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740\u8FD9\u4E9B\u6587\u4EF6\uFF0C\u5305\u62EC ${untracked.length} \u4E2A\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u3002\u5DE5\u4F5C\u533A\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\u3002` : untracked.length > 0 ? `\u50A8\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740 ${paths.length} \u4E2A\u5DF2\u8DDF\u8E2A\u6587\u4EF6\uFF1B\u5DE5\u4F5C\u533A\u91CC\u90A3 ${untracked.length} \u4E2A\u672A\u8DDF\u8E2A\u7684\u65B0\u6587\u4EF6\u6CA1\u6709\u4E00\u8D77\u6536\u8D70\uFF0C\u4ECD\u7559\u5728\u5DE5\u4F5C\u533A\u3002` : `\u50A8\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740\u8FD9\u4E9B\u6587\u4EF6\u3002\u5DE5\u4F5C\u533A\u4E0E\u300C\u5DF2\u6682\u5B58\u300D\u7684\u6E05\u5355\u90FD\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\u3002`;
         return withResult({
           ...state,
           stashes: [entry, ...state.stashes],
           staged: [],
-          unstaged: [],
-          message: ""
+          unstaged: resting,
+          message: "",
+          stashMenuOpen: false
         }, {
           tone: "ok",
-          text: `\u5DF2\u50A8\u85CF ${paths.length} \u4E2A\u6587\u4EF6\u7684\u6539\u52A8\u3002`,
-          detail: `\u50A8\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740\u8FD9\u4E9B\u6587\u4EF6\u3002\u5DE5\u4F5C\u533A\u4E0E\u300C\u5DF2\u6682\u5B58\u300D\u7684\u6E05\u5355\u90FD\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u5E94\u7528\u56DE\u5DE5\u4F5C\u533A\u6216\u5F39\u51FA\u90FD\u80FD\u628A\u5B83\u62FF\u56DE\u6765\u3002`,
+          text: mode === "staged" ? `\u5DF2\u50A8\u85CF ${paths.length} \u4E2A\u6587\u4EF6\u7684\u5DF2\u6682\u5B58\u5185\u5BB9\u3002` : mode === "untracked" ? `\u5DF2\u50A8\u85CF ${paths.length} \u4E2A\u6587\u4EF6\uFF08\u5176\u4E2D ${untracked.length} \u4E2A\u672A\u8DDF\u8E2A\uFF09\u3002` : `\u5DF2\u50A8\u85CF ${paths.length} \u4E2A\u6587\u4EF6\u7684\u5DF2\u8DDF\u8E2A\u6539\u52A8\u3002`,
+          detail,
           source: "changes"
         });
       }
@@ -4829,6 +4872,71 @@
           tone: "warn",
           text: `\u5DF2\u4E22\u5F03\u8BB0\u5F55 ${entry.id}\u3002`,
           detail: `\u8BB0\u5F55\u91CC\u90A3 ${entry.paths.length} \u4E2A\u6587\u4EF6\u5F53\u65F6\u7684\u6837\u5B50\u5DF2\u7ECF\u4E0D\u5B58\u5728\u3002\u8FD9\u4E00\u6B65\u4E0D\u80FD\u64A4\u56DE\u3002`,
+          source: "stash"
+        });
+      }
+      case "stash-menu-toggle":
+        return { ...state, stashMenuOpen: !state.stashMenuOpen };
+      case "stash-menu":
+        return { ...state, stashMenuId: action.id };
+      case "stash-branch-open":
+        return { ...state, stashBranchId: action.id, stashBranchDraft: "stash-branch", stashMenuId: null };
+      case "stash-branch-draft":
+        return { ...state, stashBranchDraft: action.value };
+      case "stash-branch-cancel":
+        return { ...state, stashBranchId: null, stashBranchDraft: "" };
+      case "stash-branch-apply": {
+        if (state.busy !== null || state.reloading) return state;
+        const id = state.stashBranchId;
+        if (id === null) return state;
+        const name = state.stashBranchDraft.trim();
+        if (name === "") {
+          return withResult(state, { tone: "error", text: "\u5148\u7ED9\u5206\u652F\u8D77\u4E2A\u540D\u5B57\u3002", detail: "git stash branch \u4F1A\u65B0\u5EFA\u4E00\u6761\u5206\u652F\uFF0C\u518D\u628A\u8FD9\u6761\u8BB0\u5F55\u5E94\u7528\u4E0A\u53BB\u3002", source: "stash" });
+        }
+        if (state.branches.some((row) => row.name === name)) {
+          return withResult(state, { tone: "error", text: `\u5206\u652F ${name} \u5DF2\u7ECF\u5B58\u5728\u3002`, detail: "\u6362\u4E00\u4E2A\u540D\u5B57\uFF1B\u8FD9\u6761\u8BB0\u5F55\u8FD8\u6CA1\u6709\u88AB\u7528\u6389\u3002", source: "stash" });
+        }
+        const entry = state.stashes.find((row) => row.id === id);
+        if (entry === void 0) return { ...state, stashBranchId: null, stashBranchDraft: "" };
+        const head = headInfoOf(base, state);
+        const branch = {
+          name,
+          upstream: null,
+          ahead: 0,
+          behind: 0,
+          oidShort: head === null ? "" : head.short,
+          lastCommitMs: Date.now(),
+          subject: `\u4ECE ${id} \u5EFA\u7684\u5206\u652F`,
+          mergedIntoCurrent: false,
+          current: true
+        };
+        return withResult({
+          ...state,
+          // 建分支等于切过去：原来那条分支不再标成当前分支。
+          branches: [branch, ...state.branches.map((row) => ({ ...row, current: false }))],
+          stashes: state.stashes.filter((row) => row.id !== id),
+          unstaged: unique([...state.unstaged, ...entry.paths]),
+          stashBranchId: null,
+          stashBranchDraft: "",
+          stashMenuId: null
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u4ECE ${id} \u5EFA\u5206\u652F ${name}\uFF0C\u8BB0\u5F55\u91CC\u7684 ${entry.paths.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002`,
+          detail: "git stash branch\uFF1A\u65B0\u5206\u652F\u4ECE\u50A8\u85CF\u5F53\u65F6\u7684\u63D0\u4EA4\u5F00\u59CB\uFF0C\u50A8\u85CF\u5185\u5BB9\u76F4\u63A5\u843D\u5230\u5DE5\u4F5C\u533A\u3002\u8FD9\u6761\u8BB0\u5F55\u5DF2\u7ECF\u7528\u6389\uFF0C\u4E0D\u4F1A\u7559\u5728\u6E05\u5355\u91CC\u3002",
+          source: "stash"
+        });
+      }
+      case "stash-clear-open":
+        return { ...state, stashClearPending: true, stashMenuId: null };
+      case "stash-clear-cancel":
+        return { ...state, stashClearPending: false };
+      case "stash-clear-apply": {
+        const count = state.stashes.length;
+        if (count === 0) return { ...state, stashClearPending: false };
+        return withResult({ ...state, stashes: [], stashClearPending: false }, {
+          tone: "warn",
+          text: `\u5DF2\u6E05\u7A7A ${count} \u6761\u50A8\u85CF\u8BB0\u5F55\u3002`,
+          detail: "\u8BB0\u5F55\u91CC\u7684\u6539\u52A8\u4E0D\u518D\u5B58\u5728\uFF0C\u8FD9\u4E00\u6B65\u4E0D\u80FD\u64A4\u56DE\uFF1B\u5DE5\u4F5C\u533A\u4E0E\u63D0\u4EA4\u5386\u53F2\u90FD\u6CA1\u6709\u88AB\u6539\u52A8\u3002",
           source: "stash"
         });
       }
@@ -5438,6 +5546,7 @@
       canDiscardAll: !busy && state.conflicts.length === 0 && state.unstaged.length > 0,
       canStash: !busy && state.conflicts.length === 0 && changeCount > 0,
       stashReason: state.conflicts.length > 0 ? COPY.block["conflicts-unresolved"] : null,
+      stashMenuOpen: state.stashMenuOpen,
       openMenuPath: state.openMenuPath,
       pending: pendingOf(base, state),
       rename: state.renamePath === null ? null : { path: state.renamePath, draft: state.renameDraft },
@@ -5807,7 +5916,9 @@
       message: entry.message,
       when: timeText(nowMs, entry.whenMs),
       paths: entry.paths,
-      filesCount: entry.paths.length
+      filesCount: entry.paths.length,
+      menuOpen: state.stashMenuId === entry.id,
+      branchOpen: state.stashBranchId === entry.id
     }));
     const pending = state.stashPending === null ? null : {
       id: state.stashPending.id,
@@ -5819,7 +5930,10 @@
       total: rows.length,
       empty: rows.length === 0,
       pending,
-      busy: state.busy !== null
+      busy: state.busy !== null,
+      clearPending: state.stashClearPending,
+      branchId: state.stashBranchId,
+      branchDraft: state.stashBranchDraft
     };
   }
   function panelModelOf(base, state, nowMs) {
@@ -8163,15 +8277,15 @@
     { id: "9.8", form: "\u53EF\u5C55\u5F00\u533A", at: "\u5C55\u5F00\u67D0\u68F5\u5DE5\u4F5C\u533A\u540E\u7684\u300C\u7A00\u758F\u68C0\u51FA\u300D\uFF1A\u52FE\u9876\u5C42\u76EE\u5F55\u3001\u4FDD\u5B58\u89C4\u5219\uFF0C\u5C55\u5F00\u884C\u91CC\u5E38\u9A7B\u4E00\u53E5\u5F53\u524D\u89C4\u5219", status: "\u672C\u7968\u5DF2\u753B", reason: "\u7A00\u758F\u68C0\u51FA\u6539\u7684\u662F\u8FD9\u4E00\u68F5\u7684\u68C0\u51FA\u8303\u56F4\uFF0C\u8DDF\u7740\u8FD9\u68F5\u8D70\uFF1B\u653E\u5C55\u5F00\u533A\uFF0C\u8BFB\u8005\u80FD\u8FB9\u770B\u5F53\u524D\u8DEF\u5F84\u8FB9\u9009\u4FDD\u7559\u54EA\u4E9B\u76EE\u5F55\u3002" },
     // —— 储藏页 ——
     { id: "7.1", form: "\u884C\u5185\u63A7\u4EF6", at: "\u6539\u52A8\u9875\u63D0\u4EA4\u533A\u53F3\u4E0A\u89D2\u7684\u300C\u50A8\u85CF\u300D", status: "\u5DF2\u753B" },
-    { id: "7.2", form: "\u884C\u5C3E\u83DC\u5355", at: "\u300C\u50A8\u85CF\u300D\u53F3\u4FA7\u7684\u83DC\u5355\u9879\u300C\u8FDE\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u300D", status: "\u5F85\u753B", reason: "\u8FDE\u672A\u8DDF\u8E2A\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u662F\u50A8\u85CF\u52A8\u4F5C\u7684\u4E00\u4E2A\u53D8\u4F53\uFF0C\u6302\u5728\u540C\u4E00\u9897\u300C\u50A8\u85CF\u300D\u4E0A\u6700\u76F4\u63A5\uFF1B\u4E0D\u653E\u8FDB\u50A8\u85CF\u9875\u7B7E\uFF08\u90A3\u6761\u8BB0\u5F55\u5DF2\u7ECF\u751F\u6210\uFF0C\u6765\u4E0D\u53CA\u53CD\u6094\uFF09\u3002" },
-    { id: "7.3", form: "\u884C\u5C3E\u83DC\u5355", at: "\u300C\u50A8\u85CF\u300D\u53F3\u4FA7\u7684\u83DC\u5355\u9879\u300C\u53EA\u50A8\u85CF\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\u300D", status: "\u5F85\u753B", reason: "\u540C\u4E0A\uFF1A\u5B83\u662F\u50A8\u85CF\u52A8\u4F5C\u7684\u53D8\u4F53\uFF0C\u548C\u300C\u8FDE\u672A\u8DDF\u8E2A\u4E00\u8D77\u300D\u5E76\u6392\u653E\u5728\u300C\u50A8\u85CF\u300D\u7684\u83DC\u5355\u91CC\uFF0C\u8BFB\u8005\u80FD\u5728\u70B9\u4E4B\u524D\u9009\u6E05\u695A\u6536\u54EA\u4E9B\u3002" },
+    { id: "7.2", form: "\u884C\u5C3E\u83DC\u5355", at: "\u300C\u50A8\u85CF\u300D\u53F3\u4FA7\u7BAD\u5934\u6253\u5F00\u7684\u83DC\u5355\u91CC\u7684\u300C\u8FDE\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u300D\uFF08git stash -u\uFF09", status: "\u672C\u7968\u5DF2\u753B", reason: "\u8FDE\u672A\u8DDF\u8E2A\u6587\u4EF6\u4E00\u8D77\u50A8\u85CF\u662F\u50A8\u85CF\u52A8\u4F5C\u7684\u4E00\u4E2A\u53D8\u4F53\uFF0C\u6302\u5728\u540C\u4E00\u9897\u300C\u50A8\u85CF\u300D\u4E0A\u6700\u76F4\u63A5\uFF1B\u4E0D\u653E\u8FDB\u50A8\u85CF\u9875\u7B7E\uFF08\u90A3\u6761\u8BB0\u5F55\u5DF2\u7ECF\u751F\u6210\uFF0C\u6765\u4E0D\u53CA\u53CD\u6094\uFF09\u3002" },
+    { id: "7.3", form: "\u884C\u5C3E\u83DC\u5355", at: "\u540C\u4E00\u5F20\u83DC\u5355\u91CC\u7684\u300C\u53EA\u50A8\u85CF\u5DF2\u6682\u5B58\u7684\u6539\u52A8\u300D\uFF08git stash push --staged\uFF09\uFF1A\u6536\u5B8C\u5DE5\u4F5C\u533A\u91CC\u7684\u6539\u52A8\u4ECD\u5728", status: "\u672C\u7968\u5DF2\u753B", reason: "\u540C\u4E0A\uFF1A\u5B83\u662F\u50A8\u85CF\u52A8\u4F5C\u7684\u53D8\u4F53\uFF0C\u548C\u300C\u8FDE\u672A\u8DDF\u8E2A\u4E00\u8D77\u300D\u5E76\u6392\u653E\u5728\u300C\u50A8\u85CF\u300D\u7684\u83DC\u5355\u91CC\uFF0C\u8BFB\u8005\u80FD\u5728\u70B9\u4E4B\u524D\u9009\u6E05\u695A\u6536\u54EA\u4E9B\u3002" },
     { id: "7.4", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u9875\u7B7E\u7684\u8BB0\u5F55\u5217\u8868", status: "\u5DF2\u753B" },
     { id: "7.5", form: "\u53EF\u5C55\u5F00\u533A", at: "\u50A8\u85CF\u9875\u6BCF\u884C\u8BB0\u5F55\u4E0B\u9762\u76F4\u63A5\u5217\u51FA\u7684\u6587\u4EF6\u8DEF\u5F84", status: "\u5DF2\u753B" },
     { id: "7.6", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u7684\u300C\u5E94\u7528\u300D", status: "\u5DF2\u753B" },
     { id: "7.7", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u7684\u300C\u5F39\u51FA\u300D", status: "\u5DF2\u753B" },
-    { id: "7.8", form: "\u884C\u5C3E\u83DC\u5355", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u4ECE\u8FD9\u6761\u8BB0\u5F55\u5EFA\u5206\u652F\u300D", status: "\u5F85\u753B", reason: "\u4ECE\u50A8\u85CF\u5EFA\u5206\u652F\u8981\u5148\u7ED9\u5206\u652F\u540D\uFF0C\u5C5E\u4E8E\u5BF9\u8FD9\u6761\u8BB0\u5F55\u505A\u7684\u4E0B\u4E00\u6B65\uFF0C\u6240\u4EE5\u653E\u8FDB\u5B83\u7684\u884C\u83DC\u5355\uFF1B\u4E0D\u653E\u9875\u9762\u7EA7\u52A8\u4F5C\uFF0C\u56E0\u4E3A\u4E00\u6B21\u5904\u7406\u7684\u662F\u8FD9\u4E00\u6761\u8BB0\u5F55\u3002" },
+    { id: "7.8", form: "\u884C\u5C3E\u83DC\u5355", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u300C\u22EF\u300D\u83DC\u5355\u7684\u300C\u4ECE\u8FD9\u6761\u8BB0\u5F55\u5EFA\u5206\u652F\u300D\uFF1A\u586B\u5206\u652F\u540D\uFF0C\u5EFA\u5B8C\u8BB0\u5F55\u7528\u6389\u3001\u5185\u5BB9\u843D\u5230\u5DE5\u4F5C\u533A", status: "\u672C\u7968\u5DF2\u753B", reason: "\u4ECE\u50A8\u85CF\u5EFA\u5206\u652F\u8981\u5148\u7ED9\u5206\u652F\u540D\uFF0C\u5C5E\u4E8E\u5BF9\u8FD9\u6761\u8BB0\u5F55\u505A\u7684\u4E0B\u4E00\u6B65\uFF0C\u6240\u4EE5\u653E\u8FDB\u5B83\u7684\u884C\u83DC\u5355\uFF1B\u4E0D\u653E\u9875\u9762\u7EA7\u52A8\u4F5C\uFF0C\u56E0\u4E3A\u4E00\u6B21\u5904\u7406\u7684\u662F\u8FD9\u4E00\u6761\u8BB0\u5F55\u3002" },
     { id: "7.9", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u8BB0\u5F55\u884C\u7684\u300C\u4E22\u5F03\u8BB0\u5F55\u300D\u4E0E\u8D34\u884C\u786E\u8BA4\u5361", status: "\u5DF2\u753B" },
-    { id: "7.10", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u9875\u8BB0\u5F55\u5217\u8868\u4E0A\u65B9\u7684\u300C\u6E05\u7A7A\u5168\u90E8\u8BB0\u5F55\u300D\u4E0E\u786E\u8BA4\u5361", status: "\u5F85\u753B", reason: "\u6E05\u7A7A\u662F\u6574\u9875\u7684\u52A8\u4F5C\uFF0C\u653E\u5728\u5217\u8868\u6807\u9898\u884C\u53F3\u4FA7\uFF1B\u4E0D\u653E\u8FDB\u6BCF\u884C\u7684\u884C\u83DC\u5355\uFF08\u5B83\u4E0D\u662F\u5BF9\u4E00\u6761\u8BB0\u5F55\u505A\u7684\uFF09\uFF0C\u4E5F\u4E0D\u653E\u5371\u9669\u533A\uFF08\u50A8\u85CF\u8BB0\u5F55\u53EA\u5728\u672C\u673A\uFF09\u3002" }
+    { id: "7.10", form: "\u884C\u5185\u63A7\u4EF6", at: "\u50A8\u85CF\u9875\u5217\u8868\u6807\u9898\u884C\u53F3\u4FA7\u7684\u300C\u6E05\u7A7A\u5168\u90E8\u8BB0\u5F55\u300D\u4E0E\u8D34\u6807\u9898\u884C\u7684\u786E\u8BA4\u5361", status: "\u672C\u7968\u5DF2\u753B", reason: "\u6E05\u7A7A\u662F\u6574\u9875\u7684\u52A8\u4F5C\uFF0C\u653E\u5728\u5217\u8868\u6807\u9898\u884C\u53F3\u4FA7\uFF1B\u4E0D\u653E\u8FDB\u6BCF\u884C\u7684\u884C\u83DC\u5355\uFF08\u5B83\u4E0D\u662F\u5BF9\u4E00\u6761\u8BB0\u5F55\u505A\u7684\uFF09\uFF0C\u4E5F\u4E0D\u653E\u5371\u9669\u533A\uFF08\u50A8\u85CF\u8BB0\u5F55\u53EA\u5728\u672C\u673A\uFF09\u3002" }
   ];
   var PAGE_TITLES = {
     "branch-tags": "\u5206\u652F\u4E0E\u4E0A\u6E38",
@@ -8812,16 +8926,33 @@
     }
     const composer = h("div", { class: "composer" });
     if (result !== null && result.source === "commit") composer.append(resultBanner(result));
-    const stashBtn = h("button", {
-      class: `link-btn${model.canStash ? "" : " is-disabled"}`,
-      attrs: {
-        type: "button",
-        "data-focus-key": "stash-create",
-        title: model.canStash ? COPY.changes.stashHint : model.stashReason ?? COPY.changes.stashBlocked,
-        disabled: !model.canStash
-      },
-      dataset: { action: "stash-create" }
-    }, COPY.changes.stashAction);
+    const stashBtn = h(
+      "span",
+      { class: "stash-split" },
+      h("button", {
+        class: `link-btn${model.canStash ? "" : " is-disabled"}`,
+        attrs: {
+          type: "button",
+          "data-focus-key": "stash-create",
+          title: model.canStash ? COPY.changes.stashHint : model.stashReason ?? COPY.changes.stashBlocked,
+          disabled: !model.canStash
+        },
+        dataset: { action: "stash-create" }
+      }, COPY.changes.stashAction),
+      h("button", {
+        class: `stash-caret${model.stashMenuOpen ? " is-on" : ""}`,
+        attrs: {
+          type: "button",
+          "aria-haspopup": "true",
+          "aria-expanded": model.stashMenuOpen ? "true" : "false",
+          "aria-label": COPY.stash.variantsTitle,
+          title: model.canStash ? COPY.stash.variantsTitle : model.stashReason ?? COPY.changes.stashBlocked,
+          "data-focus-key": "stash-variants",
+          disabled: !model.canStash
+        },
+        dataset: { action: "stash-menu-toggle" }
+      }, h("span", { class: "stash-caret-glyph", attrs: { "aria-hidden": "true" }, text: "\u2304" }))
+    );
     const stagedLine = h(
       "div",
       { class: "composer-head" },
@@ -8904,8 +9035,39 @@
     if (flagNode !== null) composer.append(flagNode);
     composer.append(foot);
     if (model.composer.optionsOpen) composer.append(renderCommitOptions(model.composer));
+    if (model.stashMenuOpen) composer.append(renderStashMenu());
     view.append(filterRow, list, composer);
     return view;
+  }
+  function renderStashMenu() {
+    const item = (label, note3, mode) => h(
+      "button",
+      {
+        class: "stash-opt",
+        attrs: { type: "button", "data-focus-key": `stash-mode:${mode}` },
+        dataset: { action: "stash-create", mode }
+      },
+      h("span", { class: "stash-opt-title", text: label }),
+      h("span", { class: "stash-opt-note", text: note3 })
+    );
+    return h(
+      "div",
+      { class: "stash-menu", attrs: { role: "group", "aria-label": COPY.stash.variantsTitle } },
+      h(
+        "div",
+        { class: "opt-head" },
+        h("span", { class: "opt-title", text: COPY.stash.variantsTitle }),
+        h("button", {
+          class: "opt-close",
+          attrs: { type: "button", "aria-label": "\u6536\u8D77\u50A8\u85CF\u65B9\u5F0F", "data-focus-key": "stash-variants-close" },
+          dataset: { action: "stash-menu-toggle" }
+        }, "\xD7")
+      ),
+      h("p", { class: "stash-menu-hint", text: COPY.stash.variantsHint }),
+      item(COPY.stash.variantAll, COPY.stash.variantAllNote, "all"),
+      item(COPY.stash.variantUntracked, COPY.stash.variantUntrackedNote, "untracked"),
+      item(COPY.stash.variantStaged, COPY.stash.variantStagedNote, "staged")
+    );
   }
   function renderCommitOptions(composer) {
     const options = composer.options;
@@ -9977,10 +10139,17 @@
         { class: "stash-head-text" },
         h("h2", { class: "stash-title", text: COPY.stash.title }),
         h("p", { class: "stash-count", text: COPY.stash.lede })
-      )
+      ),
+      // 清空是整页动作：放在列表标题行右侧，不做进每行的菜单里。
+      model.empty ? null : h("button", {
+        class: "link-btn stash-clear-action",
+        attrs: { type: "button", "data-focus-key": "stash-clear-action" },
+        dataset: { action: "stash-clear-open" }
+      }, COPY.stash.clearAction)
     );
     view.append(head);
     view.append(note(COPY.stash.boundary, "muted"));
+    if (model.clearPending) view.append(renderClearCard(model));
     const scroll = h("div", { class: "stash-scroll" });
     if (result !== null && result.source === "stash") scroll.append(resultBanner(result));
     if (model.empty) {
@@ -9990,6 +10159,47 @@
     }
     view.append(scroll);
     return view;
+  }
+  function renderClearCard(model) {
+    return h(
+      "div",
+      { class: "stash-clear-card", attrs: { role: "group", "aria-label": COPY.stash.clearTitle(model.total) } },
+      h("p", { class: "stash-confirm-title", text: COPY.stash.clearTitle(model.total) }),
+      h("p", { class: "stash-confirm-body", text: COPY.stash.clearBody }),
+      h(
+        "div",
+        { class: "stash-confirm-actions" },
+        button({ label: COPY.stash.clearCancel, kind: "ghost", size: "sm", action: "stash-clear-cancel", focusKey: "stash-clear-cancel" }),
+        button({ label: COPY.stash.clearConfirm, kind: "danger", size: "sm", action: "stash-clear-apply", focusKey: "stash-clear-apply" })
+      )
+    );
+  }
+  function renderBranchForm(model) {
+    const input = h("input", {
+      class: "wt-input",
+      attrs: {
+        type: "text",
+        "aria-label": COPY.stash.branchName,
+        autocomplete: "off",
+        spellcheck: "false",
+        "data-field": "stash-branch",
+        "data-focus-key": "stash-branch"
+      }
+    });
+    input.value = model.branchDraft;
+    return h(
+      "div",
+      { class: "stash-branch-form", attrs: { role: "group", "aria-label": COPY.stash.branchTitle } },
+      h("p", { class: "stash-branch-title", text: COPY.stash.branchTitle }),
+      input,
+      h("p", { class: "stash-branch-hint", text: COPY.stash.branchHint }),
+      h(
+        "div",
+        { class: "stash-branch-actions" },
+        button({ label: COPY.stash.cancel, kind: "ghost", size: "sm", action: "stash-branch-cancel", focusKey: "stash-branch-cancel" }),
+        button({ label: COPY.stash.branchApply, kind: "secondary", size: "sm", action: "stash-branch-apply", focusKey: "stash-branch-apply" })
+      )
+    );
   }
   function renderStashRow(row, model) {
     const wrap = h("div", { class: "stash-row-wrap" });
@@ -10037,8 +10247,38 @@
       title: COPY.stash.dropTitle(row.id),
       disabled: model.busy
     }));
+    actions.append(h("button", {
+      class: `row-act row-more stash-more${row.menuOpen ? " is-open" : ""}`,
+      attrs: {
+        type: "button",
+        "aria-haspopup": "true",
+        "aria-expanded": row.menuOpen ? "true" : "false",
+        "aria-label": COPY.stash.menuMore,
+        title: COPY.stash.menuMore,
+        "data-focus-key": `stash-more:${row.id}`,
+        disabled: model.busy
+      },
+      dataset: { action: "stash-menu", id: row.id }
+    }, h("span", { class: "row-more-dots", text: "\u22EF", attrs: { "aria-hidden": "true" } })));
     line.append(actions);
     wrap.append(line);
+    if (row.menuOpen) {
+      wrap.append(h(
+        "div",
+        { class: "row-menu", attrs: { role: "menu", "aria-label": COPY.stash.menuMore } },
+        h("button", {
+          class: "row-menu-item",
+          attrs: { type: "button", role: "menuitem" },
+          dataset: { action: "stash-branch-open", id: row.id }
+        }, COPY.stash.menuBranch),
+        h("button", {
+          class: "row-menu-item is-close",
+          attrs: { type: "button", "aria-label": COPY.stash.menuClose },
+          dataset: { action: "stash-menu", id: row.id }
+        }, COPY.stash.menuClose)
+      ));
+    }
+    if (row.branchOpen) wrap.append(renderBranchForm(model));
     const paths = h("div", { class: "stash-paths" });
     paths.append(h("p", { class: "stash-paths-note", text: COPY.stash.pathsNote }));
     const list = h("ul", { class: "stash-path-list" });
@@ -12459,8 +12699,40 @@
         case "changes-apply":
           dispatch({ type: "changes-apply" }, { focusKey: lastFocusKey, scroll: null });
           return;
-        case "stash-create":
+        case "stash-create": {
+          const mode = el.dataset.mode;
+          if (mode === "untracked" || mode === "staged") {
+            dispatch({ type: "stash-create", mode }, { focusKey: "stash-variants", scroll: null });
+            return;
+          }
           dispatch({ type: "stash-create" }, { focusKey: "composer-links", scroll: null });
+          return;
+        }
+        case "stash-menu-toggle":
+          dispatch({ type: "stash-menu-toggle" }, { focusKey: "stash-variants", scroll: null });
+          return;
+        case "stash-menu":
+          dispatch({ type: "stash-menu", id: el.dataset.id ?? "" }, { focusKey: `stash-more:${el.dataset.id ?? ""}`, scroll: null });
+          return;
+        case "stash-branch-open":
+          dispatch({ type: "stash-branch-open", id: el.dataset.id ?? "" }, { focusKey: "stash-branch", scroll: null });
+          return;
+        case "stash-branch-cancel": {
+          const id = state.stashBranchId ?? "";
+          dispatch({ type: "stash-branch-cancel" }, { focusKey: `stash-more:${id}`, scroll: null });
+          return;
+        }
+        case "stash-branch-apply":
+          dispatch({ type: "stash-branch-apply" }, { focusKey: "stash-branch-apply", scroll: null });
+          return;
+        case "stash-clear-open":
+          dispatch({ type: "stash-clear-open" }, { focusKey: "stash-clear-cancel", scroll: null });
+          return;
+        case "stash-clear-cancel":
+          dispatch({ type: "stash-clear-cancel" }, { focusKey: "stash-clear-action", scroll: null });
+          return;
+        case "stash-clear-apply":
+          dispatch({ type: "stash-clear-apply" }, { focusKey: "stash-clear-action", scroll: null });
           return;
         case "stash-apply":
         case "stash-pop": {
@@ -12899,6 +13171,8 @@
         dispatch({ type: "wt-create-path", value: target.value }, { focusKey: "wt-create-path" });
       } else if (field === "wt-create-branch") {
         dispatch({ type: "wt-create-branch", value: target.value }, { focusKey: "wt-create-branch" });
+      } else if (field === "stash-branch") {
+        dispatch({ type: "stash-branch-draft", value: target.value }, { focusKey: "stash-branch" });
       } else if (field === "wt-move") {
         dispatch({ type: "wt-move-draft", value: target.value }, { focusKey: `wt-move:${expandedWorktree ?? ""}` });
       } else if (field === "branch-query") {
@@ -12991,6 +13265,11 @@
         dispatch({ type: "commit-options-toggle" }, { focusKey: "commit-options" });
         return;
       }
+      if (event.key === "Escape" && state.stashMenuOpen) {
+        event.preventDefault();
+        dispatch({ type: "stash-menu-toggle" }, { focusKey: "stash-variants" });
+        return;
+      }
       if (event.key === "Escape" && state.changesPending !== null) {
         event.preventDefault();
         dispatch({ type: "changes-pending", pending: null }, { focusKey: lastFocusKey });
@@ -13070,6 +13349,9 @@
       if (state.commitOptionsOpen && target.closest(".commit-options") === null && target.closest('[data-action="commit-options-toggle"]') === null) {
         dispatch({ type: "commit-options-toggle" }, { focusKey: lastFocusKey });
       }
+      if (state.stashMenuOpen && target.closest(".stash-menu") === null && target.closest('[data-action="stash-menu-toggle"]') === null) {
+        dispatch({ type: "stash-menu-toggle" }, { focusKey: lastFocusKey, scroll: null });
+      }
       const insideTransient = target.closest(".row-menu, .row-more, .row-act, .commit-menu, .commit-more, .changes-confirm, .commit-confirm") !== null;
       if (!insideTransient && (commitMenuOid !== null || commitConfirmOid !== null || state.openMenuPath !== null)) {
         commitMenuOid = null;
@@ -13141,6 +13423,14 @@
       if (commitMenu !== null && commitMenu !== "") commitMenuOid = commitMenu;
       if (params.get("commitconfirm") === "1" && commitMenuOid !== null) commitConfirmOid = commitMenuOid;
       if (params.get("stashdemo") === "1") state = reduce(state, { type: "stash-create" }, base);
+      if (params.get("stashmenu") === "1") state = reduce(state, { type: "stash-menu-toggle" }, base);
+      const stashMode = params.get("stashmode");
+      if ((stashMode === "all" || stashMode === "untracked" || stashMode === "staged") && params.get("stashgo") === "1") {
+        state = reduce(state, { type: "stash-create", mode: stashMode }, base);
+      }
+      const stashBranch = params.get("stashbranch");
+      if (stashBranch !== null && stashBranch !== "") state = reduce(state, { type: "stash-branch-open", id: stashBranch }, base);
+      if (params.get("stashclear") === "1") state = reduce(state, { type: "stash-clear-open" }, base);
       const stashPending = params.get("stashpending");
       if (stashPending === "drop") {
         const stashId = params.get("stashid") ?? "stash@{0}";

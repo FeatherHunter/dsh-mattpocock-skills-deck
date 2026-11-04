@@ -203,6 +203,8 @@ export interface ChangesModel {
   /** 储藏入口：工作区有改动、且没有冲突文件时才可用。 */
   canStash: boolean
   stashReason: string | null
+  /** 「储藏」右侧箭头打开的变体菜单（全部改动 / 连未跟踪 / 只储藏已暂存）。 */
+  stashMenuOpen: boolean
   /** 哪一行的「更多」菜单开着：菜单紧贴这一行画。 */
   openMenuPath: string | null
   pending: ChangesPendingModel | null
@@ -376,9 +378,13 @@ export interface StashRowModel {
   when: string
   paths: string[]
   filesCount: number
+  /** 这一行的「更多」菜单开着没有。 */
+  menuOpen: boolean
+  /** 这一行开着「从这条记录建分支」的输入框没有。 */
+  branchOpen: boolean
 }
 
-/** 储藏视图：没有需要二次确认的动作，只有丢弃记录要问一句。 */
+/** 储藏视图：没有需要二次确认的动作，只有丢弃记录与清空全部要问一句。 */
 export interface StashModel {
   rows: StashRowModel[]
   total: number
@@ -386,6 +392,11 @@ export interface StashModel {
   /** 正在等用户确认丢弃的那一条：确认卡出现在它的行下面。 */
   pending: { id: string; title: string; body: string } | null
   busy: boolean
+  /** 「清空全部记录」的确认卡：它是整页动作，卡片贴着列表标题行。 */
+  clearPending: boolean
+  /** 「从这条记录建分支」的表单：哪一条、输入框里写什么。 */
+  branchId: string | null
+  branchDraft: string
 }
 
 export interface BranchesModel {
@@ -803,6 +814,7 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
     canDiscardAll: !busy && state.conflicts.length === 0 && state.unstaged.length > 0,
     canStash: !busy && state.conflicts.length === 0 && changeCount > 0,
     stashReason: state.conflicts.length > 0 ? COPY.block['conflicts-unresolved'] : null,
+    stashMenuOpen: state.stashMenuOpen,
     openMenuPath: state.openMenuPath,
     pending: pendingOf(base, state),
     rename: state.renamePath === null ? null : { path: state.renamePath, draft: state.renameDraft },
@@ -1258,6 +1270,8 @@ export function stashOf(state: SessionState, nowMs: number): StashModel {
     when: timeText(nowMs, entry.whenMs),
     paths: entry.paths,
     filesCount: entry.paths.length,
+    menuOpen: state.stashMenuId === entry.id,
+    branchOpen: state.stashBranchId === entry.id,
   }))
   const pending = state.stashPending === null ? null : {
     id: state.stashPending.id,
@@ -1270,6 +1284,9 @@ export function stashOf(state: SessionState, nowMs: number): StashModel {
     empty: rows.length === 0,
     pending,
     busy: state.busy !== null,
+    clearPending: state.stashClearPending,
+    branchId: state.stashBranchId,
+    branchDraft: state.stashBranchDraft,
   }
 }
 

@@ -857,8 +857,41 @@ export function mount(root: HTMLElement): void {
       case 'changes-apply':
         dispatch({ type: 'changes-apply' }, { focusKey: lastFocusKey, scroll: null })
         return
-      case 'stash-create':
+      case 'stash-create': {
+        // 主按钮收默认那一种；右侧箭头菜单里的两项各自带上收法。
+        const mode = el.dataset.mode
+        if (mode === 'untracked' || mode === 'staged') {
+          dispatch({ type: 'stash-create', mode }, { focusKey: 'stash-variants', scroll: null })
+          return
+        }
         dispatch({ type: 'stash-create' }, { focusKey: 'composer-links', scroll: null })
+        return
+      }
+      case 'stash-menu-toggle':
+        dispatch({ type: 'stash-menu-toggle' }, { focusKey: 'stash-variants', scroll: null })
+        return
+      case 'stash-menu':
+        dispatch({ type: 'stash-menu', id: el.dataset.id ?? '' }, { focusKey: `stash-more:${el.dataset.id ?? ''}`, scroll: null })
+        return
+      case 'stash-branch-open':
+        dispatch({ type: 'stash-branch-open', id: el.dataset.id ?? '' }, { focusKey: 'stash-branch', scroll: null })
+        return
+      case 'stash-branch-cancel': {
+        const id = state.stashBranchId ?? ''
+        dispatch({ type: 'stash-branch-cancel' }, { focusKey: `stash-more:${id}`, scroll: null })
+        return
+      }
+      case 'stash-branch-apply':
+        dispatch({ type: 'stash-branch-apply' }, { focusKey: 'stash-branch-apply', scroll: null })
+        return
+      case 'stash-clear-open':
+        dispatch({ type: 'stash-clear-open' }, { focusKey: 'stash-clear-cancel', scroll: null })
+        return
+      case 'stash-clear-cancel':
+        dispatch({ type: 'stash-clear-cancel' }, { focusKey: 'stash-clear-action', scroll: null })
+        return
+      case 'stash-clear-apply':
+        dispatch({ type: 'stash-clear-apply' }, { focusKey: 'stash-clear-action', scroll: null })
         return
       case 'stash-apply':
       case 'stash-pop': {
@@ -1302,6 +1335,8 @@ export function mount(root: HTMLElement): void {
       dispatch({ type: 'wt-create-path', value: target.value }, { focusKey: 'wt-create-path' })
     } else if (field === 'wt-create-branch') {
       dispatch({ type: 'wt-create-branch', value: target.value }, { focusKey: 'wt-create-branch' })
+    } else if (field === 'stash-branch') {
+      dispatch({ type: 'stash-branch-draft', value: target.value }, { focusKey: 'stash-branch' })
     } else if (field === 'wt-move') {
       dispatch({ type: 'wt-move-draft', value: target.value }, { focusKey: `wt-move:${expandedWorktree ?? ''}` })
     } else if (field === 'branch-query') {
@@ -1412,6 +1447,12 @@ export function mount(root: HTMLElement): void {
       dispatch({ type: 'commit-options-toggle' }, { focusKey: 'commit-options' })
       return
     }
+    // 储藏方式也是一层贴箭头打开的浮层，Esc 先收它，焦点回到箭头。
+    if (event.key === 'Escape' && state.stashMenuOpen) {
+      event.preventDefault()
+      dispatch({ type: 'stash-menu-toggle' }, { focusKey: 'stash-variants' })
+      return
+    }
     if (event.key === 'Escape' && state.changesPending !== null) {
       event.preventDefault()
       dispatch({ type: 'changes-pending', pending: null }, { focusKey: lastFocusKey })
@@ -1498,6 +1539,10 @@ export function mount(root: HTMLElement): void {
     if (state.commitOptionsOpen && target.closest('.commit-options') === null && target.closest('[data-action="commit-options-toggle"]') === null) {
       dispatch({ type: 'commit-options-toggle' }, { focusKey: lastFocusKey })
     }
+    // 储藏方式菜单同样按「点它自己和箭头以外的地方收起」处理。
+    if (state.stashMenuOpen && target.closest('.stash-menu') === null && target.closest('[data-action="stash-menu-toggle"]') === null) {
+      dispatch({ type: 'stash-menu-toggle' }, { focusKey: lastFocusKey, scroll: null })
+    }
     const insideTransient = target.closest('.row-menu, .row-more, .row-act, .commit-menu, .commit-more, .changes-confirm, .commit-confirm') !== null
     if (!insideTransient && (commitMenuOid !== null || commitConfirmOid !== null || state.openMenuPath !== null)) {
       commitMenuOid = null
@@ -1583,6 +1628,15 @@ export function mount(root: HTMLElement): void {
     if (params.get('commitconfirm') === '1' && commitMenuOid !== null) commitConfirmOid = commitMenuOid
     // 储藏记录用一条演示数据起底：真实仓库里没有储藏记录，也要能截到「应用回工作区 / 弹出 / 丢弃记录」这一页。
     if (params.get('stashdemo') === '1') state = reduce(state, { type: 'stash-create' }, base)
+    // 储藏这一组的三件事也给深链：收法菜单、从记录建分支、清空全部。
+    if (params.get('stashmenu') === '1') state = reduce(state, { type: 'stash-menu-toggle' }, base)
+    const stashMode = params.get('stashmode')
+    if ((stashMode === 'all' || stashMode === 'untracked' || stashMode === 'staged') && params.get('stashgo') === '1') {
+      state = reduce(state, { type: 'stash-create', mode: stashMode }, base)
+    }
+    const stashBranch = params.get('stashbranch')
+    if (stashBranch !== null && stashBranch !== '') state = reduce(state, { type: 'stash-branch-open', id: stashBranch }, base)
+    if (params.get('stashclear') === '1') state = reduce(state, { type: 'stash-clear-open' }, base)
     const stashPending = params.get('stashpending')
     if (stashPending === 'drop') {
       const stashId = params.get('stashid') ?? 'stash@{0}'

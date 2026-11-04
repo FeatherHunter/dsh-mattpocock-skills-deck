@@ -118,6 +118,12 @@ const SHOTS = [
   { name: '95-wt-move-460', query: 'view=worktrees', clicks: ['.wt-row [data-action="wt-expand"]', '[data-action="wt-move-open"]'], viewport: TALL },
   { name: '96-wt-sparse-460', query: 'view=worktrees', clicks: ['.wt-row [data-action="wt-expand"]', '[data-action="wt-sparse-open"]'], viewport: TALL },
   { name: '97-wt-created-460', query: 'view=worktrees&wtnew=1&wtnewpath=D:/repo/.worktrees/1800-new&wtnewbranch=ticket/1800-new&wtnewsubmit=1' },
+  // 储藏四条：储藏方式的三种收法、默认收完之后未跟踪文件还在、记录行菜单、建分支表单、清空确认。
+  { name: '98-stash-variants-460', query: 'view=changes&stashmenu=1' },
+  { name: '99-stash-default-result-460', query: 'view=changes&stashmode=all&stashgo=1' },
+  { name: '100-stash-row-menu-460', query: 'view=stash&stashdemo=1', clicks: ['.stash-more'] },
+  { name: '101-stash-branch-form-380-light', query: 'view=stash&stashdemo=1', width: 380, theme: 'light', clicks: ['.stash-more', '.row-menu-item'] },
+  { name: '102-stash-clear-confirm-460', query: 'view=stash&stashdemo=1&stashclear=1' },
 ]
 
 async function main() {

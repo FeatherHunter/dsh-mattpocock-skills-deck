@@ -57,16 +57,33 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
 
   const composer = h('div', { class: 'composer' })
   if (result !== null && result.source === 'commit') composer.append(resultBanner(result))
-  const stashBtn = h('button', {
-    class: `link-btn${model.canStash ? '' : ' is-disabled'}`,
-    attrs: {
-      type: 'button',
-      'data-focus-key': 'stash-create',
-      title: model.canStash ? COPY.changes.stashHint : model.stashReason ?? COPY.changes.stashBlocked,
-      disabled: !model.canStash,
-    },
-    dataset: { action: 'stash-create' },
-  }, COPY.changes.stashAction)
+  // 「储藏」是一颗带箭头的拆分按钮：点主按钮收默认那一种（已跟踪的改动），
+  // 点箭头选另外两种收法（连未跟踪 / 只收已暂存）。三种收法收进去的东西不一样，
+  // 所以不合并成一个开关，也不另开一页。
+  const stashBtn = h('span', { class: 'stash-split' },
+    h('button', {
+      class: `link-btn${model.canStash ? '' : ' is-disabled'}`,
+      attrs: {
+        type: 'button',
+        'data-focus-key': 'stash-create',
+        title: model.canStash ? COPY.changes.stashHint : model.stashReason ?? COPY.changes.stashBlocked,
+        disabled: !model.canStash,
+      },
+      dataset: { action: 'stash-create' },
+    }, COPY.changes.stashAction),
+    h('button', {
+      class: `stash-caret${model.stashMenuOpen ? ' is-on' : ''}`,
+      attrs: {
+        type: 'button',
+        'aria-haspopup': 'true',
+        'aria-expanded': model.stashMenuOpen ? 'true' : 'false',
+        'aria-label': COPY.stash.variantsTitle,
+        title: model.canStash ? COPY.stash.variantsTitle : model.stashReason ?? COPY.changes.stashBlocked,
+        'data-focus-key': 'stash-variants',
+        disabled: !model.canStash,
+      },
+      dataset: { action: 'stash-menu-toggle' },
+    }, h('span', { class: 'stash-caret-glyph', attrs: { 'aria-hidden': 'true' }, text: '⌄' })))
   const stagedLine = h('div', { class: 'composer-head' },
     h('span', { class: 'composer-count' },
       h('span', { class: 'count', text: String(model.composer.stagedCount) }),
@@ -154,8 +171,37 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   // 提交选项贴在提交区上方浮起来，不再挤占文件列表：它是一次临时选择（形态、模板、钩子、签名），
   // 松开以后文件列表还是原来那么高。这和分支浮层、行菜单是同一种「贴触发点的浮层」。
   if (model.composer.optionsOpen) composer.append(renderCommitOptions(model.composer))
+  // 储藏方式的菜单从箭头打开，浮在提交区上方；点外面或按 Esc 由 app.ts 统一收起。
+  if (model.stashMenuOpen) composer.append(renderStashMenu())
   view.append(filterRow, list, composer)
   return view
+}
+
+/**
+ * 储藏方式的三种收法。为什么不是三颗按钮：它们收的是同一件事的不同范围，
+ * 主按钮给默认那种（已跟踪的改动），另外两种收进箭头里，读者点之前就能看清区别。
+ */
+function renderStashMenu(): HTMLElement {
+  const item = (label: string, note: string, mode: 'all' | 'untracked' | 'staged'): HTMLElement =>
+    h('button', {
+      class: 'stash-opt',
+      attrs: { type: 'button', 'data-focus-key': `stash-mode:${mode}` },
+      dataset: { action: 'stash-create', mode },
+    },
+    h('span', { class: 'stash-opt-title', text: label }),
+    h('span', { class: 'stash-opt-note', text: note }))
+  return h('div', { class: 'stash-menu', attrs: { role: 'group', 'aria-label': COPY.stash.variantsTitle } },
+    h('div', { class: 'opt-head' },
+      h('span', { class: 'opt-title', text: COPY.stash.variantsTitle }),
+      h('button', {
+        class: 'opt-close',
+        attrs: { type: 'button', 'aria-label': '收起储藏方式', 'data-focus-key': 'stash-variants-close' },
+        dataset: { action: 'stash-menu-toggle' },
+      }, '×')),
+    h('p', { class: 'stash-menu-hint', text: COPY.stash.variantsHint }),
+    item(COPY.stash.variantAll, COPY.stash.variantAllNote, 'all'),
+    item(COPY.stash.variantUntracked, COPY.stash.variantUntrackedNote, 'untracked'),
+    item(COPY.stash.variantStaged, COPY.stash.variantStagedNote, 'staged'))
 }
 
 /**

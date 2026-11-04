@@ -2175,6 +2175,83 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .stash-meta { margin-top: 3px; font-size: 10px; color: var(--faint); }
 
 .stash-actions { display: flex; align-items: center; gap: 4px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.stash-more { align-self: flex-start; }
+
+/* 「储藏」拆分按钮：主按钮收默认那种，箭头打开另外两种收法。菜单浮在提交区上方。 */
+.stash-split { display: inline-flex; align-items: center; gap: 2px; }
+.stash-caret {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--info);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.stash-caret:hover { background: var(--hover); border-color: var(--line-2); }
+.stash-caret.is-on { background: var(--press); border-color: var(--mut); color: var(--ink); }
+.stash-caret:disabled { color: var(--faint); cursor: not-allowed; }
+.stash-caret-glyph { transform: translateY(-1px); }
+
+.stash-menu {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 6px);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(280px, calc(100% - 16px));
+  padding: 8px 9px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--inset);
+  box-shadow: 0 16px 34px -18px rgba(8, 12, 18, 0.72);
+}
+.stash-menu-hint { margin: 0; font-size: 10px; line-height: 1.5; color: var(--faint); }
+.stash-opt {
+  display: grid;
+  gap: 2px;
+  padding: 6px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.stash-opt:hover { background: var(--raised); border-color: var(--line-2); }
+.stash-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.stash-opt-title { font-size: 11px; font-weight: 600; color: var(--ink); }
+.stash-opt-note { font-size: 10px; line-height: 1.45; color: var(--faint); }
+
+/* 清空全部记录：整页动作，确认卡贴在列表标题行下面。 */
+.stash-clear-action { margin-left: auto; flex: none; }
+.stash-clear-card {
+  margin: 0 12px 8px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line-2));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger-soft) 45%, var(--panel));
+}
+
+/* 从储藏记录建分支：输入框与说明贴在记录下面。 */
+.stash-branch-form {
+  display: grid;
+  gap: 6px;
+  margin: 7px 0 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--panel);
+}
+.stash-branch-title { font-size: 11px; font-weight: 700; color: var(--ink); }
+.stash-branch-hint { font-size: 10px; line-height: 1.55; color: var(--faint); }
+.stash-branch-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
 .stash-paths {
   margin: 7px 0 0;

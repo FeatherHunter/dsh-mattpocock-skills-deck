@@ -217,6 +217,14 @@ export interface SessionState {
   /** 储藏清单：按 git stash 的顺序，最近一条在最前面。 */
   stashes: StashEntry[]
   stashPending: StashPending | null
+  /** 「储藏」按钮的变体菜单：全部改动 / 连未跟踪一起 / 只储藏已暂存。 */
+  stashMenuOpen: boolean
+  /** 储藏记录行的「更多」菜单，以及「从这条记录建分支」的表单。 */
+  stashMenuId: string | null
+  stashBranchId: string | null
+  stashBranchDraft: string
+  /** 「清空全部记录」的确认卡开着没有。 */
+  stashClearPending: boolean
   /** 被「撤销这次提交」撤掉的那条提交：从历史里暂时隐去，改动回到「已暂存」。 */
   undoneOid: string | null
   /**
@@ -334,7 +342,16 @@ export type Action =
   | { type: 'rename-cancel' }
   | { type: 'rename-apply' }
   | { type: 'demo-conflicts' }
-  | { type: 'stash-create' }
+  | { type: 'stash-create'; mode?: 'all' | 'untracked' | 'staged' }
+  | { type: 'stash-menu-toggle' }
+  | { type: 'stash-menu'; id: string | null }
+  | { type: 'stash-branch-open'; id: string }
+  | { type: 'stash-branch-draft'; value: string }
+  | { type: 'stash-branch-cancel' }
+  | { type: 'stash-branch-apply' }
+  | { type: 'stash-clear-open' }
+  | { type: 'stash-clear-cancel' }
+  | { type: 'stash-clear-apply' }
   | { type: 'stash-apply'; id: string }
   | { type: 'stash-pop'; id: string }
   | { type: 'stash-pending'; pending: StashPending | null }
@@ -427,6 +444,11 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
     ignored: [],
     stashes: [],
     stashPending: null,
+    stashMenuOpen: false,
+    stashMenuId: null,
+    stashBranchId: null,
+    stashBranchDraft: '',
+    stashClearPending: false,
     undoneOid: null,
     replacedOid: null,
     commitOptionsOpen: false,
@@ -1429,14 +1451,33 @@ function acted(state: SessionState, action: Action, base: SessionBase): SessionS
         source: 'branch',
       })
     }
+    /*
+     * 储藏有三种收法，git 的行为不一样，所以做成同一颗按钮下的三个变体：
+     *   all（默认）：只收已跟踪的改动，未跟踪的新文件留在工作区——这是 git stash 的默认行为；
+     *   untracked：连未跟踪的一起收走（git stash -u）；
+     *   staged：只收索引里的那一份（git stash push --staged），工作区里的改动仍在。
+     */
     case 'stash-create': {
       if (state.busy !== null || state.reloading) return state
       if (state.conflicts.length > 0) {
         return withResult(state, { tone: 'error', text: '有冲突文件时不能储藏。', detail: '储藏会把工作区恢复成上次提交时的样子，冲突文件没有可以安全恢复的版本。先解决冲突，再储藏剩下的改动。', source: 'changes' })
       }
-      const paths = unique([...state.staged, ...state.unstaged])
+      const mode = action.mode ?? 'all'
+      const isUntracked = (path: string): boolean => metadataOf(base, path)?.change === 'untracked'
+      const untracked = state.unstaged.filter(isUntracked)
+      const trackedUnstaged = state.unstaged.filter((path) => !isUntracked(path))
+      const paths = mode === 'staged'
+        ? state.staged
+        : mode === 'untracked'
+          ? unique([...state.staged, ...state.unstaged])
+          : unique([...state.staged, ...trackedUnstaged])
       if (paths.length === 0) {
-        return withResult(state, { tone: 'info', text: '工作区是干净的，没有可储藏的内容。', detail: null, source: 'changes' })
+        const empty = mode === 'staged'
+          ? { text: '索引里没有已暂存的文件，没有可储藏的内容。', detail: '「只储藏已暂存的改动」收的是索引里的那一份；先把要收的文件暂存起来。' }
+          : mode === 'untracked'
+            ? { text: '工作区是干净的，没有可储藏的内容。', detail: null }
+            : { text: '没有可储藏的内容。', detail: untracked.length > 0 ? `工作区里只有 ${untracked.length} 个未跟踪的新文件；默认储藏不收它们，要收就选「连未跟踪的文件一起储藏」。` : '工作区与索引都是干净的。' }
+        return withResult({ ...state, stashMenuOpen: false }, { tone: 'info', text: empty.text, detail: empty.detail, source: 'changes' })
       }
       const branchName = state.branches.find((row) => row.current)?.name ?? base.branch ?? 'detached'
       const message = state.message.trim() === '' ? `WIP on ${branchName}` : state.message.trim()
@@ -1446,16 +1487,33 @@ function acted(state: SessionState, action: Action, base: SessionBase): SessionS
         whenMs: Date.now(),
         paths,
       }
+      // 储藏走之后工作区剩下什么，按三种收法分别算：默认留下未跟踪的新文件；
+      // -u 什么都不留；--staged 把索引里的内容退回工作区，所以那些改动变成未暂存。
+      const resting = mode === 'staged'
+        ? unique([...state.unstaged, ...state.staged])
+        : mode === 'untracked' ? [] : untracked
+      const detail = mode === 'staged'
+        ? `只收走索引里的那一份：这 ${paths.length} 个文件的改动仍留在工作区，重新变成未暂存。`
+        : mode === 'untracked'
+          ? `储藏记录 ${entry.id} 里放着这些文件，包括 ${untracked.length} 个未跟踪的新文件。工作区恢复成上次提交时的样子。`
+          : untracked.length > 0
+            ? `储藏记录 ${entry.id} 里放着 ${paths.length} 个已跟踪文件；工作区里那 ${untracked.length} 个未跟踪的新文件没有一起收走，仍留在工作区。`
+            : `储藏记录 ${entry.id} 里放着这些文件。工作区与「已暂存」的清单都恢复成上次提交时的样子。`
       return withResult({
         ...state,
         stashes: [entry, ...state.stashes],
         staged: [],
-        unstaged: [],
+        unstaged: resting,
         message: '',
+        stashMenuOpen: false,
       }, {
         tone: 'ok',
-        text: `已储藏 ${paths.length} 个文件的改动。`,
-        detail: `储藏记录 ${entry.id} 里放着这些文件。工作区与「已暂存」的清单都恢复成上次提交时的样子，应用回工作区或弹出都能把它拿回来。`,
+        text: mode === 'staged'
+          ? `已储藏 ${paths.length} 个文件的已暂存内容。`
+          : mode === 'untracked'
+            ? `已储藏 ${paths.length} 个文件（其中 ${untracked.length} 个未跟踪）。`
+            : `已储藏 ${paths.length} 个文件的已跟踪改动。`,
+        detail,
         source: 'changes',
       })
     }
@@ -1495,6 +1553,71 @@ function acted(state: SessionState, action: Action, base: SessionBase): SessionS
         tone: 'warn',
         text: `已丢弃记录 ${entry.id}。`,
         detail: `记录里那 ${entry.paths.length} 个文件当时的样子已经不存在。这一步不能撤回。`,
+        source: 'stash',
+      })
+    }
+    case 'stash-menu-toggle':
+      return { ...state, stashMenuOpen: !state.stashMenuOpen }
+    case 'stash-menu':
+      return { ...state, stashMenuId: action.id }
+    case 'stash-branch-open':
+      return { ...state, stashBranchId: action.id, stashBranchDraft: 'stash-branch', stashMenuId: null }
+    case 'stash-branch-draft':
+      return { ...state, stashBranchDraft: action.value }
+    case 'stash-branch-cancel':
+      return { ...state, stashBranchId: null, stashBranchDraft: '' }
+    case 'stash-branch-apply': {
+      if (state.busy !== null || state.reloading) return state
+      const id = state.stashBranchId
+      if (id === null) return state
+      const name = state.stashBranchDraft.trim()
+      if (name === '') {
+        return withResult(state, { tone: 'error', text: '先给分支起个名字。', detail: 'git stash branch 会新建一条分支，再把这条记录应用上去。', source: 'stash' })
+      }
+      if (state.branches.some((row) => row.name === name)) {
+        return withResult(state, { tone: 'error', text: `分支 ${name} 已经存在。`, detail: '换一个名字；这条记录还没有被用掉。', source: 'stash' })
+      }
+      const entry = state.stashes.find((row) => row.id === id)
+      if (entry === undefined) return { ...state, stashBranchId: null, stashBranchDraft: '' }
+      const head = headInfoOf(base, state)
+      const branch: BranchRow = {
+        name,
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        oidShort: head === null ? '' : head.short,
+        lastCommitMs: Date.now(),
+        subject: `从 ${id} 建的分支`,
+        mergedIntoCurrent: false,
+        current: true,
+      }
+      return withResult({
+        ...state,
+        // 建分支等于切过去：原来那条分支不再标成当前分支。
+        branches: [branch, ...state.branches.map((row) => ({ ...row, current: false }))],
+        stashes: state.stashes.filter((row) => row.id !== id),
+        unstaged: unique([...state.unstaged, ...entry.paths]),
+        stashBranchId: null,
+        stashBranchDraft: '',
+        stashMenuId: null,
+      }, {
+        tone: 'ok',
+        text: `已从 ${id} 建分支 ${name}，记录里的 ${entry.paths.length} 个文件回到工作区。`,
+        detail: 'git stash branch：新分支从储藏当时的提交开始，储藏内容直接落到工作区。这条记录已经用掉，不会留在清单里。',
+        source: 'stash',
+      })
+    }
+    case 'stash-clear-open':
+      return { ...state, stashClearPending: true, stashMenuId: null }
+    case 'stash-clear-cancel':
+      return { ...state, stashClearPending: false }
+    case 'stash-clear-apply': {
+      const count = state.stashes.length
+      if (count === 0) return { ...state, stashClearPending: false }
+      return withResult({ ...state, stashes: [], stashClearPending: false }, {
+        tone: 'warn',
+        text: `已清空 ${count} 条储藏记录。`,
+        detail: '记录里的改动不再存在，这一步不能撤回；工作区与提交历史都没有被改动。',
         source: 'stash',
       })
     }
