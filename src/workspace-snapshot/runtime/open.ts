@@ -13,6 +13,8 @@
 import { dirname, existsSync, mkdirSync, resolve } from './node-builtins.js'
 import type {
   IngestResult,
+  MarkMissingResult,
+  MissingTicket,
   OpenWorkspaceSnapshotOptions,
   OpenWorkspaceSnapshotResult,
   SnapshotMode,
@@ -42,6 +44,7 @@ import { openWritableDatabase, describeError } from './open-schema.js'
 import { readListProjection } from '../projection/list.js'
 import { readIssueDetailProjection } from '../projection/detail.js'
 import { ingestWrites } from './ingest.js'
+import { markMissingTickets } from './tombstone-write.js'
 import {
   releaseLease,
   startLeaseHeartbeat,
@@ -101,6 +104,8 @@ export function openWorkspaceSnapshot(
     dbExisted: existsBefore,
     journalMode,
     mergeVersion: readMergeVersion(db),
+    // 迁移过就说清「这一次没重建」；字段沿用已登记的 reason，不新增事件也不新增键。
+    ...(opened.migratedFrom !== undefined ? { reason: 'migrated-from-' + opened.migratedFrom } : null),
   })
 
   let mode: SnapshotMode = 'writable'
@@ -209,6 +214,18 @@ export function openWorkspaceSnapshot(
         elapsedMs,
       })
       return { committed: false, reason, detail: result.detail }
+    },
+    markMissing(entries: readonly MissingTicket[], startMergeVersion: number): MarkMissingResult {
+      ensureOpen()
+      if (mode !== 'writable') {
+        logSnapshot(logEvent, 'warn', 'workspaceSnapshot.ingest', {
+          committed: false,
+          reason: 'readonly',
+          mergeVersion: readMergeVersion(db),
+        })
+        return { committed: false, reason: 'readonly', mergeVersion: readMergeVersion(db), marked: 0 }
+      }
+      return markMissingTickets(db, entries, startMergeVersion, now())
     },
     readList(query?: ListQuery): ListProjection {
       ensureOpen()

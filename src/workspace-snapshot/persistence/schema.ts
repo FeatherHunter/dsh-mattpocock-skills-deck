@@ -9,8 +9,11 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { SnapshotBackend } from '../model/types.js'
 
-/** 库结构版本。升级走显式迁移或整库重建；本票没有迁移路径，版本不符按重建处理。 */
-export const SNAPSHOT_SCHEMA_VERSION = 1
+/**
+ * 库结构版本。升级走显式迁移（#1886 起），迁移失败或版本比本代码新才整库重建：
+ * 版本 1 是「没有版本的存储层」，2 起加了版本号、行上的最后变化版本、墓碑与同步簿记。
+ */
+export const SNAPSHOT_SCHEMA_VERSION = 2
 
 /** 建表顺序照顾外键：被引用的表先建。 */
 export const SNAPSHOT_SCHEMA_STATEMENTS: readonly string[] = [
@@ -24,7 +27,11 @@ export const SNAPSHOT_SCHEMA_STATEMENTS: readonly string[] = [
     last_write_ms      INTEGER NOT NULL DEFAULT 0,
     lease_owner        TEXT,
     lease_heartbeat_ms INTEGER,
-    lease_expires_ms   INTEGER
+    lease_expires_ms   INTEGER,
+    sync_watermark_ms  INTEGER NOT NULL DEFAULT 0,
+    sync_generation    INTEGER NOT NULL DEFAULT 0,
+    sync_pending_json  TEXT,
+    full_enumeration_ms INTEGER NOT NULL DEFAULT 0
   ) STRICT`,
   `CREATE TABLE actor (
     actor_id   INTEGER PRIMARY KEY,
@@ -60,10 +67,12 @@ export const SNAPSHOT_SCHEMA_STATEMENTS: readonly string[] = [
     status_source        TEXT,
     status_conflict_json TEXT,
     first_seen_ms        INTEGER NOT NULL,
-    last_seen_ms         INTEGER NOT NULL
+    last_seen_ms         INTEGER NOT NULL,
+    last_change_version  INTEGER NOT NULL DEFAULT 0
   ) STRICT`,
   `CREATE UNIQUE INDEX issue_identity ON issue(effort_id, key)`,
   `CREATE INDEX issue_state_updated ON issue(state, updated_at_ms DESC)`,
+  `CREATE INDEX issue_change_version ON issue(last_change_version)`,
   `CREATE INDEX issue_type ON issue(type)`,
   `CREATE TABLE issue_body (
     issue_id INTEGER PRIMARY KEY REFERENCES issue(issue_id) ON DELETE CASCADE,
@@ -133,6 +142,14 @@ export const SNAPSHOT_SCHEMA_STATEMENTS: readonly string[] = [
     updated_ms INTEGER NOT NULL,
     PRIMARY KEY (issue_id, group_name)
   ) STRICT, WITHOUT ROWID`,
+  // 墓碑：某张票在哪个版本被确认不存在。行数据不删，删除只写这一张表；
+  // 票重新出现时由写入路径把对应的墓碑清掉（ingest 里那一句 DELETE）。
+  `CREATE TABLE issue_tombstone (
+    issue_id      INTEGER PRIMARY KEY REFERENCES issue(issue_id) ON DELETE CASCADE,
+    version       INTEGER NOT NULL,
+    deleted_at_ms INTEGER NOT NULL
+  ) STRICT`,
+  `CREATE INDEX tombstone_version ON issue_tombstone(version)`,
 ]
 
 export interface SnapshotIdentity {

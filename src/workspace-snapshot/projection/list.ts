@@ -71,7 +71,10 @@ export function readListProjection(
   }
   const limit = normalizeLimit(query?.limit)
 
-  const where = state === 'all' ? '' : 'WHERE i.state = ?'
+  // 墓碑行不进列表：库里留着行（审计与恢复要它），但它已被确认不存在（#1886）。
+  const where = state === 'all'
+    ? 'WHERE t.issue_id IS NULL'
+    : 'WHERE i.state = ? AND t.issue_id IS NULL'
   const sql = `
     SELECT i.issue_id, i.effort_id, i.key, i.type, i.title, i.state, i.url,
            i.created_at_ms, i.updated_at_ms, i.closed_at_ms, i.reason,
@@ -81,6 +84,7 @@ export function readListProjection(
            i.status, i.status_visible, i.status_source, i.status_conflict_json
       FROM issue i
       JOIN issue_group g ON g.issue_id = i.issue_id AND g.group_name = 'row'
+      LEFT JOIN issue_tombstone t ON t.issue_id = i.issue_id
       ${where}
      ORDER BY i.state ASC, i.updated_at_ms DESC, i.key ASC
      ${limit === null ? '' : 'LIMIT ?'}`
