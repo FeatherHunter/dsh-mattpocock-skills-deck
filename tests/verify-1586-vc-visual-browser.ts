@@ -625,7 +625,7 @@ async function run(browser: any, env: any) {
         check(!!m && m.branchFilters.join(',') === 'all,current,unmerged' && m.branchQuery === true, tag + '：首屏有搜索框与三颗筛选胶囊（全部 / 当前分支 / 未并入当前分支）')
         check(!!m && m.branchScope === '3' && m.branchMerged === '1' && m.branchNotMerged === '2', tag + '：筛选计数与两张名单的条数对得上读数（显示 ' + (m && m.branchScope) + ' / 已并入 ' + (m && m.branchMerged) + ' / 没并入 ' + (m && m.branchNotMerged) + '）')
         // #1858：页头交给页面壳（本页不重复画标题与导语），正文按原型 38 三段固定顺序：
-        //   分支（含筛选与搜索）→ 标签 → 上游跟踪；页尾是十条写动作的折叠区。
+        //   分支（含筛选与搜索）→ 标签 → 上游跟踪；#1881 起页尾只剩两条新建入口的折叠区。
         const titles = m && m.branchSectionTitles ? m.branchSectionTitles.join(',') : ''
         check(titles === '分支,标签,上游跟踪', tag + '：正文三段从上到下是分支 → 标签 → 上游跟踪（实得 ' + titles + '）')
         const counts = m && m.branchSectionCounts ? m.branchSectionCounts.join(',') : ''

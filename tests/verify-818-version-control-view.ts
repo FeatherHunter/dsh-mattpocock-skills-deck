@@ -1770,19 +1770,22 @@ async function main() {
   // #1881：行尾只剩「切换」+「⋯」——删除 / 重命名 / 切提交 / 设上游 / 写说明收进菜单，
   //   页尾只剩两条没有行内入口的新建动作（4.2 新建并切换分支、4.10 建标签）。
   //   菜单里的动作仍带 data-vc-op（能力号不变），分支名仍由行上的 data-vc-branch-row 给委托层。
+  // 菜单片的右界取它自己那一条 </details>：菜单里没有嵌套的 details，所以每行各截各的，
+  //   不会把后面几行或页尾表单的动作吞进来（只按下一行当右界时，最后一行会一路吞到页尾）。
   const menuSegmentOf = function (name) {
     const text = String(brPanel)
     const at = text.indexOf('data-vc-branch-menu="' + name + '"')
     if (at < 0) return ''
     const rest = text.slice(at)
-    const next = rest.indexOf('data-vc-branch-row="')
-    return next < 0 ? rest : rest.slice(0, next)
+    const end = rest.indexOf('</details>')
+    return end < 0 ? rest : rest.slice(0, end)
   }
   const menuNames = attrValuesOf(brPanel, 'data-vc-branch-menu')
-  const menuOps = attrValuesOf(menuSegmentOf('main'), 'data-vc-op').join(',')
+  const menuOpsOf = function (name) { return attrValuesOf(menuSegmentOf(name), 'data-vc-op').join(',') }
   const footerAt = String(brPanel).indexOf('data-vc-branch-forms')
   const footerOps = footerAt < 0 ? '' : attrValuesOf(String(brPanel).slice(footerAt), 'data-vc-op').join(',')
-  check(menuNames.join(',') === 'main,feature' && menuOps === '4.6,4.5,4.4,4.7,4.13' && footerOps === '4.2,4.10', 'BR20i 每行一颗「⋯」菜单，菜单里按序是删除 / 重命名 / 切提交 / 设上游 / 写说明；页尾只剩新建并切换分支与建标签（实得菜单 ' + menuOps + '；页尾 ' + footerOps + '）')
+  const menuWant = '4.6,4.5,4.4,4.7,4.13'
+  check(menuNames.join(',') === 'main,feature' && menuOpsOf('main') === menuWant && menuOpsOf('feature') === menuWant && footerOps === '4.2,4.10', 'BR20i 每行一颗「⋯」菜单，两行的菜单里都按序是删除 / 重命名 / 切提交 / 设上游 / 写说明；页尾只剩新建并切换分支与建标签（实得 main ' + menuOpsOf('main') + '；feature ' + menuOpsOf('feature') + '；页尾 ' + footerOps + '）')
   const brEmpty = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: null, onRetry: function () {} }))
   check(attrValuesOf(brEmpty, 'data-vc-branch2-empty')[0] === '1' && attrValuesOf(brEmpty, 'data-vc-branch-row').length === 0 && attrValuesOf(brEmpty, 'data-vc-branch2-retry').length === 1, 'BR21 没读数时画空态与重试，不画假分支（页尾两条新建入口仍在：' + attrValuesOf(brEmpty, 'data-vc-branch-forms')[0] + '）')
   const brConfirm = VIEW.vcBranchConfirmOf(brCheckReply)

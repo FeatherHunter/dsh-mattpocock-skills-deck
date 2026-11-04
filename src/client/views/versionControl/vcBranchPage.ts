@@ -21,7 +21,8 @@
 // 1) vcBranchTreeOf 是纯函数、直接搭宿主元素树：门禁 verify-1586-branches 用假 h 走这一条，
 //    并直接读根元素的 data-vc-branch-*；它不会执行 React 组件，所以这里不能把树交给组件去画。
 // 2) 十条写动作的 data-vc-op 与逐行顺序是 818 BR20/BR21/BR23 的判据：行内按钮、行内菜单、
-//    页尾表单三处都要在 DOM 里，且顺序跟读数顺序一致（见 tests/verify-818-version-control-view.ts）。
+//    页尾表单三处都要在 DOM 里。行序是「当前分支排第一、其余按读数顺序」（#1881）——
+//    BR20 只验集合与存在，行序由 verify-1586-vc-visual-browser 与 1858 真机场景判。
 declare const React: any
 declare const vcShellConfirmCardNode: any
 declare const vcShellResultNode: any
@@ -121,19 +122,49 @@ const vcBranchOpRowOf = function (h: any, t: any, spec: any) {
   return h('div', { key: spec.op, className: 'vcs-branch2-op', 'data-vc-op-row': spec.op }, kids)
 }
 
+// 每个动作落在哪一处（#1881）：菜单五项与页尾两项都只登记「能力号 + 先后次序」这一件事，
+//   kind / 文案 / 要不要输入框一律回数据层的 VC_BRANCH_ACTIONS 取——那张表已经有这四列，
+//   这里再抄一份就会在加动作或改 kind 时漏掉一处（页尾那个「不在名单里就跳过」会静默吞掉它）。
+//   菜单顺序是读者从「删掉这条」看到「补一句说明」的次序，与账本编号顺序无关。
+const VC_BRANCH_MENU_OPS: string[] = ['4.6', '4.5', '4.4', '4.7', '4.13']
+
+// 按能力号回 VC_BRANCH_ACTIONS 取那一条；找不到就回 null（调用方跳过，绝不自己编 kind）。
+const vcBranchActOf = function (op: any) {
+  for (let i = 0; i < VC_BRANCH_ACTIONS.length; i += 1) if (String(VC_BRANCH_ACTIONS[i].op) === String(op)) return VC_BRANCH_ACTIONS[i]
+  return null
+}
+
+// 菜单里那两项的展示细节：删除红边（危险动作），重命名预填「旧分支名 + 空格」并换一句提示。
+//   别的动作没有额外细节，返回空对象。
+const vcBranchMenuExtraOf = function (name: string, op: any) {
+  const act = vcBranchActOf(op)
+  const kind = act ? String(act.kind) : ''
+  if (kind === 'delete') return { danger: true }
+  if (kind === 'rename') return { hint: 'vc.shell.branch2.renameHint', value: name + ' ' }
+  return {}
+}
+
 // 行尾那颗「⋯」菜单（#1881）：五个低频整理动作按「删除 → 重命名 → 切到这个提交 → 设置或取消上游 →
 //   写分支说明」排。菜单里每一项都是 vcBranchOpRowOf 画的一行，data-vc-op 与能力号不变；
 //   分支名不从菜单上取——事件委托按最近的 data-vc-branch-row 认行，所以行上那个属性不能丢。
 const vcBranchMenuOf = function (h: any, t: any, name: string) {
   const label = t('vc.shell.branch2.moreActions')
-  return h('details', { key: 'menu', className: 'vcs-branch2-more', 'data-vc-branch-menu': name }, [
-    h('summary', { key: 'sum', className: 'vcs-branch2-menu', title: label, 'aria-label': label, 'data-press': 'button', 'data-log': 'vc.branch.page.menu' }, '⋯'),
-    vcBranchOpRowOf(h, t, { op: '4.6', kind: 'delete', label: 'vc.shell.branch2.delete', danger: true }),
-    vcBranchOpRowOf(h, t, { op: '4.5', kind: 'rename', label: 'vc.shell.branch2.rename', form: true, hint: 'vc.shell.branch2.renameHint', value: name + ' ' }),
-    vcBranchOpRowOf(h, t, { op: '4.4', kind: 'detach', label: 'vc.shell.branch2.detach', form: true }),
-    vcBranchOpRowOf(h, t, { op: '4.7', kind: 'upstream', label: 'vc.shell.branch2.upstream', form: true }),
-    vcBranchOpRowOf(h, t, { op: '4.13', kind: 'describe', label: 'vc.shell.branch2.describe', form: true }),
-  ])
+  const kids: any[] = [
+    h('summary', { key: 'sum', title: label, 'aria-label': label, 'data-press': 'button', 'data-log': 'vc.branch.page.menu' }, '⋯'),
+  ]
+  for (let i = 0; i < VC_BRANCH_MENU_OPS.length; i += 1) {
+    const op = VC_BRANCH_MENU_OPS[i]
+    const act = vcBranchActOf(op)
+    if (!act) continue
+    const extra: any = vcBranchMenuExtraOf(name, op)
+    const spec: any = { op: act.op, kind: act.kind, label: act.label, form: act.form === true, danger: extra.danger === true }
+    if (spec.form) {
+      if (extra.hint) spec.hint = extra.hint
+      if (extra.value) spec.value = extra.value
+    }
+    kids.push(vcBranchOpRowOf(h, t, spec))
+  }
+  return h('details', { key: 'menu', className: 'vcs-branch2-more', 'data-vc-branch-menu': name }, kids)
 }
 
 // 一条分支行（原型 obj-row 的三行结构）：
@@ -306,13 +337,10 @@ const VC_BRANCH_FOOTER_OPS: string[] = ['4.2', '4.10']
 //   需要输入的动作各带一个 [data-vc-branch-input]，vcRealBranchFieldsOf 按 kind 拆参数。
 const vcBranchFormsOf = function (h: any, t: any) {
   const rows: any[] = []
-  for (let i = 0; i < VC_BRANCH_ACTIONS.length; i += 1) {
-    const act = VC_BRANCH_ACTIONS[i]
-    if (VC_BRANCH_FOOTER_OPS.indexOf(String(act.op)) < 0) continue
-    const kids: any[] = [h('span', { key: 'label', className: 'vcs-branch2-op-label' }, t(act.label))]
-    if (act.form) kids.push(h('input', { key: 'input', type: 'text', className: 'vcs-branch2-input', 'data-vc-branch-input': act.kind, placeholder: t('vc.shell.branch2.inputHint') }))
-    kids.push(h('button', { key: 'go', type: 'button', className: 'vcs-branch2-act', 'data-vc-branch-action': act.kind, 'data-vc-op': act.op, 'data-vc-branch-form': act.form ? '1' : '0', 'data-press': 'button', 'data-log': 'vc.branch.page.go.' + act.kind }, t('vc.shell.branch2.go')))
-    rows.push(h('div', { key: act.op, className: 'vcs-branch2-op', 'data-vc-op-row': act.op }, kids))
+  for (let i = 0; i < VC_BRANCH_FOOTER_OPS.length; i += 1) {
+    const act = vcBranchActOf(VC_BRANCH_FOOTER_OPS[i])
+    if (!act) continue
+    rows.push(vcBranchOpRowOf(h, t, { op: act.op, kind: act.kind, label: act.label, form: act.form === true }))
   }
   return h('details', { key: 'forms', className: 'vcs-branch2-forms', 'data-vc-branch-forms': String(rows.length) }, [
     h('summary', { key: 'sum', className: 'vcs-branch2-summary', 'data-press': 'button', 'data-log': 'vc.branch.page.forms' }, t('vc.shell.branch2.formsTitle')),

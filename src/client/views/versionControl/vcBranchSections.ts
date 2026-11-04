@@ -9,8 +9,10 @@
 //   3) vcBranchWhenOf —— 「什么时候」那一句（相对时间由 vcText 的同一判据给）；
 //   4) vcBranchEmptyOf —— 段内空态（两段都要画「这里为什么是空的 + 下一步」）。
 //
-// 依赖方向单向：本叶只调 vcPageHead.ts 的三个原语（分区、事实网格、对象行），
+// 依赖方向单向：本叶只调 vcPageHead.ts 的三个原语（分区、事实网格、对象行）与 vcText.ts 的 vcWhenText，
 // vcBranchPage.ts 反过来 declare 本叶的函数；本叶不引用 vcBranchPage 里的任何东西。
+// vcWhenText 缺席时本叶如实不画时间（vcBranchWhenOf 返回空串），不自己编一个——verify-1586-branches
+// 拼的是数据层、本叶与页面叶子，没有 vcText，所以这条兜底不是可选的。
 
 declare const vcWhenText: any
 // 来自页面骨架原语 vcPageHead.ts（#1829 阶段 4）：分区、事实网格、对象行三件。
@@ -26,8 +28,8 @@ export const vcBranchTextOf = function (t: any, key: string, vars?: any): string
 // 提交号只取前 7 位：行里放整串 40 位会把 300 宽撑破；短号只是标识，不承担唯一定位。
 export const vcBranchOidTextOf = function (oid: any) { const s = String(oid === null || oid === undefined ? '' : oid); return s.length > 7 ? s.slice(0, 7) : s }
 
-// 提交时间怎么说交给 vcText 的同一个判据（一周内相对、更早绝对）；这条叶子被单独求值时
-//   （verify-1586-branches 只拼数据层与页面叶子）没有那个函数，就如实不画时间，不自己编一个。
+// 提交时间怎么说交给 vcText 的同一个判据（一周内相对、更早绝对）；verify-1586-branches 拼的是
+//   数据层、本叶与页面叶子，闭包里没有 vcText，就如实不画时间，不自己编一个。
 export const vcBranchWhenOf = function (t: any, nowMs: any, ms: any) {
   if (!(Number(nowMs) > 0)) return ''
   if (typeof vcWhenText !== 'function') return ''
