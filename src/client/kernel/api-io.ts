@@ -268,7 +268,7 @@
           if (snapMode) { if (!st.detailSeenAt) st.detailSeenAt = {}; st.detailSeenAt[cacheKey] = Date.now() }
           else { if (!st.issueCache) st.issueCache = {}; st.issueCache[cacheKey] = { ts: Date.now(), data: issue } }
           st.issueDetail = issue; st.issueMode = 'real'; st.issueError = null; emit(st)
-          // 宿主已把这次详情经合并服务写进快照；静默重取一次快照，让投影读到合并后的那一份。
+          // 宿主已把这次详情写进本地快照库；静默重取一次快照，让投影读到刚落库的那一份。
           if (snapMode && typeof loadSnapshot === 'function') { try { loadSnapshot(st, false, true) } catch (eS) {} }
           return { ok: true, issue: issue }
         }

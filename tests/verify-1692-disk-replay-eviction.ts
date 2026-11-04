@@ -118,7 +118,6 @@ function main(): void {
       'src/refresh/rooms/host/session-refresh-schedule.ts',
       'src/refresh/rooms/host/issue-list-fetch.ts',
       'src/refresh/rooms/host/issue-index-scan.ts',
-      'src/refresh/rooms/host/detail-snapshot-merge.ts',
       'src/refresh/rooms/host/comment-thread-fetch.ts',
       'src/refresh/rooms/host/patch-wiring.ts',
       'src/host/index.ts',
