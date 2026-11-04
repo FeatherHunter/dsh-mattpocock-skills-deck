@@ -127,6 +127,8 @@ zh:
   env.copyUrl: 复制网址
   env.diagTitle: 能力诊断（折叠，默认收起）
   env.diagBackend: 当前后端
+  # #1890：当前本地快照库的版本（诊断读数里的那一格；信号来自 wf.snapshotVersion）。
+  env.diagLibraryVersion: 本地数据版本
   env.diagRepo: 仓库
   env.diagLocal: (本地)
   env.diagFields: 字段 presence
@@ -496,6 +498,7 @@ en:
   env.copyUrl: Copy URL
   env.diagTitle: Capability diagnostics (collapsed by default)
   env.diagBackend: Current backend
+  env.diagLibraryVersion: Local data version
   env.diagRepo: Repository
   env.diagLocal: (local)
   env.diagFields: Field presence

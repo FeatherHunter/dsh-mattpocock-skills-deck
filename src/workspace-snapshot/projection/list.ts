@@ -30,7 +30,19 @@ import {
 /** 列表要读的组三态：正文只读状态（不读内容），其余按组读。 */
 const LIST_GROUPS = ['row', 'body', 'labels', 'assignees', 'parents', 'blockedBy', 'subIssues', 'mergeInfo'] as const
 
-interface ListRow {
+/**
+ * 列表行要读的列。变化集投影（projection/changes.ts）用同一份列清单、同一个行形状，
+ * 所以两处都从这里取：各抄一份迟早漂成「列表有标题、变化集没有」。
+ */
+export const LIST_ROW_COLUMNS = `i.issue_id, i.effort_id, i.key, i.type, i.title, i.state, i.url,
+           i.created_at_ms, i.updated_at_ms, i.closed_at_ms, i.reason,
+           i.is_pull_request, i.merged_at_ms, i.comment_count,
+           i.sub_total, i.sub_completed, i.sub_percent,
+           i.milestone_json, i.custom_fields_json,
+           i.status, i.status_visible, i.status_source, i.status_conflict_json`
+
+/** 列表版本的原始行；变化集与列表共用，字段名就是 schema 的列名。 */
+export interface ListRow {
   issue_id: number
   effort_id: string
   key: string
@@ -76,12 +88,7 @@ export function readListProjection(
     ? 'WHERE t.issue_id IS NULL'
     : 'WHERE i.state = ? AND t.issue_id IS NULL'
   const sql = `
-    SELECT i.issue_id, i.effort_id, i.key, i.type, i.title, i.state, i.url,
-           i.created_at_ms, i.updated_at_ms, i.closed_at_ms, i.reason,
-           i.is_pull_request, i.merged_at_ms, i.comment_count,
-           i.sub_total, i.sub_completed, i.sub_percent,
-           i.milestone_json, i.custom_fields_json,
-           i.status, i.status_visible, i.status_source, i.status_conflict_json
+    SELECT ${LIST_ROW_COLUMNS}
       FROM issue i
       JOIN issue_group g ON g.issue_id = i.issue_id AND g.group_name = 'row'
       LEFT JOIN issue_tombstone t ON t.issue_id = i.issue_id
@@ -91,14 +98,27 @@ export function readListProjection(
   const params: Array<string | number> = state === 'all' ? [] : [state]
   if (limit !== null) params.push(limit)
   const rows = db.prepare(sql).all(...params) as ListRow[]
+  return {
+    mergeVersion: readMergeVersion(db),
+    generatedAtMs: nowMs,
+    issues: projectListRows(db, rows),
+  }
+}
 
+/**
+ * 一批列表行 → 列表投影里的行。变化集也用这一份：两边对「一行的形状」只能有一个答案。
+ *
+ * 输入的行必须已经带齐 LIST_ROW_COLUMNS 的列（列表与变化集两句 SQL 都从这里取列清单）。
+ * 组三态、标签、指派人、父子边与阻塞边按 issue_id 批量读，行序原样保留（调用方负责排序）。
+ */
+export function projectListRows(db: DatabaseSync, rows: ListRow[]): ListIssue[] {
   const issueIds = rows.map((row) => Number(row.issue_id))
   const groupStates = readGroupStates(db, issueIds, LIST_GROUPS)
   const labelsByIssue = readLabels(db, issueIds)
   const assigneesByIssue = readAssignees(db, issueIds)
   const edgesByIssue = readIssueEdges(db, issueIds)
 
-  const issues: ListIssue[] = rows.map((row) => {
+  return rows.map((row) => {
     const issueId = Number(row.issue_id)
     return {
       effortId: row.effort_id,
@@ -122,12 +142,6 @@ export function readListProjection(
       },
     }
   })
-
-  return {
-    mergeVersion: readMergeVersion(db),
-    generatedAtMs: nowMs,
-    issues,
-  }
 }
 
 function normalizeLimit(raw: number | undefined): number | null {

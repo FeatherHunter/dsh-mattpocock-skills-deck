@@ -3,6 +3,8 @@
 // 上层（refresh、界面、测试）只应该 import contract/ 里的东西。这里的形状是 #1862 定下的
 // 门面骨架，后续实施票（1863+）直接按这个形状接，不要各自再造一套批次类型。
 import type {
+  ChangeSetProjection,
+  ChangeSetQuery,
   GroupCompleteness,
   IssueDetailProjection,
   IssueDetailQuery,
@@ -20,6 +22,10 @@ import type {
 } from '../model/types.js'
 
 export type {
+  ChangeSetFullReason,
+  ChangeSetProjection,
+  ChangeSetQuery,
+  ChangeSetTombstone,
   DetailGroupStates,
   GroupCompleteness,
   GroupState,
@@ -290,6 +296,12 @@ export interface WorkspaceSnapshotHandle {
    * 库里没有这张票（连骨架都没有）时 issue 为 null；只有骨架时 referenceSkeleton 为真。
    */
   readIssueDetail(query: IssueDetailQuery): IssueDetailProjection
+  /**
+   * 读一次变化集（#1890）：从 query.sinceVersion 到当前版本，哪些行变了、哪些行被判不存在。
+   * 超过行数上限或落后超过时间上限、客户端版本比库里大、或没有基线时 full 为真 ——
+   * 这四种情况都不给变化行，调用方必须整份重取。只读句柄也能读。
+   */
+  readChangeSet(query: ChangeSetQuery): ChangeSetProjection
   /** 整库重建（清空后按当前身份建空库）。只读句柄拒绝。 */
   rebuild(): void
   close(): void
