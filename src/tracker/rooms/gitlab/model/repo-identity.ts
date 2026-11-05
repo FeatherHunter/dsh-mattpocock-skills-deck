@@ -3,7 +3,7 @@
  *
  * 为什么收进 model（#1910）：房间里有九份同形不同名的 repoId（issues / comments / labels / maps /
  * identity-ops / idempotency / graph-blocking / preflight / counts）、两处 fullPathOf（counts / pages）、
- * 一处 repoRefOf（labels-ops）。它们回答的是同一件事——「这次要问哪个仓库」——而实现各住一个文件，
+ * 一处 repoRefOf（labels/list.ts 与 labels/colors.ts）。它们回答的是同一件事——「这次要问哪个仓库」——而实现各住一个文件，
  * 回落规则改一次要改近十处，漏一处就会让某条读路径拿显示名当项目路径去问远端。
  *
  * 为什么保留四个导出、不硬并成一个：各处要的口径本来就不一样，合并必然改掉某一处的行为。
