@@ -67,6 +67,10 @@ const VIEW_TITLES: Record<ViewName, string> = {
   stash: '储藏',
 }
 const QUICK = process.env.DSH_1860_QUICK === '1'
+/** 只跑 #1903 那一段：四页签的逐档取证跳过，用来把四条历史能力的取证反复跑到稳。 */
+const ONLY_HISTORY = process.env.DSH_1860_ONLY_HISTORY === '1'
+/** 「预填 HEAD~1 / HEAD」只在整轮第一次打开比较表单时判一次：之后几轮表单里是上一轮留下的输入。 */
+let prefillSeenOnce = false
 const WIDTHS = String(process.env.DSH_1860_WIDTHS || '300,380,460,520')
   .split(',')
   .map((piece) => Number(piece.trim()))
@@ -416,8 +420,12 @@ function buildFixture(): FixtureResult {
   gitRun(FIXTURE_REPO, ['config', 'commit.gpgsign', 'false'])
   gitRun(FIXTURE_REPO, ['config', 'tag.gpgsign', 'false'])
   gitRun(FIXTURE_REPO, ['config', 'gc.auto', '0'])
+  // #1877：提交选项里的「提交说明」一组按仓库配置的模板起名（套用 <文件名>）。原型截图上写的是
+  //   「套用 .gitmessage」，夹具配上同一份模板，并排比对时这一行才是同一个词。
+  gitRun(FIXTURE_REPO, ['config', 'commit.template', '.gitmessage'])
 
   writeFixtureFile(path.join(FIXTURE_REPO, 'README.md'), '# 1860 真机验证夹具仓库' + NEWLINE + NEWLINE + '这个仓库只用来给版本管理首屏提供真实数据，不是产品代码。' + NEWLINE + NEWLINE + STASH_BRANCH_NOTE + NEWLINE)
+  writeFixtureFile(path.join(FIXTURE_REPO, '.gitmessage'), '【摘要】' + NEWLINE + NEWLINE + '- 改了什么：' + NEWLINE + '- 为什么改：' + NEWLINE + '- 怎么验证：' + NEWLINE)
   writeFixtureFile(path.join(FIXTURE_REPO, 'docs', 'notes.md'), '# 迭代笔记' + NEWLINE + NEWLINE + '这份文件每次提交追加一行，储藏也拿它当素材。' + NEWLINE)
   writeFixtureFile(path.join(FIXTURE_REPO, 'src', 'client', 'views', 'shared', 'workRouteTable.ts'), workRouteTableSource(false))
   writeFixtureFile(path.join(FIXTURE_REPO, 'src', 'refresh', 'rooms', 'host', 'outbound-admission.ts'), outboundAdmissionSource(false))
@@ -548,6 +556,9 @@ let fixtureSummary: FixtureResult | null = null
 /** 每次启动先核对夹具；不对就整棵重建。重建只发生在系统临时目录里带标记的那一份。 */
 function ensureFixtureRepo(): FixtureResult {
   if (fixtureSummary !== null) return fixtureSummary
+  // 每次实例启动前把索引清空：上一轮的交互会点「暂存」把文件搬进已暂存区，
+  //   不重置的话下一轮首屏检查会看到「已暂存 1」，把夹具状态当成产品问题（#1877 收尾时真撞到过）。
+  if (fs.existsSync(path.join(FIXTURE_REPO, '.git'))) gitRun(FIXTURE_REPO, ['reset', '-q'])
   const first = validateFixture()
   if (first.ok) {
     fixtureSummary = first
@@ -853,6 +864,9 @@ async function openMainView(page: PageHandle, raw: RawBrowserPage, tokenUrl: str
 /** 打开版本管理标签页：点右栏把手 → 点指南入口 → 点版本管理页签 → 等壳根挂出来。 */
 async function openVersionControlPanel(page: PageHandle, raw: RawBrowserPage): Promise<PageOpenResult> {
   const facts: Record<string, unknown> = {}
+  // 中途弹出来的「开始使用」浮层会把整页盖住：它挂着的时候点右栏把手是点不中的，
+  //   版本管理页签也就永远挂不出来。打开面板之前先把它关掉。
+  await closeOverlayIfAny(page, raw)
   const rail = await clickPage(page, raw, RAIL_BUTTON)
   facts.railClick = rail
   await sleep(1500)
@@ -1029,7 +1043,33 @@ async function ensureSkin(page: PageHandle, raw: RawBrowserPage, skin: Skin, tok
   }
   const last = await measureUi(page)
   facts.lastMeasure = last.ok ? last.value : { error: last.error.message }
-  return { ok: false, blocked: false, detail: '重新挂载后 data-vc-skin 仍不是 ' + skin, facts: facts }
+  // 兜底：宿主这一版会把启动前写进 patch 的偏好按设置库回写，dark→light 的运行时切换也可能被回滚
+  //   （见文件头那段说明）。插件的皮肤就是按宿主 body 上的主题属性走的（#1860 D15 实测过），
+  //   所以直接把那个属性设成目标值：壳根的 data-vc-skin 会在下一帧跟着变。这条兜底只改页面表现、
+  //   不动任何设置，取证时 via 会如实记成 body-attribute。
+  const bodySkinScript = scriptOf([
+    '(function () {',
+    '  var b = document.body;',
+    '  if (!b) return null;',
+    '  if (' + JSON.stringify(skin === 'dark') + ') { b.setAttribute(' + JSON.stringify('data-ds-dark-theme') + ', ' + JSON.stringify('') + '); }',
+    '  else { b.removeAttribute(' + JSON.stringify('data-ds-dark-theme') + '); }',
+    '  return ' + JSON.stringify(skin) + ';',
+    '})()',
+  ])
+  const bodyFlip = await evaluateThrough<string>(page, bodySkinScript)
+  facts.bodyAttributeFlip = bodyFlip.ok ? bodyFlip.value : bodyFlip.error.message
+  for (let i = 0; i < 25; i += 1) {
+    const probe = await measureUi(page)
+    if (probe.ok && probe.value.attrSkin === skin) {
+      facts.after = probe.value
+      facts.via = 'body-attribute'
+      return { ok: true, blocked: false, detail: '按宿主主题属性切到 ' + skin + ' 皮肤', facts: facts }
+    }
+    await sleep(300)
+  }
+  const lastBodyFlip = await measureUi(page)
+  facts.lastBodyFlipMeasure = lastBodyFlip.ok ? lastBodyFlip.value : { error: lastBodyFlip.error.message }
+  return { ok: false, blocked: false, detail: '重新挂载后 data-vc-skin 仍不是 ' + skin + '（按宿主主题属性兜底后也不是）', facts: facts }
 }
 
 /** 切到四个一级页签之一，并等壳根与页体的 data-vc-page 都写对。 */
@@ -2006,6 +2046,412 @@ async function recordBoth(context: ScenarioContext, subdir: string, name: string
 }
 
 
+// ---------- #1903 提交历史页四条能力的真机取证 ----------
+//
+// 与上面四页签取证同一轮跑：每档宽 / 每皮肤下把四条能力各点一遍，留下「默认列表 / 按代码变化搜 /
+// 只看某个文件 / 比较表单 / 比较结果 / 提交备注」六张图，并把页面上读得到的文本记进 JSON。
+// 判据分两处：页面上看得见的（命中标记、只看标签、结果头、备注结论），与夹具仓库里真的发生的事
+// （保存之后 git notes list 里确实多了这一条）。
+const HISTORY_SCOPE_CODE = '[data-vc-history-scope-btn="code"]'
+const HISTORY_SCOPE_MESSAGE = '[data-vc-history-scope-btn="message"]'
+const HISTORY_QUERY = '[data-vc-history-query]'
+const HISTORY_ROWS = '[data-vc-history-open]'
+const HISTORY_FILE_MORE = '[data-vc-history-file-more]'
+const HISTORY_FILE_HISTORY = '[data-vc-history-file-history]'
+const HISTORY_FILE_ONLY_CLEAR = '[data-vc-history-file-only-clear]'
+const HISTORY_COMPARE_OPEN = '[data-vc-history-compare-open]'
+const HISTORY_COMPARE_APPLY = '[data-vc-history-compare-apply]'
+const HISTORY_COMPARE_END = '[data-vc-history-compare-end]'
+const HISTORY_COMPARE_CANCEL = '[data-vc-history-compare-cancel]'
+const HISTORY_NOTE_INPUT = '[data-vc-history-note-input]'
+const HISTORY_NOTE_SAVE = '[data-vc-history-note-save]'
+const NOTE_TEXT = '这一版为了兼容旧数据（真机验证 1903）'
+
+/** 把值写进受控/非受控输入框：直接把原生 setter 拿过来用，再派发一次 input，页面才认这次输入。 */
+function setValueScript(selector: string, text: string, multiline: boolean): string {
+  const proto = multiline ? 'HTMLTextAreaElement' : 'HTMLInputElement'
+  return scriptOf([
+    '(function () {',
+    '  var el = document.querySelector(' + JSON.stringify(selector) + ');',
+    '  if (!el) { return { ok: false, reason: ' + JSON.stringify('not-found') + ' }; }',
+    '  var setter = Object.getOwnPropertyDescriptor(window.' + proto + '.prototype, ' + JSON.stringify('value') + ').set;',
+    '  setter.call(el, ' + JSON.stringify(text) + ');',
+    '  el.dispatchEvent(new Event(' + JSON.stringify('input') + ', { bubbles: true }));',
+    '  return { ok: true, value: String(el.value) };',
+    '})()',
+  ])
+}
+
+async function setValue(page: PageHandle, selector: string, text: string, multiline?: boolean): Promise<boolean> {
+  const probe = await evaluateThrough<{ ok: boolean }>(page, setValueScript(selector, text, multiline === true))
+  return probe.ok && probe.value.ok === true
+}
+
+/** 页面上这四条能力的可读事实：命中了哪份文件、只看哪个文件、比较的是哪两端、备注写成了没有。 */
+const HISTORY_FACTS_SCRIPT = (function (): string {
+  return scriptOf([
+    '(function () {',
+    '  var attr = function (el, name) { return el === null || el === undefined ? null : el.getAttribute(name); };',
+    '  var text = function (sel) { var el = document.querySelector(sel); return el === null ? null : String(el.innerText || el.textContent || \'\'); };',
+    '  var all = function (sel) { return Array.prototype.map.call(document.querySelectorAll(sel), function (el) { return String(el.innerText || el.textContent || \'\'); }); };',
+    '  var hits = Array.prototype.map.call(document.querySelectorAll(' + JSON.stringify('[data-vc-history-hit]') + '), function (el) { return attr(el, ' + JSON.stringify('data-vc-history-hit') + '); });',
+    '  return {',
+    '    rows: document.querySelectorAll(' + JSON.stringify(HISTORY_ROWS) + ').length,',
+    '    hits: hits,',
+    '    hitTexts: all(' + JSON.stringify('[data-vc-history-hit]') + '),',
+    '    scopeOn: attr(document.querySelector(' + JSON.stringify('.scope-btn.is-on') + '), ' + JSON.stringify('data-vc-history-scope-btn') + '),',
+    '    queryValue: (function () { var el = document.querySelector(' + JSON.stringify(HISTORY_QUERY) + '); return el === null ? null : String(el.value); })(),',
+    '    strip: attr(document.querySelector(' + JSON.stringify('[data-vc-history-file-only-strip]') + '), ' + JSON.stringify('data-vc-history-file-only-strip') + '),',
+    '    stripText: text(' + JSON.stringify('.history-file-only') + '),',
+    '    resultText: text(' + JSON.stringify('[data-vc-history-file-only-result]') + '),',
+    '    compareForm: document.querySelector(' + JSON.stringify('[data-vc-history-compare-form]') + ') !== null,',
+    '    compareHead: text(' + JSON.stringify('[data-vc-history-compare-head]') + '),',
+    '    compareSummary: text(' + JSON.stringify('[data-vc-history-compare-summary]') + '),',
+    '    compareFiles: all(' + JSON.stringify('[data-vc-history-compare-file]') + '),',
+    '    noteSection: document.querySelector(' + JSON.stringify('[data-vc-history-note]') + ') !== null,',
+    '    noteSaved: document.querySelector(' + JSON.stringify('[data-vc-history-note-saved]') + ') !== null,',
+    '    noteResult: text(' + JSON.stringify('[data-vc-history-note-result]') + '),',
+    '    noteTags: document.querySelectorAll(' + JSON.stringify('[data-vc-history-note-tag]') + ').length,',
+    '    detailState: attr(document.querySelector(' + JSON.stringify('[data-vc-history-detail]') + '), ' + JSON.stringify('data-vc-history-detail-state') + '),',
+    '  };',
+    '})()',
+  ])
+})()
+
+interface HistoryFacts {
+  rows: number
+  hits: Array<string | null>
+  hitTexts: string[]
+  scopeOn: string | null
+  queryValue: string | null
+  strip: string | null
+  stripText: string | null
+  resultText: string | null
+  compareForm: boolean
+  compareHead: string | null
+  compareSummary: string | null
+  compareFiles: string[]
+  noteSection: boolean
+  noteSaved: boolean
+  noteResult: string | null
+  noteTags: number
+  detailState: string | null
+}
+
+async function readHistoryFacts(page: PageHandle): Promise<HistoryFacts | null> {
+  const probe = await evaluateThrough<HistoryFacts>(page, HISTORY_FACTS_SCRIPT)
+  return probe.ok ? probe.value : null
+}
+
+/**
+ * 关掉中途自己弹出来的浮层（这次真机上遇到的是「开始使用：登录 / 添加 API Key」那一张）。
+ * 它盖在面板上，不关的话截图里看不全；按文字点它的关闭键，再用 Esc 兜一次。
+ */
+async function closeOverlayIfAny(page: PageHandle, raw: RawBrowserPage): Promise<void> {
+  const masks = await evaluateThrough<number>(page, MASK_COUNT_SCRIPT)
+  if (!masks.ok || masks.value <= 0) return
+  await evaluateThrough<boolean>(page, scriptOf([
+    '(function () {',
+    '  var words = [' + JSON.stringify('关闭') + ', ' + JSON.stringify('继续') + ', ' + JSON.stringify('稍后') + ', ' + JSON.stringify('取消') + '];',
+    '  var els = document.querySelectorAll(' + JSON.stringify('button, [role=button]') + ');',
+    '  for (var i = 0; i < els.length; i += 1) {',
+    '    var label = String(els[i].getAttribute && els[i].getAttribute(' + JSON.stringify('aria-label') + ') || ' + JSON.stringify('') + ');',
+    '    var text = String(els[i].innerText || els[i].textContent || ' + JSON.stringify('') + ').trim();',
+    '    if (words.indexOf(label) >= 0 || words.indexOf(text) >= 0 || text === ' + JSON.stringify('×') + ') { els[i].click(); return true; }',
+    '  }',
+    '  return false;',
+    '})()',
+  ]))
+  if (typeof raw.press === 'function') await raw.press('Escape')
+  await sleep(400)
+}
+
+/** 夹具仓库里有没有这条备注：真机点完「保存备注」之后，用 git 自己回答，而不是看界面怎么说。 */
+function noteOidsInFixture(): string[] {
+  const listed = gitRun(FIXTURE_REPO, ['notes', 'list'])
+  if (!listed.ok) return []
+  const out: string[] = []
+  for (const line of listed.text.split(NEWLINE)) {
+    const trimmed = line.trim()
+    if (trimmed === '') continue
+    const at = trimmed.lastIndexOf(' ')
+    if (at > 0) out.push(trimmed.slice(at + 1))
+  }
+  return out
+}
+
+async function captureHistoryEntries(
+  context: ScenarioContext,
+  page: PageHandle,
+  raw: RawBrowserPage,
+  width: number,
+  skin: Skin,
+  windowByWidth: Map<number, number>,
+  tokenUrl: string,
+  originUrl: string,
+): Promise<ScenarioObservation> {
+  const subdir = String(width) + '-' + skin
+  const checkId = CHECK_ID + '-history-entries-w' + String(width) + '-' + skin
+  const evidence: string[] = []
+  const failures: string[] = []
+  const facts: Record<string, unknown> = {}
+  const fail = function (what: string): void { failures.push(what) }
+
+  const skinResult = await ensureSkin(page, raw, skin, tokenUrl, originUrl)
+  if (!skinResult.ok) return observe({ checkId: checkId, title: '四条历史能力 @ ' + String(width) + ' / ' + skin, ok: false, status: 'blocked', hard: false, detail: '皮肤没切过去：' + skinResult.detail, evidence: evidence })
+  const tabResult = await openTab(page, raw, 'commits')
+  if (!tabResult.ok) return observe({ checkId: checkId, title: '四条历史能力 @ ' + String(width) + ' / ' + skin, ok: false, status: 'blocked', hard: false, detail: '打开提交历史页失败：' + tabResult.detail, evidence: evidence })
+  // 换皮肤会把页面重画一遍：等那几块真的挂出来再往下点，否则第一下点在空壳上，后面全跟着红。
+  let panelReady = false
+  for (let i = 0; i < 40; i += 1) {
+    if (await exists(page, '[data-vc-history-scope-btn]')) { panelReady = true; break }
+    await sleep(500)
+    if (i === 6) await openTab(page, raw, 'commits')
+  }
+  if (!panelReady) return observe({ checkId: checkId, title: '四条历史能力 @ ' + String(width) + ' / ' + skin, ok: false, status: 'blocked', hard: false, detail: '提交历史页那几块一直没有挂出来', evidence: evidence })
+  const calibration = await calibrateToWidth(page, raw, width, windowByWidth)
+  if (!calibration.ok || calibration.via.length === 0) return observe({ checkId: checkId, title: '四条历史能力 @ ' + String(width) + ' / ' + skin, ok: false, status: 'blocked', hard: false, detail: '宽度没标定到目标档：' + calibration.detail, evidence: evidence })
+
+  // ① 默认列表：与定稿原型（62 / 63 / 65 那一批的提交历史版式）对齐的样子。
+  await closeOverlayIfAny(page, raw)
+  const shotDefault = await captureScreenshot(context, page, subdir, 'history-default', '提交历史默认列表（' + String(width) + ' 档 / ' + skin + '）')
+  evidence.push(...shotDefault.paths)
+  facts.default = await readHistoryFacts(page)
+
+  // ② 按代码变化搜：同一份列表，范围切到「代码变化」后按改到的文件路径找，命中行标出文件。
+  if (!(await clickPage(page, raw, HISTORY_SCOPE_CODE)).ok) fail('点不到「代码变化」范围按钮')
+  // 切范围会让搜索框按新范围的占位话术重画一次：等它画完再写词，否则词会被重画冲掉。
+  await sleep(500)
+  if (!(await setValue(page, HISTORY_QUERY, 'docs/notes'))) fail('搜索框写不进词')
+  // 读到第一枚命中标记为止；一次没写进去就补写一次（受控重画偶尔会吃掉第一次输入）。
+  var codeHits = 0
+  for (let i = 0; i < 12; i += 1) {
+    const probe = await evaluateThrough<number>(page, 'document.querySelectorAll(' + JSON.stringify('[data-vc-history-hit]') + ').length')
+    codeHits = probe.ok ? probe.value : 0
+    if (codeHits > 0) break
+    if (i === 4) await setValue(page, HISTORY_QUERY, 'docs/notes')
+    await sleep(400)
+  }
+  const codeFacts = await readHistoryFacts(page)
+  facts.codeSearch = codeFacts
+  if (codeFacts === null || String(codeFacts.scopeOn) !== 'code') fail('范围没有停在「代码变化」')
+  // 命中标记画在提交行的小字区里，而那一区只在 460 及更宽的档位才画（原型同一条规矩）：
+  //   窄档只验「列表被筛短了」，宽档再验「命中行写出了是哪份文件」。
+  if (width >= 460) {
+    if (codeFacts === null || codeFacts.hits.length === 0) fail('代码范围没有命中任何文件')
+    if (codeFacts !== null && codeFacts.hitTexts.length > 0 && String(codeFacts.hitTexts[0]).indexOf('命中') < 0) fail('命中标记上没有写「命中」')
+  } else if (codeFacts === null || codeFacts.rows <= 0 || codeFacts.rows >= 50) {
+    fail('代码范围没有把列表筛短（实际 ' + String(codeFacts === null ? '读不到' : codeFacts.rows) + ' 行）')
+  }
+  await closeOverlayIfAny(page, raw)
+  const shotCode = await captureScreenshot(context, page, subdir, 'history-code-search', '按代码变化搜（' + String(width) + ' 档 / ' + skin + '）')
+  evidence.push(...shotCode.paths)
+
+  // ③ 单文件历史：从一条提交的文件行发起，回到列表只留改过这个文件的提交。
+  await setValue(page, HISTORY_QUERY, '')
+  await clickPage(page, raw, HISTORY_SCOPE_MESSAGE)
+  // 清词与切回说明范围都是异步的：等列表回到「不止两条」再点，否则点到的是刚才那份筛过的清单。
+  for (let i = 0; i < 15; i += 1) {
+    const probe = await evaluateThrough<number>(page, 'document.querySelectorAll(' + JSON.stringify(HISTORY_ROWS) + ').length')
+    if (probe.ok && probe.value > 2) break
+    await sleep(400)
+  }
+  // 挑一条「不是合并提交」的具体提交（第二条）：合并提交没有逐文件清单，点不出文件行菜单。
+  const pickedOid = await evaluateThrough<string>(page, scriptOf([
+    '(function () {',
+    '  var rows = document.querySelectorAll(' + JSON.stringify(HISTORY_ROWS) + ');',
+    '  if (rows.length < 2) { return ' + JSON.stringify('') + '; }',
+    '  return String(rows[1].getAttribute(' + JSON.stringify('data-vc-history-open') + ') || ' + JSON.stringify('') + ');',
+    '})()',
+  ]))
+  const targetOid = pickedOid.ok ? String(pickedOid.value) : ''
+  const openedRow = await evaluateThrough<{ ok: boolean }>(page, scriptOf([
+    '(function () {',
+    '  var el = document.querySelector(' + JSON.stringify('[data-vc-history-open="' + targetOid + '"]') + ');',
+    '  if (!el) { return { ok: false, reason: ' + JSON.stringify('not-found') + ' }; }',
+    '  el.click();',
+    '  return { ok: true };',
+    '})()',
+  ]))
+  if (!openedRow.ok || openedRow.value.ok !== true) fail('打不开第二条提交的详情')
+  if (!(await waitFor(page, '[data-vc-history-detail]', 10000))) fail('详情没有挂出来')
+  if (!(await waitFor(page, HISTORY_FILE_MORE, 8000))) fail('文件行尾没有「⋯」')
+  if (!(await clickPage(page, raw, HISTORY_FILE_MORE)).ok) fail('点不开文件行菜单')
+  if (!(await waitFor(page, HISTORY_FILE_HISTORY, 5000))) fail('菜单里没有「看这个文件的历史」')
+  const shotMenu = await captureScreenshot(context, page, subdir, 'history-file-menu', '详情文件行的「⋯」菜单（' + String(width) + ' 档 / ' + skin + '）')
+  evidence.push(...shotMenu.paths)
+  if (!(await clickPage(page, raw, HISTORY_FILE_HISTORY)).ok) fail('点不动「看这个文件的历史」')
+  if (!(await waitFor(page, '[data-vc-history-file-only-strip]', 10000))) fail('点完之后没有出现「只看 …」标签')
+  // 标签一挂出来就截，会截到「正在读这个文件的历史……」那一屏；等列表行真的画出来再截。
+  // 等到「这份读数已经有提交行，或者给了一句空态」为止：两种都算读完了，不能只等行。
+  let fileListed = false
+  for (let i = 0; i < 50; i += 1) {
+    const probe = await evaluateThrough<{ rows: number; empty: boolean; error: string }>(page, scriptOf([
+      '(function () {',
+      '  var err = document.querySelector(' + JSON.stringify('[data-vc-history-file-error]') + ');',
+      '  return {',
+      '    rows: document.querySelectorAll(' + JSON.stringify(HISTORY_ROWS) + ').length,',
+      '    empty: document.querySelector(' + JSON.stringify('[data-vc-history-filter-empty]') + ') !== null,',
+      '    error: err === null ? ' + JSON.stringify('') + ' : String(err.innerText || err.textContent || ' + JSON.stringify('') + '),',
+      '  };',
+      '})()',
+    ]))
+    if (probe.ok && (probe.value.rows > 0 || probe.value.empty)) { fileListed = true; break }
+    if (probe.ok && probe.value.error !== '') { fail('单文件历史读失败：' + snippet(probe.value.error, 120)); break }
+    await sleep(400)
+  }
+  if (!fileListed && failures.length === 0) fail('点了之后列表一直没有画出提交行')
+  await sleep(400)
+  const fileFacts = await readHistoryFacts(page)
+  facts.fileOnly = fileFacts
+  if (fileFacts !== null) {
+    if (fileFacts.strip === null) fail('「只看 …」标签上没有写出文件路径')
+    if (String(fileFacts.resultText || '').indexOf('只看') < 0) fail('结果说明没有写明现在只看哪个文件')
+  }
+  await closeOverlayIfAny(page, raw)
+  const shotFileOnly = await captureScreenshot(context, page, subdir, 'history-file-only', '只看某个文件的历史（' + String(width) + ' 档 / ' + skin + '）')
+  evidence.push(...shotFileOnly.paths)
+  await clickPage(page, raw, HISTORY_FILE_ONLY_CLEAR)
+
+  // ④ 比较两个引用：两行表单预填 → 比较 → 结果头与文件清单落在列表位置 → 退出比较。
+  if (!(await clickPage(page, raw, HISTORY_COMPARE_OPEN)).ok) fail('点不开比较表单')
+  if (!(await waitFor(page, '[data-vc-history-compare-form]', 5000))) fail('比较表单没有挂出来')
+  const prefilled = await evaluateThrough<{ from: string | null; to: string | null }>(page, scriptOf([
+    '(function () {',
+    '  var q = function (sel) { var el = document.querySelector(sel); return el === null ? null : String(el.value); };',
+    '  return { from: q(' + JSON.stringify('[data-vc-history-compare-field="from"]') + '), to: q(' + JSON.stringify('[data-vc-history-compare-field="to"]') + ') };',
+    '})()',
+  ]))
+  facts.comparePrefill = prefilled.ok ? prefilled.value : null
+  if (!prefilled.ok || prefilled.value.from === null || prefilled.value.to === null) fail('读不到比较表单的两个输入框')
+  // 「预填 HEAD~1 与 HEAD」验的是第一次打开时的样子：同一实例里后面几轮沿用上一轮留下的输入，
+  //   那时不能再拿它当预填判据（上一轮为了验「认不出的引用」故意写成 nope）。
+  if (!prefillSeenOnce) {
+    if (prefilled.ok && (prefilled.value.from !== 'HEAD~1' || prefilled.value.to !== 'HEAD')) fail('第一次打开比较表单时没有预填 HEAD~1 与 HEAD（读到 ' + JSON.stringify(prefilled.ok ? prefilled.value : null) + '）')
+    prefillSeenOnce = true
+  }
+  const shotForm = await captureScreenshot(context, page, subdir, 'history-compare-form', '比较两个引用的表单（' + String(width) + ' 档 / ' + skin + '）')
+  evidence.push(...shotForm.paths)
+  // 接下来这一枪要确定的比较：把两端写回默认值，不继承上一轮留下的 nope。
+  await setValue(page, '[data-vc-history-compare-field="from"]', 'HEAD~1')
+  await setValue(page, '[data-vc-history-compare-field="to"]', 'HEAD')
+  await sleep(200)
+  if (!(await clickPage(page, raw, HISTORY_COMPARE_APPLY)).ok) fail('点不动「比较」')
+  if (!(await waitFor(page, '[data-vc-history-compare-head]', 20000))) fail('比较之后没有出现结果头')
+  await sleep(400)
+  const compareFacts = await readHistoryFacts(page)
+  facts.compareResult = compareFacts
+  if (compareFacts !== null) {
+    if (String(compareFacts.compareHead || '').indexOf('..') < 0) fail('结果头没有写清比较的是哪两端')
+    if (String(compareFacts.compareSummary || '').indexOf('个文件') < 0) fail('结果头没有写几个文件')
+    if (compareFacts.rows !== 0) fail('比较时仍在画提交行')
+  }
+  await closeOverlayIfAny(page, raw)
+  const shotCompare = await captureScreenshot(context, page, subdir, 'history-compare-result', '比较两个引用的结果（' + String(width) + ' 档 / ' + skin + '）')
+  evidence.push(...shotCompare.paths)
+  await clickPage(page, raw, HISTORY_COMPARE_END)
+
+  // ④b 认不出的引用：原样说回来，不悄悄当成 HEAD。
+  await clickPage(page, raw, HISTORY_COMPARE_OPEN)
+  await sleep(400)
+  await setValue(page, '[data-vc-history-compare-field="from"]', 'nope')
+  await sleep(200)
+  await clickPage(page, raw, HISTORY_COMPARE_APPLY)
+  const unknownShown = await waitFor(page, '[data-vc-history-compare-error]', 20000)
+  const unknownText = unknownShown ? await page.text('[data-vc-history-compare-error]') : null
+  const unknownWords = unknownText !== null && unknownText.ok ? String(unknownText.value || '') : ''
+  facts.unknownRev = unknownWords
+  if (!unknownShown || unknownWords.indexOf('nope') < 0) fail('认不出的引用没有原样说回来（读到「' + snippet(unknownWords, 80) + '」）')
+  const shotUnknown = await captureScreenshot(context, page, subdir, 'history-compare-unknown', '认不出的引用（' + String(width) + ' 档 / ' + skin + '）')
+  evidence.push(...shotUnknown.paths)
+  // 收尾把两端写回默认值：这一轮把 from 改成了 nope，留着会串到下一档。
+  await setValue(page, '[data-vc-history-compare-field="from"]', 'HEAD~1')
+  await clickPage(page, raw, HISTORY_COMPARE_CANCEL)
+
+  // ⑤ 提交备注：写一句、点保存、看结论；再用 git 自己回答「这条备注真的落进仓库了没有」。
+  // 每一轮都从「这条提交还没有备注」开始：先把它删掉，再让界面去写，判据才是「这次真的写进去了」。
+  const headForNote = gitRun(FIXTURE_REPO, ['rev-parse', 'HEAD']).text.trim()
+  if (headForNote !== '') gitRun(FIXTURE_REPO, ['notes', 'remove', headForNote])
+  const notesBefore = noteOidsInFixture()
+  // 等「HEAD 那一行」真的在列表里再点：清掉只看文件之后列表要重画一次，点早了会点到别的行。
+  let headRowReady = false
+  for (let i = 0; i < 25; i += 1) {
+    const probe = await evaluateThrough<boolean>(page, 'document.querySelector(' + JSON.stringify('[data-vc-history-open="' + headForNote + '"]') + ') !== null')
+    if (probe.ok && probe.value === true) { headRowReady = true; break }
+    await sleep(400)
+  }
+  if (!headRowReady) fail('列表里等不到 HEAD 那一行')
+  const reopen = await evaluateThrough<{ ok: boolean }>(page, scriptOf([
+    '(function () {',
+    '  var el = document.querySelector(' + JSON.stringify('[data-vc-history-open="' + headForNote + '"]') + ');',
+    '  if (!el) { return { ok: false, reason: ' + JSON.stringify('no-rows') + ' }; }',
+    '  el.click();',
+    '  return { ok: true };',
+    '})()',
+  ]))
+  if (!reopen.ok || reopen.value.ok !== true) fail('打不开 HEAD 那条提交的详情')
+  if (!(await waitFor(page, '[data-vc-history-note]', 10000))) fail('详情底部没有「提交备注」这一段')
+  await sleep(400)
+  // 写进去之后要读回来确认：换皮肤重挂页面时，输入框可能刚好在重画，字会被吃掉。
+  //   写不进去就补写一次；两次都写不进去才算失败（这时点保存只会得到「备注是空的」）。
+  let noteTyped = false
+  for (let i = 0; i < 3 && !noteTyped; i += 1) {
+    await setValue(page, HISTORY_NOTE_INPUT, NOTE_TEXT, true)
+    await sleep(250)
+    const typed = await evaluateThrough<string>(page, scriptOf([
+      '(function () {',
+      '  var el = document.querySelector(' + JSON.stringify(HISTORY_NOTE_INPUT) + ');',
+      '  return el === null ? ' + JSON.stringify('') + ' : String(el.value);',
+      '})()',
+    ]))
+    noteTyped = typed.ok && typed.value === NOTE_TEXT
+  }
+  if (!noteTyped) fail('备注输入框写不进字')
+  if (!(await clickPage(page, raw, HISTORY_NOTE_SAVE)).ok) fail('点不动「保存备注」')
+  // 不能只等「已有备注」那枚标记：同一条提交在前一轮已经写过备注时，那枚标记本来就在，
+  //   等它会立刻返回，然后在真正写盘之前就去数 git —— 会误判成「界面说保存了、仓库里却没有」。
+  //   判据改成直接问 git：它什么时候多出这一条，才算这一轮保存成功。
+  const savedShown = await waitFor(page, '[data-vc-history-note-saved]', 20000)
+  let noteLanded = false
+  for (let i = 0; i < 40; i += 1) {
+    if (noteOidsInFixture().indexOf(headForNote) >= 0) { noteLanded = true; break }
+    await sleep(500)
+  }
+  await sleep(400)
+  const noteFacts = await readHistoryFacts(page)
+  facts.note = noteFacts
+  facts.noteOidsBefore = notesBefore
+  const notesAfter = noteOidsInFixture()
+  facts.noteOidsAfter = notesAfter
+  if (!savedShown) fail('保存之后没有出现「已有备注」')
+  if (noteFacts === null || String(noteFacts.noteResult || '').indexOf('已保存') < 0) fail('结论行没有说「已保存」')
+  if (!noteLanded) fail('夹具仓库的 notes 引用里没有 HEAD 这一条（界面说保存了，git 里却没有）')
+  await closeOverlayIfAny(page, raw)
+  const shotNote = await captureScreenshot(context, page, subdir, 'history-note', '提交备注保存之后（' + String(width) + ' 档 / ' + skin + '）')
+  evidence.push(...shotNote.paths)
+  await clickPage(page, raw, '[data-vc-history-back]')
+  // ⑤b 回到列表：写过备注的那一条要带「备注」标记（这是用户确认「刚才写进去了」的第一眼）。
+  await sleep(600)
+  const backFacts = await readHistoryFacts(page)
+  facts.noteTagInList = backFacts === null ? -1 : backFacts.noteTags
+  if (backFacts === null || backFacts.noteTags < 1) fail('回到列表之后，写过备注的那一条没有「备注」标记')
+
+  const recorded = await recordBoth(context, subdir, 'history-entries.json', Object.assign({ width: width, skin: skin, failures: failures, calibration: calibration }, facts), '四条历史能力 @ ' + String(width) + ' / ' + skin + ' 的取数与判据')
+  evidence.push(...recorded)
+  const ok = failures.length === 0
+  return observe({
+    checkId: checkId,
+    title: '四条历史能力 @ ' + String(width) + ' / ' + skin,
+    ok: ok,
+    status: ok ? 'pass' : 'fail',
+    hard: false,
+    detail: ok ? '范围切换、单文件历史、比较两个引用、提交备注在真机上都点得通，备注也真的写进了仓库' : '没过的检查：' + failures.join('；'),
+    expected: '四条能力在 ' + String(width) + ' 档 ' + skin + ' 皮肤下点得通、结果落在原位上，备注真的进 refs/notes',
+    actual: ok ? '通过' : failures.join('；'),
+    evidence: evidence,
+  })
+}
+
 /**
  * 提交区「⋯」菜单的实拍（#1860 D6）：收起时四页签的图里看不到它，所以按档另外拍一张打开状态，
  * 顺带量一下菜单有没有超出提交区左右边界 —— 最窄档（300）是它唯一可能被挤坏的地方。
@@ -2433,9 +2879,22 @@ async function waitForHostReady(page: PageHandle, raw: RawBrowserPage, tokenUrl:
     const masks = await evaluateThrough<number>(page, MASK_COUNT_SCRIPT)
     maskCount = masks.ok ? masks.value : -1
     if (maskCount > 0) {
+      // 首开可能停在「预览版说明」这类提示上：它没有 aria-label 关闭键，Esc 也关不掉，
+      //   只有一颗「继续」。按文字点它一次，再等下一轮重新数遮罩。
       if (typeof raw.press === 'function') await raw.press('Escape')
       await clickPage(page, raw, CLOSE_BUTTON)
-      await sleep(300)
+      await evaluateThrough<boolean>(page, scriptOf([
+        '(function () {',
+        '  var words = [' + JSON.stringify('继续') + ', ' + JSON.stringify('知道了') + ', ' + JSON.stringify('我知道了') + '];',
+        '  var buttons = document.querySelectorAll(' + JSON.stringify('button') + ');',
+        '  for (var i = 0; i < buttons.length; i += 1) {',
+        '    var label = String(buttons[i].innerText || buttons[i].textContent || ' + JSON.stringify('') + ').trim();',
+        '    if (words.indexOf(label) >= 0) { buttons[i].click(); return true; }',
+        '  }',
+        '  return false;',
+        '})()',
+      ]))
+      await sleep(500)
       continue
     }
     const text = await page.text(WORKSPACE_BUTTON)
@@ -2545,6 +3004,7 @@ async function runSweep(context: ScenarioContext): Promise<ScenarioObservation[]
   for (const skin of skins) {
     for (const width of widths) {
       for (const view of VIEWS) {
+        if (ONLY_HISTORY) continue
         console.log('[1860] 取证 ' + VIEW_TITLES[view] + ' @ ' + String(width) + ' / ' + skin)
         try {
           const result = await captureAt(context, page, raw, view, width, skin, windowByWidth, tokenUrl, originUrl)
@@ -2566,11 +3026,27 @@ async function runSweep(context: ScenarioContext): Promise<ScenarioObservation[]
       }
       // #1860 D6：这一档的提交区「⋯」菜单另外拍一张（收起时四页签图里看不到它）。
       try {
-        const menu = await captureComposerMenu(context, page, raw, width, skin)
-        if (menu.paths.length > 0) captures[captures.length - 1].evidence.push(...menu.paths)
+        if (ONLY_HISTORY) { /* 只看历史那一段时不拍提交区菜单 */ }
+        const menu = ONLY_HISTORY ? { paths: [], rects: [] } : await captureComposerMenu(context, page, raw, width, skin)
+        if (menu.paths.length > 0 && captures.length > 0) captures[captures.length - 1].evidence.push(...menu.paths)
         console.log('[1860] 提交选项菜单 @ ' + String(width) + ' / ' + skin + '：' + JSON.stringify(menu.rects))
       } catch (error) {
         console.log('[1860] 提交选项菜单实拍失败：' + messageOf(error))
+      }
+      // #1903：这一档的四条历史能力各点一遍并留图（默认 / 代码搜 / 只看文件 / 比较表单 / 比较结果 / 备注）。
+      try {
+        const historyShot = await captureHistoryEntries(context, page, raw, width, skin, windowByWidth, tokenUrl, originUrl)
+        observations.push(historyShot)
+        if (captures.length > 0) captures[captures.length - 1].evidence.push(...historyShot.evidence)
+      } catch (error) {
+        observations.push(observe({
+          checkId: CHECK_ID + '-history-entries-w' + String(width) + '-' + skin,
+          title: '四条历史能力 @ ' + String(width) + ' / ' + skin,
+          ok: false,
+          status: 'blocked',
+          hard: false,
+          detail: '四条历史能力取证时抛错：' + messageOf(error),
+        }))
       }
     }
   }

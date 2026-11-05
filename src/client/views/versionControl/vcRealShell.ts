@@ -188,10 +188,11 @@ export const vcRealCallbacksOf = function (deps: any): any {
     },
     // Esc（规格第 343 行）：浮层开着先只关浮层；没有浮层而当前页有来源页时按 Esc 回来源页。
     //   回来源页后的滚动位置与筛选词由导航快照负责（vcRealNavBack 会把 pages 里存的那份带回来）。
-    //   #1860 D6：提交选项菜单也是浮层的一种，虽然它不在 nav.open 里（状态在 ui.commit.menuOpen），
-    //   所以先让提交动作层收一次菜单；菜单本来没开时它什么都不做。
+    //   #1860 D6 / #1877：提交选项浮层不在 nav.open 里（状态在 ui.commit.menuOpen），先让提交动作层收一次；
+    //   收掉了就直接结束这一下 Esc —— 否则同一下 Esc 会连着把页面也带回来源页。
     escape: function () {
-      if (actionsRef.current && typeof actionsRef.current.commitOps === 'function') actionsRef.current.commitOps().closeMenu()
+      if (actionsRef.current && typeof actionsRef.current.commitOps === 'function'
+        && actionsRef.current.commitOps().closeMenu() === true) return
       const cur: any = getNav()
       const open: any = (cur && cur.open) || {}
       if (open.branch === true || open.palette === true || open.gear === true) { setNav(vcRealNavCloseAll(cur)); return }
@@ -217,6 +218,21 @@ export const vcRealCallbacksOf = function (deps: any): any {
       actionsRef.current.historyCopy(intent && intent.oid)
       actionsRef.current.historyMenu('')
     },
+    // ———— #1903 提交历史页四条能力 ————
+    // 动作本体在 vcHistoryOps 叶里；这一层只把「点了什么」原样交给它（读多少、写不写都由那一层决定）。
+    historyScope: function (intent: any) { actionsRef.current.historyOps().scope(intent && intent.value) },
+    historyFileOnly: function (intent: any) { actionsRef.current.historyOps().fileOnly(intent && intent.path) },
+    historyFileOnlyClear: function () { actionsRef.current.historyOps().fileOnlyClear() },
+    historyFileMenu: function (intent: any) { actionsRef.current.historyOps().fileMenu(intent && intent.path) },
+    historyFileMenuClose: function () { actionsRef.current.historyOps().fileMenu('') },
+    historyFileRetry: function (intent: any) { actionsRef.current.historyOps().fileOnly(intent && intent.path) },
+    historyCompareOpen: function () { actionsRef.current.historyOps().compareToggle() },
+    historyCompareApply: function () { actionsRef.current.historyOps().compareApply() },
+    historyCompareCancel: function () { actionsRef.current.historyOps().compareClose() },
+    historyCompareEnd: function () { actionsRef.current.historyOps().compareEnd() },
+    historyCompareField: function (intent: any) { actionsRef.current.historyOps().compareField(intent && intent.which, intent && intent.value) },
+    historyNoteInput: function (intent: any) { actionsRef.current.historyOps().noteDraft(intent && intent.value) },
+    historyNoteSave: function () { actionsRef.current.historyOps().noteSave() },
     // ———— 管理页 ————
     // 分支浮层的五个动作项只是 span（壳里没给按钮），点它跳到分支板并把焦点送到对应动作按钮。
     branchOverlay: function (intent: any) {

@@ -24,8 +24,9 @@ declare function vcRealCwdEmptyOf(cwd: any): boolean
 declare function vcRealSeedOf(reads: any, nav: any, nowMs: any, t: any): any
 declare function vcRealSkinOf(bodyEl: any): string
 declare function vcRealSkinWatchOf(onSkin: any): any
-declare function vcRealCommitTargetsOf(reads: any): any[]
 declare function vcRealChangesSeedOf(reads: any): any
+// #1877：提交这一块的跨组件行为（浮层关闭与焦点、提交成功后重读表单），住在独立叶子里。
+declare function vcRealCommitMenuEffectsOf(input: any): void; declare function vcRealCommitFormReloadOf(input: any): void
 declare function vcRealActionsOf(deps: any): any
 declare function vcRealChangesHandlersOf(state: any, setState: any, call: any, cwd: any, translate: any, gate: any, readsApi?: any): any
 declare function vcRealDelegateOf(callbacks: any): any
@@ -241,6 +242,11 @@ export const VcRealTab = function (props: any) {
     commitFormCwdRef.current = cwd
     actionsRef.current.commitOps().loadForm()
   }, [nav.page, cwd])
+  // #1877 提交选项浮层：换页签收起、点浮层外面收起、收起后焦点回到那枚箭头（Esc 那条在委托层）。
+  //   行为本身住在 vcRealCommitFlow 叶子里：容器贴着 350 有效行上限，几条 effect 搬出去不影响任何行为。
+  vcRealCommitMenuEffectsOf({ rootRef: rootRef, actionsRef: actionsRef, open: !!(ui.commit && ui.commit.menuOpen === true), page: nav.page })
+  // #1877 提交成功之后重读一次提交表单（上一条提交变了）：同样住在那一叶里，理由见那份文件头。
+  vcRealCommitFormReloadOf({ actionsRef: actionsRef, commit: ui.commit })
   // 宽度跟四档与皮肤：宽度量根节点（ResizeObserver），皮肤跟宿主的 body 主题开关。
   // #1860 D15：皮肤不能只在挂载时读一次。宿主机在运行中切深浅主题时不会重挂这个面板，只在 body 上翻
   //   data-ds-dark-theme；只读一次的话面板会一直用旧皮肤 —— 深色的浅灰文字落在浅色底上，看着就是「整页空掉」。
@@ -334,7 +340,6 @@ export const VcRealTab = function (props: any) {
     nowMs: nowTick,
     changes: changesModel,
     commitOps: actions.commitOps(),
-    commitTargets: vcRealCommitTargetsOf(reads),
     stash: stash,
     onStash: function (payload: any) { actionsRef.current.stashAct(payload) },
     onStashEdit: function (patch: any) { actionsRef.current.stashEdit(patch) },

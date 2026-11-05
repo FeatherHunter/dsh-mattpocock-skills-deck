@@ -40,6 +40,13 @@ const NEW_FILES = [
   'src/client/views/versionControl/vcRealShell.js',
   'src/client/views/versionControl/vcRealDelegate.js',
   'src/client/views/versionControl/vcRealActions.js',
+  // #1902：改动页动作处理器从 vcRealActions 搬出；改动页另外三叶（纯规则 / 一行 / 页面）各有自己的真源。
+  'src/client/views/versionControl/vcChangesHandlers.js',
+  'src/client/views/versionControl/vcChangesHunks.js',
+  'src/client/views/versionControl/vcChangesAct.js',
+  'src/client/views/versionControl/vcChangesRow.js',
+  // #1877：提交选项浮层的关闭与焦点行为拆成独立叶子（容器贴着 350 有效行上限），容器要调它。
+  'src/client/views/versionControl/vcRealCommitFlow.js',
   'src/client/views/versionControl/vcRealTab.js',
 ]
 const EXPORTS = [
@@ -111,7 +118,16 @@ function makeHost(opts) {
     if (phone === 'wf.gitFirstScreen') return { ok: true, firstScreen: snapshotOf({ failSlice: o.failSlice, failMessage: o.failMessage }), readAtMs: NOW }
     if (phone === 'wf.gitStashCheck') return { ok: true, ticket: { id: 'st-ticket', checkedAtMs: NOW, expiresAtMs: NOW + 120000 }, plan: { subject: '第1条贮藏' } }
     if (phone === 'wf.gitStash') return { ok: true, entries: [], recent: [], stderr: '', stdout: '' }
-    if (phone === 'wf.gitCommitForm') return { ok: true, form: { branch: 'main', stagedCount: 0, hooks: [], amend: { available: true, message: '上一条提交的说明' } } }
+    // 提交表单的读回包与真实电话同形（#1877：身份 / 签名 / 模板 / 上一条提交都摊在顶层，
+    //   不是再包一层 form；修订预填、fixup 自动说明、模板链接都读这同一份）。
+    if (phone === 'wf.gitCommitForm') return {
+      ok: true,
+      identity: { name: '某甲', email: 'a@b.c' },
+      signing: { key: 'KEY123', format: 'openpgp', gpgsign: false },
+      template: { configured: false, path: '', text: '', problem: '', truncated: false },
+      trailer: 'Signed-off-by: 某甲 <a@b.c>',
+      amend: { available: true, oid: 'aaaa1111222233334444', short: 'aaaa111', subject: '上一条提交', message: '上一条提交' },
+    }
     if (phone === 'wf.gitWriteCheck') return { ok: true, decision: { verdict: 'allow', reasons: ['ok'] }, plan: { mode: 'amend' }, confirmRequired: true, ticket: { id: 'cm-ticket', checkedAtMs: NOW, expiresAtMs: NOW } }
     if (phone === 'wf.gitCommit') return { ok: true, cmd: 'git commit --amend', ms: 5, n: 1 }
     if (phone === 'wf.gitChangesCheck') return { ok: true, decision: { verdict: 'allow', reasons: ['ok'] }, plan: {}, confirmRequired: false, ticket: { id: 'ch-ticket', checkedAtMs: NOW, expiresAtMs: NOW }, readAtMs: NOW }
@@ -535,10 +551,10 @@ function scenarioRegistration() {
   const buildSrc = read('scripts/build.mts')
   const indexSrc = read('src/client/index.ts')
   const g818 = read('tests/verify-818-version-control-view.ts')
-  const newTs = ['vcRealModel', 'vcRealManage', 'vcRealManageReads', 'vcRealManageActions', 'vcRealManageActions2', 'vcRealManageActions3', 'vcRealManageSide', 'vcRealShell', 'vcRealDelegate', 'vcRealActions', 'vcRealTab']
-  check(newTs.every(function (id) { return buildSrc.indexOf('id: \'' + id + '\'') >= 0 }), 'T22 scripts/build.mts 叶子清单登记了十一个新叶子')
-  check(newTs.every(function (id) { return indexSrc.indexOf('leaf:' + id) >= 0 }), 'T22b src/client/index.ts 有十一个新叶子的拼接标记')
-  check(NEW_FILES.every(function (f) { return g818.indexOf(f) >= 0 }), 'T22c verify-818 的闭包文件清单登记了十一个新叶子（否则 818 渲染会缺函数）')
+  const newTs = ['vcRealModel', 'vcRealManage', 'vcRealManageReads', 'vcRealManageActions', 'vcRealManageActions2', 'vcRealManageActions3', 'vcRealManageSide', 'vcRealShell', 'vcRealDelegate', 'vcRealActions', 'vcRealCommitFlow', 'vcRealTab']
+  check(newTs.every(function (id) { return buildSrc.indexOf('id: \'' + id + '\'') >= 0 }), 'T22 scripts/build.mts 叶子清单登记了十二个新叶子')
+  check(newTs.every(function (id) { return indexSrc.indexOf('leaf:' + id) >= 0 }), 'T22b src/client/index.ts 有十二个新叶子的拼接标记')
+  check(NEW_FILES.every(function (f) { return g818.indexOf(f) >= 0 }), 'T22c verify-818 的闭包文件清单登记了十二个新叶子（否则 818 渲染会缺函数）')
   const tabSrc = read('src/client/views/versionControl/VersionControlTab.ts')
   check(tabSrc.indexOf('VcRealTab') >= 0 && tabSrc.indexOf('vcBlocksOf') < 0, 'T22d 入口组件只做委托（出现 VcRealTab、不再有旧块渲染入口）')
   const files = fs.readdirSync(path.join(ROOT, 'src/client/views/versionControl')).filter(function (name) { return /\.ts$/.test(name) })
@@ -1062,6 +1078,142 @@ async function scenarioHistoryRedesign() {
   check(!m.q('[data-vc-history-detail="1"]') && m.qa('[data-vc-history-row]').length === 3, 'T36q 「返回提交历史」回到列表，不再画详情')
   await m.unmount()
 }
+// ---------------- 场景十五：#1903 历史页四条能力（单文件历史 / 按代码变化搜 / 比较两个引用 / 提交备注） ----------------
+// 依据：定稿截图 87–92 与 tickets #1903。这一段真挂载、真点、真数电话：
+//   范围切换只改本地筛选（不额外读）、代码范围按改到的文件路径命中并标出文件、
+//   比较两个引用真的打 wf.gitHistoryQuery（kind=compare）并把结果头与文件清单落在列表位置、
+//   认不出的引用原样说、文件行菜单真的打 wf.gitHistoryQuery（kind=file-history）、
+//   备注保存真的走 wf.gitNoteCheck → wf.gitNoteWrite 两条电话且写完后行上带标记。
+async function scenarioHistoryFourEntries() {
+  console.log('\n== 场景十五：历史页四条能力（范围 / 只看文件 / 比较 / 备注） ==')
+  const snap = snapshotOf()
+  const A = 'a'.repeat(40)
+  const B = 'b'.repeat(40)
+  const C = 'c'.repeat(40)
+  snap.slices.history.data = {
+    commits: [
+      { oid: A, short: 'aaaaaaa', author: '某甲', email: 'a@b.c', authorDateMs: NOW - 3600000, commitDateMs: NOW - 3600000, subject: '修建议气泡在输入框高时跳出', parents: [B], files: 2, paths: ['src/client/views/IssueDetail.ts'] },
+      { oid: B, short: 'bbbbbbb', author: '某乙', email: 'b@b.c', authorDateMs: NOW - 7200000, commitDateMs: NOW - 7200000, subject: '补一条说明', parents: [C], files: 1, paths: ['scripts/build.mts'] },
+      { oid: C, short: 'ccccccc', author: '某丙', email: 'c@b.c', authorDateMs: NOW - 3 * 86400000, commitDateMs: NOW - 3 * 86400000, subject: '更早的一条', parents: [], files: 1, paths: ['docs/a.md'] },
+    ], hasMore: false, readAtMs: NOW,
+  }
+  const queryCalls = []
+  const noteCalls = []
+  const host = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
+      'wf.gitDiff': function (args) {
+        if (String((args || {}).rev || '') !== '') {
+          return { ok: true, files: [{ path: 'src/client/views/IssueDetail.ts', added: 4, deleted: 2 }, { path: 'docs/b.md', added: 1, deleted: 0 }], truncated: false, reason: 'ok' }
+        }
+        return { ok: true, lines: [], reason: 'ok' }
+      },
+      'wf.gitHistoryQuery': function (args) {
+        const a = args || {}
+        queryCalls.push({ kind: String(a.kind || ''), params: a.params || {} })
+        if (String(a.kind) === 'compare') {
+          const left = String((a.params || {}).left || '')
+          if (left === 'nope') return { ok: false, error: { kind: 'args', reason: 'unknown-rev', which: 'left', rev: 'nope', message: '找不到「nope」这个引用' } }
+          return { ok: true, kind: 'compare', files: [{ path: 'src/client/views/IssueDetail.ts', added: 3, deleted: 1 }], total: 1, truncated: false, reason: 'ok', leftOid: B, rightOid: A }
+        }
+        if (String(a.kind) === 'file-history') {
+          return { ok: true, kind: 'file-history', path: String((a.params || {}).path || ''), commits: [snap.slices.history.data.commits[0]], count: 1, reason: 'ok' }
+        }
+        if (String(a.kind) === 'notes') return { ok: true, kind: 'notes', note: null, reason: 'no-note', rev: String((a.params || {}).rev || '') }
+        return { ok: false, error: { kind: 'args', message: 'unexpected' } }
+      },
+      'wf.gitNoteCheck': function (args) {
+        noteCalls.push({ phone: 'check', rev: String((args || {}).rev || ''), text: String((args || {}).text || '') })
+        return { ok: true, ticket: { id: 'tk-note', op: 'note', checkedAtMs: NOW, expiresAtMs: NOW + 120000 }, plan: { rev: A, text: String((args || {}).text || ''), removing: false, hadNote: false } }
+      },
+      'wf.gitNoteWrite': function (args) {
+        noteCalls.push({ phone: 'write', ticketId: String((args || {}).ticketId || ''), requestId: String((args || {}).requestId || '') })
+        return { ok: true, cmd: 'git notes add', rev: A, removing: false, note: '这一版为了兼容旧数据' }
+      },
+    },
+  })
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await m.click('[data-vc-tab="commits"]')
+
+  // 范围切换：代码范围按「这次提交改到的文件」找，命中行标出是哪份文件
+  check(m.qa('[data-vc-history-scope-btn]').length === 2, 'T41a 搜索框右边有「说明 / 代码变化」两颗范围按钮')
+  await m.click('[data-vc-history-scope-btn="code"]')
+  await m.type('[data-vc-history-query]', 'IssueDetail')
+  check(m.qa('[data-vc-history-row]').length === 1 && m.q('[data-vc-history-row="' + A + '"]') !== null,
+    'T41b 代码范围按文件路径命中：只剩改到 IssueDetail.ts 的那一条（实得 ' + m.qa('[data-vc-history-row]').length + ' 条）')
+  check(m.qa('[data-vc-history-hit]').length === 1 && String((m.q('[data-vc-history-hit]') || {}).getAttribute('data-vc-history-hit')) === 'src/client/views/IssueDetail.ts',
+    'T41c 命中行上标出命中的文件')
+  await m.click('[data-vc-history-scope-btn="message"]')
+  check(m.qa('[data-vc-history-row]').length === 0,
+    'T41d 切回说明范围，同一个词给出不同结果（说明里没有 IssueDetail.ts）')
+  check(queryCalls.length === 0, 'T41e 两种范围的筛选都在本地做，不为了搜索多发一次电话（实得 ' + queryCalls.length + ' 次）')
+  await m.type('[data-vc-history-query]', '')
+
+  // 比较两个引用：表单预填 HEAD~1/HEAD，比较后结果头与文件清单落在列表位置
+  await m.click('[data-vc-history-compare-open]')
+  const fromInput = m.q('[data-vc-history-compare-field="from"]')
+  const toInput = m.q('[data-vc-history-compare-field="to"]')
+  check(!!fromInput && !!toInput && String(fromInput.value) === 'HEAD~1' && String(toInput.value) === 'HEAD',
+    'T41f 比较表单预填 HEAD~1 与 HEAD（实得 ' + String((fromInput || {}).value) + ' / ' + String((toInput || {}).value) + '）')
+  await m.click('[data-vc-history-compare-apply]')
+  await settle()
+  const compareCall = queryCalls.filter(function (c) { return c.kind === 'compare' })[0]
+  check(!!compareCall && String(compareCall.params.left) === 'HEAD~1' && String(compareCall.params.right) === 'HEAD',
+    'T41g 点「比较」真的打 wf.gitHistoryQuery（kind=compare，两端原样交给宿主）')
+  check(!!m.q('[data-vc-history-compare-head]') && m.qa('[data-vc-history-compare-file]').length === 1 && m.qa('[data-vc-history-row]').length === 0,
+    'T41h 结果头与文件清单落在列表位置，比较时不画提交行')
+  await m.click('[data-vc-history-compare-end]')
+  check(!m.q('[data-vc-history-compare-head]') && m.qa('[data-vc-history-row]').length === 3, 'T41i 退出比较后回到三条提交')
+
+  // 认不出的引用原样说给用户听
+  await m.click('[data-vc-history-compare-open]')
+  await m.type('[data-vc-history-compare-field="from"]', 'nope')
+  await m.click('[data-vc-history-compare-apply]')
+  await settle()
+  const scopeText = m.text('[data-vc-history-compare-error]')
+  check(String(scopeText).indexOf('nope') >= 0, 'T41j 认不出的引用原样说给用户听（实得 ' + String(scopeText).slice(0, 40) + '）')
+  await m.click('[data-vc-history-compare-cancel]')
+
+  // 单文件历史：详情里文件行尾的「⋯」→「看这个文件的历史」
+  await m.click('[data-vc-history-open="' + B + '"]')
+  await settle()
+  check(m.qa('[data-vc-history-file-more]').length === 2 && !!m.q('[data-vc-history-file-more="src/client/views/IssueDetail.ts"]'),
+    'T41k 详情里每个文件行都带行尾「⋯」（两个文件两个按钮）')
+  const more = m.qa('[data-vc-history-file-more]')[0]
+  if (more) await m.click(more)
+  const entry = m.q('[data-vc-history-file-history]')
+  check(!!entry, 'T41m 文件行菜单里有「看这个文件的历史」')
+  if (entry) await m.click(entry)
+  await settle()
+  const fileCall = queryCalls.filter(function (c) { return c.kind === 'file-history' })[0]
+  check(!!fileCall && String(fileCall.params.path) === String((entry || {}).getAttribute('data-vc-history-file-history')),
+    'T41n 点了之后真的打 wf.gitHistoryQuery（kind=file-history，路径就是这一行的路径）')
+  check(!!m.q('[data-vc-history-file-only-strip]') && m.q('[data-vc-history-file-only-result]') !== null,
+    'T41o 回到列表并带一枚「只看 <文件>」与一条结果说明')
+  check(m.qa('[data-vc-history-row]').length === 1 && m.q('[data-vc-history-row="' + A + '"]') !== null,
+    'T41p 列表只剩这份读数里的提交')
+  await m.click('[data-vc-history-file-only-clear]')
+  check(!m.q('[data-vc-history-file-only-strip]') && m.qa('[data-vc-history-row]').length === 3, 'T41q 点掉标签回到全部历史')
+
+  // 提交备注：写一句、保存，走预检签票 + 凭票执行
+  await m.click('[data-vc-history-open="' + A + '"]')
+  await settle()
+  check(!!m.q('[data-vc-history-note]'), 'T41r 详情底部有「提交备注」一段')
+  await m.type('[data-vc-history-note-input]', '这一版为了兼容旧数据')
+  await m.click('[data-vc-history-note-save]')
+  await settle()
+  check(noteCalls.length === 2 && noteCalls[0].phone === 'check' && noteCalls[1].phone === 'write' && noteCalls[1].ticketId === 'tk-note',
+    'T41s 保存备注先预检签票再凭票执行（实得 ' + JSON.stringify(noteCalls) + '）')
+  check(String(m.text('[data-vc-history-note-result]')).indexOf('已保存') >= 0, 'T41t 保存后这一段写清「已保存」')
+  await m.click('[data-vc-history-back]')
+  check(m.qa('[data-vc-history-note-tag]').length === 1 && m.q('[data-vc-history-note-tag]') !== null,
+    'T41u 回到列表，写过备注的那一条带「备注」标记')
+  await m.unmount()
+}
+
 // ---------------- 场景十一：改动页文件行展开读逐行差异（#1860 D7） ----------------
 // 依据：改动页原型点开一行是差异块（docs/prototype/vc-redesign/src/ui/views/changes.ts 的 file-detail），
 //   而真实读数里没有逐行内容，只能按需向宿主读一次。这一段验的是「点了之后真的打了哪个电话、界面怎么变」：
@@ -1271,47 +1423,165 @@ async function scenarioStashAutoDetail() {
   await h.unmount()
   await m.unmount()
 }
-// ---------------- 场景十三：提交区只有三块，提交选项收进底行菜单（#1860 D6） ----------------
-// 依据：改动页原型（docs/prototype/vc-redesign/src/ui/views/changes.ts 的 composer）只有「已暂存计数 + 两个
-//   链接 / 说明框 / 底行」三块，没有第四行折叠。这一段验：折叠行没了、菜单能开能收、非默认计划留一句话、
-//   十颗能力控件仍在页面里（收起不等于丢入口）。
+// ---------------- 场景十二（#1902）：逐块暂存与三个行级动作真点一遍 ----------------
+// 依据：票面验收——展开一行按块给按钮、点过之后这一块进索引并回一条结果；「⋯」菜单里三个行级动作
+//   各自先出贴行确认（改名是贴行表单），确认后发的是哪一通电话、带的是哪几个参数。
+async function scenarioChangesHunkActions() {
+  console.log('\n== 场景十三：逐块暂存与删除 / 停止跟踪 / 改名（#1902） ==')
+  const snap = snapshotOf()
+  snap.slices.changes.data = {
+    staged: [],
+    unstaged: [
+      { path: 'h2.txt', status: ' M', staged: false, untracked: false, change: 'modified', addedLines: 2, deletedLines: 1 },
+      { path: 'm2.txt', status: ' M', staged: false, untracked: false, change: 'modified', addedLines: 1, deletedLines: 0 },
+    ],
+    stagedCount: 0, unstagedCount: 2, conflictCount: 0, lineCountsKnown: true,
+  }
+  const headline = [
+    { kind: 'filehead', text: 'diff --git a/h2.txt b/h2.txt' },
+    { kind: 'hunk', text: '@@ -1,2 +1,3 @@' },
+    { kind: 'context', text: ' a' },
+    { kind: 'add', text: '+b' },
+    { kind: 'hunk', text: '@@ -20,2 +21,2 @@' },
+    { kind: 'context', text: ' x' },
+    { kind: 'add', text: '+y' },
+  ]
+  const oneHunk = [{ kind: 'filehead', text: 'diff --git a/m2.txt b/m2.txt' }, { kind: 'hunk', text: '@@ -1 +1 @@' }, { kind: 'add', text: '+改了一行' }]
+  const checks = []
+  const writes = []
+  const host = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
+      'wf.gitDiff': function (args) {
+        const path = String((args || {}).path || '')
+        if ((args || {}).staged === true) return { ok: true, path: path, lines: [], truncated: false, reason: 'no-diff' }
+        if ((args || {}).unstaged === true) return { ok: true, path: path, lines: path === 'h2.txt' ? headline : oneHunk, truncated: false, reason: 'ok' }
+        return { ok: true, path: path, lines: path === 'h2.txt' ? headline : oneHunk, truncated: false, reason: 'ok' }
+      },
+      'wf.gitChangesCheck': function (args) {
+        const a = args || {}
+        checks.push(a)
+        return { ok: true, decision: { verdict: 'allow', reasons: [] }, plan: { op: a.op }, confirmRequired: a.op === 'rm-cached' || a.op === 'rm-tracked', ticket: { id: 'chk-' + checks.length }, readAtMs: NOW }
+      },
+      'wf.gitChangesWrite': function (args) { writes.push(args || {}); return { ok: true, cmd: 'git ' + String((args || {}).op || ''), ms: 3, n: 1 } },
+    },
+  })
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+
+  // 1) 展开一行：两块，各带一颗「暂存这一块」。
+  const opened = await m.click('[data-vc-file-open="h2.txt"]')
+  const hunksShown = await waitFor(function () { return m.qa('[data-vc-changes-diff="h2.txt"] [data-vc-hunk]').length === 2 })
+  check(opened && hunksShown, 'T39 展开一个已修改文件：按块画出来（2 块）')
+  const bars = m.qa('[data-vc-changes-diff="h2.txt"] [data-vc-hunk]')
+  check(bars.length === 2 && String((m.q('[data-vc-changes-diff="h2.txt"] [data-vc-hunk-name]') || {}).textContent || '') === tZh('vc.changes.view.hunkTitle', { n: '1' }),
+    'T39b 每一块的块头写「第 N 块」（第 1 块是 ' + tZh('vc.changes.view.hunkTitle', { n: '1' }) + '）')
+  const stageBtns = m.qa('[data-vc-changes-diff="h2.txt"] [data-vc-hunk-act="stage"]')
+  check(stageBtns.length === 2 && String(stageBtns[0].textContent || '') === tZh('vc.changes.view.hunkStage'), 'T39c 每块的按钮写「暂存这一块」，还没进索引时两块都是它')
+  await m.click(stageBtns[0])
+  const checkCall = checks.filter(function (a) { return a && a.op === 'stage-hunks' })[0]
+  check(!!checkCall && checkCall.path === 'h2.txt' && checkCall.hunkIndex === 0 && checkCall.reverse === false,
+    'T39d 点第一块：预检电话带动作 stage-hunks、路径与块号 0，方向是正向')
+  check(writes.length === 1 && writes[0].op === 'stage-hunks' && writes[0].hunkIndex === 0, 'T39e 预检不需要确认时直接凭票执行，写电话带的是同一块')
+  const banner = m.q('[data-vc-changes-result="stage-hunks"]')
+  check(!!banner && String(banner.textContent || '').indexOf(tZh('vc.changes.view.resultHunkStaged', { name: 'h2.txt', n: '1' })) >= 0,
+    'T39f 结果条贴着改动列表顶部，写明这一次暂存的是哪一块')
+
+  // 2) 行菜单：三个新入口都在，点「停止跟踪」先贴行确认。
+  await m.click('[data-vc-file-menu="m2.txt"]')
+  const ops = m.qa('[data-vc-file-row="m2.txt"] ~ .row-menu [data-vc-file-op]').map(function (el) { return String(el.getAttribute('data-vc-file-op')) })
+  check(ops.join(',') === 'discard-file,mv,rm-cached,rm-tracked', 'T39g 已跟踪的未暂存行菜单：丢弃 / 重命名 / 停止跟踪 / 删除已跟踪（实得 ' + ops.join(',') + '）')
+  await m.click('[data-vc-file-row="m2.txt"] ~ .row-menu [data-vc-file-op="rm-cached"]')
+  const card = await waitFor(function () { return !!m.q('[data-vc-file-confirm="rm-cached"]') })
+  check(card && String((m.q('[data-vc-file-confirm="rm-cached"]') || {}).textContent || '').indexOf(tZh('vc.changes.view.confirmUntrackBody')) >= 0,
+    'T39h 点「停止跟踪，保留文件」先出贴行确认，正文写清文件还在磁盘上')
+  await m.click('[data-vc-file-confirm="rm-cached"] [data-vc-file-confirm-go]')
+  const untrackWrite = writes.filter(function (w) { return w.op === 'rm-cached' })[0]
+  check(!!untrackWrite && untrackWrite.path === 'm2.txt' && untrackWrite.confirm === true, 'T39i 确认之后凭票执行 rm-cached（写电话带 confirm）')
+
+  // 3) 改名：贴着这一行展开只填新路径的表单，保存后把旧路径与新路径一起递下去。
+  await m.click('[data-vc-file-menu="m2.txt"]')
+  await m.click('[data-vc-file-row="m2.txt"] ~ .row-menu [data-vc-file-op="mv"]')
+  const formShown = await waitFor(function () { return !!m.q('[data-vc-rename-form="m2.txt"]') })
+  const inputValue = String((m.q('[data-vc-rename-input="m2.txt"]') || {}).value || '')
+  check(formShown && inputValue === 'm2.txt', 'T39j 点「重命名或移动」贴着这一行展开表单，输入框预填当前路径')
+  await m.type('[data-vc-rename-input="m2.txt"]', 'src/moved.ts')
+  await m.click('[data-vc-rename-apply="m2.txt"]')
+  const mvCall = checks.filter(function (a) { return a && a.op === 'mv' })[0]
+  check(!!mvCall && mvCall.path === 'm2.txt' && mvCall.to === 'src/moved.ts', 'T39k 保存新路径：预检电话带旧路径与新路径（不带表单里空着的 from）')
+  await m.unmount()
+}
+
+// ---------------- 场景十三：提交选项的入口与关闭路径（#1877，按 #1876 原型） ----------------
+// 依据：原型提交区首屏只有三块（已暂存计数 + 两个链接 / 说明框 / 底行），提交按钮右边多一枚 24 像素箭头；
+//   点开才是「提交选项」浮层（提交形态 / 内容来源 / 提交说明 / 记录方式四组）。这一段验：入口位置与默认收起、
+//   四组控件与能力编号、内容来源与记录方式收起后的可见反馈、Esc / 点外面 / 换页签三条关闭路径、
+//   以及提交成功之后这次的选择全部归零。
 async function scenarioComposerOptions() {
-  console.log('\n== 场景十三：提交选项收进底行菜单（三块结构不变） ==')
+  console.log('\n== 场景十三：提交选项的入口与关闭路径（#1877 原型） ==')
   const host = makeHost({})
   const view = buildView(host, null)
   const m = mountOf(view, { st: { cwd: CWD } })
   await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
   await settle()
   const composer = m.q('[data-vc-commit-panel]')
-  check(!!composer && !m.q('[data-vc-commit-advanced]') && !m.q('.vcs-commit-advanced') && !composer.querySelector('details'),
-    'T39 提交区不再有第四行「更多提交选项」折叠（原型只有三块：计数行 / 说明框 / 底行）')
+  check(!!composer && !m.q('[data-vc-commit-advanced]') && !composer.querySelector('details'),
+    'T39 提交区没有第四行折叠（原型首屏只有三块：计数行 / 说明框 / 底行）')
   const optBtn = m.q('[data-vc-commit-options]')
   const menu = m.q('[data-vc-commit-menu]')
-  check(!!optBtn && String(optBtn.getAttribute('aria-expanded')) === 'false' && !!menu && menu.hasAttribute('hidden'),
-    'T39b 底行有一颗「提交选项」按钮，菜单默认收起（aria-expanded=false、菜单带 hidden）')
+  const split = m.q('.commit-split')
+  const submitBtn = m.q('[data-vc-commit-submit]')
+  check(!!optBtn && !!split && !!submitBtn && split.contains(submitBtn) && split.contains(optBtn) && String(optBtn.getAttribute('aria-expanded')) === 'false' && !!menu && menu.hasAttribute('hidden'),
+    'T39b 「提交选项」的入口是贴在提交按钮右侧的一枚箭头（同一个格里），浮层默认收起（aria-expanded=false、带 hidden）')
   const counts = { '2.1': 0, '2.2': 0, '2.3': 0, '2.4': 0, '2.5': 0, '2.6': 0, '2.7': 0, '2.8': 0 }
   m.qa('[data-cap-control]').forEach(function (el) { const cap = String(el.getAttribute('data-cap-control')); if (counts[cap] !== undefined) counts[cap] += 1 })
   check(counts['2.1'] === 1 && counts['2.2'] === 1 && counts['2.3'] === 1 && counts['2.4'] === 2 && counts['2.5'] === 1 && counts['2.6'] === 2 && counts['2.7'] === 1 && counts['2.8'] === 1,
-    'T39c 收起菜单不丢入口：八条提交能力的十颗控件都还在页面里（' + JSON.stringify(counts) + '）')
+    'T39c 收起浮层不丢入口：八条提交能力的十颗控件都还在页面里（' + JSON.stringify(counts) + '）')
+  const modes = m.qa('[data-vc-commit-mode]').map(function (el) { return String(el.getAttribute('data-vc-commit-mode')) })
+  check(modes.join(',') === 'staged,amend,fixup,squash', 'T39d 提交形态只有四种（新提交 / 修订上一条 / fixup / squash），-a 不再冒充第五种形态（实得 ' + modes.join(',') + '）')
   await m.click('[data-vc-commit-options]')
-  const opened = m.q('[data-vc-commit-menu]')
-  check(!!opened && !opened.hasAttribute('hidden') && String((m.q('[data-vc-commit-options]') || {}).getAttribute('aria-expanded')) === 'true',
-    'T39d 点「提交选项」把菜单展开（hidden 去掉、aria-expanded=true）')
-  await m.click('[data-vc-commit-options]')
-  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed',
-    'T39e 再点一次收起（同一个按钮管开合，不另加关闭键）')
-  await m.click('[data-vc-commit-options]')
-  await m.click('[data-vc-commit-mode="all"]')
-  check(m.text('[data-vc-commit-plan-note]').indexOf('全部已跟踪改动') >= 0,
-    'T39f 切成「提交全部已跟踪改动」后，提交区留一句话说清这次提交什么（收起菜单也看得见）')
-  await m.click('[data-vc-commit-mode="staged"]')
-  check(!m.q('[data-vc-commit-plan-note]'), 'T39g 切回「只提交已暂存内容」后那句话整块不画（默认状态不出多余说明）')
-  await m.click('[data-vc-commit-options]')
+  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'open' && !m.q('[data-vc-commit-menu]').hasAttribute('hidden') && String((m.q('[data-vc-commit-options]') || {}).getAttribute('aria-expanded')) === 'true',
+    'T39e 点箭头展开浮层（data-vc-commit-menu=open、hidden 去掉、aria-expanded=true）')
+  // 内容来源（2.2）是独立开关：打开后份数与脚注都跟着变，未跟踪的新文件明确不算。
+  await m.click('[data-vc-commit-all]')
+  check(String((m.q('[data-vc-commit-all]') || {}).getAttribute('aria-checked')) === 'true' && m.text('[data-vc-commit-submit]').indexOf('1 个文件') >= 0 && m.text('[data-vc-commit-panel]').indexOf('未跟踪的新文件不算') >= 0,
+    'T39f 打开「把未暂存的改动也一起提交」：开关打开、按钮份数含刚一起暂存的改动、脚注写明未跟踪的新文件不算')
+  await m.click('[data-vc-commit-all]')
+  check(String((m.q('[data-vc-commit-all]') || {}).getAttribute('aria-checked')) === 'false' && m.text('[data-vc-commit-submit]').indexOf('0 个文件') >= 0,
+    'T39g 再点一次关掉：份数回到已暂存那一个数（内容来源与形态互不影响）')
   await m.click('[data-vc-commit-opt="skipHooks"]')
-  check(m.text('[data-vc-commit-plan-note]').indexOf('跳过钩子') >= 0, 'T39h 勾了「跳过提交钩子」同样留一句话（三个开关也不藏在菜单里）')
+  await m.click('[data-vc-commit-options-close]')
+  const flag = m.q('[data-vc-commit-flag="skipHooks"]')
+  check(!!flag && String((m.q('[data-vc-commit-options]') || {}).getAttribute('aria-label')).indexOf('已开启') >= 0,
+    'T39h 勾了「跳过提交钩子」再收起浮层：提交按钮上方留一枚标签，箭头自己的说明也写着已开启（菜单 ' + String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) + '、标签 ' + (flag ? '有' : '无') + '、箭头说明「' + String((m.q('[data-vc-commit-options]') || {}).getAttribute('aria-label')) + '」）')
+  await m.click('[data-vc-commit-options]')
   await m.key('[data-vc-commit-msg]', 'Escape')
+  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed' && focusOn(m, '[data-vc-commit-options]'),
+    'T39i 按 Esc 收起浮层，焦点回到那枚箭头（下一个按键还落在原处）')
+  await m.click('[data-vc-commit-options]')
+  await React.act(async function () { document.body.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true })) })
+  await settle()
   check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed',
-    'T39i 按 Esc 收起提交选项菜单（与页面其它浮层同一套键盘习惯）')
+    'T39j 点浮层外面也收起（和行菜单、分支浮层同一套习惯）')
+  await m.click('[data-vc-commit-options]')
+  await m.click('[data-vc-tab="commits"]')
+  await m.click('[data-vc-tab="changes"]')
+  check(String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed',
+    'T39k 换页签也收起（提交选项是「这一次提交」的临时选择，离开改动页就失效）')
+  // 一次成功的普通提交：预检放行后直接执行，成功后这次的选择全部归零。
+  await m.click('[data-vc-commit-options]')
+  await m.click('[data-vc-commit-all]')
+  await m.click('[data-vc-commit-opt="skipHooks"]')
+  await m.type('[data-vc-commit-msg]', '门禁用的提交说明')
+  const commitBefore = countKin(host, 'wf.gitCommit')
+  await m.click('[data-vc-commit-submit]')
+  const resetOk = String((m.q('[data-vc-commit-menu]') || {}).getAttribute('data-vc-commit-menu')) === 'closed' &&
+    !m.q('[data-vc-commit-flag]') && String((m.q('[data-vc-commit-all]') || {}).getAttribute('aria-checked')) === 'false' &&
+    String((m.q('[data-vc-commit-msg]') || {}).value || '') === '' && !!m.q('[data-vc-commit-mode="staged"].is-on')
+  check(countKin(host, 'wf.gitCommit') === commitBefore + 1 && resetOk,
+    'T39l 普通提交（含一起提交与跳过钩子）预检放行后直接执行；成功后形态回到新提交、内容来源与记录方式关掉、说明清空、浮层收起')
   await m.unmount()
 }
 // ---------------- 场景十四：皮肤跟着宿主主题开关走（#1860 D15） ----------------
@@ -1357,7 +1627,9 @@ async function main() {
   await scenarioAiHandoff()
   await scenarioM4d()
   await scenarioHistoryRedesign()
+  await scenarioHistoryFourEntries()
   await scenarioChangesDiff()
+await scenarioChangesHunkActions()
   await scenarioStashAutoDetail()
   await scenarioComposerOptions()
   await scenarioSkinFollow()

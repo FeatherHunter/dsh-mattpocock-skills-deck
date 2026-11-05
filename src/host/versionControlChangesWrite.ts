@@ -13,6 +13,9 @@
 import type { ChangesPlan } from '../shared/version-control/src/ports.js'
 import {
   applyCachedArgs,
+  applyCachedReverseArgs,
+  diffHunksArgs,
+  diffCachedHunksArgs,
   cleanArgs,
   rmArgs,
   rmCachedArgs,
@@ -135,7 +138,7 @@ export function createChangesWrite(deps: any): any {
   /** 与票据绑定的内容摘要逐项复核：补丁内容、干净清单、旧 .gitignore 摘要，任何一项变了都拒绝执行。 */
   async function contentVerdict(cwd: string, plan: ChangesPlan): Promise<any> {
     if (plan.op === 'stage-hunks') {
-      const raw: any = await d.runCommand(cwd, ['diff', '--no-color', '--no-ext-diff', '--find-renames', '--unified=3', '--', plan.paths[0]], { stdoutLimit: 4 * 1024 * 1024, timeoutMs: WRITE_TIMEOUT_MS })
+      const raw: any = await d.runCommand(cwd, plan.reverse === true ? diffCachedHunksArgs(String(plan.paths[0] || '')) : diffHunksArgs(String(plan.paths[0] || '')), { stdoutLimit: 4 * 1024 * 1024, timeoutMs: WRITE_TIMEOUT_MS })
       if (!raw || raw.kind !== 'ok') return { ok: false, reason: 'target-changed', detail: '重新读这个文件的差异失败' }
       const idx: number = (typeof plan.hunkIndex === 'number') ? plan.hunkIndex : -1
       const one: any = patchForHunk(String(raw.stdout || ''), idx)
@@ -179,7 +182,8 @@ export function createChangesWrite(deps: any): any {
     try {
       if (plan.op === 'stage-hunks') {
         // 先按票据里绑定的那一块重新拼出补丁；拼不出来就绝不把别的块写给 git。
-        const raw: any = await d.runCommand(cwd, ['diff', '--no-color', '--no-ext-diff', '--find-renames', '--unified=3', '--', plan.paths[0]], { stdoutLimit: 4 * 1024 * 1024, timeoutMs: WRITE_TIMEOUT_MS })
+        // 正向从「索引相对工作区」取块，反向从「索引相对 HEAD」取块：与预检、与界面展开的那一份同源。
+        const raw: any = await d.runCommand(cwd, plan.reverse === true ? diffCachedHunksArgs(String(plan.paths[0] || '')) : diffHunksArgs(String(plan.paths[0] || '')), { stdoutLimit: 4 * 1024 * 1024, timeoutMs: WRITE_TIMEOUT_MS })
         if (!raw || raw.kind !== 'ok') return wfail('env', 'target-changed', '重新读这个文件的差异失败')
         const one: any = patchForHunk(String(raw.stdout || ''), (typeof plan.hunkIndex === 'number') ? plan.hunkIndex : -1)
         if (one.ok !== true) return wfail('args', 'hunk-out-of-range', writeHintFor('hunk-out-of-range'))
@@ -187,7 +191,7 @@ export function createChangesWrite(deps: any): any {
         try { tmp = await d.writeTempPatch(String(one.text)) } catch (e) { return wfail('env', 'unknown-write-failure', String(((e as any) && (e as any).message) || (e as any))) }
         if (!tmp || tmp.ok !== true || !tmp.path) return wfail('env', 'unknown-write-failure', '写临时补丁文件失败，逐块暂存没有执行')
         patchPath = String(tmp.path)
-        return await runOne(cwd, applyCachedArgs(patchPath))
+        return await runOne(cwd, plan.reverse === true ? applyCachedReverseArgs(patchPath) : applyCachedArgs(patchPath))
       }
       const argv: any = argvOf(plan)
       if (!argv) return wfail('args', 'bad-target', '这个动作没有对应的 git 命令')

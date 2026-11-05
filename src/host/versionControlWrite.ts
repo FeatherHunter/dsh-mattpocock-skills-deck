@@ -145,7 +145,7 @@ export function createWritePhones(deps: any): any {
       // 提交绑两格：索引条数与计划摘要；2.2 的 commit -a 还要绑工作树形状（与预检同一份 worktreeBindingInput），
       // 否则「预检之后又改了一个已跟踪文件」会被 -a 静默带进这次提交。
       const pre: any = { planDigest: digest16(planBindingInput(cur.target)) }
-      if (cur.target && cur.target.mode === 'all') {
+      if (cur.target && cur.target.all === true) {
         const sr: any = await vc.readScreenOf(cwd)
         const screen: any = (sr && sr.ok === true) ? sr.screen : null
         pre.worktreeDigest = screen ? digest16(worktreeBindingInput(screen)) : null
@@ -301,7 +301,7 @@ export function createWritePhones(deps: any): any {
     const headAfter: string | null = await readHead(g.cwd)
     // 读不到 HEAD 就如实说「结果未知」——绝不在不知道结果时说成功（#841 第三批 ⑤）。
     if (headAfter === null) return remember(g.requestId, wfail('other', 'head-unreadable', writeHintFor('head-unreadable'), { extra: { headBefore: headBefore, headAfter: '' } }))
-    if (r && r.ok === true) return remember(g.requestId, { ok: true, committed: true, mode: plan.mode, target: plan.target, skipHooks: plan.skipHooks === true, sign: plan.sign === true, signoff: plan.signoff === true, headBefore: headBefore, headAfter: headAfter || '', atMs: now() })
+    if (r && r.ok === true) return remember(g.requestId, { ok: true, committed: true, mode: plan.mode, all: plan.all === true, target: plan.target, skipHooks: plan.skipHooks === true, sign: plan.sign === true, signoff: plan.signoff === true, headBefore: headBefore, headAfter: headAfter || '', atMs: now() })
     // 不幂等：HEAD 变了就如实说「HEAD 已经变了」，既不声称成功也不自动重试。
     if (headAfter && headBefore && headAfter !== headBefore) return remember(g.requestId, wfail('other', 'head-moved', writeHintFor('head-moved'), { extra: { headBefore: headBefore, headAfter: headAfter } }))
     const text: string = failText(r)

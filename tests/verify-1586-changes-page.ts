@@ -24,7 +24,7 @@ const REPO = 'C:/repo'
 
 /** 编译后的界面叶子：与 818 一样用 spliceableJs + compileFn 求值，不引入构建产物。 */
 function makeLeaf() {
-  const body = spliceableJs('src/client/views/versionControl/vcChangesPage.ts') + '\nreturn { VC_CHANGES_PHONES: VC_CHANGES_PHONES, VC_CHANGES_OPS: VC_CHANGES_OPS, vcChangesPageNode: vcChangesPageNode, vcChangesRowNode: vcChangesRowNode, vcChangesCheckArgsOf: vcChangesCheckArgsOf, vcChangesWriteArgsOf: vcChangesWriteArgsOf, vcChangesRequestIdOf: vcChangesRequestIdOf, vcChangesTargetOf: vcChangesTargetOf, vcChangesOpLabelKeyOf: vcChangesOpLabelKeyOf, vcChangesOpVerbKeyOf: vcChangesOpVerbKeyOf };'
+  const body = spliceableJs('src/client/views/versionControl/vcChangesPage.ts') + '\nreturn { VC_CHANGES_PHONES: VC_CHANGES_PHONES, VC_CHANGES_OPS: VC_CHANGES_OPS, vcChangesPageNode: vcChangesPageNode, vcChangesRowNode: vcChangesRowNode, vcChangesCheckArgsOf: vcChangesCheckArgsOf, vcChangesWriteArgsOf: vcChangesWriteArgsOf, vcChangesRequestIdOf: vcChangesRequestIdOf, vcChangesTargetOf: vcChangesTargetOf, vcChangesOpLabelKeyOf: vcChangesOpLabelKeyOf, vcChangesOpVerbKeyOf: vcChangesOpVerbKeyOf, vcChangesOpMetaOf: vcChangesOpMetaOf, vcChangesRowKeyOf: vcChangesRowKeyOf };'
   const fakeH = function (tag: any, props: any, children: any) { return { tag: tag, props: props || {}, children: children } }
   const fakeT = function (key: any, params: any) { return String(key) + (params ? '|' + JSON.stringify(params) : '') }
   return compileFn(['h', 't', 'vcWriteErrFamilyOf'], body)(fakeH, fakeT, function () { return 'notReady' })
@@ -55,6 +55,8 @@ function makeScreen(over?: any) {
 }
 const INDEX_ONE = '100644 ' + 'a'.repeat(40) + ' 0\t' + 'a.txt' + '\u0000'
 const DIFF_ONE = ['diff --git a/a.txt b/a.txt', '--- a/a.txt', '+++ b/a.txt', '@@ -1,2 +1,3 @@', ' a', '+b', ' c', ''].join('\n')
+// 已暂存那一份（索引相对 HEAD）：两块，用来验反向（取消暂存）挑的是第几块。
+const DIFF_CACHED = ['diff --git a/a.txt b/a.txt', '--- a/a.txt', '+++ b/a.txt', '@@ -1,2 +1,3 @@', ' a', '+b', ' c', '@@ -10,2 +11,2 @@', ' d', '-e', '+f', ''].join('\n')
 
 /** 预检夹具：读屏、只读命令、文件读取都是注入的；写命令一条都不许起。 */
 function makeCheck(screen: any, over?: any) {
@@ -158,6 +160,9 @@ async function main() {
   const planA: any = proto.makeChangesPlan({ op: 'stage-hunks', paths: ['a.txt'], hunkIndex: 0, patchDigest: 'x' })
   const planB: any = proto.makeChangesPlan({ op: 'stage-hunks', paths: ['a.txt'], hunkIndex: 1, patchDigest: 'x' })
   check(proto.changesPlanInput(planA) !== proto.changesPlanInput(planB), 'A15 逐块暂存换一块，票据绑定输入必须跟着变')
+  const planReverse: any = proto.makeChangesPlan({ op: 'stage-hunks', paths: ['a.txt'], hunkIndex: 0, patchDigest: 'x', reverse: true })
+  check(planReverse.reverse === true && planA.reverse === false && proto.changesPlanInput(planReverse) !== proto.changesPlanInput(planA), 'A16 逐块取消暂存与逐块暂存是两份不同的计划：计划摘要把方向也绑进票据')
+  check(proto.CHANGES_WRITE_OPS.filter(function (x: any) { return x.confirm === true }).map(function (x: any) { return x.op }).join(',') === 'discard-file,discard-all,clean-untracked,rm-tracked,rm-cached', 'A17 要贴行确认的动作：丢弃、删未跟踪、删已跟踪，加「停止跟踪」——它不是危险动作，但仍要人点一下')
 
   // ===== B 路径守卫与参数形状 =====
   check(proto.pathArgProblem('dir/a.txt') === null, 'B1 普通相对路径必须放行')
@@ -207,6 +212,29 @@ async function main() {
   const cHunkOk: any = mkCheck(screenStage, { diffText: DIFF_ONE })
   const rHunkOk: any = await cHunkOk.impl.handleChangesCheck({ cwd: REPO, op: 'stage-hunks', path: 'a.txt', hunkIndex: 0 })
   check(rHunkOk.ok === true && typeof rHunkOk.plan.patchDigest === 'string' && rHunkOk.plan.patchDigest.length === 16, 'C12 逐块暂存的票据绑定到那一块补丁的摘要')
+  const screenStaged = makeScreen({ staged: [{ path: 'a.txt', change: 'M' }], stagedCount: 1 })
+  const cachedRead = function (text: string) {
+    return function (args: any) { return (args[0] === 'diff' && args.indexOf('--cached') >= 0) ? { kind: 'ok', stdout: text } : null }
+  }
+  const cRev: any = mkCheck(screenStaged, { runRead: cachedRead(DIFF_CACHED) })
+  const rRevOut: any = await cRev.impl.handleChangesCheck({ cwd: REPO, op: 'stage-hunks', path: 'a.txt', hunkIndex: 9, reverse: true })
+  check(envelopeShape(rRevOut) && rRevOut.error.reason === 'hunk-out-of-range' && rRevOut.hunkCount === 2, 'C15 取消暂存：块号越界必须拒，并报出这一份差异共有几块')
+  const cRevOk: any = mkCheck(screenStaged, { runRead: cachedRead(DIFF_CACHED) })
+  const rRevOk: any = await cRevOk.impl.handleChangesCheck({ cwd: REPO, op: 'stage-hunks', path: 'a.txt', hunkIndex: 1, reverse: true })
+  check(rRevOk.ok === true && rRevOk.plan.reverse === true && rRevOk.plan.hunkIndex === 1 && typeof rRevOk.plan.patchDigest === 'string', 'C16 取消暂存：读的是「索引相对 HEAD」那一份，挑第几块与补丁摘要都写进计划')
+  check(cRevOk.calls.some(function (a: any) { return a[0] === 'diff' && a.indexOf('--cached') >= 0 }), 'C17 取消暂存的预检真的读了 --cached 那一份差异')
+  const cRevNoStaged: any = mkCheck(screenStage, { runRead: cachedRead(DIFF_CACHED) })
+  check((await cRevNoStaged.impl.handleChangesCheck({ cwd: REPO, op: 'stage-hunks', path: 'a.txt', hunkIndex: 0, reverse: true })).error.reason === 'nothing-to-do', 'C18 文件没有已暂存的改动时，取消暂存必须回 nothing-to-do')
+  // 删除已跟踪文件：改动页只列有改动的文件，所以「带未暂存改动」必须能删（前面确认卡已经写清会丢多少行）；
+  //   带已暂存改动时仍要拦，免得一次动作同时改索引里的两件事。
+  const screenModified = makeScreen({ unstaged: [{ path: 'a.txt', change: 'M' }], unstagedCount: 1 })
+  const cRmModified: any = mkCheck(screenModified, { indexText: INDEX_ONE, pathIndexText: INDEX_ONE })
+  const rRmModified: any = await cRmModified.impl.handleChangesCheck({ cwd: REPO, op: 'rm-tracked', path: 'a.txt' })
+  check(rRmModified.ok === true && rRmModified.confirmRequired === true, 'C19 删除已跟踪文件：带未暂存改动也应发允许票（确认卡负责写清会丢掉什么）')
+  const screenRmStaged = makeScreen({ staged: [{ path: 'a.txt', change: 'M' }], stagedCount: 1 })
+  const cRmStaged: any = mkCheck(screenRmStaged, { indexText: INDEX_ONE, pathIndexText: INDEX_ONE })
+  const rRmStaged: any = await cRmStaged.impl.handleChangesCheck({ cwd: REPO, op: 'rm-tracked', path: 'a.txt' })
+  check(envelopeShape(rRmStaged) && rRmStaged.error.reason === 'path-modified', 'C20 删除已跟踪文件：还有已暂存改动时仍拦（先撤回暂存再删）')
   const cIgn: any = mkCheck(makeScreen(), { checkIgnoreText: '.gitignore:3:*.log\tx.log\n' })
   const rIgn: any = await cIgn.impl.handleChangesCheck({ cwd: REPO, op: 'explain-ignored', path: 'x.log' })
   check(rIgn.ok === true && rIgn.ignored === true && rIgn.match && rIgn.match.line === 3 && rIgn.match.pattern === '*.log', 'C13 查为什么被忽略：命中时回规则来源与行号')
@@ -291,6 +319,213 @@ async function main() {
   const rMv: any = await wImplMv.handleChangesWrite({ cwd: REPO, op: 'mv', ticketId: preMv.pre.ticket.id, requestId: 'r-mv' })
   const mvCalls = wMv.calls.filter(function (a: any) { return a[0] === 'mv' })
   check(rMv.ok === true && mvCalls.length === 1 && JSON.stringify(mvCalls[0]) === JSON.stringify(['mv', '--', 'x.txt', 'y.txt']), 'D18 重命名 argv：两端各自独立参数')
+  const preRev: any = await ticketFor('stage-hunks', { path: 'a.txt', hunkIndex: 1, reverse: true }, { runRead: cachedRead(DIFF_CACHED) }, screenStaged)
+  const revDiff = function (argv: any) { return (argv[0] === 'diff' && argv.indexOf('--cached') >= 0) ? { kind: 'ok', stdout: DIFF_CACHED } : null }
+  const wRev: any = makeWrite(screenStaged, { indexText: INDEX_ONE, runCommand: revDiff }, preRev.tickets)
+  const wImplRev: any = writeMod.createChangesWrite(wRev.deps)
+  const rRev: any = await wImplRev.handleChangesWrite({ cwd: REPO, op: 'stage-hunks', ticketId: preRev.pre.ticket.id, requestId: 'r-rev' })
+  const revApply = wRev.calls.filter(function (a: any) { return a[0] === 'apply' })
+  check(rRev.ok === true && revApply.length === 1 && revApply[0].indexOf('--cached') >= 0 && revApply[0].indexOf('--reverse') >= 0 && revApply[0][revApply[0].length - 1] === 'C:/tmp/p.patch', 'D19 取消暂存：临时补丁是独立参数，执行的是 git apply --cached --reverse')
+  check(wRev.tempPatches.length === 1 && wRev.tempPatches[0].indexOf('@@ -10,2 +11,2 @@') >= 0 && wRev.deleted.length === 1, 'D20 取消暂存写出的补丁是「索引相对 HEAD」的第 2 块，用完即删')
+  check(applyCalls[0].indexOf('--reverse') < 0, 'D21 正向逐块暂存绝不带 --reverse')
+  const preRm: any = await ticketFor('rm-tracked', { path: 'x.txt' }, { indexText: INDEX_ONE.replace('a.txt', 'x.txt'), pathIndexText: INDEX_ONE.replace('a.txt', 'x.txt') }, makeScreen({ unstaged: [{ path: 'x.txt', change: 'M' }], unstagedCount: 1 }))
+  const wRm: any = makeWrite(makeScreen({ unstaged: [{ path: 'x.txt', change: 'M' }], unstagedCount: 1 }), { indexText: INDEX_ONE.replace('a.txt', 'x.txt') }, preRm.tickets)
+  const wImplRm: any = writeMod.createChangesWrite(wRm.deps)
+  const rRm: any = await wImplRm.handleChangesWrite({ cwd: REPO, op: 'rm-tracked', ticketId: preRm.pre.ticket.id, requestId: 'r-rm' })
+  const rmCalls = wRm.calls.filter(function (a: any) { return a[0] === 'rm' })
+  check(rRm.ok === true && rmCalls.length === 1 && JSON.stringify(rmCalls[0]) === JSON.stringify(['rm', '-f', '--', 'x.txt']), 'D22 删除已跟踪文件：执行 argv 带 -f，路径在 -- 之后')
+
+
+  // ===== F 逐块暂存与三个行级动作的界面（#1902） =====
+  // 这一组不挂整个页签，只把改动页的三叶（纯规则 / 一行 / 页面）拼成一个闭包求值：
+  //   行里的东西全是纯函数，喂假读数就能逐条断言，不会被别的页面正在改的东西拖累。
+  const viewLeaf: any = (function () {
+    const body = [
+      spliceableJs('src/client/views/versionControl/vcChangesHunks.ts'),
+      spliceableJs('src/client/views/versionControl/vcChangesAct.ts'),
+      spliceableJs('src/client/views/versionControl/vcChangesRow.ts'),
+      spliceableJs('src/client/views/versionControl/vcChangesView.ts'),
+      '\nreturn { vcChangesSideSplitOf: vcChangesSideSplitOf, vcChangesMergedHunksOf: vcChangesMergedHunksOf, vcChangesHunkProgressOf: vcChangesHunkProgressOf, vcChangesGroupsOf: vcChangesGroupsOf, vcChangesFileRowNode: vcChangesFileRowNode, vcChangesViewNode: vcChangesViewNode, vcChangesSideKeyOf: vcChangesSideKeyOf };',
+    ].join('\n')
+    const fakeH = function (tag: any, props: any, children: any) { return { tag: tag, props: props || {}, children: children } }
+    const fakeT = function (key: any, params: any) { return String(key) + (params ? '|' + JSON.stringify(params) : '') }
+    return compileFn(['h', 't', 'vcChangesOpMetaOf', 'vcChangesTargetOf', 'vcChangesRowKeyOf', 'VC_DIFF_LINE_CLASS'], body)(
+      fakeH, fakeT, leaf.vcChangesOpMetaOf, leaf.vcChangesTargetOf, leaf.vcChangesRowKeyOf,
+      { add: 'diff-add', del: 'diff-del', context: 'diff-ctx', hunk: 'diff-hunk', filehead: 'diff-head', 'no-newline': 'diff-note' }
+    )
+  })()
+  const linesOf = function (rows: any[]) { return rows.map(function (r: any) { return { kind: r[0], text: r[1] } }) }
+  const PATCH_TWO = linesOf([
+    ['filehead', 'diff --git a/a.txt b/a.txt'], ['filehead', '--- a/a.txt'], ['filehead', '+++ b/a.txt'],
+    ['hunk', '@@ -1,2 +1,3 @@'], ['context', ' a'], ['add', '+b'], ['context', ' c'],
+    ['hunk', '@@ -20,2 +21,2 @@'], ['context', ' x'], ['del', '-y'], ['add', '+z'],
+  ])
+  const split = viewLeaf.vcChangesSideSplitOf(PATCH_TWO, 'unstaged')
+  check(split.head.length === 3 && split.hunks.length === 2, 'F1 一份补丁拆成文件头 3 行与 2 块')
+  check(split.hunks[0].hunkIndex === 0 && split.hunks[1].hunkIndex === 1 && split.hunks[0].header.indexOf('@@ -1,2') === 0, 'F2 块号按这一份补丁的顺序从 0 数，块头原文留着')
+  check(split.hunks[0].lines.length === 4 && split.hunks[0].lines[0].kind === 'hunk', 'F3 块体把 @@ 头算作第一行（截图 84 里它就是块里第一行）')
+  const merged = viewLeaf.vcChangesMergedHunksOf(linesOf([['hunk', '@@ -20,2 +21,2 @@'], ['context', ' x']]), PATCH_TWO)
+  check(merged.length === 3 && merged[0].side === 'unstaged' && merged[1].side === 'unstaged' && merged[2].side === 'staged', 'F4 已暂存那一份从「索引里第 21 行」起，合并后排在文件末尾（按索引坐标排，不按读回来的先后）')
+  check(merged[0].order === 1 && merged[2].order === 3, 'F5 显示序号从 1 数，与协议里的块号分开')
+  const progress = viewLeaf.vcChangesHunkProgressOf(merged)
+  check(progress.staged === 1 && progress.total === 3 && progress.partial === true, 'F6 进度：3 块里有 1 块已进索引')
+  const groups = viewLeaf.vcChangesGroupsOf({
+    staged: [{ path: 'a.txt' }, { path: 'b.txt' }],
+    unstaged: [{ path: 'b.txt', change: 'modified' }, { path: 'c.txt', change: 'modified' }, { path: 'd.txt', change: 'modified', conflict: true }],
+  })
+  check(groups.counts.staged === 1 && groups.counts.unstaged === 2 && groups.counts.conflicts === 1, 'F7 分组计数：只暂存一部分的 b 不算已暂存，冲突单独一组')
+  check(groups.staged.length === 1 && groups.staged[0].path === 'a.txt' && groups.unstaged.filter(function (r: any) { return r.path === 'b.txt' && r.partial === true }).length === 1, 'F8 一个文件在「全部」里只画一行：b 留在未暂存并带 partial')
+  const diffs: any = {}
+  diffs[viewLeaf.vcChangesSideKeyOf('staged', 'b.txt')] = { state: 'ok', lines: linesOf([['hunk', '@@ -1,2 +1,3 @@'], ['context', ' a'], ['add', '+b']]), reason: 'ok' }
+  diffs[viewLeaf.vcChangesSideKeyOf('unstaged', 'b.txt')] = { state: 'ok', lines: PATCH_TWO, reason: 'ok' }
+  const rowCalls: any[] = []
+  const rowHandlers: any = {
+    begin: function (op: any, payload: any) { rowCalls.push({ kind: 'begin', op: op, payload: payload }) },
+    cancel: function (op: any, payload: any) { rowCalls.push({ kind: 'cancel', op: op, payload: payload }) },
+    run: function (op: any, payload: any, ticket: any) { rowCalls.push({ kind: 'run', op: op, payload: payload, ticket: ticket }) },
+    onHunk: function (p: any, i: any, reverse: any) { rowCalls.push({ kind: 'onHunk', path: p, index: i, reverse: reverse }) },
+    renameOpen: function (p: any) { rowCalls.push({ kind: 'renameOpen', path: p }) },
+    renameApply: function (p: any) { rowCalls.push({ kind: 'renameApply', path: p }) },
+    renameCancel: function () { rowCalls.push({ kind: 'renameCancel' }) },
+    onValue: function (f: any, v: any) { rowCalls.push({ kind: 'onValue', field: f, value: v }) },
+  }
+  const partialRow: any = { path: 'b.txt', change: 'modified', staged: false, partial: true, addedLines: 2, deletedLines: 1 }
+  const hoverH = function (tag: any, props: any, children: any) { return { tag: tag, props: props || {}, children: children } }
+  const fakeT2 = function (key: any, params: any) { return String(key) + (params ? '|' + JSON.stringify(params) : '') }
+  // fake h 要用独立的一份（上面的 viewLeaf 闭包里已固定），所以另求值一次，喂进记录调用的 handlers 与读数。
+  const rowLeaf: any = (function () {
+    const body = spliceableJs('src/client/views/versionControl/vcChangesHunks.ts') + '\n' + spliceableJs('src/client/views/versionControl/vcChangesAct.ts') + '\n' + spliceableJs('src/client/views/versionControl/vcChangesRow.ts')
+      + '\nreturn { vcChangesFileRowNode: vcChangesFileRowNode, vcChangesSideKeyOf: vcChangesSideKeyOf, vcChangesGroupsOf: vcChangesGroupsOf };'
+    return compileFn(['h', 't', 'vcChangesOpMetaOf', 'vcChangesTargetOf', 'vcChangesRowKeyOf', 'VC_DIFF_LINE_CLASS'], body)(
+      hoverH, fakeT2, leaf.vcChangesOpMetaOf, leaf.vcChangesTargetOf, leaf.vcChangesRowKeyOf,
+      { add: 'diff-add', del: 'diff-del', context: 'diff-ctx', hunk: 'diff-hunk', filehead: 'diff-head', 'no-newline': 'diff-note' }
+    )
+  })()
+  const ctx: any = { rows: {}, diffs: diffs, handlers: rowHandlers, values: { openPath: 'worktree:b.txt' } }
+  const rendered: any = rowLeaf.vcChangesFileRowNode(hoverH, fakeT2, partialRow, ctx)
+  const hunkNodes: any[] = findAll(rendered, function (n: any) { return n.props && n.props['data-vc-hunk'] !== undefined })
+  check(hunkNodes.length === 3, 'F9 部分暂存的行展开后把两侧的块合成一份清单（3 块）')
+  const actNodes: any[] = findAll(rendered, function (n: any) { return n.props && n.props['data-vc-hunk-act'] !== undefined })
+  const actKinds: string[] = actNodes.map(function (n: any) { return String(n.props['data-vc-hunk-act']) })
+  check(actNodes.length === 3 && actKinds.filter(function (k: string) { return k === 'stage' }).length === 2 && actKinds.filter(function (k: string) { return k === 'unstage' }).length === 1, 'F10 已进索引的块按钮写「取消暂存这一块」，其余写「暂存这一块」（3 块里 1 块已进索引）')
+  const unstageAct: any = actNodes.filter(function (n: any) { return String(n.props['data-vc-hunk-act']) === 'unstage' })[0]
+  unstageAct.props.onClick()
+  check(rowCalls.filter(function (c: any) { return c.kind === 'onHunk' && c.path === 'b.txt' && c.index === 0 && c.reverse === true }).length === 1, 'F11 点已暂存那一块：把这一块退回工作区（reverse=true）')
+  const progressBadge: any = findAll(rendered, function (n: any) { return n.props && n.props['data-vc-file-hunk-progress'] !== undefined })[0]
+  check(!!progressBadge && progressBadge.props['data-vc-file-hunk-progress'] === '1/3', 'F12 行上标出「已暂存 1/3 块」')
+  // 行菜单：已跟踪的未暂存行给丢弃 / 重命名 / 停止跟踪 / 删除已跟踪四条。
+  const menuCtx: any = { rows: {}, diffs: {}, handlers: rowHandlers, values: { menuPath: 'b.txt' } }
+  const menuRow: any = rowLeaf.vcChangesFileRowNode(hoverH, fakeT2, partialRow, menuCtx)
+  const menuOps: any[] = findAll(menuRow, function (n: any) { return n.props && n.props.role === 'menuitem' && n.props['data-vc-file-op'] !== undefined }).map(function (n: any) { return n.props['data-vc-file-op'] })
+  check(menuOps.join(',') === 'discard-file,mv,rm-cached,rm-tracked', 'F13 已跟踪的未暂存行菜单：丢弃 / 重命名 / 停止跟踪 / 删除已跟踪（未跟踪的那两条不出现）')
+  const untrackItem: any = findAll(menuRow, function (n: any) { return n.props && n.props['data-vc-file-op'] === 'rm-cached' })[0]
+  untrackItem.props.onClick()
+  check(rowCalls.filter(function (c: any) { return c.kind === 'begin' && c.op === 'rm-cached' }).length === 1, 'F14 点「停止跟踪，保留文件」：发 rm-cached，先走预检再停确认卡')
+  const renameItem: any = findAll(menuRow, function (n: any) { return n.props && n.props['data-vc-file-op'] === 'mv' })[0]
+  renameItem.props.onClick()
+  check(rowCalls.filter(function (c: any) { return c.kind === 'renameOpen' && c.path === 'b.txt' }).length === 1, 'F15 点「重命名或移动」：贴着这一行打开只填新路径的表单')
+  // 停止跟踪的确认卡：标题写文件名、正文说清文件还在磁盘上，按钮走 run（票已经由预检发好）。
+  const confirmCtx: any = { rows: { 'rm-cached|b.txt': { confirm: { ticketId: 'tk1', requestId: 'rq1' } } }, diffs: {}, handlers: rowHandlers, values: {} }
+  const confirmRow: any = rowLeaf.vcChangesFileRowNode(hoverH, fakeT2, partialRow, confirmCtx)
+  const card: any = findAll(confirmRow, function (n: any) { return n.props && n.props['data-vc-file-confirm'] === 'rm-cached' })[0]
+  check(!!card && textOf(card).indexOf('vc.changes.view.confirmUntrackTitle') >= 0 && textOf(card).indexOf('vc.changes.view.confirmUntrackBody') >= 0, 'F16 停止跟踪的确认卡写「停止跟踪 <文件名>？」与「文件还在磁盘上」')
+  check(textOf(card).indexOf('vc.changes.view.confirmLost') < 0 && textOf(card).indexOf('vc.changes.view.lostAdded') < 0, 'F16b 停止跟踪一个字节都不丢，卡上不写「会丢掉几行」（真机走查抓到过这句误导）')
+  const goBtn: any = findAll(card, function (n: any) { return n.props && n.props['data-vc-file-confirm-go'] !== undefined })[0]
+  goBtn.props.onClick()
+  check(rowCalls.filter(function (c: any) { return c.kind === 'run' && c.op === 'rm-cached' && c.ticket.ticketId === 'tk1' }).length === 1, 'F17 确认之后凭票执行，不再重复预检')
+  // 删除已跟踪：确认卡写出会丢多少行。
+  const delRow: any = Object.assign({}, partialRow, { path: 'c.txt' })
+  const delCtx: any = { rows: { 'rm-tracked|c.txt': { confirm: { ticketId: 'tk2', requestId: 'rq2' } } }, diffs: {}, handlers: rowHandlers, values: {} }
+  const delCard: any = findAll(rowLeaf.vcChangesFileRowNode(hoverH, fakeT2, delRow, delCtx), function (n: any) { return n.props && n.props['data-vc-file-confirm'] === 'rm-tracked' })[0]
+  check(!!delCard && textOf(delCard).indexOf('vc.changes.view.confirmLost') >= 0 && textOf(delCard).indexOf('vc.changes.view.lostAdded') >= 0, 'F18 删除已跟踪的确认卡写出这次会丢掉几行（新增 / 删除行数由行上的读数算出）')
+  // 改名表单：预填当前路径、只填新路径，保存与取消各回一次处理器。
+  const renameCtx: any = { rows: {}, diffs: {}, handlers: rowHandlers, values: { renamePath: 'b.txt', renameDraft: 'src/renamed.ts' } }
+  const renameRow: any = rowLeaf.vcChangesFileRowNode(hoverH, fakeT2, partialRow, renameCtx)
+  const renameForm: any = findAll(renameRow, function (n: any) { return n.props && n.props['data-vc-rename-form'] !== undefined })[0]
+  const renameInput: any = findAll(renameRow, function (n: any) { return n.props && n.props['data-vc-rename-input'] !== undefined })[0]
+  check(!!renameForm && renameInput.props.value === 'src/renamed.ts' && textOf(renameForm).indexOf('vc.changes.view.renameHint') >= 0, 'F19 改名表单贴着这一行展开，输入框预填草稿，旁边写清 git mv 同时做哪两件事')
+  findAll(renameRow, function (n: any) { return n.props && n.props['data-vc-rename-apply'] !== undefined })[0].props.onClick()
+  check(rowCalls.filter(function (c: any) { return c.kind === 'renameApply' && c.path === 'b.txt' }).length === 1, 'F20 点「保存新路径」把旧路径交回处理器')
+  // 页面：统计卡按分组数、顶部结果条按动作给一句人话、部分暂存的行只在未暂存组出现一次。
+  const pageNode: any = viewLeaf.vcChangesViewNode(hoverH, fakeT2, {
+    changes: {
+      counts: { staged: 2, unstaged: 2, untracked: 0, conflicts: 1 },
+      files: { staged: [{ path: 'a.txt' }, { path: 'b.txt' }], unstaged: [{ path: 'b.txt' }, { path: 'c.txt' }, { path: 'd.txt', conflict: true }] },
+      values: { filter: 'all', lastResult: { ok: true, op: 'rm-cached', path: 'x/y.txt' } },
+      rows: {}, diffs: {}, handlers: rowHandlers,
+    },
+  })
+  const statNodes: any[] = findAll(pageNode, function (n: any) { return n.props && n.props['data-vc-stat'] !== undefined })
+  const statsOf: any = {}
+  statNodes.forEach(function (n: any) {
+    const kids: any[] = Array.isArray(n.children) ? n.children : [n.children]
+    statsOf[n.props['data-vc-stat']] = String((kids[0] && kids[0].children) || '')
+  })
+  check(statsOf.staged === '1' && statsOf.unstaged === '2' && statsOf.conflict === '1', 'F21 顶部三张卡按分组数算：两条已暂存里有 1 条只暂存了一部分，所以「已暂存」是 1 而不是 git 的两条')
+  const resultNode: any = findAll(pageNode, function (n: any) { return n.props && n.props['data-vc-changes-result'] !== undefined })[0]
+  check(!!resultNode && resultNode.props['data-vc-changes-result'] === 'rm-cached' && textOf(resultNode).indexOf('vc.changes.view.resultUntracked') >= 0, 'F22 结果条贴在列表顶部，按动作说「已停止跟踪，文件还在磁盘上」')
+  const rowPaths: any[] = findAll(pageNode, function (n: any) { return n.props && n.props['data-vc-file-row'] !== undefined }).map(function (n: any) { return n.props['data-vc-file-row'] })
+  check(rowPaths.join(',') === 'd.txt,a.txt,b.txt,c.txt', 'F23 一个文件只画一行：冲突行最先，其次已暂存（a），最后未暂存（b 部分暂存、c）')
+  // 处理器：方向、票、结果与写后重读。这一组直接跑处理器，不起 React。
+  const handlerBody = spliceableJs('src/client/views/versionControl/vcChangesHandlers.ts') + '\nreturn { vcRealChangesHandlersOf: vcRealChangesHandlersOf };'
+  const phones: any[] = []
+  const seedValues: any = { openPath: 'worktree:a.txt' }
+  let hState: any = { values: seedValues, rows: {} }
+  const hSet = function (next: any) { hState = typeof next === 'function' ? next(hState) : next }
+  let hReads: any = { diffs: {} }
+  const readCalls: any[] = []
+  const fakeReadDiff = function (reads: any, call: any, cwd: any, path: any, untracked: any, staged: any, key: any, side: any) {
+    readCalls.push({ path: path, side: side, key: key })
+    const map: any = Object.assign({}, reads.diffs || {})
+    map[String(key)] = { state: 'loading', lines: [], reason: '', truncated: false, error: null, seq: 1 }
+    return Promise.resolve(Object.assign({}, reads, { diffs: map }))
+  }
+  const fakeCall = function (phone: any, args: any) {
+    phones.push({ phone: phone, args: args })
+    if (phone === 'wf.gitChangesCheck') return Promise.resolve({ ok: true, ticket: { id: 'tk-' + phones.length }, confirmRequired: false })
+    return Promise.resolve({ ok: true, cmd: 'git apply --cached --reverse', ms: 4, n: 1 })
+  }
+  const handlersMod: any = compileFn(
+    ['VC_CHANGES_PHONES', 'vcChangesOpMetaOf', 'vcChangesCheckArgsOf', 'vcChangesWriteArgsOf', 'vcChangesRequestIdOf', 'vcChangesRowKeyOf', 'vcFailureOf', 'vcReadDiff', 'vcApplyDiffReply', 'vcMarkDiffLoading', 'vcChangesSideKeyOf'],
+    handlerBody
+  )(leaf.VC_CHANGES_PHONES, leaf.vcChangesOpMetaOf, leaf.vcChangesCheckArgsOf, leaf.vcChangesWriteArgsOf, leaf.vcChangesRequestIdOf, leaf.vcChangesRowKeyOf,
+    function (reply: any) { return (reply && reply.error) || { kind: 'unknown', message: '' } }, fakeReadDiff,
+    function (cur: any, next: any) { return next }, function (reads: any, key: any) { return reads }, rowLeaf.vcChangesSideKeyOf)
+  const hImpl: any = handlersMod.vcRealChangesHandlersOf(hState, hSet, fakeCall, '/repo', function (k: any) { return k }, null, { get: function () { return hReads }, set: function (next: any) { hReads = typeof next === 'function' ? next(hReads) : next } })
+  await hImpl.onHunk('a.txt', 1, true)
+  const checkCall: any = phones.filter(function (p: any) { return p.phone === 'wf.gitChangesCheck' })[0]
+  const writeCall: any = phones.filter(function (p: any) { return p.phone === 'wf.gitChangesWrite' })[0]
+  check(!!checkCall && checkCall.args.op === 'stage-hunks' && checkCall.args.hunkIndex === 1 && checkCall.args.reverse === true, 'F24 处理器把「取消暂存这一块」原样传给预检（动作、块号、方向）')
+  check(!!writeCall && writeCall.args.reverse === true && writeCall.args.confirm === true, 'F25 预检不需要确认时直接执行，方向仍带在写电话里')
+  check(hState.values.lastResult && hState.values.lastResult.ok === true && hState.values.lastResult.reverse === true && hState.values.lastResult.op === 'stage-hunks', 'F26 顶部结果落进 values.lastResult：行被挪走之后它还画得出来')
+  check(readCalls.length === 2 && readCalls[0].side === 'unstaged' && readCalls[1].side === 'staged', 'F27 写成功后把这一行两侧的差异都丢掉重读（块的归属变了，旧读数会画错块号）')
+  const renameBefore: number = phones.length
+  seedValues.renameDraft = 'src/b.ts'
+  await hImpl.renameApply('src/a.ts')
+  const mvCall: any = phones.slice(renameBefore).filter(function (p: any) { return p.phone === 'wf.gitChangesCheck' })[0]
+  check(!!mvCall && mvCall.args.op === 'mv' && mvCall.args.path === 'src/a.ts' && mvCall.args.to === 'src/b.ts', 'F28 改名的预检参数：旧路径与新路径各一格（行上递的是 path，不是表单里的 from）')
+  const renameCallsBefore: number = phones.length
+  seedValues.renameDraft = '  '
+  await hImpl.renameApply('src/a.ts')
+  check(phones.length === renameCallsBefore && hState.values.renameError === 'vc.changes.view.renameEmpty', 'F29 新路径空着时当场说清，不白跑一趟预检')
+  seedValues.renameDraft = 'src/a.ts'
+  await hImpl.renameApply('src/a.ts')
+  check(phones.length === renameCallsBefore && hState.values.renameError === 'vc.changes.view.renameSame', 'F30 新路径和旧的一样时同样当场拦下')
+  const openReadsBefore: number = readCalls.length
+  seedValues.openPath = ''
+  await hImpl.onOpen('b.txt', { path: 'b.txt', partial: true })
+  check(readCalls.length === openReadsBefore + 2 && readCalls.slice(openReadsBefore).map(function (c: any) { return c.side }).join(',') === 'unstaged,staged', 'F31 展开一个部分暂存的行：两侧各读一次（已暂存的块与还在工作区的块）')
+  // 未部分暂存的行只读一侧：多读一次就是白起一个 git 进程。
+  const singleBefore: number = readCalls.length
+  seedValues.openPath = ''
+  await hImpl.onOpen('c.txt', { path: 'c.txt', partial: false })
+  check(readCalls.length === singleBefore + 1 && readCalls[singleBefore].side === 'unstaged', 'F32 普通未暂存行只读「索引相对工作区」那一侧')
+  // 同一个文件从「未暂存」挪到「已暂存」以后，旧的展开键还是未暂存那一行的；点新组里的行不能当成「收起」。
+  const switchBefore: number = readCalls.length
+  seedValues.openPath = 'worktree:d.txt'
+  await hImpl.onOpen('d.txt', { path: 'd.txt', staged: true })
+  check(hState.values.openPath === 'staged:d.txt' && readCalls.length === switchBefore + 1 && readCalls[switchBefore].side === 'staged',
+    'F33 点已暂存那一行：展开键换成 staged，并真的去读「索引相对 HEAD」那一份（真机走查抓到的：旧判据把它当成收起，永远打不开）')
 
   // ===== E 登记点与词条 =====
   const leafSrcForOps = sourceText('src/client/views/versionControl/vcChangesPage.ts')
@@ -312,6 +547,7 @@ async function main() {
   check(checkSrc.indexOf('VC_CHANGES_READ_TIMEOUT_MS') >= 0 && writeSrc.indexOf('VC_CHANGES_WRITE_TIMEOUT_MS') >= 0, 'E8 两个叶子各自使用登记过的超时常量')
   const shellSrc = sourceText('src/client/views/versionControl/vcShellPages.ts')
   check(shellSrc.indexOf('vcChangesPageNode') >= 0 && shellSrc.indexOf("page === 'changes'") >= 0 && shellSrc.indexOf("opts.changes !== undefined") >= 0 && shellSrc.indexOf('changes: opts.changes') >= 0, 'E9 页面壳只在传了改动页数据时挂载，旧渲染不受影响')
+  check(proto.CHANGES_WRITE_OPS.filter(function (m: any) { return m.op === 'rm-tracked' })[0].command.indexOf('-f') >= 0, 'E10b 删除已跟踪文件的命令说明写明 -f（改动页只列有改动的文件，不带 -f 会被 git 拒绝）')
   check(proto.CHANGES_WRITE_OPS.every(function (m: any) { return checkSrc.indexOf("'" + m.op + "'") >= 0 }), 'E10 七个登记点之一：预检判定分支覆盖 11 个写动作')
   check(proto.CHANGES_WRITE_OPS.every(function (m: any) { return writeSrc.indexOf("'" + m.op + "'") >= 0 }), 'E11 七个登记点之二：执行叶子覆盖 11 个写动作')
   check(proto.CHANGES_WRITE_OPS.every(function (m: any) { return leafSrcForOps.indexOf("'" + m.op + "'") >= 0 }), 'E12 界面视图名单逐条列出 11 个写动作（不靠协议运行时求值）')

@@ -18,6 +18,7 @@ import {
   stageAllArgs,
   unstageArgs,
   applyCachedArgs,
+  applyCachedReverseArgs,
   discardFileArgs,
   discardAllArgs,
   cleanArgs,
@@ -56,8 +57,10 @@ export const CHANGES_WRITE_OPS: ChangesOpMeta[] = [
   { op: 'discard-file', capId: '1.6', write: true, dangerous: true, confirm: true, reversible: true, command: 'git restore -- <path>（低于 2.23 用 git checkout -- <path>）' },
   { op: 'discard-all', capId: '1.7', write: true, dangerous: true, confirm: true, reversible: true, command: 'git restore -- .（低于 2.23 用 git checkout -- .）' },
   { op: 'clean-untracked', capId: '1.8', write: true, dangerous: true, confirm: true, reversible: false, command: 'git clean -fd -- <path>' },
-  { op: 'rm-tracked', capId: '1.9', write: true, dangerous: true, confirm: true, reversible: true, command: 'git rm -- <path>' },
-  { op: 'rm-cached', capId: '1.10', write: true, dangerous: false, confirm: false, reversible: true, command: 'git rm --cached -- <path>' },
+  { op: 'rm-tracked', capId: '1.9', write: true, dangerous: true, confirm: true, reversible: true, command: 'git rm -f -- <path>（连这个文件的未暂存改动一起删掉，确认卡里写明会丢多少行）' },
+  // 停止跟踪不是危险动作（文件还在磁盘上，一个 add 就回来），但原型要求它先贴行确认一次：
+  // 「危险」与「要确认」是两件事，这里 finally 用 Confirm 这一格说出来。
+  { op: 'rm-cached', capId: '1.10', write: true, dangerous: false, confirm: true, reversible: true, command: 'git rm --cached -- <path>' },
   { op: 'mv', capId: '1.11', write: true, dangerous: false, confirm: false, reversible: true, command: 'git mv -- <from> <to>' },
   { op: 'ignore', capId: '1.12', write: true, dangerous: false, confirm: false, reversible: true, command: '追加仓库根 .gitignore（不是 git 命令）' },
 ]
@@ -85,6 +88,7 @@ export function emptyChangesPlan(): ChangesPlan {
     paths: [],
     hunkIndex: null,
     patchDigest: null,
+    reverse: false,
     mode: null,
     to: null,
     ignoreLines: [],
@@ -103,6 +107,7 @@ export function makeChangesPlan(partial?: any): ChangesPlan {
   plan.paths = Array.isArray(p.paths) ? p.paths.map(function (x: any) { return String(x) }) : []
   plan.hunkIndex = (typeof p.hunkIndex === 'number' && isFinite(p.hunkIndex)) ? Math.floor(p.hunkIndex) : null
   plan.patchDigest = (p.patchDigest === null || p.patchDigest === undefined) ? null : String(p.patchDigest)
+  plan.reverse = p.reverse === true
   plan.mode = (p.mode === 'restore' || p.mode === 'checkout') ? p.mode : null
   plan.to = (p.to === null || p.to === undefined) ? null : String(p.to)
   plan.ignoreLines = Array.isArray(p.ignoreLines) ? p.ignoreLines.map(function (x: any) { return String(x) }) : []
@@ -285,6 +290,7 @@ export function changesPlanInput(plan: any): string {
     paths: Array.isArray(p.paths) ? p.paths : [],
     hunkIndex: p.hunkIndex === undefined ? null : p.hunkIndex,
     patchDigest: p.patchDigest === undefined ? null : p.patchDigest,
+    reverse: p.reverse === true,
     mode: p.mode === undefined ? null : p.mode,
     to: p.to === undefined ? null : p.to,
     ignoreLines: Array.isArray(p.ignoreLines) ? p.ignoreLines : [],
@@ -301,7 +307,10 @@ export function changesPlanInput(plan: any): string {
 export function changesArgvOf(plan: any, patchPath?: any): string[] | null {
   const p: any = plan || {}
   const paths: string[] = Array.isArray(p.paths) ? p.paths.map(function (x: any) { return String(x) }) : []
-  if (p.op === 'stage-hunks') return applyCachedArgs(String(patchPath === undefined || patchPath === null ? '' : patchPath))
+  if (p.op === 'stage-hunks') {
+    const patch: string = String(patchPath === undefined || patchPath === null ? '' : patchPath)
+    return p.reverse === true ? applyCachedReverseArgs(patch) : applyCachedArgs(patch)
+  }
   if (p.op === 'stage-file') return stageArgs(paths)
   if (p.op === 'stage-all') return stageAllArgs()
   if (p.op === 'unstage') return unstageArgs(paths)

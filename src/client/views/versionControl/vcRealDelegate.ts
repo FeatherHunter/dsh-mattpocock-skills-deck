@@ -129,6 +129,23 @@ export const vcRealClickIntentOf = function (el: any): any {
     if (sub) return { kind: 'migrateAct', action: vcRealAttrOf(sub, 'data-vc-migrate-act') }
     if (vcRealClosestOf(el, 'data-vc-migrate-cancel')) return { kind: 'migrateCancel' }
   }
+  // #1903 提交历史页四条能力：搜索范围、只看某个文件、比较两个引用、提交备注。
+  //   顺序讲究：详情里文件行的「⋯」与菜单项都要先于整行打开认掉，否则点「看这个文件的历史」会连带展开那一行。
+  hit = vcRealClosestOf(el, 'data-vc-history-scope-btn')
+  if (hit) return { kind: 'historyScope', value: vcRealAttrOf(hit, 'data-vc-history-scope-btn') }
+  hit = vcRealClosestOf(el, 'data-vc-history-file-history')
+  if (hit) return { kind: 'historyFileOnly', path: vcRealAttrOf(hit, 'data-vc-history-file-history') }
+  if (vcRealClosestOf(el, 'data-vc-history-file-menu-close')) return { kind: 'historyFileMenuClose' }
+  hit = vcRealClosestOf(el, 'data-vc-history-file-more')
+  if (hit) return { kind: 'historyFileMenu', path: vcRealAttrOf(hit, 'data-vc-history-file-more') }
+  if (vcRealClosestOf(el, 'data-vc-history-file-only-clear')) return { kind: 'historyFileOnlyClear' }
+  hit = vcRealClosestOf(el, 'data-vc-history-file-retry')
+  if (hit) return { kind: 'historyFileRetry', path: vcRealAttrOf(hit, 'data-vc-history-file-retry') }
+  if (vcRealClosestOf(el, 'data-vc-history-compare-open')) return { kind: 'historyCompareOpen' }
+  if (vcRealClosestOf(el, 'data-vc-history-compare-apply')) return { kind: 'historyCompareApply' }
+  if (vcRealClosestOf(el, 'data-vc-history-compare-cancel')) return { kind: 'historyCompareCancel' }
+  if (vcRealClosestOf(el, 'data-vc-history-compare-end')) return { kind: 'historyCompareEnd' }
+  if (vcRealClosestOf(el, 'data-vc-history-note-save')) return { kind: 'historyNoteSave' }
   // 历史行的菜单贴在行尾，按钮本身带 data-vc-history-more；先认菜单与开关，再认整行打开。
   hit = vcRealClosestOf(el, 'data-vc-history-menu-cap')
   if (hit) return { kind: 'historyMenuCap', capId: vcRealAttrOf(hit, 'data-vc-history-menu-cap') }
@@ -172,6 +189,11 @@ export const vcRealInputIntentOf = function (el: any): any {
   if (hit) return { kind: 'syncField', field: vcRealAttrOf(hit, 'data-vc-sync-input'), value: String(el && el.value !== undefined ? el.value : '') }
   hit = vcRealClosestOf(el, 'data-vc-history-query')
   if (hit) return { kind: 'historyQuery', value: String(el && el.value !== undefined ? el.value : '') }
+  // 比较表单的两个输入框与详情里那段备注：值回容器，容器只改本地界面状态，不直接发电话。
+  hit = vcRealClosestOf(el, 'data-vc-history-compare-field')
+  if (hit) return { kind: 'historyCompareField', which: vcRealAttrOf(hit, 'data-vc-history-compare-field'), value: String(el && el.value !== undefined ? el.value : '') }
+  hit = vcRealClosestOf(el, 'data-vc-history-note-input')
+  if (hit) return { kind: 'historyNoteInput', value: String(el && el.value !== undefined ? el.value : '') }
   hit = vcRealClosestOf(el, 'data-vc-branch-input')
   if (hit) return { kind: 'branchField', field: vcRealAttrOf(hit, 'data-vc-branch-input'), value: String(el && el.value !== undefined ? el.value : '') }
   return null
@@ -205,6 +227,11 @@ const VC_REAL_ACTION_OF: any = {
     historyOpen: 'historyOpen', historyBack: 'historyBack', loadMore: 'loadMore', historyRetry: 'historyRetry',
     filesRetry: 'filesRetry', fileDiffRetry: 'fileDiffRetry', historyFile: 'historyFile',
     historyQuery: 'historyQuery', historyMerge: 'historyMerge', historyMenu: 'historyMenu',
+    historyScope: 'historyScope', historyFileOnly: 'historyFileOnly', historyFileOnlyClear: 'historyFileOnlyClear',
+    historyFileMenu: 'historyFileMenu', historyFileMenuClose: 'historyFileMenuClose', historyFileRetry: 'historyFileRetry',
+    historyCompareOpen: 'historyCompareOpen', historyCompareApply: 'historyCompareApply', historyCompareCancel: 'historyCompareCancel',
+    historyCompareEnd: 'historyCompareEnd', historyCompareField: 'historyCompareField',
+    historyNoteSave: 'historyNoteSave', historyNoteInput: 'historyNoteInput',
     historyMenuClose: 'historyMenuClose', historyMenuCap: 'historyMenuCap', historyMenuCopy: 'historyMenuCopy',
     paletteBackdrop: 'paletteBackdrop', searchPick: 'searchPick', searchInput: 'searchInput',
     paletteInput: 'paletteInput', tabKey: 'tabKey', escape: 'escape',

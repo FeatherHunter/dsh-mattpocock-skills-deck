@@ -23,6 +23,7 @@ import {
   fixedPrefix,
   lsFilesStageArgs,
   diffHunksArgs,
+  diffCachedHunksArgs,
   cleanPreviewArgs,
   checkIgnoreArgs,
 } from '../shared/version-control/src/commands.js'
@@ -200,11 +201,14 @@ export function createChangesCheck(deps: any): any {
       const badPath: any = pathArgProblem(a.path)
       if (badPath) return fail('args', 'bad-path', writeHintFor('bad-path'), { pathProblem: badPath })
       const path: string = String(a.path)
-      const entry: any = entryOf(screen, path, 'unstaged')
-      if (!entry) return fail('args', 'nothing-to-do', '这个文件现在没有未暂存的改动')
+      // 两个方向各读一份差异：正向读「索引相对工作区」（还没进索引的块），反向读「索引相对 HEAD」（已进索引的块）。
+      // 执行层按同一个 reverse 重新读同一份差异，界面上的块号与真正 apply 的那一块才始终是同一块。
+      const reverse: boolean = a.reverse === true
+      const entry: any = entryOf(screen, path, reverse ? 'staged' : 'unstaged')
+      if (!entry) return fail('args', 'nothing-to-do', reverse ? '这个文件现在没有已暂存的块可以退回' : '这个文件现在没有未暂存的改动')
       if (entry.change === 'untracked') return fail('args', 'hunks-unavailable', '未跟踪文件没有可拆的块，请按整份文件暂存')
       if (entry.change === 'binary' || entry.change === 'renamed') return fail('args', 'hunks-unavailable', writeHintFor('hunks-unavailable'))
-      const raw: any = await readOut(cwd, diffHunksArgs(path), PATCH_LIMIT)
+      const raw: any = await readOut(cwd, reverse ? diffCachedHunksArgs(path) : diffHunksArgs(path), PATCH_LIMIT)
       if (raw.ok !== true) return raw
       if (raw.truncated === true) return fail('other', 'hunks-unavailable', '这个文件的差异太大，读不全就拆不出块；请按整份文件处理')
       const parsed: any = splitUnifiedDiff(raw.stdout)
@@ -218,7 +222,7 @@ export function createChangesCheck(deps: any): any {
         if (one.reason === 'hunk-out-of-range') return fail('args', 'hunk-out-of-range', writeHintFor('hunk-out-of-range'), { hunkCount: parsed.hunks.length })
         return fail('args', 'hunks-unavailable', writeHintFor('hunks-unavailable'))
       }
-      plan = makeChangesPlan({ op: 'stage-hunks', paths: [path], hunkIndex: idx, patchDigest: digest16(one.text) })
+      plan = makeChangesPlan({ op: 'stage-hunks', paths: [path], hunkIndex: idx, patchDigest: digest16(one.text), reverse: reverse })
     } else if (op === 'discard-file') {
       const badPath: any = pathArgProblem(a.path)
       if (badPath) return fail('args', 'bad-path', writeHintFor('bad-path'), { pathProblem: badPath })
@@ -251,9 +255,10 @@ export function createChangesCheck(deps: any): any {
       const one: any = await lsFilesOne(cwd, path)
       if (one.ok !== true) return one
       if (!one.tracked) return fail('args', 'nothing-to-do', '这个路径不在索引里；删除已跟踪文件只处理已跟踪的路径')
-      const e: any = entryOf(screen, path, 'unstaged')
-      const staged: any = entryOf(screen, path, 'staged')
-      if (staged || e) return fail('args', 'path-modified', writeHintFor('path-modified'))
+      // 已暂存的改动不许连坐：先把暂存撤了再删，免得一次动作同时改索引里的两件事。
+      // 未暂存的改动可以一起删——改动页只列有改动的文件，删除一条改过的文件正是它最常见的用法；
+      //   git rm 用 -f 才肯删，确认卡里已经把「会丢掉多少行」写清楚，用户点的是确认。
+      if (entryOf(screen, path, 'staged')) return fail('args', 'path-modified', '这个文件还有已暂存的改动，删除前请先撤回暂存')
       plan = makeChangesPlan({ op: 'rm-tracked', paths: [path] })
     } else if (op === 'rm-cached') {
       const badPath: any = pathArgProblem(a.path)

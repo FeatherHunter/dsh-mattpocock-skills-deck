@@ -40,8 +40,18 @@ export const vcRealReadsNew = function (cwd: any): any {
   return reads
 }
 
+declare function vcNewNoteWrite(...args: any[]): any
+
 export const vcRealInitialUi = function (): any {
-  return { fileShown: {}, openDiff: '', openCommit: '', openFile: '', liveTick: 0, historyQuery: '', historyMergeOnly: false, historyMenu: '' }
+  return {
+    fileShown: {}, openDiff: '', openCommit: '', openFile: '', liveTick: 0,
+    historyQuery: '', historyMergeOnly: false, historyMenu: '',
+    // #1903 提交历史页四条能力：搜索范围、只看哪个文件、详情里哪一行的「⋯」开着、
+    //   比较两个引用的表单与结果、备注草稿与本次会话写过/删过的备注。
+    historyScope: 'message', historyFileOnly: '', historyFileMenu: '',
+    historyCompareOpen: false, historyCompareFrom: 'HEAD~1', historyCompareTo: 'HEAD', historyCompare: null,
+    historyNoteDraft: '', historyNoteFor: '', historyNotes: {}, historyNote: vcNewNoteWrite(),
+  }
 }
 
 // 新壳的导航状态：当前页、来源链（二级页的返回目标）、打开的浮层、搜索词与落点高亮，
@@ -286,18 +296,6 @@ export const vcRealSkinWatchOf = function (onSkin: any): any {
   return function () { mo.disconnect() }
 }
 
-// 提交目标：首屏 history 片里已经带了提交清单，容器只把它翻成下拉选项（值仍是完整 oid）。
-export const vcRealCommitTargetsOf = function (reads: any): any[] {
-  const slice: any = vcFirstScreenSliceOf(reads, 'history') || {}
-  const data: any = (slice && slice.data) || {}
-  const commits: any[] = Array.isArray(data.commits) ? data.commits : []
-  return commits.map(function (c: any) {
-    const oid: string = String((c && c.oid) || '')
-    const short: string = String((c && c.short) || oid.slice(0, 7))
-    return { oid: oid, label: short + ' ' + String((c && c.subject) || '') }
-  })
-}
-
 // 改动页的种子：计数来自首屏 changes 片；values 是表单当前值（由容器持有，动作层按它拼电话参数）。
 export const vcRealChangesSeedOf = function (reads: any): any {
   const slice: any = vcFirstScreenSliceOf(reads, 'changes') || {}
@@ -310,14 +308,17 @@ export const vcRealChangesSeedOf = function (reads: any): any {
     if (row.untracked === true || status === '??' || status.indexOf('untracked') >= 0) untracked += 1
   }
   // #1829 文件行要逐行读数：把片里两组 FileEntry 归一成同一形状再交给界面；
-  //   缺字段给缺省值（change 缺省 modified、增删行数缺省 null 表示「不知道」），
-  //   一个文件同时有暂存与未暂存两边改动时会在两组各出现一行——这正是原型的两组，不在界面里合并。
+  //   缺字段给缺省值（change 缺省 modified、增删行数缺省 null 表示「不知道」）。
+  // #1902：row.staged 的含义是「这一行是从哪一组读来的」，不是文件在索引里有没有内容——宿主给每条
+  //   FileEntry 都带 staged/unstaged 两个布尔，两边都有改动的文件同一个条目会同时进两组；若照抄条目上的
+  //   staged，未暂存这一行会被当成「整份已暂存」，行的展开键、主按钮和差异读法全跟着错。所以这里只认分组。
+  //   一个文件两边都有改动时界面只画一行（未暂存那一行带 partial），由视图按两组的路径交集算出来。
   const normOf = function (row: any, inStaged: boolean): any {
     const change: string = String((row && row.change) || 'modified')
     return {
       path: String((row && row.path) || ''),
       origPath: String((row && row.origPath) || ''),
-      staged: inStaged ? true : row && row.staged === true,
+      staged: inStaged === true,
       unstaged: inStaged ? false : true,
       change: change,
       conflict: !!(row && row.conflict === true),

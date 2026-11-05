@@ -87,6 +87,10 @@ const VC_FILES = [
   'src/client/views/versionControl/vcMaintenancePage.js',
   'src/client/views/versionControl/vcMaintenanceDiag.js',
   'src/client/views/versionControl/vcShellIdentity.js',
+  // #1902 改动页三叶（与构建同序）：纯规则 → 贴行确认与改名表单 → 一行的画法 → 页面本体。
+  'src/client/views/versionControl/vcChangesHunks.js',
+  'src/client/views/versionControl/vcChangesAct.js',
+  'src/client/views/versionControl/vcChangesRow.js',
   'src/client/views/versionControl/vcChangesView.js',
   'src/client/views/versionControl/vcBranches.js', // #1829：分支与标签的数据层（读数归一、票与结果落位；页面壳挂页面前要先有它）
   'src/client/views/versionControl/vcBranchSections.js', // #1881：本页后两段正文（标签、上游跟踪）与四件小工具，注入次序在视图叶子之前

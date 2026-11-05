@@ -232,4 +232,24 @@ export const VC_PROTO_STYLE_MENUS: string[] = [
   "  font-size: 9.5px; color: var(--mut); word-break: break-all; }",
   "[data-vc-shell] .stash-confirm.is-warn {",
   "  border-color: color-mix(in srgb, var(--warn) 50%, var(--line-2)); background: color-mix(in srgb, var(--warn-soft) 45%, var(--panel)); }",
+  // #1902 逐块暂存与改名表单，来自 app.css 928–944 / 1008–1015（行号对得上，方便两边对读）：
+  //   块头单独一行，左边写第几块、右边只放这一块的按钮；块体仍是一段逐行差异。
+  //   行号计数器挂在 .hunked 上，拆成多段 pre 之后编号仍然连着往下走。
+  "/* ---------- 逐块暂存：块头与块体 ---------- */",
+  "[data-vc-shell] .hunked { counter-reset: diffline; }",
+  "[data-vc-shell] .hunked .patch { counter-reset: none; }",
+  "[data-vc-shell] .hunk-bar {",
+  "  display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 0 5px; border-top: 1px dashed var(--line); }",
+  "[data-vc-shell] .hunked > .hunk:first-child .hunk-bar { margin-top: 0; padding-top: 2px; border-top: 0; }",
+  "[data-vc-shell] .hunk-name { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }",
+  "[data-vc-shell] .hunk-gap { flex: 1; }",
+  "[data-vc-shell] .hunk-act { min-height: 19px; padding: 0 7px; font-size: 10px; }",
+  "[data-vc-shell] .hunk.is-staged .patch { opacity: 0.5; }",
+  "/* ---------- 改名表单：贴着这一行展开，只填新路径 ---------- */",
+  "[data-vc-shell] .rename-form { margin: 4px 8px 8px; padding: 8px 9px 9px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--inset); }",
+  "[data-vc-shell] .rename-title { margin: 0 0 5px; font-size: 11px; font-weight: 700; color: var(--ink); }",
+  "[data-vc-shell] .rename-input { width: 100%; height: 26px; padding: 0 7px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--panel); color: var(--ink); font: 11px/1.5 var(--mono); }",
+  "[data-vc-shell] .rename-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }",
+  "[data-vc-shell] .rename-hint { margin: 4px 0 0; font-size: 10px; line-height: 1.5; color: var(--faint); }",
+  "[data-vc-shell] .rename-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }",
 ]

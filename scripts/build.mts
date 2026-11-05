@@ -871,6 +871,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
   { id: 'vcCapabilityList', file: 'src/client/views/versionControl/vcCapabilityList.ts' }, // #1762 T26：「本页负责的能力」列表从壳拆出，排在壳之前
   { id: 'vcSearchPage', file: 'src/client/views/versionControl/vcSearchPage.ts' }, // #1846 全库搜索页自己的版式（输入框在首屏、结果按页面分组），排在壳之前，壳要调它
+  { id: 'vcHistoryQuery', file: 'src/client/views/versionControl/vcHistoryQuery.ts' }, // #1903 历史页四条能力的纯判定（搜索范围、命中文件、只看单个文件、比较摘要），排在 vcHistory 之前
+  { id: 'vcHistoryOps', file: 'src/client/views/versionControl/vcHistoryOps.ts' }, // #1903 历史页四条能力的动作层（三条只读复用一个三态槽，备注走预检签票 + 凭票执行）
+  { id: 'vcHistoryExtra', file: 'src/client/views/versionControl/vcHistoryExtra.ts' }, // #1903 历史页多出来的四块画法（范围切换、只看文件、比较表单与结果、备注段），vcHistory 与 vcHistoryDetail 都调它
   { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
   { id: 'vcHistoryGraph', file: 'src/client/views/versionControl/vcHistoryGraph.ts' }, // #1829 阶段 3：13.14 图形化视图从 vcHistory 拆出（数据与画法），由 vcHistory 调用
   { id: 'vcHistoryDetail', file: 'src/client/views/versionControl/vcHistoryDetail.ts' }, // #1829 阶段 3：提交详情按定稿原型 03 重排（dl 元信息、文件行、逐文件差异），由 vcHistory 调用
@@ -883,6 +886,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcQuery', file: 'src/client/views/versionControl/vcQuery.ts' }, // #1745 历史高级查询的数据层：十条能力的目录、输入校验与一次读取（纯逻辑，不画界面）
   { id: 'vcQueryView', file: 'src/client/views/versionControl/vcQueryView.ts' }, // #1745 历史高级查询面板的画法（提交历史页六组、管理·诊断页四组；排在页面壳之前，壳要调它）
   { id: 'vcCommitOps', file: 'src/client/views/versionControl/vcCommitOps.ts' }, // #1743 提交页的动作层（预检拿票、危险动作确认、写电话、模板套用；不画界面）
+  { id: 'vcCommitOptions', file: 'src/client/views/versionControl/vcCommitOptions.ts' }, // #1877 提交选项展开区（形态 / 内容来源 / 说明模板 / 记录方式四组；排在提交页之前，页要调它）
   { id: 'vcCommitPage', file: 'src/client/views/versionControl/vcCommitPage.ts' }, // #1743 提交页正文（八条能力的主入口、多行说明、确认卡与结果都在面板里；排在页面壳之前，壳要调它）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
   { id: 'vcBranches', file: 'src/client/views/versionControl/vcBranches.ts' }, // #1746 分支与标签业务面板（4.1–4.13 十三条入口、dryRun 判定、确认卡与结果；由页面壳挂进分支与标签页）
@@ -941,6 +945,11 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1829 改动页首屏两叶：身份行与同步带（仓库名 / 分支 / 短号 + 同步事实行 + 同步动作行）、
   //   统计卡与分组文件行。都排在页面壳之前，壳的挂载段才调得到；壳自己只保留页面顺序。
   { id: 'vcShellIdentity', file: 'src/client/views/versionControl/vcShellIdentity.ts' },
+  // #1902 改动页三叶，次序即依赖：纯规则（拆块 / 合并 / 分组）→ 一行的画法（菜单、确认卡、改名表单、逐块差异）→ 页面本体。
+  //   页面那一叶只留统计卡、结果条与分组，一行里的东西全部在 vcChangesRow；两叶都排在页面壳之前，壳的挂载段才调得到。
+  { id: 'vcChangesHunks', file: 'src/client/views/versionControl/vcChangesHunks.ts' },
+  { id: 'vcChangesAct', file: 'src/client/views/versionControl/vcChangesAct.ts' },
+  { id: 'vcChangesRow', file: 'src/client/views/versionControl/vcChangesRow.ts' },
   { id: 'vcChangesView', file: 'src/client/views/versionControl/vcChangesView.ts' },
   // #1829 阶段 4 三个共享件：页头与四个页面原语、齿轮里的管理索引卡片、分支浮层；
   //   都排在页面壳之前，壳的挂载段才调得到（页面壳自己只保留页面顺序）。
@@ -967,6 +976,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcRealShell', file: 'src/client/views/versionControl/vcRealShell.ts' },
   { id: 'vcRealDelegate', file: 'src/client/views/versionControl/vcRealDelegate.ts' },
   { id: 'vcRealActions', file: 'src/client/views/versionControl/vcRealActions.ts' },
+  // #1902：改动页动作处理器从 vcRealActions 搬出（那一叶贴着 350 有效行上限），容器照旧只调它一个入口。
+  { id: 'vcChangesHandlers', file: 'src/client/views/versionControl/vcChangesHandlers.ts' },
+  { id: 'vcRealCommitFlow', file: 'src/client/views/versionControl/vcRealCommitFlow.ts' }, // #1877 提交选项浮层的关闭与焦点行为（换页签 / 点外面 / 收起后焦点回箭头），容器调它
   { id: 'vcRealTab', file: 'src/client/views/versionControl/vcRealTab.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
