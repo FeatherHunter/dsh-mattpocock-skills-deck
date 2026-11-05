@@ -912,7 +912,8 @@ section('§12 入口接线')
     '老页 MapDetail 已经不在挂载点上（源码与门禁留着只为回滚）')
 
   const pageText = fs.readFileSync(path.join(ROOT, REL, 'view/MapDetailV2Page.ts'), 'utf8')
-  const pageDeps = ['useMapTicketsFeed', 'mapDetailPageModelOf', 'pageActionHandlersOf', 'MapDetailTop']
+  // #1895：页面不再自带取数接线，改为读视图模型的 mapDetail 切片（数据来源换成 #1894 的同一个视图模型）。
+  const pageDeps = ['useDeckViewSlice', 'mapDetailPageModelOf', 'pageActionHandlersOf', 'MapDetailTop']
   const pageMissing = pageDeps.filter(function (name) { return pageText.indexOf(name) < 0 })
   check(pageMissing.length === 0,
     'V2 页面调到了取数、整页模型、四个按钮的回调与老页顶栏（缺 ' + show(pageMissing) + '）')

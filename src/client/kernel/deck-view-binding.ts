@@ -35,13 +35,18 @@ declare const saveListPrefs: any;
 declare function createDeckView(options: any): any
 declare function deckFiltersOf(value: any): any
 declare function deckReadingOf(value: any): any
-type DeckViewSliceName = 'projection' | 'filters' | 'rows' | 'counts' | 'readout' | 'reading'
+// #1895：地图详情切片（kernel/deck-map-detail.ts，构建时排在本片之前拼进同一个闭包）。
+declare function deckMapDetailOf(input: any): any
+// #1895：容器身份查找的真源仍住 store-derived.ts（与列表、详情页同一把尺子）。
+declare function findMapByIdentity(...args: any[]): any
+type DeckViewSliceName = 'projection' | 'filters' | 'rows' | 'counts' | 'readout' | 'reading' | 'mapDetail'
 
 /** 接线用到的闭包邻居；门禁传第二参时整份换掉（宿主电话与全部派生函数都可替换）。 */
 export interface DeckViewScope {
   host?: any
   wsKeyOf?: any
   snapshotVersionBookOf?: any
+  findMapByIdentity?: any
   ticketRowsOf?: any
   issuePageRowsOf?: any
   isOccupied?: any
@@ -60,6 +65,7 @@ function deckScope(): DeckViewScope {
     host: (typeof host !== 'undefined' ? host : null),
     wsKeyOf: (typeof wsKeyOf === 'function' ? wsKeyOf : null),
     snapshotVersionBookOf: (typeof snapshotVersionBookOf === 'function' ? snapshotVersionBookOf : null),
+    findMapByIdentity: (typeof findMapByIdentity === 'function' ? findMapByIdentity : null),
     ticketRowsOf: (typeof ticketRowsOf === 'function' ? ticketRowsOf : null),
     issuePageRowsOf: (typeof issuePageRowsOf === 'function' ? issuePageRowsOf : null),
     isOccupied: (typeof isOccupied === 'function' ? isOccupied : null),
@@ -177,6 +183,8 @@ function deckReadingFromStore(scope: DeckViewScope, st: any): any {
   return deckReadingOf({
     activeIssue: (st && st.activeIssue !== undefined) ? st.activeIssue : null,
     activeMap: (st && st.activeMap !== undefined) ? st.activeMap : null,
+    // #1895：当前容器属于哪个工作单元（导航栈的 effort 镜像）；同号不同工作单元的容器靠它分开。
+    activeMapEffort: (st && st.activeEffortId !== undefined && st.activeEffortId !== null) ? String(st.activeEffortId) : '',
     draft: (st && typeof st.cmtDraft === 'string') ? st.cmtDraft : '',
     pageRows: deckPageRowsOf(scope, st),
   })
@@ -199,6 +207,17 @@ function deckPortsOf(scope: DeckViewScope, frame: any): any {
     labelNamesOf: function (row: any): string[] {
       const labs = (row && Array.isArray(row.labels)) ? row.labels : []
       return labs.map(function (l: any): string { return (typeof l === 'string') ? l : String((l && l.name) || '') })
+    },
+    // #1895：地图详情这一屏的数据全部从投影里的那棵容器树取；这里只把「当前打开的是哪一张」交给它，
+    // 不打电话、不取数（页面进详情不再发 wf.mapTickets）。
+    mapDetailOf: function (f: any, reading: any): any {
+      // 单文件求值（门禁直接 import 本文件）时这一片可能没挂上：按「还没有」处理，不影响别的切片。
+      if (typeof deckMapDetailOf !== 'function') return null
+      return deckMapDetailOf({
+        projection: f.projection,
+        reading: reading,
+        mapOf: scope.findMapByIdentity,
+      })
     },
   }
 }
@@ -266,7 +285,11 @@ export function deckViewCommand(st: any, name: string, payload?: any, scopeOverr
   if (result.changed.indexOf('filters') >= 0) deckMirrorFilters(st, result.filters, name, scope)
   try {
     if (name === 'openIssue') st.activeIssue = result.reading.activeIssue
-    if (name === 'openMap') st.activeMap = result.reading.activeMap
+    if (name === 'openMap') {
+      // #1895：容器身份是 (effort, 编号) 两段；镜像回会话存储时两段一起写，读方（导航与视图模型）才对得上。
+      st.activeMap = result.reading.activeMap
+      st.activeEffortId = result.reading.activeMapEffort
+    }
     if (name === 'setDraft') st.cmtDraft = result.reading.draft
   } catch (e) {}
   return result

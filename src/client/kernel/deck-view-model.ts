@@ -6,19 +6,21 @@
  * 改一次筛选只能整棵界面重画。这一层把「投影 + 会话私有阅读态」收成一个视图模型：对外只有状态与命令，
  * 视图按切片订阅，某一片没变时连对象引用都不换。
  *
- * 五个切片（名字是公开契约，视图只认这几个）：
+ * 七个切片（名字是公开契约，视图只认这几个）：
  *   projection —— 手上那份投影（库的版本号 + 快照本体），换版本才换对象；
  *   filters    —— 会话私有的筛选与排序（状态、标签、工作单元、排序档、标签展开态）；
  *   rows       —— 按筛选算出来的行（开放 / 已关闭 / 当前列表里真正画的那一段）；
  *   counts     —— 全局读数（总数/开放/已关闭/可接/占用/BUG/诊断），状态栏与列表顶上的数字同源；
  *   readout    —— 胶囊要的全局读数（库版本、生成时刻、在办表），不含票面正文；
- *   reading    —— 会话私有的阅读态（当前打开的票/地图、草稿、按需翻出来的历史行）。
+ *   reading    —— 会话私有的阅读态（当前打开的票/地图、地图属于哪个工作单元、草稿、翻出来的历史行）；
+ *   mapDetail  —— 地图详情这一屏的数据（当前那张容器行、子票、层级、统计）；由调用方给的端口从投影里取，
+ *                 随投影与阅读态变，换版本或换容器才重算（#1895）。
  *
  * 三条不能改的约定：
  *  1. 同一版本直接复用：adopt 收到与手上相同的版本号时，一个切片都不重算、一个订阅都不通知。
  *     投影帧由调用方按「工作区 + 版本」共享，切会话拿到的是同一个帧，不是重新投影一遍。
- *  2. 只通知相关切片：改筛选只让 filters 与 rows 变；换投影只让 projection/counts/readout/rows 变；
- *     改阅读态只让 reading 变（翻页行变了才带上 rows）。counts 与 readout 不随筛选变化。
+ *  2. 只通知相关切片：改筛选只让 filters 与 rows 变；换投影只让 projection/counts/readout/rows/mapDetail 变；
+ *     改阅读态只让 reading 变（翻页行变了才带上 rows，换打开的容器才带上 mapDetail）。counts 与 readout 不随筛选变化。
  *  3. 不碰宿主电话、不碰 React、不读时钟。这一层只装数据与迁移规则，所以可以单独构造、直接喂假数据测。
  *
  * 反例：不要在这里重新实现领域规则（行怎么分组、容器怎么认、阻塞怎么算都是内核别的片的职责，
@@ -26,7 +28,7 @@
  */
 
 /** 切片名。视图只许订阅这些名字；改名等于改契约，要连同调用方一起改。 */
-export type DeckViewSliceName = 'projection' | 'filters' | 'rows' | 'counts' | 'readout' | 'reading'
+export type DeckViewSliceName = 'projection' | 'filters' | 'rows' | 'counts' | 'readout' | 'reading' | 'mapDetail'
 
 /** 会话私有的筛选与排序。数组总是新拷贝，命令里不原地改调用方传进来的数组。 */
 export interface DeckFiltersState {
@@ -42,6 +44,8 @@ export interface DeckFiltersState {
 export interface DeckReadingState {
   activeIssue: any
   activeMap: any
+  /** 当前打开的地图/规格属于哪个工作单元（同号不同工作单元的容器不能互相顶替；单工作单元后端是空串）。 */
+  activeMapEffort: string
   draft: string
   pageRows: any[]
 }
@@ -64,6 +68,8 @@ export interface DeckViewPorts {
   effortOf?(row: any): string
   occupiedOf?(row: any, frame: DeckFrame): boolean
   labelNamesOf?(row: any): string[]
+  /** 地图详情切片（#1895）：调用方从投影里取出当前容器那一份；不给时该切片恒为 null。 */
+  mapDetailOf?(frame: DeckFrame, reading: DeckReadingState): any
 }
 
 export interface DeckViewOptions {
@@ -90,10 +96,10 @@ export interface DeckView {
   reading(): DeckReadingState
 }
 
-const DECK_SLICES: DeckViewSliceName[] = ['projection', 'filters', 'rows', 'counts', 'readout', 'reading']
+const DECK_SLICES: DeckViewSliceName[] = ['projection', 'filters', 'rows', 'counts', 'readout', 'reading', 'mapDetail']
 const DECK_STATE_FILTERS: string[] = ['all', 'open', 'closed', 'blocked', 'frontier']
 const DECK_DEFAULT_FILTERS: DeckFiltersState = { stateFilter: 'all', lblFilters: [], effFilters: [], sortKey: 'number', sortDir: 'asc', expLabels: false }
-const DECK_DEFAULT_READING: DeckReadingState = { activeIssue: null, activeMap: null, draft: '', pageRows: [] }
+const DECK_DEFAULT_READING: DeckReadingState = { activeIssue: null, activeMap: null, activeMapEffort: '', draft: '', pageRows: [] }
 
 function deckStringList(value: any): string[] {
   if (!Array.isArray(value)) return []
@@ -134,6 +140,7 @@ export function deckReadingOf(value: any): DeckReadingState {
   return {
     activeIssue: (v.activeIssue === undefined) ? null : v.activeIssue,
     activeMap: (v.activeMap === undefined) ? null : v.activeMap,
+    activeMapEffort: (v.activeMapEffort === undefined || v.activeMapEffort === null) ? '' : String(v.activeMapEffort),
     draft: (typeof v.draft === 'string') ? v.draft : '',
     pageRows: Array.isArray(v.pageRows) ? v.pageRows : [],
   }
@@ -189,6 +196,20 @@ function deckRowsOf(frame: DeckFrame, filters: DeckFiltersState, reading: DeckRe
   return { source: source, open: open, closed: closed, visible: visible, openCount: open.length, closedCount: closed.length }
 }
 
+/**
+ * 「打开一张容器」的定位：认 { number | n | key, effortId } 对象，也认只给编号的老写法。
+ * 只给编号时工作单元记为空串（不知道），调用方在多个工作单元的仓库里应传对象——空串不会去猜同号的第一张。
+ */
+function deckMapTargetOf(payload: any): { number: any, effort: string } | null {
+  if (payload === null || payload === undefined) return null
+  if (typeof payload === 'object') {
+    const n = (payload.number !== undefined) ? payload.number : ((payload.n !== undefined) ? payload.n : payload.key)
+    if (n === undefined || n === null) return null
+    return { number: n, effort: (payload.effortId === undefined || payload.effortId === null) ? '' : String(payload.effortId) }
+  }
+  return { number: payload, effort: '' }
+}
+
 /** 视图模型本体。构造不读时钟、不打电话，所有输入都由调用方给。 */
 export function createDeckView(options: DeckViewOptions): DeckView {
   const ports: DeckViewPorts = options.ports || {}
@@ -219,11 +240,17 @@ export function createDeckView(options: DeckViewOptions): DeckView {
   const rebuildRows = function (changed: DeckViewSliceName[]): void {
     bump('rows', deckRowsOf(frame, filters, reading, ports), changed)
   }
+  // #1895：地图详情是「当前打开的那张容器」的切片，随投影与阅读态变；端口不给时恒为 null（别的屏不用它）。
+  const rebuildMapDetail = function (changed: DeckViewSliceName[]): void {
+    const next = (typeof ports.mapDetailOf === 'function') ? ports.mapDetailOf(frame, reading) : null
+    bump('mapDetail', next, changed)
+  }
   const rebuildFrameSlices = function (changed: DeckViewSliceName[]): void {
     bump('projection', { version: frame.version, snapshot: frame.projection, key: frame.key }, changed)
     bump('counts', frame.counts, changed)
     bump('readout', frame.readout, changed)
     rebuildRows(changed)
+    rebuildMapDetail(changed)
   }
   // 初始切片：构造那一刻不通知任何订阅者（还没有人订阅），但版本号从 0 开始记。
   rebuildFrameSlices([])
@@ -278,12 +305,30 @@ export function createDeckView(options: DeckViewOptions): DeckView {
       const nextReading: any = Object.assign({}, reading)
       let readingChanged = false
       let rowsChanged = false
+      // 当前打开的地图变了（或换了工作单元）才重算地图详情切片；别的阅读态改动不惊动它。
+      let mapMoved = false
       if (name === 'openIssue') { if (reading.activeIssue !== payload) { nextReading.activeIssue = payload; readingChanged = true } }
-      else if (name === 'openMap') { if (reading.activeMap !== payload) { nextReading.activeMap = payload; readingChanged = true } }
-      else if (name === 'closeDetail') { if (reading.activeIssue !== null || reading.activeMap !== null) { nextReading.activeIssue = null; nextReading.activeMap = null; readingChanged = true } }
+      else if (name === 'openMap') {
+        // 打开一张容器：payload 认 { number | n | key, effortId }，也兼容只给编号的老写法（effort 空串 = 不知道）。
+        const target = deckMapTargetOf(payload)
+        if (target && (reading.activeMap !== target.number || reading.activeMapEffort !== target.effort)) {
+          nextReading.activeMap = target.number
+          nextReading.activeMapEffort = target.effort
+          readingChanged = true
+          mapMoved = true
+        }
+      }
+      else if (name === 'closeDetail') {
+        if (reading.activeIssue !== null || reading.activeMap !== null || reading.activeMapEffort !== '') {
+          nextReading.activeIssue = null; nextReading.activeMap = null; nextReading.activeMapEffort = ''
+          readingChanged = true
+          mapMoved = true
+        }
+      }
       else if (name === 'setDraft') { const text = (typeof payload === 'string') ? payload : ''; if (reading.draft !== text) { nextReading.draft = text; readingChanged = true } }
       else if (name === 'setPageRows') { const rows = Array.isArray(payload) ? payload : []; if (reading.pageRows !== rows) { nextReading.pageRows = rows; readingChanged = true; rowsChanged = true } }
       if (readingChanged) { reading = nextReading; bump('reading', reading, changed) }
+      if (mapMoved) rebuildMapDetail(changed)
       if (rowsChanged) rebuildRows(changed)
       return { changed: changed, filters: filters, reading: reading }
     },
@@ -303,8 +348,15 @@ export function createDeckView(options: DeckViewOptions): DeckView {
       if (input && input.reading !== undefined) {
         const next = deckReadingOf(input.reading)
         const prevPageRows = reading.pageRows
-        const same = next.activeIssue === reading.activeIssue && next.activeMap === reading.activeMap && next.draft === reading.draft && deckSamePageRows(next.pageRows, prevPageRows)
-        if (!same) { reading = next; bump('reading', reading, changed); if (!deckSamePageRows(next.pageRows, prevPageRows)) rebuildRows(changed) }
+        const same = next.activeIssue === reading.activeIssue && next.activeMap === reading.activeMap && next.activeMapEffort === reading.activeMapEffort
+          && next.draft === reading.draft && deckSamePageRows(next.pageRows, prevPageRows)
+        if (!same) {
+          const mapMoved = next.activeMap !== reading.activeMap || next.activeMapEffort !== reading.activeMapEffort
+          reading = next
+          bump('reading', reading, changed)
+          if (mapMoved) rebuildMapDetail(changed)
+          if (!deckSamePageRows(next.pageRows, prevPageRows)) rebuildRows(changed)
+        }
       }
       muted = false
       // 同一版本、同一份筛选与阅读态：一个切片都没动，结论是复用。

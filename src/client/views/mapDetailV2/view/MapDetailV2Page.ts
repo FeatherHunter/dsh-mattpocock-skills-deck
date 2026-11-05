@@ -11,8 +11,9 @@
  * 想看这张图自己的完整信息，点标题进 issue 详情页（把 issue 详情页打磨好一处，地图跟着受益）。
  *
  * 它只做四件事，其余全在别处：
- *   1) 取数：调 wiring/useMapTicketsFeed（进页面就拉这张图的全部子票，含已关闭的）。老页的取数与
- *      「已关闭地图首屏没有子票」问题都收在那一个 hook 里；
+ *   1) 读视图模型：这一页的容器树、子票、层级与统计全部来自 #1894 的视图模型 mapDetail 切片
+ *      （kernel/deck-map-detail.ts 从投影里取当前容器那一份）。#1895 起进页面不再自己发 wf.mapTickets
+ *      取子票——同一份投影在列表与地图详情里是同一个版本、同一个状态；
  *   2) 算整页模型：mapDetailPageModelOf 一次算出档案 + 一条流（纯函数，不碰界面）；
  *   3) 造四个按钮的回调：wiring/pageActionHandlersOf（注入提示词 / 新会话 / 复制链接 / 打开）；
  *   4) 按模型渲染三块 + 图片放大浮层。
@@ -22,6 +23,7 @@
  * （panel/Dock.ts 里列表页签的 active 分支），老页 MapDetail 的源码与门禁都留着，出问题可以一行切回。
  */
 declare function idOf(...args: any[]): any
+declare function idOfParts(...args: any[]): any
 declare function effortOf(...args: any[]): any
 declare function buildColorOf(...args: any[]): any
 declare function rowActionKind(...args: any[]): any
@@ -34,7 +36,8 @@ declare function popNav(...args: any[]): any
 declare function pushNav(...args: any[]): any
 declare function MapDetailTop(props?: any): any
 declare function mapDetailPageModelOf(...args: any[]): any
-declare function useMapTicketsFeed(...args: any[]): any
+// #1895：本页数据从视图模型的 mapDetail 切片取（同一个视图模型、按切片订阅）。
+declare function useDeckViewSlice(...args: any[]): any
 declare function pageActionHandlersOf(...args: any[]): any
 declare function MapProfileHeader(props?: any): any
 declare function TicketCardFlow(props?: any): any
@@ -71,14 +74,15 @@ export function MapDetailV2Page(props: any): any {
   const h = cx ? cx.h : React.createElement
   const st = props && props.st
   const g = props && props.g
-  const m = g && g.m
-
   // hooks 必须先于任何提前 return 调用（React 的规矩：同一次挂载里 hook 数量不能变）。
-  // 这里先取数、再判这张图在不在；useMapTicketsFeed 自己会处理 m 为空的情况（effect 里直接 return），
-  // 所以 m 从无到有时不会因为 hook 数量变化让整页崩掉。
+  // #1895：这一页读同一个视图模型的 mapDetail 切片（当前打开的容器 + 子票 + 层级 + 统计）。
+  //   单文件求值的门禁里没有这一片（useDeckViewSlice 是 declare 出来的名字），退回 props.g.m，
+  //   行为与改造前一致；真机上这一片一定在。
+  const detail = (typeof useDeckViewSlice === 'function') ? useDeckViewSlice(st, 'mapDetail') : null
+  const m = (detail && detail.map) || (g && g.m)
+
   // 空 m 这个分支今天走不到：唯一挂载点只在 g.m 存在时才画这一页（panel/Dock.ts:117、:404），
   // 真走到时也只是一个空容器，返回列表仍由 DSH 的标签与侧栏兜底，不会把用户困在页里。
-  const bucket = useMapTicketsFeed(st, m)
   if (!m) return h('div', { className: 'm2v2-page' })
 
   const mId = idOf(m)
@@ -87,6 +91,22 @@ export function MapDetailV2Page(props: any): any {
   // 卡片层不写第二份身份色，所以在这里补上这一项再交给卡片。
   const colorOf = Object.assign({}, buildColorOf(st), { implement: CONTAINER_ACCENT.spec })
   const cardIdPrefix = cardIdPrefixOf(mId)
+
+  // #1895：进页面不再自己取子票，所以没有「第一帧正在取」这件事；只有视图模型/别处真给了
+  //   一个 loading 桶时才算 busy（单文件求值的门禁靠它造出取数中那一态）。
+  //   桶的键与写它的地方同算法（工作单元 + 容器键）；生产里没有东西再往 st.mapTickets 写。
+  const bucketKey = (typeof idOfParts === 'function')
+    ? idOfParts(String(effortOf(m) || ''), String(m.key !== undefined && m.key !== null ? m.key : m.number).trim())
+    : ''
+  const bucket = (bucketKey && st && st.mapTickets) ? (st.mapTickets[bucketKey] || null) : null
+  const busy = !!bucket && String(bucket.mode || '') === 'loading'
+  // 顶栏三态与老页同源（kernel/container-view.ts）：统计优先取视图模型里那份（投影行上的 stats）。
+  // 注意档案区的四枚计数按「画出来的行」数（mapDetailPageModel.ts:13-15 写明是有意）；
+  // 档案里的「子票那句」会把截断与差额补出来，不让数字悄悄对不上。
+  const effStats = (bucket && bucket.mode === 'real' && bucket.stats) ? bucket.stats : (((detail && detail.stats) || m.stats) || null)
+  const cKind = containerKindOf(m) || 'map'
+  const cState = containerStateOf({ stats: effStats })
+  const tri = containerTriState(cKind, cState)
 
   // 整页只算一次：档案 + 一条连续流 + 每张卡的 props。计算与画法分开，门禁可以直接对着它断言。
   const model = mapDetailPageModelOf({
@@ -99,20 +119,9 @@ export function MapDetailV2Page(props: any): any {
     // 主按钮的动作由内核按原始行判定（九种动作名），卡片层再映射成九种样张（model/tickets/ticketCardFacts.ts）。
     actionOf: function (row: any) { return rowActionKind(row) },
     textOf: tr,
-    // 四个按钮具体干什么要问宿主，交给 wiring；行由模型交回来，保证回调认的行就是画出来的那批行。
+    // 四个按钮具体要干什么由 wiring 决定；行由模型交回来，保证回调认的行就是画出来的那批行。
     handlers: function (rows: any[]) { return pageActionHandlersOf(st, rows) },
   })
-
-  // 顶栏三态与老页同源（kernel/container-view.ts）：取数成功后用真实统计，取不到时退回快照里的 stats。
-  // 注意档案区的四枚计数按「画出来的行」数（mapDetailPageModel.ts:13-15 写明是有意），取数被 1000 张
-  // 上限截断时两处分母可能不同；档案里的「子票那句」会把截断与差额补出来，不让数字悄悄对不上。
-  // 取数中给档案区一个稳定的占位（维护者 2026-10-23：进入页时「正在取子票」独占一行又消失，高度抖一下）。
-  // bucket 还没有（第一帧、effect 刚要发请求）或正在取，都算 busy；档案区据此显示占位而不增删行。
-  const busy = !bucket || String(bucket.mode || '') === 'loading'
-  const effStats = (bucket && bucket.mode === 'real' && bucket.stats) ? bucket.stats : (m.stats || null)
-  const cKind = containerKindOf(m) || 'map'
-  const cState = containerStateOf({ stats: effStats })
-  const tri = containerTriState(cKind, cState)
 
   // 点标题看地图自己的档案：压入这张地图的 issue 详情页（地图在 GitHub 上就是一条 issue，
   // 全文、已定决策、评论都在那一页）。与子票卡的 enterSubDetail 走同一个导航栈，返回逐级弹回。
