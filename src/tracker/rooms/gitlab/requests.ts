@@ -14,14 +14,15 @@
  *   3. 返回值就是客户端那三件套 {stdout, stderr, code}，原样交回。本文件不解析 JSON、不判错误档位、
  *      不写失败话术、不记日志：每个调用点的容错与说法都不一样，这些留在调用方。
  *
- * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）与评论写入；其余写端点与操作族按票逐步搬进来，
+ * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）、评论写入，以及仓库身份的两条单点读
+ * （当前登录人、仓库写权限）与项目本体的一条读（#1918）；其余写端点与操作族按票逐步搬进来，
  * 命名与返回约定照本文件：request 加领域动作，返回原始进程结果。
  */
 
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import { glabClient } from './client.js'
 import type { GlabRunResult } from './client.js'
-import { issuesPath, issuePath, notesPath, linksPath } from './queries.js'
+import { issuesPath, issuePath, notesPath, linksPath, projectPath } from './queries.js'
 
 // 上下文只取平台与执行器两样，而且允许缺：缺了客户端会按 127 如实回，不抛。
 // 写成与 client.ts 的 GlabCtx 同款的两形交叉，读半边与写半边都能把各自的 effective 原样传进来。
@@ -159,3 +160,47 @@ export function requestCommentCreate(
     { timeout: timeoutMs },
   )
 }
+
+/**
+ * 读当前登录人：GET user。
+ *
+ * 这条请求不依赖具体项目，所以参数里没有仓库标识；调用方（repo/current-user.ts）仍会先做自己的
+ * 入口检查（refId 不像「分组/项目」就失败），那是本房的入口纪律，不是远端的形状要求 ——
+ * 请求边界只负责把这一条端点原样发出去。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestCurrentUser(opCtx: MaybeCtx, timeoutMs: number): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(['api', 'user'], { timeout: timeoutMs })
+}
+
+/**
+ * 读一个项目本身：GET projects/{仓库}。
+ *
+ * 用在需要「这个工作区指向的仓库还在不在、读不读得到」的调用点。路径里的仓库标识由 projectPath
+ * 统一做百分号编码（斜杠是仓库名的一部分，不编码远端会认错仓库），这里只把领域值交给它。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识（例如 group/sub/project）
+ * @param timeoutMs 这次请求的时限（毫秒）
+ */
+export function requestProject(opCtx: MaybeCtx, refId: string, timeoutMs: number): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(['api', projectPath(refId)], { timeout: timeoutMs })
+}
+
+/**
+ * 读一个项目的权限格：GET projects/{仓库}?simple=true。
+ *
+ * `simple=true` 是票面带上的参数（来龙去脉写在 repo/permissions.ts 的文件头：源码级已核实，
+ * 单项目接口并不认它，但也不拒绝）。真正的判据只有一个：回包里有没有 permissions 那两格 access_level ——
+ * 那是调用方的判断，不在请求边界里。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识（例如 group/sub/project）
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestProjectPermissions(opCtx: MaybeCtx, refId: string, timeoutMs: number): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(['api', `${projectPath(refId)}?simple=true`], { timeout: timeoutMs })
+}
+

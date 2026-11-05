@@ -40,7 +40,9 @@ import { getRepoKey, gitlabOriginOf } from './repo.js'
 import { counts } from './counts.js'
 import { listPage } from './pages.js'
 import { listLabels, setLabelColors } from './labels-ops.js'
-import { getCurrentUser, getRepoPermissions } from './identity-ops.js'
+// 两条单点读搬进 repo/ 子树（#1918）：登录人与仓库权限各占一个 module，各自从请求边界取数。
+import { getCurrentUser } from './repo/current-user.js'
+import { getRepoPermissions } from './repo/permissions.js'
 import { listSubIssues } from './sub-issues.js'
 import { initProject } from './init-project.js'
 // #1605：地图薄查真实现（此前 planned，注册表补桩；今天起走真实现）。
@@ -248,8 +250,9 @@ const openRepository = 'url'
  *
  * 地图 10（`#1062`）本轮补的九条在这里各占一行，实现在房内各自的文件：
  * 计数 `./counts.ts`、分页 `./pages.ts`、列标签与批量改色 `./labels-ops.ts`、
- * 当前登录人与仓库写权限 `./identity-ops.ts`、子票 `./sub-issues.ts`、开仓发布 `./init-project.ts`、
- * 仓库坐标 `./repo.ts`。接手的人先读 `./README.md`（这一房与另外两房不一样的地方）。
+ * 当前登录人与仓库写权限 `./repo/current-user.ts` 与 `./repo/permissions.ts`、子票 `./sub-issues.ts`、
+ * 开仓发布 `./init-project.ts`、仓库坐标 `./repo/identity.ts`（旧路径 `./repo.ts` 只剩纯转发，#1918）。
+ * 接手的人先读 `./README.md`（这一房与另外两房不一样的地方）。
  */
 export function createGitlabBackend(ctx: BackendContext) {
   // 先按形状装配，再在操作表外层统一包一层用量：包的是同一个对象，成员集合与形状断言都不变。
