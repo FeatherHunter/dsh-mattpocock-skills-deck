@@ -19,8 +19,22 @@ import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
 import { markerKindInHeader } from '../../../shared/issue-file/src/marker.js'
 import type { Actor, IssueType, State } from '../../contract/identity.js'
 import type { Comment, Issue, IssueRef, Label, Milestone } from '../../contract/entities.js'
-import { parseHiddenBlockedBy, parseHiddenParent, parseLegacyPartOf } from './description-markers.js'
-export { parseHiddenBlockedBy, parseHiddenParent, parseLegacyPartOf, rewriteDescriptionWithBlockedPair, rewriteDescriptionWithHiddenParent } from './description-markers.js'
+// 票面正文标记的全部规则住在 model/description-markers.ts（#1911 收成一处）：本文件只消费，
+// 不再定义第二份认法。房外仍按旧路径从本文件取这些函数，所以下面保留纯 re-export，调用方不用改。
+import {
+  parseHiddenBlockedBy,
+  parseHiddenParent,
+  parseLegacyPartOf,
+  parseVisibleBlockedBy,
+} from './model/description-markers.js'
+export {
+  parseBlockedByFallback,
+  parseHiddenBlockedBy,
+  parseHiddenParent,
+  parseLegacyPartOf,
+  rewriteDescriptionWithBlockedPair,
+  rewriteDescriptionWithHiddenParent,
+} from './model/description-markers.js'
 
 // GitLab 回包是外部形状，先收成键值袋再逐格判是因为远端字段可缺可空，直接按定型读会把缺字段当成错。
 type RawBag = Record<string, unknown>
@@ -198,51 +212,14 @@ function normalizeComments(raw: unknown): Comment[] {
   return out
 }
 
-// Blocked by 解析：原生 blocked_by 优先 → 回退 Blocked by: 行
-function parseBlockedByFromDescription(body: unknown): IssueRef[] | null {
-  if (typeof body !== 'string' || !body) return null
-  const m = body.match(/^Blocked by:\s*(.+)$/m)
-  if (!m) return null
-  const line = (m[1] as string).trim()
-  if (!line) return []
-  // 支持多行续写：若下一行非空且不以 # 开头，视为续行（简化：只行内）
-  const parts = line
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const out: IssueRef[] = []
-  const seen = new Set<string>()
-  for (const p of parts) {
-    // 三式：#iid / group/proj#iid / url#iid
-    // 提取末尾 #<digits>
-    const mm = p.match(/#(\d+)\s*$/)
-    const key = mm ? (mm[1] as string) : p.replace(/^#/, '').trim()
-    if (!key) continue
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push({ key: String(key), title: p, state: STATE.OPEN as State, type: ISSUE_TYPE.ISSUE as IssueType })
-  }
-  return out
-}
-
+// 可见 `Blocked by:` 行的解析搬进了 model/description-markers.ts（#1911）：本文件只负责
+// 把原始引用补成契约形状（state 恒 open、type 恒 issue），不再留自己的正则。
 function blockedKeysToRefs(keys: string[]): IssueRef[] {
   const out: IssueRef[] = []
   for (const k of keys) {
     out.push({ key: String(k), title: '#' + String(k), state: STATE.OPEN as State, type: ISSUE_TYPE.ISSUE as IssueType })
   }
   return out
-}
-
-/**
- * 正文回退读阻塞（机器表优先，可见行兜底）：原生不可用时调用，返回票号数组，没有任何写法返回 null。
- * graph-blocking 的读回退与环检快照都走这一处，不各写一遍认法。
- */
-export function parseBlockedByFallback(body: unknown): string[] | null {
-  const table = parseHiddenBlockedBy(body)
-  if (table !== null) return table
-  const parsed = parseBlockedByFromDescription(body)
-  if (parsed !== null) return parsed.map((r) => r.key)
-  return null
 }
 
 function deriveBlockedBy(raw: unknown): IssueRef[] {
@@ -289,8 +266,17 @@ function deriveBlockedBy(raw: unknown): IssueRef[] {
         : ''
   const hiddenTable = parseHiddenBlockedBy(body)
   if (hiddenTable !== null) return blockedKeysToRefs(hiddenTable)
-  const parsed = parseBlockedByFromDescription(body)
-  if (parsed !== null) return parsed
+  // 可见行回退保留原文片段（IssueRef.title 逐字照抄人写的那一段，可能是 #12、group/proj#12 或网页地址）；
+  // state 恒 open、type 恒 issue 是这一层补的契约形状，标记模块只回原始引用。
+  const parsed = parseVisibleBlockedBy(body)
+  if (parsed !== null) {
+    return parsed.map((r) => ({
+      key: String(r.key),
+      title: r.title,
+      state: STATE.OPEN as State,
+      type: ISSUE_TYPE.ISSUE as IssueType,
+    }))
+  }
   return []
 }
 
