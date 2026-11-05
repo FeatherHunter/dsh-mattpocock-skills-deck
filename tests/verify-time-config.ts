@@ -520,6 +520,9 @@ const EXEMPTS: ExemptRow[] = [
   // #1891：水合胜负改按库版本判之后，cacheMs / incomingMs / curMs 这一族「生成时刻」变量已从文件里退休
   // （时间不再参与「谁的结论更新」）；工时测量那一格照旧。
   { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
+  // #1891：版本簿记里的「这个库版本是什么时候见到的」——只交给宿主做「落后太久就整份」的降级判断，
+  //   不参与新旧判断（新旧只看版本号），也不是本文件决定的可调时长。
+  { file: 'src/refresh/rooms/client/snapshot-version-sync.ts', name: 'seenAtMs', reason: '同步簿记：看到这个库版本的本地时刻（时间只用于落后降级的输入，不决定新旧），不是可调参数' },
   { file: 'src/client/kernel/store-switch.ts', name: '_hadToWait', reason: '布尔判断结果（这一步有没有等过），不是时间参数' },
   { file: 'src/client/statusbar/checksums.ts', name: '_probeMs', reason: '读出来的探测时刻，不是可调参数' },
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },

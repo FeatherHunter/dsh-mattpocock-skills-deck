@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T23:52:22.980Z",
+  "generatedAt": "2026-11-05T00:13:28.956Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 576,
   "gateCount": 576,
@@ -6814,7 +6814,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 41,
+      "expectedAssertions": 42,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 9 条）"
     },
     {
@@ -12696,6 +12696,7 @@
         "src/refresh/rooms/client/snapshot-cache-store.ts",
         "src/refresh/rooms/client/snapshot-sync-helpers.ts",
         "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/client/snapshot-version-sync.ts",
         "src/refresh/rooms/host/chain-backoff.ts",
         "src/refresh/rooms/host/chain-coalescing.ts",
         "src/refresh/rooms/host/check-chain-evaluation.ts",
@@ -12792,7 +12793,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 172 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 173 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",

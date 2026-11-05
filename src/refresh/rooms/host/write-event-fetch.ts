@@ -11,11 +11,15 @@
  *     · patch-now（改标题/评论、关票等，点得出票号）→ patch.patchTickets 补那一行；
  *     · probe-now（新建票，payload 里没有票号）→ patch.patchChanged 先问窗口索引、再只补变的那几条。
  *     补成功就把新快照暂存，等下一次探针来取。
- *  2. 探针那条路（takeWritePatch）：wf.probe 一来先问这里有没有刚补好的快照；有就直接回给客户端，
+ *  2. 探针那条路（takeWritePatch）：wf.probe 一来先问这里有没有刚补好的补丁；有就直接回给客户端，
  *     不必再去问窗口索引、更不必整份重建。只交一次，之后照旧走正常探测。
  *
  * 为什么暂存而不直接推给客户端：探针是客户端唯一的「我要不要刷新」入口，写事件本身没有回包通道；
  * 在这里改协议就是新开一条推送，风险远大于「让下一次探针顺手带走」。
+ *
+ * #1891（规格 #1885 S4）：暂存的那一份不再引用整份快照，探针回包里也不再有 snapshot 字段 ——
+ *   客户端按库版本经 wf.snapshotChanges 取数据，探针只回答「变了没有、变了哪几行」。
+ *   这里保留「补丁里带不带快照」这个判据（补丁真的并进快照才算补好），只是不再把它存下来。
  *
  * 不许改的红线（票面 #1444 裁决）：fetch 的返回值里 requests / points 恒为 0。
  * 那两个数写进 write.sent 日志，是「管线里这一笔花了多少」的记账位，真实用量归 #1446，
@@ -95,11 +99,14 @@ export function createWriteEventFetch(deps: WriteEventFetchDeps): any {
     })
   }
 
-  /** 补好的一份先存着，等下一次探针取走：只有真的并进快照（带 snapshot）才算补好。 */
+  /**
+   * 补好的一份先存着，等下一次探针取走：只有真的并进快照（补丁回包带 snapshot）才算补好。
+   * #1891：这份快照本身不再存下来（客户端按库版本取变化），这里只留「变了哪几行、版本是什么」。
+   */
   function stash(cwd: string, res: any, keyHash: string): void {
     if (res && res.mode === 'patch' && res.snapshot) {
       pendingByCwd[cwd] = {
-        mode: 'patch', rows: res.rows || [], version: res.version, snapshot: res.snapshot,
+        mode: 'patch', rows: res.rows || [], version: res.version,
         queries: Number(res.queries) || 0, partial: res.partial === true, at: now(), keyHash: keyHash,
       }
     }
@@ -134,9 +141,10 @@ export function createWriteEventFetch(deps: WriteEventFetchDeps): any {
   }
 
   /**
-   * 探针进来先问这一句：有刚补好的快照就交出去，没有就回 null 让探针照旧走窗口探测。
+   * 探针进来先问这一句：有刚补好的补丁就交出去，没有就回 null 让探针照旧走窗口探测。
    * 只交一次（取走即删），过期的直接丢掉——同一份补丁被重放会让客户端反复回到旧版本。
    * at 一起交出去：探针拿它当回包的 since（补丁覆盖到哪一刻），不能拿「此刻」冒充。
+   * #1891：交出去的只有补好的行号与版本，不带整份快照（它不再过线，也不在这里长期挂着）。
    */
   function takeWritePatch(cwd: any): any {
     const key: string = String(cwd || '')
@@ -144,7 +152,7 @@ export function createWriteEventFetch(deps: WriteEventFetchDeps): any {
     if (!p) return null
     delete pendingByCwd[key]
     if (!(now() - Number(p.at || 0) <= PATCH_TTL_MS)) { log('stale-drop', 'write-patch-expired', { keyHash: p.keyHash || '' }); return null }
-    return { mode: 'patch', rows: p.rows, version: p.version, snapshot: p.snapshot, queries: p.queries, partial: p.partial, at: p.at }
+    return { mode: 'patch', rows: p.rows, version: p.version, queries: p.queries, partial: p.partial, at: p.at }
   }
 
   return { fetch: fetch, remember: remember, forget: forget, takeWritePatch: takeWritePatch }

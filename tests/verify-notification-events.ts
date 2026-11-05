@@ -503,7 +503,8 @@ if (S) {
   probeEvents = await probeStore.read('/ws-probe')
   check(probeEvents.filter((e: any) => e.type === INSTANT).length === 2, '恢复后的新一段失败再记一条（失败段判重不把两段并成一段）')
   // 写事件补好的快照直接交付（mode:'patch'）这一拍根本没探测，不能当成恢复；否则一段没结束的失败会被切碎。
-  probeWritePatch = { snapshot: { repo: 'acme/probe' } }
+  // #1891：写事件补丁交给探针的是「变化的行号 + 版本」，整份快照不再随回包走。
+  probeWritePatch = { rows: [], version: 'v-probe', at: 1 }
   const patchReply = await probe.handleProbe({ cwd: '/ws-probe' })
   check(patchReply && patchReply.ok === true && patchReply.mode === 'patch', '写事件补好的快照直接交付仍走 patch 快路径')
   stageClock += 120000

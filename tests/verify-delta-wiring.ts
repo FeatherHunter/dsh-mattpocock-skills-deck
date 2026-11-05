@@ -55,6 +55,8 @@ async function run() {
     issues: [row(101, 'OPEN', FIX_AT), row(102, 'OPEN', FIX_AT), row(103, 'OPEN', FIX_AT)],
     labels: [], deck: { counts: { open: 3, closed: 0, total: 3 }, partial: false, levels: [] },
     delta: { structureVersion: delta.DELTA_STRUCTURE_VERSION, watermarkMs: WM0, generation: 3, pending: [], pendingAt: 0, pendingReason: '' },
+    // #1891：一段填充，让「宿主手上那份」的序列化体积远大于探针回包，体积上限那条断言才有意义。
+    filler: 'x'.repeat(8000),
   }
   const cacheBox = { ts: NOW0 - 60000, snapshot: seeded, error: null, cwd: CWD }
   const disk = { snap: seeded }
@@ -193,10 +195,17 @@ async function run() {
   check(r1 && r1.mode === 'patch', '变了就先把变的那几条补进列表（mode=' + (r1 && r1.mode) + '）')
   check(thinBefore() === 1, '①取数路径：这一次只发出 1 条会话 get（变的那一张票一条薄查询），实发 ' + thinBefore() + ' 条')
   check(calls.length === 0, '①取数路径：一次 gh 都没发（runGh 实发 ' + calls.length + ' 条）')
-  check(r1 && r1.snapshot && r1.snapshot.ok === true && Array.isArray(r1.snapshot.issues), '②客户端要的那一格里有补好的快照（交给界面直接落列表）')
-  const row101 = (r1 && r1.snapshot && r1.snapshot.issues || []).filter((x) => Number(x.number) === 101)[0]
-  check(!!row101 && row101.state === 'CLOSED', '补进去的那一行就是薄查询回来的新值（101 → ' + (row101 && row101.state) + '）')
-  check(r1 && r1.snapshot && r1.snapshot.delta && r1.snapshot.delta.watermarkMs > seeded.delta.watermarkMs, '③水印在变化并进列表之后推进了（' + seeded.delta.watermarkMs + ' → ' + (r1 && r1.snapshot && r1.snapshot.delta && r1.snapshot.delta.watermarkMs) + '）')
+  // #1891：探针回包不再带整份快照 —— 客户端按库版本经 wf.snapshotChanges 取数据，回包只回答「变了哪几行」。
+  //   这里同时钉「没有这个字段」与「回包远小于宿主手上那份快照」，免得以后有人顺手把整份塞回来。
+  check(!('snapshot' in (r1 || {})), '②探针回包里不再带整份快照（客户端按库版本取变化）')
+  // 宿主手上那份快照故意塞了一段填充（seeded.filler）：整份量级远超回包，这样体积上限才不是空话。
+  const r1Bytes = Buffer.byteLength(JSON.stringify(r1 || {}))
+  const heldBytes = JSON.stringify(cacheBox.snapshot || {}).length
+  check(r1Bytes < 4096 && heldBytes > r1Bytes * 10, '②回包序列化后远低于整份快照量级（回包 ' + r1Bytes + ' 字节，宿主手上那份 ' + heldBytes + ' 字节）')
+  const row101 = (cacheBox.snapshot.issues || []).filter((x) => Number(x.number) === 101)[0]
+  check(!!row101 && row101.state === 'CLOSED', '②补进去的那一行在宿主手上那份里就是新值（101 → ' + (row101 && row101.state) + '）')
+  check(Array.isArray(r1 && r1.rows) && r1.rows.map(String).indexOf('101') >= 0, '②回包只给变化的行号（rows 里有 101，实得 ' + JSON.stringify(r1 && r1.rows) + '）')
+  check(!!cacheBox.snapshot.delta && cacheBox.snapshot.delta.watermarkMs > seeded.delta.watermarkMs, '③水印在变化并进列表之后推进了（' + seeded.delta.watermarkMs + ' → ' + (cacheBox.snapshot.delta && cacheBox.snapshot.delta.watermarkMs) + '）')
   check(logLines.some((l) => l.name === 'refresh.patch' && l.fields.mode === 'patch'), '补行这一步落了一行既有事件 refresh.patch（没有新造事件名）')
   const st1 = ledgerGate.stats()
   check(st1.accounted.requests === 0, '①读路径不花额度：闸一笔都没记（accounted=' + st1.accounted.requests + '）')
