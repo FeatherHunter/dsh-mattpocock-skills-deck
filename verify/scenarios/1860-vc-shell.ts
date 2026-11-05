@@ -552,6 +552,9 @@ let fixtureSummary: FixtureResult | null = null
 /** 每次启动先核对夹具；不对就整棵重建。重建只发生在系统临时目录里带标记的那一份。 */
 function ensureFixtureRepo(): FixtureResult {
   if (fixtureSummary !== null) return fixtureSummary
+  // 每次实例启动前把索引清空：上一轮的交互会点「暂存」把文件搬进已暂存区，
+  //   不重置的话下一轮首屏检查会看到「已暂存 1」，把夹具状态当成产品问题（#1877 收尾时真撞到过）。
+  if (fs.existsSync(path.join(FIXTURE_REPO, '.git'))) gitRun(FIXTURE_REPO, ['reset', '-q'])
   const first = validateFixture()
   if (first.ok) {
     fixtureSummary = first
