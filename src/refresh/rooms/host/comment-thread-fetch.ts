@@ -48,6 +48,20 @@ function isFreshDetail(issue: any): boolean {
  * 为什么两种都试：列表写库时票号按后端原样存，而详情电话拿到的只有数字；只试一种会让另一个
  * 后端的本地优先永远不命中（每开一次详情都白取一趟）。读不出来一律当「库里没有」。
  */
+/**
+ * #1885 评审修复（规格 I2）：读回包要带这一趟对应的库版本。库门面没接、读失败、版本不是
+ * 非负整数时回 null（不拿 0 冒充）；调用方按「不知道」处理，不往回包里写版本。
+ */
+async function libraryVersionOf(lib: any, libKey: any): Promise<number | null> {
+  if (!lib || !libKey || typeof lib.readLibraryVersion !== 'function') return null
+  try {
+    const version = await lib.readLibraryVersion(libKey)
+    return (typeof version === 'number' && Number.isInteger(version) && version >= 0) ? version : null
+  } catch (e) {
+    return null
+  }
+}
+
 async function readLocalDetail(lib: any, libKey: any, paddedKey: string, plainKey: string, effortId: string): Promise<any> {
   const keys: string[] = paddedKey === plainKey ? [paddedKey] : [paddedKey, plainKey]
   for (const key of keys) {
@@ -230,9 +244,15 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       const lib: any = (typeof deps.getSnapshotLibrary === 'function') ? await deps.getSnapshotLibrary().catch(function () { return null }) : null
       const libKey: any = lib ? { workspaceRoot: cwd, backend: String(opened.backendId || ''), repoIdentity: String(repoRef.refId || '') } : null
       const effortIdOfDetail: string = (repoRef.effortId !== undefined && repoRef.effortId !== null) ? String(repoRef.effortId) : ''
+      // 每个成功出口都带上库这一刻的版本（写完详情之后读，才是这一份的版本）。
+      const finish = async function (reply: any): Promise<any> {
+        const version = await libraryVersionOf(lib, libKey)
+        if (version !== null) reply.version = version
+        return reply
+      }
       const local: any = libKey ? await readLocalDetail(lib, libKey, key, String(n), effortIdOfDetail) : null
       if (local && local.issue && !local.issue.referenceSkeleton && isFreshDetail(local.issue)) {
-        return { ok: true, issue: detailOfProjection(local.issue), fromSnapshot: true }
+        return finish({ ok: true, issue: detailOfProjection(local.issue), fromSnapshot: true })
       }
       const r: any = await opened.call(function (session: any, opCtx: any) {
         if (!session || typeof session.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + opened.backendId + "' 未实现 get" } }
@@ -244,7 +264,7 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
         // #1864：网络失败时库里有上次已知就照旧交回去（标 stale），页面不会空白；
         // 库里没有这张票才如实失败，不拿空壳冒充。
         if (local && local.issue && !local.issue.referenceSkeleton) {
-          return { ok: true, issue: detailOfProjection(local.issue), fromSnapshot: true, stale: true, refreshError: (r && r.error) || null }
+          return finish({ ok: true, issue: detailOfProjection(local.issue), fromSnapshot: true, stale: true, refreshError: (r && r.error) || null })
         }
         return getFailure(r)
       }
@@ -337,7 +357,7 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       if (Array.isArray(iss.reviews)) out.issue.reviews = iss.reviews.map(function (rv: any): any {
         return reviewNodeOf(rv && rv.state, rv && rv.reviewer && rv.reviewer.login, rv && rv.submittedAt)
       })
-      return out
+      return finish(out)
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }
   async function handleIssueComments(args: any): Promise<any> {
@@ -370,11 +390,17 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       const lib: any = (typeof deps.getSnapshotLibrary === 'function') ? await deps.getSnapshotLibrary().catch(function () { return null }) : null
       const libKey: any = lib ? { workspaceRoot: cwd, backend: String(opened.backendId || ''), repoIdentity: String(repoRef.refId || '') } : null
       const effortIdOfComments: string = (repoRef.effortId !== undefined && repoRef.effortId !== null) ? String(repoRef.effortId) : ''
+      // 与详情同一口径：每个成功出口都带库版本（写完这一页之后读）。
+      const finish = async function (reply: any): Promise<any> {
+        const version = await libraryVersionOf(lib, libKey)
+        if (version !== null) reply.version = version
+        return reply
+      }
       if (libKey) {
         const local: any = await readLocalDetail(lib, libKey, key, String(n), effortIdOfComments)
         if (local && local.issue && isFreshDetail(local.issue)) {
           const storedPage: any = storedCommentPage(local.issue, loaded, COMMENTS_PAGE)
-          if (storedPage) return { ok: true, nodes: storedPage.nodes, pageInfo: storedPage.pageInfo }
+          if (storedPage) return finish({ ok: true, nodes: storedPage.nodes, pageInfo: storedPage.pageInfo })
         }
       }
       const r: any = await opened.call(function (session: any, opCtx: any) {
@@ -402,7 +428,7 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
         ? loaded + delta.length < Math.min(knownTotal, COMMENTS_MAX)
         : loaded + delta.length < COMMENTS_MAX && delta.length >= step
       const totalCount: number = knownTotal != null ? knownTotal : loaded + delta.length
-      return { ok: true, nodes: delta, pageInfo: { hasNextPage: hasNext, endCursor: String(loaded + delta.length), totalCount } }
+      return finish({ ok: true, nodes: delta, pageInfo: { hasNextPage: hasNext, endCursor: String(loaded + delta.length), totalCount } })
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }
   async function handleCommentIssue(args: any): Promise<any> {

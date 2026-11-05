@@ -314,7 +314,8 @@ async function main(): Promise<void> {
       'F3 快照顶层字段仍在原来的白名单里（没有趁这次加字段）', snap && snapshotFieldViolations(snap))
     const snapKeys = Object.keys(snap || {}).sort().join(',')
     // #1893：多一格 snapshotFetch（这一份是库回放还是在线重建、取到了几行）；库回放时它是 null。
-    check(snapKeys === 'backendModules,capabilities,deck,diskReplay,env,fallback,fallbackAt,fallbackReason,fromCache,generatedMs,issues,labels,maps,ok,refresh,repo,repoRoot,repository,selection,setupLayout,snapshotFetch,thinTickets,updatedAt,viewer,viewerLogin,workspaceRoot',
+    // #1885 评审修复（规格 I2）：快照顶层多一格 version（库版本；与 wf.snapshotVersion 同一把尺子）。
+  check(snapKeys === 'backendModules,capabilities,deck,diskReplay,env,fallback,fallbackAt,fallbackReason,fromCache,generatedMs,issues,labels,maps,ok,refresh,repo,repoRoot,repository,selection,setupLayout,snapshotFetch,thinTickets,updatedAt,version,viewer,viewerLogin,workspaceRoot',
       'F4 快照回包的顶层键集与改造前逐字相同（#1893 只多 snapshotFetch 一格）', snapKeys)
     const probe = createProbeHandler({
       canonicalKey: async (c: unknown) => String(c),
