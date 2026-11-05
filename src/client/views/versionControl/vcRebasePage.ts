@@ -331,14 +331,18 @@ const vcRebaseFactsSectionOf = function (h: any, t: any) {
   return vcPageSectionNode(h, t, { title: 'vc.rebase.section.facts', children: vcPageFactGridNode(h, t, { facts: facts }) })
 }
 
-/** 页面体：页头由页面壳画，这里只画五段正文；动作行与待办行仍由本文件的 helper 画。 */
+/** 页面体：页头由页面壳画，这里只画五段正文；动作行与待办行仍由本文件的 helper 画。
+ *  #1845（2026-11-06）：根节点从 section.vcs-page-body 改成正文容器 div —— 页面壳已经把整页
+ *  包进 section.vcs-page-body > div.vcs-page-scroll，这里再画一层页面体就成了「嵌套页面体」，
+ *  外壳的内边距被套两遍、滚动容器里又出现一个滚动容器。id 与三个 data-* 读数原样保留，
+ *  门禁按 data-vc-rebase-page 认页，不受影响。 */
 export const vcRebasePageNode = function (h: any, t: any, o: any) {
   const rebase: any = (o && o.rebase) ? o.rebase : {}
   const state: any = rebase.state || {}
   const actionRows: any[] = []
   for (let i = 0; i < VC_REBASE_OPS.length; i += 1) actionRows.push(vcRebaseRowNode(h, t, VC_REBASE_OPS[i], rebase))
-  return h('section', {
-    className: 'vcs-page-body',
+  return h('div', {
+    className: 'vcs-flow-page',
     id: 'vc-rebase-page',
     'data-vc-rebase-page': '1',
     'data-vc-rebase-op-count': String(VC_REBASE_OPS.length),

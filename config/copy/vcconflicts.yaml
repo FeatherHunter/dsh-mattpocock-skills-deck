@@ -15,7 +15,7 @@
 zh:
   vc.conflicts.pageTitle: "冲突向导"
   vc.conflicts.hint: "这里处理合并、变基、拣选与回退留下的冲突：每条文件可以选边（当前/对方/删除）或直接标记已解决；要看冲突原文就打开冲突内容逐块挑，全部解决后再继续、跳过或中止。"
-  vc.conflicts.section.current: "当前冲突"
+  vc.conflicts.section.current: "本次合并"
   vc.conflicts.section.currentNote: "每一行只做三件事：选边、手改、标记已解决。"
   vc.conflicts.section.merge: "合并"
   vc.conflicts.section.perFile: "逐文件处置"
@@ -131,7 +131,7 @@ zh:
 en:
   vc.conflicts.pageTitle: "Conflict guide"
   vc.conflicts.hint: "Resolve conflicts left by merge, rebase, cherry-pick or revert: each file can pick a side (ours/theirs/delete) or be marked resolved directly; open the conflict content to choose per hunk, then continue, skip or abort once everything is resolved."
-  vc.conflicts.section.current: "Current conflict"
+  vc.conflicts.section.current: "This merge"
   vc.conflicts.section.currentNote: "Each row only does three things: pick a side, edit by hand, mark it resolved."
   vc.conflicts.section.merge: "Merge"
   vc.conflicts.section.perFile: "Per-file handling"
