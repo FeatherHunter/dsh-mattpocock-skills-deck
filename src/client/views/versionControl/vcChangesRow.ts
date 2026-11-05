@@ -171,7 +171,15 @@ const vcChangesHunksNodeOf = function (h: any, t: any, o: any): any {
     const head: any[] = vcChangesSideSplitOf(stagedLines, 'staged').head.length > 0
       ? vcChangesSideSplitOf(stagedLines, 'staged').head
       : vcChangesSideSplitOf(unstagedLines, 'unstaged').head
-    if (merged.length === 0) {
+    const primaryLines: any[] = Array.isArray(primary.lines) ? primary.lines : []
+    if (merged.length === 0 && primaryLines.length > 0) {
+      // 差异里没有 @@ 头（宿主只回了逐行内容，或者这份补丁本来就不成块）：照原样画出来。
+      //   把已经读到的内容说成「没有差异」是这几种里最糟的一种，宁可画一段没有块头的差异。
+      kids.push(h('pre', { key: 'raw', className: 'patch', 'data-vc-changes-diff-raw': '1' }, primaryLines.map(function (line: any, i: number) {
+        const kind: string = String(line.kind || 'context')
+        return h('span', { key: 'l' + i, className: 'diff-line ' + (VC_DIFF_LINE_CLASS[kind] || 'diff-ctx'), 'data-vc-diff-line': kind }, String(line.text === undefined || line.text === null ? '' : line.text) + '\n')
+      })))
+    } else if (merged.length === 0) {
       note('none', 'data-vc-changes-diff-none', t('vc.shell.history.diffNoDiff'))
     } else {
       const blocks: any[] = []

@@ -57,6 +57,10 @@ const CLOSURE_FILES = [
   'src/client/views/versionControl/vcSearchPage.ts',
   // #1829 身份行与同步带拆成独立叶子；壳只在渲染时调用它，覆盖验收拼进来才能渲染页面。
   'src/client/views/versionControl/vcShellIdentity.ts',
+  // #1902：改动页正文拆成三叶（纯规则 / 贴行确认与表单 / 一行）+ 页面本体；页面本体渲染时要调它们。
+  'src/client/views/versionControl/vcChangesHunks.ts',
+  'src/client/views/versionControl/vcChangesAct.ts',
+  'src/client/views/versionControl/vcChangesRow.ts',
   'src/client/views/versionControl/vcChangesView.ts',
   // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳渲染时要调它们。
   'src/client/views/versionControl/vcPageHead.ts',
