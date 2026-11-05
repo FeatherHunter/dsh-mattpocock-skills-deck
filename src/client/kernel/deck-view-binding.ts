@@ -32,6 +32,9 @@ declare const saveListPrefs: any;
 declare const peekNav: any;
 declare const fetchIssueComments: any;
 declare const idOfParts: any;
+// #1897：拉取请求片段的接线端口、选中命令背后的导航入口、重试命令背后的取数入口（三个都可能是缺席的，
+//   所以调用处一律用 typeof 守卫；门禁单独 import 本文件时按需把它们挂到 globalThis 上）。
+declare function deckPrPortOf(...args: any[]): any; declare function setActiveIssue(...args: any[]): any; declare function loadSnapshot(...args: any[]): any;
 
 // 纯视图模型那一片由构建排在本片之前拼进同一个闭包（scripts/build.mts 的 kernel 清单），所以这里只声明形状、
 // 不写运行时 import（构建侧 toSpliceableFragment 会拒收残留的 import）。门禁单独加载本文件时，先挂上
@@ -250,7 +253,9 @@ function deckReadingFromStore(scope: DeckViewScope, st: any, openIssue: any): an
     activeIssueEffort: openIssue.effort,
     activeMap: (st && st.activeMap !== undefined) ? st.activeMap : null,
     // #1895：当前容器属于哪个工作单元（导航栈的 effort 镜像）；同号不同工作单元的容器靠它分开。
-    activeMapEffort: (st && st.activeEffortId !== undefined && st.activeEffortId !== null) ? String(st.activeEffortId) : '',
+    // #1897：没开着容器时这一格是空串 —— 会话存储上的 activeEffortId 也记当前票的工作单元，
+    //   直接照抄会把「选了一张票」误读成「开了一个容器」，选中一次就白重算一次地图详情。
+    activeMapEffort: (st && st.activeMap !== undefined && st.activeMap !== null) ? ((st.activeEffortId !== undefined && st.activeEffortId !== null) ? String(st.activeEffortId) : '') : '',
     draft: (st && typeof st.cmtDraft === 'string') ? st.cmtDraft : '',
     pageRows: deckPageRowsOf(scope, st),
   })
@@ -309,6 +314,8 @@ function deckPortsOf(scope: DeckViewScope, frame: any, st: any): any {
         comments: { loading: input.loading === true, failCount: Number(input.failCount || 0) },
       })
     },
+    // #1897：拉取请求页这一屏的行与三态也从这个帧里取（只换版本才重算）；页面点开一行只改阅读态。
+    prListOf: function (f: any): any { return (typeof deckPrPortOf === 'function') ? deckPrPortOf(f) : null },
     // #1896：「加载更多评论」命令背后那趟读取。视图只喊命令，电话在这里；取数函数缺席时什么都不做，
     // 视图那边按「这一趟没有取数通路」处理（与改造前同一口径）。
     loadMoreComments: function (payload: any): any {
@@ -382,8 +389,11 @@ export function deckViewCommand(st: any, name: string, payload?: any, scopeOverr
   const view = deckViewOf(st, scope)
   const result = view.command(name, payload)
   if (result.changed.indexOf('filters') >= 0) deckMirrorFilters(st, result.filters, name, scope)
+  // #1897：拉取请求页的「重试」只是一条命令 —— 取数入口在接线层，视图自己不再调 loadSnapshot。
+  if (name === 'retrySnapshot') { if (typeof loadSnapshot === 'function') loadSnapshot(st, true); return null }
   try {
-    if (name === 'openIssue') { st.activeIssue = result.reading.activeIssue; st.activeEffortId = result.reading.activeIssueEffort }
+    // #1897：「选中一行」= 改视图模型的阅读态 + 交给导航入口（压栈换屏）；这一路上不打电话、不取数。
+    if (name === 'openIssue') { if (typeof setActiveIssue === 'function') setActiveIssue(st, result.reading.activeIssue, result.reading.activeIssueEffort); else { st.activeIssue = result.reading.activeIssue; st.activeEffortId = result.reading.activeIssueEffort } }
     if (name === 'openMap') {
       // #1895：容器身份是 (effort, 编号) 两段；镜像回会话存储时两段一起写，读方（导航与视图模型）才对得上。
       st.activeMap = result.reading.activeMap

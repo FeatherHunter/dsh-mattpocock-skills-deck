@@ -17,6 +17,8 @@
  *                 随投影与阅读态变，换版本或换容器才重算（#1895）。
  *   issueDetail —— 票详情这一屏的数据（正文、评论、评审、状态）；同样由端口从投影与按需详情里取，
  *                 随投影、阅读态与详情取数状态变（#1896）。「加载更多评论」是它的一条命令。
+ *   prList     —— 拉取请求这一屏的行与三态（打开 / 已关闭 / 已合并），由端口从投影里取（#1897）；
+ *                 只随投影变，换一行选中、改筛选都不重算（点开一行不触发取数、也不重画列表）。
  *
  * 三条不能改的约定：
  *  1. 同一版本直接复用：adopt 收到与手上相同的版本号时，一个切片都不重算、一个订阅都不通知。
@@ -31,7 +33,7 @@
  */
 
 /** 切片名。视图只许订阅这些名字；改名等于改契约，要连同调用方一起改。 */
-export type DeckViewSliceName = 'projection' | 'filters' | 'rows' | 'counts' | 'readout' | 'reading' | 'mapDetail' | 'issueDetail'
+export type DeckViewSliceName = 'projection' | 'filters' | 'rows' | 'counts' | 'readout' | 'reading' | 'mapDetail' | 'issueDetail' | 'prList'
 
 /** 会话私有的筛选与排序。数组总是新拷贝，命令里不原地改调用方传进来的数组。 */
 export interface DeckFiltersState {
@@ -77,6 +79,8 @@ export interface DeckViewPorts {
   mapDetailOf?(frame: DeckFrame, reading: DeckReadingState): any
   /** 票详情切片（#1896）：入参是投影帧、阅读态与调用方给的按需详情状态；不给时该切片恒为 null。 */
   issueDetailOf?(frame: DeckFrame, reading: DeckReadingState, detail: any): any
+  /** 拉取请求切片（#1897）：由调用方从同一份投影里收行；不给时该切片恒为 null。 */
+  prListOf?(frame: DeckFrame): any
   /** 「加载更多评论」命令背后的那一趟读取（#1896）。视图模型只负责喊它，电话在接线层里。 */
   loadMoreComments?(payload: any): any
 }
@@ -107,7 +111,7 @@ export interface DeckView {
   reading(): DeckReadingState
 }
 
-const DECK_SLICES: DeckViewSliceName[] = ['projection', 'filters', 'rows', 'counts', 'readout', 'reading', 'mapDetail', 'issueDetail']
+const DECK_SLICES: DeckViewSliceName[] = ['projection', 'filters', 'rows', 'counts', 'readout', 'reading', 'mapDetail', 'issueDetail', 'prList']
 const DECK_STATE_FILTERS: string[] = ['all', 'open', 'closed', 'blocked', 'frontier']
 const DECK_DEFAULT_FILTERS: DeckFiltersState = { stateFilter: 'all', lblFilters: [], effFilters: [], sortKey: 'number', sortDir: 'asc', expLabels: false }
 const DECK_DEFAULT_READING: DeckReadingState = { activeIssue: null, activeIssueEffort: '', activeMap: null, activeMapEffort: '', draft: '', pageRows: [] }
@@ -298,6 +302,8 @@ export function createDeckView(options: DeckViewOptions): DeckView {
     rebuildRows(changed)
     rebuildMapDetail(changed)
     rebuildIssueDetail(changed)
+    // #1897：拉取请求页的行与三态只随投影变；选中一行、改筛选都不惊动它（参考「点开一行不重画列表」）。
+    bump('prList', (typeof ports.prListOf === 'function') ? ports.prListOf(frame) : null, changed)
   }
   // 初始切片：构造那一刻不通知任何订阅者（还没有人订阅），但版本号从 0 开始记。
   rebuildFrameSlices([])

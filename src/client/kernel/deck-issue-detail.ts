@@ -11,6 +11,8 @@
  *   issue              要画的那份详情（与投影结果里的 issue 是同一个对象，不是拷贝）；
  *   source             'live'（这一趟取回的）/ 'snapshot'（从本地快照库读回的）/ 'none'（什么都没有）；
  *   state              状态：**优先取投影里同一张票的那一行**（与列表同一个来源）；行不在时才退回详情自己的；
+ *   mergedAt           合并时间：行上表达了这一格就以行为准（拉取请求页的三态与详情页共用同一格）；
+ *                      行上没有这一格时才退回详情自己的，不把详情已知的「已合并」降级成「已关闭」；
  *   stateKnown         状态是不是真的知道（两边都没有时是 false，不编一个 OPEN）；
  *   reviews            评审数组（详情带的那一份；没有就是空数组，不补假值）；
  *   comments           评论：nodes（详情连接里那一个数组）、known / unknown（知道有几条 vs 还没取过）、
@@ -54,6 +56,7 @@ export interface DeckIssueDetail {
   relationsNotice: string
   commentsAvailable: boolean
   state: string
+  mergedAt: any
   stateKnown: boolean
   reviews: any[]
   comments: DeckIssueComments
@@ -82,6 +85,7 @@ function emptyDetail(): DeckIssueDetail {
     relationsNotice: '',
     commentsAvailable: false,
     state: '',
+    mergedAt: undefined,
     stateKnown: false,
     reviews: [],
     comments: { nodes: [], known: false, unknown: false, hasMore: false, total: null, loading: false, failCount: 0 },
@@ -109,6 +113,8 @@ export function deckIssueDetailOf(input: any): DeckIssueDetail | null {
   const rowState: string = (row && row.state !== undefined && row.state !== null) ? String(row.state) : ''
   const issueState: string = (issue && issue.state !== undefined && issue.state !== null) ? String(issue.state) : ''
   const state: string = rowState || issueState
+  // #1897：合并时间跟着状态一起问投影行（行上没这一格时才退回详情）：页签与详情对同一张票说同一个三态。
+  const mergedAt: any = (row && row.mergedAt !== undefined) ? row.mergedAt : (issue ? issue.mergedAt : undefined)
   const loading: boolean = !!(input && input.comments && input.comments.loading === true)
   const failCount: number = Number((input && input.comments && input.comments.failCount) || 0)
   const comments: DeckIssueComments = {
@@ -133,6 +139,7 @@ export function deckIssueDetailOf(input: any): DeckIssueDetail | null {
     relationsNotice: String(view.relationsNotice || ''),
     commentsAvailable: view.commentsAvailable === true,
     state: state,
+    mergedAt: mergedAt,
     stateKnown: !!state,
     reviews: (issue && Array.isArray(issue.reviews)) ? issue.reviews : [],
     comments: comments,

@@ -213,7 +213,9 @@ export const IssueDetail = function (props: any): any {
       // #599：状态显示三种（打开 / 已关闭 / 已合并）。两种来源都是契约形状（已合并的收成「已关闭」、
       //   合并时间留在 mergedAt），所以判据只看合并时间 —— 那判据收在 views/shared/stateKind.js，
       //   与拉取请求页共用一份，本文件不再自己判。
-      const stateKind = prStateKind({ state: stateRaw, mergedAt: src.mergedAt })
+      // #1897：合并时间也问视图模型切片（优先取投影行，与拉取请求页同一把尺子）；切片缺席时退回详情自己的。
+      const stateMergedAt = (proj.mergedAt !== undefined) ? proj.mergedAt : src.mergedAt
+      const stateKind = prStateKind({ state: stateRaw, mergedAt: stateMergedAt })
       const isOpen = stateKind === 'open'
       const isMerged = stateKind === 'merged'
       const stateColor = isOpen ? '#3fb950' : (isMerged ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : '#8b949e')

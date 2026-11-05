@@ -2,7 +2,9 @@
  * views/PrTab.ts — 拉取请求独立页签内容区（#506 前端房，首版只读加评论查看）
  * 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export 拼回
  * src/client/index.ts 的 leaf 标记处（源码树里只有这一份真源，标记 id 与本文件名一致）。
- * 数据：快照组装全留，过滤归前端（prIssuesOf 只收 isPullRequest 为真的票）。
+ * 数据（#1897 起）：列表与三态（打开 / 已关闭 / 已合并）都来自视图模型的 prList 切片 —— 行是投影行的
+ *   拷贝、每行带 stateKind，页面只照着画；点开一行只喊「选中」命令，重试也只喊一条命令，页面自己不取数。
+ *   没有这一片时（单文件求值的门禁）退回改造前从会话存储挑行（prIssuesOf）的做法，行为与改造前一致。
  * 门控：页签显隐由 prTabVisible 驱动（只读能力位，不写后端名字）；无能力回列表由容器侧回退。
  * 列表过滤器接线（#506 小修：消除登记未接线）：本列表以 prFilterForList() 为过滤依据（见下方接线点），
  * 后端直调示例：listIssues({ refId: 'owner/name' }, prFilterForList(), ctx)，即只取拉取请求；
@@ -25,14 +27,16 @@
 //   把各叶子拼进同一个函数作用域后提供（真机上有值）。类型检查时本文件是独立看的，所以这里只声明形状、
 //   不参与转译：declare 是纯类型语法，esbuild 转译时会整句删掉，产物里不留痕。
 declare function Ic(...args: any[]): any;
+// #1897：三态本来就从视图模型切片来；这一份共享判据只在切片缺席时兜底（与改造前同一个判据）。
 declare function prStateKind(...args: any[]): any;
+// #1897：列表、选中与重试都走视图模型 —— 页面不再直接调取数函数、也不再自己动导航。
+declare function useDeckViewSlice(...args: any[]): any;
+declare function deckViewCommand(...args: any[]): any;
 declare const buildColorOf: any;
 declare const darken: any;
 declare const hexA: any;
-declare const loadSnapshot: any;
 declare const prFilterForList: any;
 declare const prIssuesOf: any;
-declare const setActiveIssue: any;
 declare const CONTAINER_ACCENT: any;
 declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 
@@ -40,15 +44,20 @@ export const PrTab = function (props: any) {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const st = props.st
+  // #1897：列表与三态都从视图模型的 prList 切片取（只换库版本才重算）；切片缺席时才退回改造前的挑行做法。
+  const deckPrs = (typeof useDeckViewSlice === 'function') ? useDeckViewSlice(st, 'prList') : null
   // 接线点：过滤依据取自 prFilterForList（与后端 listIssues 的 ListFilter 同形，调用示例见文件头注释）。
   const listFilter = (typeof prFilterForList === 'function') ? prFilterForList() : { isPullRequest: true }
   const onlyPr = !(listFilter && listFilter.isPullRequest === false)
-  const candidates = (typeof prIssuesOf === 'function') ? prIssuesOf(st) : []
+  const candidates = (deckPrs && Array.isArray(deckPrs.rows)) ? deckPrs.rows : ((typeof prIssuesOf === 'function') ? prIssuesOf(st) : [])
   const prs = onlyPr ? candidates.filter(function (x: any) { return x && x.isPullRequest === true }) : candidates
-  const doRetry = function () { if (typeof loadSnapshot === 'function') loadSnapshot(st, true) }
+  // #1897：重试只是一条视图模型命令，取数电话在接线层；页面自己不再调 loadSnapshot。
+  const doRetry = function () { if (typeof deckViewCommand === 'function') deckViewCommand(st, 'retrySnapshot') }
+  // #1897：点开一行走「选中」命令 —— 只改选中态并交给导航入口，不取数、不重画列表。
   const openPr = function (x: any) {
     var n = (x && x.number != null) ? x.number : (x && x.key != null ? Number(x.key) : null)
-    if (typeof setActiveIssue === 'function') setActiveIssue(st, n)
+    var eff = (x && x.effortId !== undefined && x.effortId !== null) ? String(x.effortId) : ''
+    if (typeof deckViewCommand === 'function') deckViewCommand(st, 'openIssue', { number: n, effortId: eff })
   }
   if (st.snapMode === 'loading' && !st.snapshot) {
     return h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 12 } }, [
@@ -91,14 +100,16 @@ export const PrTab = function (props: any) {
   }
   return h('div', null, sorted.map(function (x: any) {
     var key = (x.key != null ? x.key : x.number)
-    var stl = STATE_STYLE[prStateKind(x)]
+    // #1897：三态优先读切片行上的 stateKind（与详情页同一份数据、同一个判据）；切片缺席时才自己判。
+    var kind = (x && typeof x.stateKind === 'string' && x.stateKind) ? x.stateKind : prStateKind(x)
+    var stl = STATE_STYLE[kind] || STATE_STYLE.open
     var login = (x.author && x.author.login) ? String(x.author.login) : ''
     var labels = Array.isArray(x.labels) ? x.labels : []
     var upd = x.updatedAt ? String(x.updatedAt).slice(0, 10) : ''
     // 本次界面反馈需求：整行能点，接上委托按压态与点击日志（行里的元素另有各自分别的值）。
     //   定位串只带 PR 号，标题不进定位串。
     // #1379 收口：状态种类同时标成 data-state，浅色层按状态把状态字换成深一档的颜色（内联色不动）。
-    return h('div', { key: String(key), className: 'dsws-aggrow', 'data-state': prStateKind(x), tabIndex: 0, role: 'button', 'data-press': 'row', 'data-log': 'pr.row.' + key, 'aria-label': '#' + String(key) + ' ' + String(x.title || ''), onClick: function () { openPr(x) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer' } }, [
+    return h('div', { key: String(key), className: 'dsws-aggrow', 'data-state': kind, tabIndex: 0, role: 'button', 'data-press': 'row', 'data-log': 'pr.row.' + key, 'aria-label': '#' + String(key) + ' ' + String(x.title || ''), onClick: function () { openPr(x) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer' } }, [
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
         h('span', { className: 'dsws-idnum', style: { color: stl.color, borderColor: stl.color } }, '#' + String(key)),
         h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: 600 } }, String(x.title || ('#' + String(key)))),
