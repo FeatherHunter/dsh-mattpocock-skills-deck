@@ -62,7 +62,8 @@ async function main () {
   // ─────────── 一、三个后端真实科目互不串味 ───────────
   // #1687 阶段 1 收口：房间入口整份搬进 room/，抠提示词要看真身。
   const ghSrc = read(path.join('src', 'tracker', 'rooms', 'github', 'room', 'index.ts'))
-  const glSrc = read(path.join('src', 'tracker', 'rooms', 'gitlab', 'index.ts'))
+  // #1907 收口：GitLab 的提示文案搬进 room/prompts.ts，抠真文本的路径跟着换。
+  const glSrc = read(path.join('src', 'tracker', 'rooms', 'gitlab', 'room', 'prompts.ts'))
   const mdSrc = read(path.join('src', 'tracker', 'rooms', 'markdown', 'index.ts'))
   // #725：三后端各自的 prompts.bodyFormat 整节删除，这里不再从后端抠那一条。
   const ghM: any = { id: 'github', prompts: { healthCheck: promptsOf(ghSrc, 'healthCheck'), subIssue: promptsOf(ghSrc, 'subIssue') } }

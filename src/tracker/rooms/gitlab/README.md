@@ -57,7 +57,7 @@ GitHub 那种「背景色 + 前景色」的双色在 GitLab 不存在：一条�
 
 ```
 src/tracker/rooms/gitlab/
-├── index.ts                 入口：模块对象、工厂、识别（matches）与提示文案
+├── index.ts                 入口：模块对象、工厂与识别（matches）
 ├── requests.ts              请求边界：每个远端端点一个具名函数
 ├── client.ts                进程边界：唯一跑 glab 的地方
 ├── queries.ts               API 地址与查询串的拼法
@@ -122,6 +122,7 @@ src/tracker/rooms/gitlab/
 │
 └── room/
     ├── links.ts            票与仓库的链接、地址、识别用默认站点
+    ├── prompts.ts          契约注入、修复指引与体检的提示文案
     └── fixes.ts            检查失败时界面上的修复指引
 ```
 

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T12:02:22.584Z",
+  "generatedAt": "2026-11-05T12:15:42.745Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 592,
   "gateCount": 592,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 136,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 957,
+  "graphFileCount": 958,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -8079,7 +8079,7 @@
         "src/client/kernel/prompts.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/rooms/github/room/index.ts",
-        "src/tracker/rooms/gitlab/index.ts",
+        "src/tracker/rooms/gitlab/room/prompts.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/prompt-data.ts",
         "tests/lib/source-text.ts"
@@ -8088,7 +8088,7 @@
         "src/client/kernel",
         "src/shared/time-config/src",
         "src/tracker/rooms/github/room",
-        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/gitlab/room",
         "src/tracker/rooms/markdown",
         "tests/lib"
       ],
@@ -12122,6 +12122,7 @@
         "src/refresh/rooms/host",
         "src/tracker/rooms",
         "src/tracker/rooms/github/room/index.ts",
+        "src/tracker/rooms/gitlab/room/prompts.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts",
         "tests/prompt-gate-exempt.json",
@@ -12142,6 +12143,7 @@
         "src/refresh/rooms/host",
         "src/tracker/rooms",
         "src/tracker/rooms/github/room",
+        "src/tracker/rooms/gitlab/room",
         "tests",
         "tests/lib"
       ],
@@ -12149,7 +12151,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 16 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 17 条"
     },
     {
       "step": "node tests/verify-read-result-provenance.ts",
@@ -15873,7 +15875,6 @@
       "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-1785-assign-unknown.ts",
       "node tests/verify-1827-double-anchor.ts",
-      "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
@@ -15886,6 +15887,10 @@
       "node tests/verify-tracker-contract.ts",
       "node tests/verify-tracker-session.ts",
       "node tests/verify-ui-description-single-source.ts"
+    ],
+    "src/tracker/rooms/gitlab/room": [
+      "node tests/verify-686-accept.ts",
+      "node tests/verify-prompts.ts"
     ],
     "src/tracker/rooms/markdown": [
       "node tests/verify-deck-tools-matrix.ts",
@@ -16335,12 +16340,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 980,
+    "fileCount": 981,
     "dirCount": 101,
-    "coveredFileCount": 980,
+    "coveredFileCount": 981,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 75,
+    "dedicatedDirCount": 76,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -17218,6 +17223,7 @@
       "src/tracker/rooms/gitlab/requests.ts",
       "src/tracker/rooms/gitlab/room/fixes.ts",
       "src/tracker/rooms/gitlab/room/links.ts",
+      "src/tracker/rooms/gitlab/room/prompts.ts",
       "src/tracker/rooms/gitlab/support/capability-register.ts",
       "src/tracker/rooms/gitlab/support/read-log.ts",
       "src/tracker/rooms/gitlab/support/read-sources.ts",
@@ -17492,6 +17498,7 @@
       "src/tracker/rooms/github/transport",
       "src/tracker/rooms/github/write",
       "src/tracker/rooms/gitlab",
+      "src/tracker/rooms/gitlab/room",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
       "src/tracker/session",
@@ -17595,10 +17602,6 @@
       {
         "path": "src/tracker/rooms/gitlab/repo",
         "fileCount": 3
-      },
-      {
-        "path": "src/tracker/rooms/gitlab/room",
-        "fileCount": 2
       },
       {
         "path": "src/tracker/rooms/gitlab/support",

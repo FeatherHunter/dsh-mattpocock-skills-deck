@@ -41,7 +41,8 @@
 // 五面（缺一处即漏，见 .scratch/573-gate-design-v2.md §1.1）：
 //   S1 config/prompts/ 下的五份模板 YAML（解析真源；字段不对或 YAML 坏掉直接判红，不静默少扫）
 //   S2 client.js / package/lib/client.js（从产物里解析出提示词数据 + id 集合与逐字段等于 S1）
-//   S3 src/tracker/rooms/{github,gitlab,markdown}/index.{ts,js} 的 prompts 块（逐字符词法扫描，含拼接续段）
+//   S3 三个后端的 prompts 块（逐字符词法扫描，含拼接续段）：github 读 room/index.ts、gitlab 读 room/prompts.ts、
+//      markdown 读 index.ts；#1907 起 GitLab 的提示文案搬进 room/prompts.ts，门禁跟着源码换读取路径。
 //   S4 src/host/** 与 src/refresh/rooms/host/** 的 *_PROMPT 常量（#1427 起后者加入）
 //   S5 S1 里含 {占位符} 的条目：占位符先求值（真实值 / 空串 / 哨兵三种展开）再判，另加「值形态」与「拆占位符拼装」两道
 //
@@ -110,7 +111,10 @@ const EXPECT_BACKEND_KEYS = { github: 9, gitlab: 8, markdown: 3 }
 //   修法提示与原文另走界面那两条路，不放这里，所以只加两条短句。
 // #1514：markdown 的 wayfinderMapBuild（zh/en 两条短句）整条删除，字面量 markdown 7 → 5；github / gitlab 不动。
 // #1190：通用键别名与旧键同文（每条 zh/en 各一字面量），字面量 github +2（cliLogin）、gitlab +4（cliInstall/cliLogin）；markdown 不动。
-const EXPECT_BACKEND_LITERALS = { github: 52, gitlab: 16, markdown: 5 }
+// #1907 收口：GitLab 的提示文案搬进 room/prompts.ts，两对历史别名（glabInstallFix/cliInstall、
+// glabLoginFix/cliLogin）共用同一份文本，prompts 块内的字面量从 16 降到 12（4 份共享文本提到块外，
+// 由下面的 S3 扫描整个文件把它们算回来）。
+const EXPECT_BACKEND_LITERALS = { github: 52, gitlab: 12, markdown: 5 }
 // #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，此后很长一段时间 src/host 全树一个
 //   *_PROMPT 常量都没有（本行原为 0）。#839 起有一个真的了：src/refresh/rooms/host/gh-execution.js 的
 //   GIT_TERMINAL_PROMPT: '0'（非交互环境那一条固定前缀）。门禁口径是「≥ 这个数」，合法新增不判红，
@@ -1253,7 +1257,10 @@ const surfaceReport = { S1: 0, S2: [0, 0], S3: [], S4: 0, S5: 0, S6: 0, S7: 0, S
 const BACKENDS = ['github', 'gitlab', 'markdown']
 // #1687 阶段 1 收口：github 的房间入口整份搬进 room/，另外两房入口仍在各自房间根。
 const backendRel = function (id) {
-  return id === 'github' ? 'src/tracker/rooms/github/room/index.ts' : 'src/tracker/rooms/' + id + '/index.ts'
+  // #1907 收口：GitLab 的提示文案搬进 room/prompts.ts；github 早在 #1687 搬进 room/index.ts。
+  if (id === 'github') return 'src/tracker/rooms/github/room/index.ts'
+  if (id === 'gitlab') return 'src/tracker/rooms/gitlab/room/prompts.ts'
+  return 'src/tracker/rooms/' + id + '/index.ts'
 }
 const backendPath = function (id, probe) {
   if (id === 'github' && probe) return probe
@@ -1335,10 +1342,12 @@ const collectRegistry = function (reg, label, ctx, exemptList) {
 // #603：github 后端声明面允许 gh 命令（领导拍板 gh 直连），所以只有这一个面传 allowTracker；
 //   gitlab / markdown 后端声明面判据与原来一样（不许 gh 命令），R8 三个面都判。
 const allowTrackerOnBackend = function (backendId) { return backendId === 'github' }
-const collectBackend = function (backendId, src, label, exemptList) {
+const collectBackend = function (backendId, src, label, exemptList, literalSource) {
   const block = extractObjectLiteral(src, 'export const prompts')
   if (!block) return { problems: ['FAIL S3 ' + label + ' 找不到 export const prompts 块（扫描面缺失）'], keys: [], literals: 0, found: false }
-  const literals = scanAllLiterals(block)
+  // #1907：GitLab 的共享文案提到 prompts 块外（两个 const），所以该面的字面量按整个文件扫，
+  // 键数仍只数 prompts 块；其余后端保持只扫块内，避免把入口里的无关字符串算进来。
+  const literals = scanAllLiterals(literalSource === undefined ? block : literalSource)
   const keys = countTopLevelKeys(block)
   const allowTracker = allowTrackerOnBackend(backendId)
   const out = []
@@ -2485,7 +2494,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '3fc57e0ba1d0a115d13509ccd2d564d9950441973dd2372bef397a0201315779',
+  'tests/verify-prompts.ts': 'bf75d022732f0907185cc1fb69eaabd53011dc756bb843d7ff6c7bee621bfaa0',
 }
 // ---- LOCK-END ----
 
@@ -2883,7 +2892,8 @@ if (!singleFileMode) {
     const pS3 = problems.length
     const p = backendPath(b, backendProbe)
     if (!fs.existsSync(p)) { fail('S3 缺后端文件 ' + p); return }
-    const got = collectBackend(b, fs.readFileSync(p, 'utf8'), backendLabel(b, backendProbe), EXEMPT)
+    const srcText = fs.readFileSync(p, 'utf8')
+    const got = collectBackend(b, srcText, backendLabel(b, backendProbe), EXEMPT, b === 'gitlab' ? srcText : undefined)
     got.problems.forEach(function (m) { fail(m) })
     if (!got.found) return
     surfaceReport.S3.push(got.keys.length)

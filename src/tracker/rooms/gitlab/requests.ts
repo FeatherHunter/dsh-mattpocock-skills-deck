@@ -182,16 +182,23 @@ export function requestCommentCreate(
  * @param body 建票要带的标题、正文与标签（正文与标签为空或省略时不发）
  * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
  */
+export function issueCreateArgs(
+  refId: string,
+  body: { title: string; description?: string; labels?: string },
+): string[] {
+  const args = ['api', `${projectPath(refId)}/issues`, '--method', 'POST', '-f', `title=${body.title}`]
+  if (body.description) args.push('-f', `description=${body.description}`)
+  if (body.labels) args.push('-f', `labels=${body.labels}`)
+  return args
+}
+
 export function requestIssueCreate(
   opCtx: MaybeCtx,
   refId: string,
   body: { title: string; description?: string; labels?: string },
   timeoutMs: number,
 ): Promise<GlabRunResult> {
-  const args = ['api', `${projectPath(refId)}/issues`, '--method', 'POST', '-f', `title=${body.title}`]
-  if (body.description) args.push('-f', `description=${body.description}`)
-  if (body.labels) args.push('-f', `labels=${body.labels}`)
-  return clientOf(opCtx).run(args, { timeout: timeoutMs })
+  return clientOf(opCtx).run(issueCreateArgs(refId, body), { timeout: timeoutMs })
 }
 
 /**

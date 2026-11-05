@@ -131,8 +131,8 @@ export async function createIssue(
     if (written.verdict.verdict !== 'created') {
       // 原文 = 建票那一次写路径的判据对象（回包形状、超时/EOF 都在里面）+ 这次实际发了几次请求。
       // 请求形状已经收进 requests.ts，argv 不再经过这里；判据与次数合起来仍够人判断「那次写到底有没有落到远端」。
-      const writeRaw = JSON.stringify({ verdict: written.verdict, attempts: written.attempts })
-      return fail(createWriteFailureKind(written.verdict), createWriteFailureMessage(written.verdict, idemKey, written.attempts), writeRaw)
+      const writeRaw = JSON.stringify({ verdict: written.verdict, argvs: written.argvs })
+      return fail(createWriteFailureKind(written.verdict), createWriteFailureMessage(written.verdict, idemKey, written.argvs), writeRaw)
     }
     const raw = (written.verdict.issue || {}) as RawBag
     await fetchAugment(effective, id, raw)
