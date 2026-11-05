@@ -755,17 +755,26 @@ async function scenarioManage() {
     { action: 'merge', page: 'conflicts', sel: '[data-vc-conflicts-op="merge"]' },
     { action: 'rebase', page: 'rebase', sel: '[data-vc-rebase-op="rebase-onto"]' },
   ]
-  // #1846 任务一：指路文案必须与上面这张落点表一一对上。改之前文案写着「四个动作都在分支与标签页」，
+  // #1846 任务一：指路文案必须与上面这张落点表逐条对上。改之前文案写着「四个动作都在分支与标签页」，
   //   而合并与变基的真入口在冲突向导页与变基待办页——说假话的指路比不说更糟。
-  //   这里不另抄一份页名：页标题从词表读（vc.shell.page.<页>），目标页从落点表读，两边对不上就判红。
+  //   判据是「每个动作和它自己的那一页写在同一句里」，不是「这些页名在文案里出现过」：
+  //   只查出现过的话，把合并与变基的页名互换一下照样绿——那还是一条假指路。
+  //   文案用分号断句；动作词取自词表（「新建分支」在句子里写作「新建」，所以去掉「分支」后缀）。
   await m.click('[data-vc-branch-btn]')
   const ptrEl = m.q('[data-vc-branch-overlay] .vcs-branch-pointer')
   const ptrText = ptrEl ? String(ptrEl.textContent || '') : ''
-  const landingPageNames = landingCases
-    .map(function (one) { return tZh('vc.shell.page.' + one.page) })
-    .filter(function (name, i, all) { return all.indexOf(name) === i })
-  const missingPageNames = landingPageNames.filter(function (name) { return ptrText.indexOf(name) < 0 })
-  check(!!ptrText && missingPageNames.length === 0, 'T27c0 指路文案点名的页与四个落点一一对上（缺：' + (missingPageNames.length ? missingPageNames.join('、') : '无') + '；实得「' + ptrText + '」）')
+  const ptrClauses = ptrText.split(/[；。]/)
+    .map(function (line) { return line.trim() })
+    .filter(function (line) { return line.length > 0 })
+  const mispaired = landingCases.filter(function (one) {
+    const pageName = tZh('vc.shell.page.' + one.page)
+    const actionWord = tZh('vc.shell.branch.' + one.action).replace(/分支$/, '')
+    return !ptrClauses.some(function (line) { return line.indexOf(actionWord) >= 0 && line.indexOf(pageName) >= 0 })
+  })
+  check(
+    !!ptrText && mispaired.length === 0,
+    'T27c0 指路文案里每个动作都和自己的落点页写在同一句（不对的：' + (mispaired.length ? mispaired.map(function (one) { return one.action + '→' + tZh('vc.shell.page.' + one.page) }).join('、') : '无') + '；实得「' + ptrText + '」）'
+  )
   await m.click('[data-vc-branch-close]')
   for (const one of landingCases) {
     await m.click('[data-vc-branch-btn]')
