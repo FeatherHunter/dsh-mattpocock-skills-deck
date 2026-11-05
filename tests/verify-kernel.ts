@@ -49,6 +49,10 @@ const MODULES = [
   { name: 'storeSwitch', file: 'store-switch', exports: ['labelOf', 'presentationById', 'setPresentationMap', 'backendColorOf', 'backendBgOf', 'backendBorderOf', 'repoShortName', 'DEFAULT_SWITCH_PROMPT_ZH', 'openSwitchConfirm', 'closeSwitchConfirm', 'loadSwitchCri', 'confirmSwitchConfirm'] },
   { name: 'storeSnapshot', file: 'snapshot-cache-store', exports: ['makeStore', 'shared', 'stores', 'storeOf', 'emit', 'sub', 'useStore', 'SNAP_CWD_LRU_MAX', 'snapshotByCwd', 'touchLRUClient', 'getCachedSnapshot', 'getCachedEntry', 'setCachedSnapshot', 'getSnapshotVersion', 'lastProbeAtByCwd', 'getProbeAt', 'touchProbeAt', 'CHAIN_CWD_LRU_MAX', 'chainByCwd', 'getChainCacheKey', 'getCachedChain', 'setCachedChain', 'hydrateFromCache', 'mergeSelection', 'applySnapshotSelection', 'getCwdSync', 'NOTICE_COLOR', 'noticeIcon', 'flash'] },
   { name: 'storeDerived', file: 'store-derived', exports: ['compute', 'frontierAll', 'openIssuesOf', 'isOccupied', 'occCount', 'frontierCount', 'applyStandaloneBlocks', 'hasLabelOf', 'isTriageLike', 'bugCount', 'triageCount', 'buildColorOf', 'isLightHex', 'timeStampStr'] },
+  // #1894（规格 #1885 S6）：视图模型基座。登记在这里是为了「改了没重建要被拦下」——
+  //   产物新鲜度按 SOURCES 里的真源修改时间比，不登记就漏掉这两份真源。
+  { name: 'deckViewModel', file: 'deck-view-model', exports: ['createDeckView', 'deckFiltersOf', 'deckReadingOf'] },
+  { name: 'deckViewBinding', file: 'deck-view-binding', exports: ['deckViewOf', 'deckViewSliceOf', 'deckViewCountsOf', 'deckProjectionOf', 'deckViewCommand', 'useDeckViewSlice', 'useDeckViewFor', 'deckResolveSessionCwd', 'deckViewForgetFrames'] },
   { name: 'rowActions', file: 'row-actions', exports: ['rowActionKind', 'actionColorOf', 'rowActionText', 'mkRowAction'] },
   // #709（T5）：8 秒自轮询那对排期/取消函数已退役，换成事件驱动入口（四类事件共用一个出口）。
   { name: 'probeChain', file: 'probe-chain-subscription', exports: ['chainEventRefresh', 'CHAIN_EVENT_REASONS', 'loadChain', 'chainSteps', 'chainStep', 'chainStepStatus', 'chainStepOk', 'chainStepBad', 'readyCount', 'envTotal', 'envLabel', 'setupCheck', 'openBlockers', 'blockerNames', 'detectCwd'] },

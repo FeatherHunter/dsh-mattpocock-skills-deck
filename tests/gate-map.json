@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T00:13:28.956Z",
+  "generatedAt": "2026-11-05T01:01:41.443Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 576,
-  "gateCount": 576,
-  "attributedGates": 520,
+  "chainLength": 577,
+  "gateCount": 577,
+  "attributedGates": 521,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 119,
+  "completionRecordedGates": 120,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 913,
+  "graphFileCount": 915,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6852,6 +6852,30 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-1894-view-model.ts",
+      "file": "tests/verify-1894-view-model.ts",
+      "guards": [
+        "src/client/kernel/deck-view-binding.ts",
+        "src/client/kernel/deck-view-model.ts",
+        "src/client/statusbar/SessionChainCapsule.ts",
+        "src/client/statusbar/StatusBar.ts",
+        "src/client/statusbar/checksums.ts",
+        "src/client/views/ListTab.ts",
+        "src/client/views/listFilterRow.ts",
+        "src/client/views/mdEffortRow.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/client/views"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 52,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -12574,6 +12598,7 @@
         "src/client/floating/SkillFloatList.ts",
         "src/client/kernel/api-handoff.ts",
         "src/client/kernel/api-io.ts",
+        "src/client/kernel/deck-view-binding.ts",
         "src/client/kernel/motion.ts",
         "src/client/kernel/router.ts",
         "src/client/kernel/settings-debug.ts",
@@ -12793,7 +12818,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 173 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 174 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -14024,6 +14049,7 @@
       "node tests/verify-1833-list-sticky.ts",
       "node tests/verify-1866-write-ui.ts",
       "node tests/verify-1879-suggest-deck-gate.ts",
+      "node tests/verify-1894-view-model.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -14129,6 +14155,7 @@
       "node tests/verify-1661-banner-singleline.ts",
       "node tests/verify-1732-chain-menu-resize.ts",
       "node tests/verify-1879-suggest-deck-gate.ts",
+      "node tests/verify-1894-view-model.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -14181,6 +14208,7 @@
       "node tests/verify-1866-write-ui.ts",
       "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-1890-read-channels.ts",
+      "node tests/verify-1894-view-model.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -15861,9 +15889,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 936,
+    "fileCount": 938,
     "dirCount": 92,
-    "coveredFileCount": 936,
+    "coveredFileCount": 938,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 74,
@@ -15885,6 +15913,8 @@
       "src/client/kernel/ctx.ts",
       "src/client/kernel/deck-prompt-filter.ts",
       "src/client/kernel/deck-state.ts",
+      "src/client/kernel/deck-view-binding.ts",
+      "src/client/kernel/deck-view-model.ts",
       "src/client/kernel/detail-top-gate.ts",
       "src/client/kernel/entry-card.ts",
       "src/client/kernel/entry-choice.ts",

@@ -35,6 +35,10 @@ declare function saveListPrefs(...args: any[]): any
 declare const CONTAINER_ACCENT: any
 declare function useLiquidInk(...args: any[]): any
 declare function liquidInkRemember(...args: any[]): void
+// #1894：筛选与排序状态从视图模型取，命令也发给视图模型（只重画相关切片，不整棵 emit）。
+//   单文件求值的门禁里没有这一片，下面用 typeof 兜住并退回 st + emit。
+declare function deckViewOf(...args: any[]): any
+declare function deckViewCommand(...args: any[]): any
 
 // 药丸是圆角胶囊：墨块圆角 99px（页签那组用默认的 6px，由宿主自己的 data-ink-radius 决定）。
 const INK_RADIUS: string = '99px'
@@ -64,6 +68,9 @@ const logSlugOf = function (name: any): string {
 export const listFilterRowNode = function (h: any, st: any, colorOf: any, sortedLabels: any) {
   // 三块墨块共用一个宿主（这一行）：每块自己带 data-ink-group，只认本组的选中项。
   const hostRef = React.useRef(null)
+  // #1894：这一行读视图模型的 filters 切片；点下去走命令，命令自己只通知 filters/rows 两片。
+  const deckView = (typeof deckViewOf === 'function') ? deckViewOf(st) : null
+  const filters = deckView ? deckView.slice('filters') : st
   const stateInk = useLiquidInk(hostRef, 'state')
   const sortInk = useLiquidInk(hostRef, 'sort')
   const labelInk = useLiquidInk(hostRef, 'label')
@@ -89,14 +96,15 @@ export const listFilterRowNode = function (h: any, st: any, colorOf: any, sorted
         e.stopPropagation()
         liquidInkRemember(e.currentTarget, nm, 'label')
         // v1.5：多选 toggle —— 选中/取消单个标签，互不覆盖
-        const cur = st.lblFilters || []
-        st.lblFilters = isAll ? [] : (cur.indexOf(nm) >= 0 ? cur.filter(function (x: any) { return x !== nm }) : cur.concat([nm]))
+        const cur = filters.lblFilters || []
+        const next = isAll ? [] : (cur.indexOf(nm) >= 0 ? cur.filter(function (x: any) { return x !== nm }) : cur.concat([nm]))
         if (!isAll) {
           const c2 = labelClicks[nm] || { n: 0, ts: 0 }
           labelClicks[nm] = { n: c2.n + 1, ts: Date.now() }
           saveLabelClicks()
         }
-        emit(st)
+        if (deckView && typeof deckViewCommand === 'function') deckViewCommand(st, 'setLabelFilters', next)
+        else { st.lblFilters = next; emit(st) }
       },
       style: {
         cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10,
@@ -116,30 +124,36 @@ export const listFilterRowNode = function (h: any, st: any, colorOf: any, sorted
     stateInk, sortInk, labelInk,
     // #374/#375：状态过滤 + 排序 + label 过滤 chips（全部小号紧凑同排，窄屏换行不增高；展开态点选 label 不收起）
     ['all', 'open', 'closed', 'blocked', 'frontier'].map(function (k: any) {
-      const on = st.stateFilter === k
+      const on = filters.stateFilter === k
       return h('span', chipProps({ key: 'stf-' + k, className: 'dsws-chip' + (on ? ' dsws-ink-on' : ''), 'data-ink-group': 'state', 'data-ink-bg': STATE_INK_BG, 'data-ink-bd': STATE_INK_BD, 'data-press': 'chip', 'data-log': 'list.filter.state.' + k, onClick: function (e: any) {
         e.stopPropagation()
         liquidInkRemember(e.currentTarget, k, 'state')
-        st.stateFilter = k; listPrefs.stateFilter = k; saveListPrefs('stateFilter'); emit(st)
+        if (deckView && typeof deckViewCommand === 'function') deckViewCommand(st, 'setStateFilter', k)
+        else { st.stateFilter = k; listPrefs.stateFilter = k; saveListPrefs('stateFilter'); emit(st) }
       }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? STATE_INK_BG : 'rgba(255,255,255,.06)', color: on ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? STATE_INK_BD : 'rgba(255,255,255,.15)') } }), tr('list.state.' + k))
     }),
     h('span', { style: { width: 1, height: 12, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '0 4px 3px', flex: 'none' } }),
     ['updatedAt', 'createdAt', 'number', 'title'].map(function (k: any) {
-      const on = st.sortKey === k
-      const arrow = on ? (st.sortDir === 'asc' ? '↑' : '↓') : ''
+      const on = filters.sortKey === k
+      const arrow = on ? (filters.sortDir === 'asc' ? '↑' : '↓') : ''
       return h('span', chipProps({ key: 'srt-' + k, className: 'dsws-chip' + (on ? ' dsws-ink-on' : ''), 'data-ink-group': 'sort', 'data-ink-bg': SORT_INK_BG, 'data-ink-bd': SORT_INK_BD, 'data-press': 'chip', 'data-log': 'list.filter.sort.' + k, onClick: function (e: any) {
         e.stopPropagation()
         liquidInkRemember(e.currentTarget, k, 'sort')
-        if (st.sortKey === k) { st.sortDir = st.sortDir === 'asc' ? 'desc' : 'asc' }
-        else { st.sortKey = k; st.sortDir = (k === 'title') ? 'asc' : 'desc' }
-        listPrefs.sortKey = st.sortKey; listPrefs.sortDir = st.sortDir; saveListPrefs(['sortKey', 'sortDir']); emit(st)
+        const nextKey = k
+        const nextDir = (filters.sortKey === k) ? (filters.sortDir === 'asc' ? 'desc' : 'asc') : ((k === 'title') ? 'asc' : 'desc')
+        if (deckView && typeof deckViewCommand === 'function') deckViewCommand(st, 'setSort', { sortKey: nextKey, sortDir: nextDir })
+        else {
+          if (st.sortKey === k) { st.sortDir = st.sortDir === 'asc' ? 'desc' : 'asc' }
+          else { st.sortKey = k; st.sortDir = (k === 'title') ? 'asc' : 'desc' }
+          listPrefs.sortKey = st.sortKey; listPrefs.sortDir = st.sortDir; saveListPrefs(['sortKey', 'sortDir']); emit(st)
+        }
       }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? SORT_INK_BG : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? SORT_INK_BD : 'rgba(255,255,255,.15)') } }), tr('list.sort.' + k) + arrow)
     }),
     h('span', { style: { width: 1, height: 12, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '0 4px 3px', flex: 'none' } }),
-    chip(tr('list.all'), false, !st.lblFilters || !st.lblFilters.length, true, 0),
+    chip(tr('list.all'), false, !filters.lblFilters || !filters.lblFilters.length, true, 0),
     // #405：filter row 默认可见数 9 → 4（与 per-row 一致）；+N 触发条件 + 数字同步
-    (st.expLabels ? sortedLabels : sortedLabels.slice(0, 4)).map(function (nm: any, i: any) { return chip(nm, true, (st.lblFilters || []).indexOf(nm) >= 0, false, i) }),
-    (!st.expLabels && sortedLabels.length > 4) ? h(Tip, { content: tr('list.tagsTitle', { names: sortedLabels.join('、') }) }, h('span', chipProps({ key: 'lbl-more', className: 'dsws-chip', 'data-press': 'chip', 'data-log': 'list.filter.label.more', onClick: function (e: any) { e.stopPropagation(); st.expLabels = true; emit(st) }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px dashed rgba(188,140,255,.55)', cursor: 'pointer' } }), '+' + (sortedLabels.length - 4))) : null,
-    st.expLabels ? h(Tip, { content: tr('list.tagsCollapseTitle') }, h('span', chipProps({ key: 'lbl-less', className: 'dsws-chip', 'data-press': 'chip', 'data-log': 'list.filter.label.less', onClick: function (e: any) { e.stopPropagation(); st.expLabels = false; emit(st) }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(255,255,255,.06)', color: 'var(--dsws-label-caption,#8b8b95)', border: '1px dashed rgba(255,255,255,.3)', cursor: 'pointer' } }), tr('list.collapse'))) : null,
+    (filters.expLabels ? sortedLabels : sortedLabels.slice(0, 4)).map(function (nm: any, i: any) { return chip(nm, true, (filters.lblFilters || []).indexOf(nm) >= 0, false, i) }),
+    (!filters.expLabels && sortedLabels.length > 4) ? h(Tip, { content: tr('list.tagsTitle', { names: sortedLabels.join('、') }) }, h('span', chipProps({ key: 'lbl-more', className: 'dsws-chip', 'data-press': 'chip', 'data-log': 'list.filter.label.more', onClick: function (e: any) { e.stopPropagation(); if (deckView && typeof deckViewCommand === 'function') deckViewCommand(st, 'setExpandedLabels', true); else { st.expLabels = true; emit(st) } }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px dashed rgba(188,140,255,.55)', cursor: 'pointer' } }), '+' + (sortedLabels.length - 4))) : null,
+    filters.expLabels ? h(Tip, { content: tr('list.tagsCollapseTitle') }, h('span', chipProps({ key: 'lbl-less', className: 'dsws-chip', 'data-press': 'chip', 'data-log': 'list.filter.label.less', onClick: function (e: any) { e.stopPropagation(); if (deckView && typeof deckViewCommand === 'function') deckViewCommand(st, 'setExpandedLabels', false); else { st.expLabels = false; emit(st) } }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(255,255,255,.06)', color: 'var(--dsws-label-caption,#8b8b95)', border: '1px dashed rgba(255,255,255,.3)', cursor: 'pointer' } }), tr('list.collapse'))) : null,
   ])
 }

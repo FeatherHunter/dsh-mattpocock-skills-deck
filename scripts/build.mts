@@ -551,6 +551,11 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.ts' },
+  // #1894（规格 #1885 S6）：视图模型基座。纯片（视图模型本体）在前，接线片（帧共享、命令、切片订阅）在后；
+  //   接线片要用纯片的 createDeckView / deckFiltersOf / deckReadingOf，拼接次序按这条依赖关系排。
+  //   两片都声明在 src/client/index.ts 的 kernel:deckViewModel / kernel:deckViewBinding 标记处。
+  { name: 'deckViewModel', file: 'src/client/kernel/deck-view-model.ts' },
+  { name: 'deckViewBinding', file: 'src/client/kernel/deck-view-binding.ts' },
   // 行级动作全家从 store-derived.ts 原样抽出（那份越过每文件 350 有效行的门禁）；
   //   必须排在本条之后：findMapByIdentity 与 isLightHex 由 store-derived 定义。
   { name: 'rowActions', file: 'src/client/kernel/row-actions.ts' },

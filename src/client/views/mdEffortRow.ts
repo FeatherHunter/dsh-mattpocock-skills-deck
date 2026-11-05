@@ -39,6 +39,9 @@ declare function chipProps(...args: any[]): any
 declare function tr(...args: any[]): any
 declare const Tip: any
 declare function emit(...args: any[]): any
+// #1894：工作单元筛选是视图模型 filters 切片的一部分；点一下走命令，只重画列表相关切片。
+//   单文件求值的门禁里没有这一片，用 typeof 兜住，退回 st + emit（门禁量的就是这条退化路）。
+declare function deckViewCommand(...args: any[]): any
 
 /** 目录名显示宽度的上限：19 个数字字符的宽度（维护者的原话是「19 个数字的宽度」）。 */
 export const MD_EFFORT_LABEL_DIGIT_LIMIT: number = 19
@@ -195,7 +198,11 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
       className: 'dsws-chip dsws-hov',
       'data-press': 'chip',
       'data-log': 'list.effort.all',
-      onClick: function (e: any) { e.stopPropagation(); st.effFilters = []; emit(st) },
+      onClick: function (e: any) {
+        e.stopPropagation()
+        if (typeof deckViewCommand === 'function') deckViewCommand(st, 'setEffortFilter', [])
+        else { st.effFilters = []; emit(st) }
+      },
       style: Object.assign({}, chipLayout, mdEffortChipColors(!selected.length)),
     }), tr('list.all')),
     shown.map(function (nm: any, i: number) {
@@ -211,8 +218,9 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
         'data-log': 'list.effort.' + i,
         onClick: function (e: any) {
           e.stopPropagation()
-          st.effFilters = on ? [] : [nm]
-          emit(st)
+          const next = on ? [] : [nm]
+          if (typeof deckViewCommand === 'function') deckViewCommand(st, 'setEffortFilter', next)
+          else { st.effFilters = next; emit(st) }
         },
         style: Object.assign({}, chipLayout, mdEffortChipColors(on)),
       }), mdEffortLabelOf(nm, measureTextWidth)))
