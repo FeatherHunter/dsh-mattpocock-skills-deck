@@ -416,8 +416,12 @@ function buildFixture(): FixtureResult {
   gitRun(FIXTURE_REPO, ['config', 'commit.gpgsign', 'false'])
   gitRun(FIXTURE_REPO, ['config', 'tag.gpgsign', 'false'])
   gitRun(FIXTURE_REPO, ['config', 'gc.auto', '0'])
+  // #1877：提交选项里的「提交说明」一组按仓库配置的模板起名（套用 <文件名>）。原型截图上写的是
+  //   「套用 .gitmessage」，夹具配上同一份模板，并排比对时这一行才是同一个词。
+  gitRun(FIXTURE_REPO, ['config', 'commit.template', '.gitmessage'])
 
   writeFixtureFile(path.join(FIXTURE_REPO, 'README.md'), '# 1860 真机验证夹具仓库' + NEWLINE + NEWLINE + '这个仓库只用来给版本管理首屏提供真实数据，不是产品代码。' + NEWLINE + NEWLINE + STASH_BRANCH_NOTE + NEWLINE)
+  writeFixtureFile(path.join(FIXTURE_REPO, '.gitmessage'), '【摘要】' + NEWLINE + NEWLINE + '- 改了什么：' + NEWLINE + '- 为什么改：' + NEWLINE + '- 怎么验证：' + NEWLINE)
   writeFixtureFile(path.join(FIXTURE_REPO, 'docs', 'notes.md'), '# 迭代笔记' + NEWLINE + NEWLINE + '这份文件每次提交追加一行，储藏也拿它当素材。' + NEWLINE)
   writeFixtureFile(path.join(FIXTURE_REPO, 'src', 'client', 'views', 'shared', 'workRouteTable.ts'), workRouteTableSource(false))
   writeFixtureFile(path.join(FIXTURE_REPO, 'src', 'refresh', 'rooms', 'host', 'outbound-admission.ts'), outboundAdmissionSource(false))

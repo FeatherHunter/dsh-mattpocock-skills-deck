@@ -141,6 +141,27 @@ export function createHistoryQueryPhone(deps: any): (args: any) => Promise<any> 
     if (!exe) return failPhone('env', '找不到 git 命令，历史查询起不了进程')
     const base: any = await resolveRepoRoot(exe, cwdOf(args))
     if (base.ok !== true) return base
+    // 3.8 比较两个引用：先分别认一遍两端。认不出的那一端要原样说给用户听（「找不到『nope』这个引用」），
+    //   不能让 git 的 fatal 原文或者「当成 HEAD」糊过去 —— 区别在于：含糊的成功比明确的失败更坏。
+    //   认出来的完整提交号也带进回包：结果头要写清「比较的是哪两端」，写用户随手打的那几个字不够。
+    const ends: any = { leftOid: '', rightOid: '' }
+    if (kind === 'compare') {
+      const which: string[] = ['left', 'right']
+      const revs: string[] = [String((args && args.params && args.params.left) || ''), String((args && args.params && args.params.right) || '')]
+      for (let i = 0; i < which.length; i += 1) {
+        const check: any = await runPinned(exe, base.root, ['rev-parse', '--verify', '--quiet', revs[i] + '^{commit}'], { stdoutLimit: 4096 })
+        if (!check || check.kind !== 'ok') {
+          const env: any = failPhone('args', '找不到「' + revs[i] + '」这个引用')
+          env.error.reason = 'unknown-rev'
+          env.error.which = which[i]
+          env.error.rev = revs[i]
+          return env
+        }
+        const oid: string = String(check.stdout || '').trim()
+        if (which[i] === 'left') ends.leftOid = oid
+        else ends.rightOid = oid
+      }
+    }
     const res: any = await runPinned(exe, base.root, built.args, { stdoutLimit: limitOf(kind) })
     // 3.12 的特殊口径：目标没有备注时 git 退出码是 1。这不是失败，如实回「没有备注」。
     if (kind === 'notes' && res.kind === 'non-zero' && res.exitCode === 1) return { ok: true, kind: kind, note: null, reason: 'no-note' }
@@ -148,7 +169,11 @@ export function createHistoryQueryPhone(deps: any): (args: any) => Promise<any> 
     if (bad) return bad
     // 读不全就不交半份：blame 与 range-diff 不接长任务通道，超上限一律显式失败并写清上限。
     if (res.truncated) return failPhone('truncated', whatOf(kind) + '的输出超过了 ' + String(limitOf(kind)) + ' 字节上限，读不全就不给半份数据')
-    return payloadOf(kind, res.stdout)
+    const out: any = payloadOf(kind, res.stdout)
+    if (kind === 'compare' && out && out.ok === true) { out.leftOid = ends.leftOid; out.rightOid = ends.rightOid }
+    // 备注回包里带上「问的是哪条提交」：界面靠它判断这段备注属不属于正在看的那一条（换一条提交时草稿要跟着走）。
+    if (kind === 'notes' && out && out.ok === true) out.rev = String((args && args.params && args.params.rev) || 'HEAD')
+    return out
   }
 
   return handle

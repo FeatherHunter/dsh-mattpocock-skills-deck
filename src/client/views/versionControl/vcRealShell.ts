@@ -218,6 +218,21 @@ export const vcRealCallbacksOf = function (deps: any): any {
       actionsRef.current.historyCopy(intent && intent.oid)
       actionsRef.current.historyMenu('')
     },
+    // ———— #1903 提交历史页四条能力 ————
+    // 动作本体在 vcHistoryOps 叶里；这一层只把「点了什么」原样交给它（读多少、写不写都由那一层决定）。
+    historyScope: function (intent: any) { actionsRef.current.historyOps().scope(intent && intent.value) },
+    historyFileOnly: function (intent: any) { actionsRef.current.historyOps().fileOnly(intent && intent.path) },
+    historyFileOnlyClear: function () { actionsRef.current.historyOps().fileOnlyClear() },
+    historyFileMenu: function (intent: any) { actionsRef.current.historyOps().fileMenu(intent && intent.path) },
+    historyFileMenuClose: function () { actionsRef.current.historyOps().fileMenu('') },
+    historyFileRetry: function (intent: any) { actionsRef.current.historyOps().fileOnly(intent && intent.path) },
+    historyCompareOpen: function () { actionsRef.current.historyOps().compareToggle() },
+    historyCompareApply: function () { actionsRef.current.historyOps().compareApply() },
+    historyCompareCancel: function () { actionsRef.current.historyOps().compareClose() },
+    historyCompareEnd: function () { actionsRef.current.historyOps().compareEnd() },
+    historyCompareField: function (intent: any) { actionsRef.current.historyOps().compareField(intent && intent.which, intent && intent.value) },
+    historyNoteInput: function (intent: any) { actionsRef.current.historyOps().noteDraft(intent && intent.value) },
+    historyNoteSave: function () { actionsRef.current.historyOps().noteSave() },
     // ———— 管理页 ————
     // 分支浮层的五个动作项只是 span（壳里没给按钮），点它跳到分支板并把焦点送到对应动作按钮。
     branchOverlay: function (intent: any) {

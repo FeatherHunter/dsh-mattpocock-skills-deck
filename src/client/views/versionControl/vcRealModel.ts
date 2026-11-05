@@ -40,8 +40,18 @@ export const vcRealReadsNew = function (cwd: any): any {
   return reads
 }
 
+declare function vcNewNoteWrite(...args: any[]): any
+
 export const vcRealInitialUi = function (): any {
-  return { fileShown: {}, openDiff: '', openCommit: '', openFile: '', liveTick: 0, historyQuery: '', historyMergeOnly: false, historyMenu: '' }
+  return {
+    fileShown: {}, openDiff: '', openCommit: '', openFile: '', liveTick: 0,
+    historyQuery: '', historyMergeOnly: false, historyMenu: '',
+    // #1903 提交历史页四条能力：搜索范围、只看哪个文件、详情里哪一行的「⋯」开着、
+    //   比较两个引用的表单与结果、备注草稿与本次会话写过/删过的备注。
+    historyScope: 'message', historyFileOnly: '', historyFileMenu: '',
+    historyCompareOpen: false, historyCompareFrom: 'HEAD~1', historyCompareTo: 'HEAD', historyCompare: null,
+    historyNoteDraft: '', historyNoteFor: '', historyNotes: {}, historyNote: vcNewNoteWrite(),
+  }
 }
 
 // 新壳的导航状态：当前页、来源链（二级页的返回目标）、打开的浮层、搜索词与落点高亮，

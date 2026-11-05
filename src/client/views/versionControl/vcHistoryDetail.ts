@@ -13,6 +13,8 @@ declare function vcCommitWhenText(...args: any[]): any
 declare function vcOneLine(...args: any[]): any
 declare function vcCommitKeyOf(...args: any[]): any
 declare const vcPageIconOf: (h: any, kind: string, size: number) => any
+declare function vcHistoryFileMenuNode(...args: any[]): any
+declare function vcHistoryNoteNode(...args: any[]): any
 
 // 逐文件差异块（原型 .file-detail）：读到了就把逐行差异放进 pre，没读到 / 读失败 / 二进制 / 合并 / 截断各说各的。
 //   旧类名 vcs-hist-diff-lines / vcs-hist-diff-line / vcs-hist-line-<kind> 是门禁认的契约，一个都不删。
@@ -186,26 +188,45 @@ export const vcHistoryDetailOf = function (h: any, t: any, o: any) {
       const file: any = files[i] || {}
       const path: string = String(file.path || '')
       const expanded: boolean = String(ui.openFile || '') === path
-      filesKids.push(h('div', {
-        key: 'f-' + path, className: 'file-row commit-file' + (expanded ? ' is-open' : ''),
-        role: 'button', tabIndex: 0,
-        'data-vc-history-file': path,
-        'aria-expanded': expanded ? 'true' : 'false',
-        'aria-label': t('vc.shell.history.openFile', { path: path }),
-        title: path,
-        'data-press': 'button', 'data-log': 'vc.history.file.' + String(i),
-      }, [
-        h('span', { key: 'path', className: 'file-path' }, [
-          h('span', { key: 'dir', className: 'file-dir' }, vcHistoryDirOf(path)),
-          h('span', { key: 'name', className: 'file-name' }, vcHistoryNameOf(path)),
+      // 行尾的「⋯」与行本身是兄弟节点（原型 history.ts 的 commit-file-line）：一行是一个可点主体，
+      // 菜单不能嵌在它里面（点「更多」会连带触发整行的展开）。
+      const menuOpen: boolean = String(ui.historyFileMenu || '') === path
+      const line: any = h('div', { key: 'line', className: 'commit-file-line' }, [
+        h('div', {
+          key: 'row', className: 'file-row commit-file' + (expanded ? ' is-open' : ''),
+          role: 'button', tabIndex: 0,
+          'data-vc-history-file': path,
+          'aria-expanded': expanded ? 'true' : 'false',
+          'aria-label': t('vc.shell.history.openFile', { path: path }),
+          title: path,
+          'data-press': 'button', 'data-log': 'vc.history.file.' + String(i),
+        }, [
+          h('span', { key: 'path', className: 'file-path' }, [
+            h('span', { key: 'dir', className: 'file-dir' }, vcHistoryDirOf(path)),
+            h('span', { key: 'name', className: 'file-name' }, vcHistoryNameOf(path)),
+          ]),
+          h('span', { key: 'delta', className: 'file-delta' }, vcHistoryFileDeltaOf(h, file)),
+          h('span', { key: 'chev', className: 'row-chevron' + (expanded ? ' is-open' : ''), 'aria-hidden': 'true' }, vcPageIconOf(h, 'chevron', 12)),
         ]),
-        h('span', { key: 'delta', className: 'file-delta' }, vcHistoryFileDeltaOf(h, file)),
-        h('span', { key: 'chev', className: 'row-chevron' + (expanded ? ' is-open' : ''), 'aria-hidden': 'true' }, vcPageIconOf(h, 'chevron', 12)),
-      ]))
-      if (expanded) filesKids.push(vcHistoryFileDiffOf(h, t, { path: path, read: (opts.commitDiffs || {})[vcCommitKeyOf(rev, path)] || null }))
+        h('button', {
+          key: 'more', type: 'button', className: 'row-act row-more commit-file-more' + (menuOpen ? ' is-open' : ''),
+          'data-vc-history-file-more': path,
+          'aria-haspopup': 'menu',
+          'aria-expanded': menuOpen ? 'true' : 'false',
+          'aria-label': t('vc.shell.history.fileMenuOpen'),
+          title: t('vc.shell.history.fileMenuOpen'),
+          'data-press': 'button', 'data-log': 'vc.history.file-menu.' + String(i),
+        }, h('span', { key: 'dots', className: 'row-more-dots', 'aria-hidden': 'true' }, '⋯')),
+      ])
+      const wrapKids: any[] = [line]
+      if (menuOpen) wrapKids.push(vcHistoryFileMenuNode(h, t, { path: path }))
+      if (expanded) wrapKids.push(vcHistoryFileDiffOf(h, t, { path: path, read: (opts.commitDiffs || {})[vcCommitKeyOf(rev, path)] || null }))
+      filesKids.push(h('div', { key: 'f-' + path, className: 'commit-file-wrap' }, wrapKids))
     }
   }
   scrollKids.push(h('div', { key: 'files', className: 'detail-files' }, filesKids))
+  // 备注段排在文件清单之后（原型 91 / 92 的底部）：一条提交的注解，跟着这条提交走。
+  scrollKids.push(vcHistoryNoteNode(h, t, { ui: ui, reads: opts.reads }))
   return h(React.Fragment, { key: 'detail' }, [
     h('div', { key: 'head', className: 'detail-head' }, headKids),
     h('div', {

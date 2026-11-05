@@ -1078,6 +1078,142 @@ async function scenarioHistoryRedesign() {
   check(!m.q('[data-vc-history-detail="1"]') && m.qa('[data-vc-history-row]').length === 3, 'T36q 「返回提交历史」回到列表，不再画详情')
   await m.unmount()
 }
+// ---------------- 场景十五：#1903 历史页四条能力（单文件历史 / 按代码变化搜 / 比较两个引用 / 提交备注） ----------------
+// 依据：定稿截图 87–92 与 tickets #1903。这一段真挂载、真点、真数电话：
+//   范围切换只改本地筛选（不额外读）、代码范围按改到的文件路径命中并标出文件、
+//   比较两个引用真的打 wf.gitHistoryQuery（kind=compare）并把结果头与文件清单落在列表位置、
+//   认不出的引用原样说、文件行菜单真的打 wf.gitHistoryQuery（kind=file-history）、
+//   备注保存真的走 wf.gitNoteCheck → wf.gitNoteWrite 两条电话且写完后行上带标记。
+async function scenarioHistoryFourEntries() {
+  console.log('\n== 场景十五：历史页四条能力（范围 / 只看文件 / 比较 / 备注） ==')
+  const snap = snapshotOf()
+  const A = 'a'.repeat(40)
+  const B = 'b'.repeat(40)
+  const C = 'c'.repeat(40)
+  snap.slices.history.data = {
+    commits: [
+      { oid: A, short: 'aaaaaaa', author: '某甲', email: 'a@b.c', authorDateMs: NOW - 3600000, commitDateMs: NOW - 3600000, subject: '修建议气泡在输入框高时跳出', parents: [B], files: 2, paths: ['src/client/views/IssueDetail.ts'] },
+      { oid: B, short: 'bbbbbbb', author: '某乙', email: 'b@b.c', authorDateMs: NOW - 7200000, commitDateMs: NOW - 7200000, subject: '补一条说明', parents: [C], files: 1, paths: ['scripts/build.mts'] },
+      { oid: C, short: 'ccccccc', author: '某丙', email: 'c@b.c', authorDateMs: NOW - 3 * 86400000, commitDateMs: NOW - 3 * 86400000, subject: '更早的一条', parents: [], files: 1, paths: ['docs/a.md'] },
+    ], hasMore: false, readAtMs: NOW,
+  }
+  const queryCalls = []
+  const noteCalls = []
+  const host = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
+      'wf.gitDiff': function (args) {
+        if (String((args || {}).rev || '') !== '') {
+          return { ok: true, files: [{ path: 'src/client/views/IssueDetail.ts', added: 4, deleted: 2 }, { path: 'docs/b.md', added: 1, deleted: 0 }], truncated: false, reason: 'ok' }
+        }
+        return { ok: true, lines: [], reason: 'ok' }
+      },
+      'wf.gitHistoryQuery': function (args) {
+        const a = args || {}
+        queryCalls.push({ kind: String(a.kind || ''), params: a.params || {} })
+        if (String(a.kind) === 'compare') {
+          const left = String((a.params || {}).left || '')
+          if (left === 'nope') return { ok: false, error: { kind: 'args', reason: 'unknown-rev', which: 'left', rev: 'nope', message: '找不到「nope」这个引用' } }
+          return { ok: true, kind: 'compare', files: [{ path: 'src/client/views/IssueDetail.ts', added: 3, deleted: 1 }], total: 1, truncated: false, reason: 'ok', leftOid: B, rightOid: A }
+        }
+        if (String(a.kind) === 'file-history') {
+          return { ok: true, kind: 'file-history', path: String((a.params || {}).path || ''), commits: [snap.slices.history.data.commits[0]], count: 1, reason: 'ok' }
+        }
+        if (String(a.kind) === 'notes') return { ok: true, kind: 'notes', note: null, reason: 'no-note', rev: String((a.params || {}).rev || '') }
+        return { ok: false, error: { kind: 'args', message: 'unexpected' } }
+      },
+      'wf.gitNoteCheck': function (args) {
+        noteCalls.push({ phone: 'check', rev: String((args || {}).rev || ''), text: String((args || {}).text || '') })
+        return { ok: true, ticket: { id: 'tk-note', op: 'note', checkedAtMs: NOW, expiresAtMs: NOW + 120000 }, plan: { rev: A, text: String((args || {}).text || ''), removing: false, hadNote: false } }
+      },
+      'wf.gitNoteWrite': function (args) {
+        noteCalls.push({ phone: 'write', ticketId: String((args || {}).ticketId || ''), requestId: String((args || {}).requestId || '') })
+        return { ok: true, cmd: 'git notes add', rev: A, removing: false, note: '这一版为了兼容旧数据' }
+      },
+    },
+  })
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await m.click('[data-vc-tab="commits"]')
+
+  // 范围切换：代码范围按「这次提交改到的文件」找，命中行标出是哪份文件
+  check(m.qa('[data-vc-history-scope-btn]').length === 2, 'T41a 搜索框右边有「说明 / 代码变化」两颗范围按钮')
+  await m.click('[data-vc-history-scope-btn="code"]')
+  await m.type('[data-vc-history-query]', 'IssueDetail')
+  check(m.qa('[data-vc-history-row]').length === 1 && m.q('[data-vc-history-row="' + A + '"]') !== null,
+    'T41b 代码范围按文件路径命中：只剩改到 IssueDetail.ts 的那一条（实得 ' + m.qa('[data-vc-history-row]').length + ' 条）')
+  check(m.qa('[data-vc-history-hit]').length === 1 && String((m.q('[data-vc-history-hit]') || {}).getAttribute('data-vc-history-hit')) === 'src/client/views/IssueDetail.ts',
+    'T41c 命中行上标出命中的文件')
+  await m.click('[data-vc-history-scope-btn="message"]')
+  check(m.qa('[data-vc-history-row]').length === 0,
+    'T41d 切回说明范围，同一个词给出不同结果（说明里没有 IssueDetail.ts）')
+  check(queryCalls.length === 0, 'T41e 两种范围的筛选都在本地做，不为了搜索多发一次电话（实得 ' + queryCalls.length + ' 次）')
+  await m.type('[data-vc-history-query]', '')
+
+  // 比较两个引用：表单预填 HEAD~1/HEAD，比较后结果头与文件清单落在列表位置
+  await m.click('[data-vc-history-compare-open]')
+  const fromInput = m.q('[data-vc-history-compare-field="from"]')
+  const toInput = m.q('[data-vc-history-compare-field="to"]')
+  check(!!fromInput && !!toInput && String(fromInput.value) === 'HEAD~1' && String(toInput.value) === 'HEAD',
+    'T41f 比较表单预填 HEAD~1 与 HEAD（实得 ' + String((fromInput || {}).value) + ' / ' + String((toInput || {}).value) + '）')
+  await m.click('[data-vc-history-compare-apply]')
+  await settle()
+  const compareCall = queryCalls.filter(function (c) { return c.kind === 'compare' })[0]
+  check(!!compareCall && String(compareCall.params.left) === 'HEAD~1' && String(compareCall.params.right) === 'HEAD',
+    'T41g 点「比较」真的打 wf.gitHistoryQuery（kind=compare，两端原样交给宿主）')
+  check(!!m.q('[data-vc-history-compare-head]') && m.qa('[data-vc-history-compare-file]').length === 1 && m.qa('[data-vc-history-row]').length === 0,
+    'T41h 结果头与文件清单落在列表位置，比较时不画提交行')
+  await m.click('[data-vc-history-compare-end]')
+  check(!m.q('[data-vc-history-compare-head]') && m.qa('[data-vc-history-row]').length === 3, 'T41i 退出比较后回到三条提交')
+
+  // 认不出的引用原样说给用户听
+  await m.click('[data-vc-history-compare-open]')
+  await m.type('[data-vc-history-compare-field="from"]', 'nope')
+  await m.click('[data-vc-history-compare-apply]')
+  await settle()
+  const scopeText = m.text('[data-vc-history-compare-error]')
+  check(String(scopeText).indexOf('nope') >= 0, 'T41j 认不出的引用原样说给用户听（实得 ' + String(scopeText).slice(0, 40) + '）')
+  await m.click('[data-vc-history-compare-cancel]')
+
+  // 单文件历史：详情里文件行尾的「⋯」→「看这个文件的历史」
+  await m.click('[data-vc-history-open="' + B + '"]')
+  await settle()
+  check(m.qa('[data-vc-history-file-more]').length === 2 && !!m.q('[data-vc-history-file-more="src/client/views/IssueDetail.ts"]'),
+    'T41k 详情里每个文件行都带行尾「⋯」（两个文件两个按钮）')
+  const more = m.qa('[data-vc-history-file-more]')[0]
+  if (more) await m.click(more)
+  const entry = m.q('[data-vc-history-file-history]')
+  check(!!entry, 'T41m 文件行菜单里有「看这个文件的历史」')
+  if (entry) await m.click(entry)
+  await settle()
+  const fileCall = queryCalls.filter(function (c) { return c.kind === 'file-history' })[0]
+  check(!!fileCall && String(fileCall.params.path) === String((entry || {}).getAttribute('data-vc-history-file-history')),
+    'T41n 点了之后真的打 wf.gitHistoryQuery（kind=file-history，路径就是这一行的路径）')
+  check(!!m.q('[data-vc-history-file-only-strip]') && m.q('[data-vc-history-file-only-result]') !== null,
+    'T41o 回到列表并带一枚「只看 <文件>」与一条结果说明')
+  check(m.qa('[data-vc-history-row]').length === 1 && m.q('[data-vc-history-row="' + A + '"]') !== null,
+    'T41p 列表只剩这份读数里的提交')
+  await m.click('[data-vc-history-file-only-clear]')
+  check(!m.q('[data-vc-history-file-only-strip]') && m.qa('[data-vc-history-row]').length === 3, 'T41q 点掉标签回到全部历史')
+
+  // 提交备注：写一句、保存，走预检签票 + 凭票执行
+  await m.click('[data-vc-history-open="' + A + '"]')
+  await settle()
+  check(!!m.q('[data-vc-history-note]'), 'T41r 详情底部有「提交备注」一段')
+  await m.type('[data-vc-history-note-input]', '这一版为了兼容旧数据')
+  await m.click('[data-vc-history-note-save]')
+  await settle()
+  check(noteCalls.length === 2 && noteCalls[0].phone === 'check' && noteCalls[1].phone === 'write' && noteCalls[1].ticketId === 'tk-note',
+    'T41s 保存备注先预检签票再凭票执行（实得 ' + JSON.stringify(noteCalls) + '）')
+  check(String(m.text('[data-vc-history-note-result]')).indexOf('已保存') >= 0, 'T41t 保存后这一段写清「已保存」')
+  await m.click('[data-vc-history-back]')
+  check(m.qa('[data-vc-history-note-tag]').length === 1 && m.q('[data-vc-history-note-tag]') !== null,
+    'T41u 回到列表，写过备注的那一条带「备注」标记')
+  await m.unmount()
+}
+
 // ---------------- 场景十一：改动页文件行展开读逐行差异（#1860 D7） ----------------
 // 依据：改动页原型点开一行是差异块（docs/prototype/vc-redesign/src/ui/views/changes.ts 的 file-detail），
 //   而真实读数里没有逐行内容，只能按需向宿主读一次。这一段验的是「点了之后真的打了哪个电话、界面怎么变」：
@@ -1378,7 +1514,6 @@ async function scenarioChangesHunkActions() {
   await m.unmount()
 }
 
-
 // ---------------- 场景十三：提交选项的入口与关闭路径（#1877，按 #1876 原型） ----------------
 // 依据：原型提交区首屏只有三块（已暂存计数 + 两个链接 / 说明框 / 底行），提交按钮右边多一枚 24 像素箭头；
 //   点开才是「提交选项」浮层（提交形态 / 内容来源 / 提交说明 / 记录方式四组）。这一段验：入口位置与默认收起、
@@ -1492,6 +1627,7 @@ async function main() {
   await scenarioAiHandoff()
   await scenarioM4d()
   await scenarioHistoryRedesign()
+  await scenarioHistoryFourEntries()
   await scenarioChangesDiff()
 await scenarioChangesHunkActions()
   await scenarioStashAutoDetail()

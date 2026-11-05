@@ -90,4 +90,48 @@ export function parseLogStats(stdout: string): LogStatsResult {
   return { ok: true, stats: out }
 }
 
+/** 一条提交与它改到的文件路径（列表上的「按代码变化搜」要按路径找，命中行上要写出是哪份文件）。 */
+export interface LogFilesRecord {
+  oid: string
+  paths: string[]
+}
+
+export type LogFilesResult = { ok: true; commits: LogFilesRecord[] } | ParseFailure
+
+/** 记录分隔符：命令拼的是 --format=%x01%H，路径不会以它开头。 */
+const LOG_FILES_MARK: string = '\u0001'
+
+/**
+ * 解析 `git log -z --name-only --format=%x01%H` 的输出：每条提交一行提交号（前面带 \x01 标记），
+ * 随后是它改到的文件路径，全部以 NUL 分隔；提交号那一份后面跟一个换行（git 自己加的），解析时剥掉。
+ *
+ * 两个如实说明的边界：
+ *   · 合并提交与空提交在 git 侧没有名字清单，这里就是空数组——「不知道改了什么」与「什么都没改」
+ *     在界面上都表现为这一行没有命中文件名，不补假数据；
+ *   · 路径本身以换行开头或恰好以 \x01 开头这种极端情形会被读错，今天不做额外转义
+ *     （git 的 -z 输出不做引号转义，再加一层自创协议反而更难对读）。
+ */
+export function parseLogFiles(stdout: string): LogFilesResult {
+  const text = String(stdout)
+  if (text === '') return { ok: true, commits: [] }
+  const parts = text.split('\u0000')
+  const out: LogFilesRecord[] = []
+  let cur: LogFilesRecord | null = null
+  for (let i = 0; i < parts.length; i += 1) {
+    let piece: string = parts[i]
+    if (piece.charAt(0) === '\n') piece = piece.slice(1)
+    if (piece === '') continue
+    if (piece.charAt(0) === LOG_FILES_MARK) {
+      const oid: string = piece.slice(1).trim()
+      if (!/^[0-9a-f]{40}$/.test(oid) && !/^[0-9a-f]{64}$/.test(oid)) return fail('提交号那一段不是哈希')
+      cur = { oid, paths: [] }
+      out.push(cur)
+      continue
+    }
+    if (cur === null) return fail('文件路径出现在提交号之前')
+    cur.paths.push(piece)
+  }
+  return { ok: true, commits: out }
+}
+
 export const PARSE_LOG_SOURCE = 'src/shared/version-control/src/parse-log.ts'

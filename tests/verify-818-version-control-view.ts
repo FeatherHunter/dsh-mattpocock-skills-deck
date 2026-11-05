@@ -136,6 +136,11 @@ const VC_FILES = [
   'src/client/views/versionControl/vcBranches.js', // #1746：分支与标签业务面板（十三条能力入口、预检与确认、结果贴点；排在页面壳之前，壳里会调它）
   'src/client/views/versionControl/vcBranchSections.js', // #1881：本页后两段正文（标签、上游跟踪）与四件小工具，注入次序在视图叶子之前，叶子渲染时要调它
   'src/client/views/versionControl/vcBranchPage.js', // #1829 阶段 3：分支与标签页的视图叶子（静态树 vcBranchTreeOf 画页面结构，组件 vcBranchPageOf 供壳挂载）
+  // #1903 历史页四条能力（单文件历史 / 按代码变化搜 / 比较两个引用 / 提交备注）：
+  //   纯判定 → 动作层 → 多出来的那几块画法，三叶都排在 vcHistory 之前（vcHistory 与 vcHistoryDetail 都要调它们）。
+  'src/client/views/versionControl/vcHistoryQuery.js',
+  'src/client/views/versionControl/vcHistoryOps.js',
+  'src/client/views/versionControl/vcHistoryExtra.js',
   // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）。
   'src/client/views/versionControl/vcHistory.js',
   // #1829 阶段 3：图形视图与提交详情从历史页拆成独立叶子；它们在 vcHistory 之后、页面壳之前拼接。
@@ -270,6 +275,11 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'VC_LOG_BATCH',
   'VC_HISTORY_BATCH', 'VC_HISTORY_LANES_MAX', 'VC_HISTORY_DIFF_LINES_WIDE', 'VC_HISTORY_DIFF_LINES_NARROW',
   'vcHistoryFirstPageOf', 'vcHistoryModelOf', 'vcHistoryGraphOf', 'vcHistoryDiffContextOf', 'vcHistoryPageNode', 'vcHistoryListOf', 'vcHistoryRowNode', 'vcHistoryDetailOf', 'vcHistoryGraphNode',
+  // #1903 历史页四条能力：纯判定、动作层与多出来的四块画法（门禁逐块断言）。
+  'vcHistoryScopeOf', 'vcHistoryHitPathOf', 'vcHistoryIsMergeCommitOf', 'vcHistoryEmptyKeyOf', 'vcHistoryCompareSummaryOf', 'vcHistoryFileNameOf', 'vcHistoryFilterOf',
+  'vcHistoryMarksNode', 'vcHistoryScopeSwitchNode', 'vcHistoryCompareFormNode', 'vcHistoryCompareHeadNode', 'vcHistoryCompareFilesNode', 'vcHistoryFileOnlyNode',
+  'vcHistoryNoteNode', 'vcHistoryFileMenuNode', 'vcHistoryToolsNode', 'vcHistoryCommitsOf', 'vcHistoryHasNoteOf', 'vcHistoryFileStateOf', 'vcHistoryFileSourceOf',
+  'VC_NOTE_PHONES', 'vcHistoryOpsOf', 'vcNoteDraftOf', 'vcNewNoteWrite',
   // #1754 远端与同步页：电话名、读数判据、页面模型与画法（数据层与渲染层各验一遍）。
   'VC_REMOTE_PHONES', 'VC_REMOTE_FORMS', 'VC_REMOTE_ONLINE_FAIL_KINDS',
   'vcNewRemoteReads', 'vcRemoteStateOf', 'vcRemoteReadAtOf', 'vcRemoteRemotesOf', 'vcRemoteErrorOf',
@@ -2377,6 +2387,98 @@ async function main() {
   })()
   const y9Model = VIEW.vcHistoryGraphOf(y9Commits)
   check(y9Model.rows.every(function (row) { return row.lane < VIEW.VC_HISTORY_LANES_MAX }) && y9Model.hiddenLanes > 0, 'Y9 车道上限生效（超过 ' + VIEW.VC_HISTORY_LANES_MAX + ' 条的车道不画，并如实说有 ' + y9Model.hiddenLanes + ' 处没画）')
+
+  // ---- Z1903 组：#1903 提交历史页四条能力（单文件历史 / 按代码变化搜 / 比较两个引用 / 提交备注）----
+  // 四种能力各验两层：纯判定（范围、命中文件、空态、摘要）与渲染（范围切换、命中标记、只看标签、
+  //   比较表单与结果头、详情里的文件行菜单与备注段）。属性名与委托层一一对应，点了会真的派给动作层。
+  const zqOid = function (ch) { return String(ch).repeat(40) }
+  const zqCommits = [
+    { oid: zqOid('a'), short: 'aaaaaaa1', author: '林可', email: 'l@e.com', authorDateMs: NOW - 60000, commitDateMs: NOW - 60000, subject: '修建议气泡在输入框高时跳出的状态栏', parents: [zqOid('b')], files: 3, paths: ['src/client/views/IssueDetail.ts'], hasNote: false },
+    { oid: zqOid('b'), short: 'bbbbbbb2', author: '周平', email: 'z@e.com', authorDateMs: NOW - 120000, commitDateMs: NOW - 120000, subject: '详情页顶栏按钮的可点性判据补正注释', parents: [], files: 1, paths: ['scripts/build.mts'], hasNote: true },
+  ]
+  const zqReads = function (extra) { return hcReadsOf(Object.assign({ commits: zqCommits }, extra || {})) }
+  const zqQueriesOf = function (patch) { return { reads: { queries: patch || {} } } }
+
+  // Z1 搜索范围：两颗按钮、选中态写进 aria-pressed，占位话术跟着范围换
+  const z1Html = hcHtmlOf({ reads: zqReads(), ui: {} })
+  check(attrValuesOf(z1Html, 'data-vc-history-scope-btn').join(',') === 'message,code', 'Z1a 搜索框右边就是「说明 / 代码变化」两颗按钮（实际 ' + attrValuesOf(z1Html, 'data-vc-history-scope-btn').join(',') + '）')
+  check(z1Html.indexOf('aria-pressed="true"') >= 0 && z1Html.indexOf('class="scope-btn is-on"') >= 0, 'Z1b 选中态既改颜色也写进 aria-pressed')
+  check(z1Html.indexOf(fill(tZh('vc.shell.history.searchPlaceholder'), { n: '2' })) >= 0, 'Z1c 说明范围的占位话术是「在已加载的 N 条提交里筛选」')
+  const z1CodeHtml = hcHtmlOf({ reads: zqReads(), ui: { historyScope: 'code' } })
+  check(z1CodeHtml.indexOf(tZh('vc.shell.history.searchPlaceholderCode')) >= 0, 'Z1d 切到代码变化后占位话术换成「按文件路径搜这次改了什么」')
+
+  // Z2 代码范围按「这次提交改到的文件」找，命中行标出是哪份文件；说明范围不这么找
+  check(VIEW.vcHistoryHitPathOf(zqCommits[0], 'issuedetail') === 'src/client/views/IssueDetail.ts', 'Z2a 命中文件按路径找（大小写不敏感），回的是那条路径本身')
+  check(VIEW.vcHistoryHitPathOf(zqCommits[0], '') === '' && VIEW.vcHistoryHitPathOf(zqCommits[0], '没这回事') === '', 'Z2b 空词与没命中都不算命中（空词不许把所有行标成命中）')
+  check(VIEW.vcHistoryFilterOf(zqCommits, '建议', false, 'message').length === 1 && VIEW.vcHistoryFilterOf(zqCommits, '建议', false, 'code').length === 0, 'Z2c 同一个词两种范围给出不同结果（说明里有、文件路径里没有）')
+  check(VIEW.vcHistoryFilterOf(zqCommits, 'build.mts', false, 'code').length === 1, 'Z2d 代码范围按文件路径命中')
+  const z2Html = hcHtmlOf({ reads: zqReads(), ui: { historyScope: 'code', historyQuery: 'IssueDetail' } })
+  check(attrValuesOf(z2Html, 'data-vc-history-hit').join(',') === 'src/client/views/IssueDetail.ts', 'Z2e 命中行上标出命中的文件（实际 ' + attrValuesOf(z2Html, 'data-vc-history-hit').join(',') + '）')
+  check(z2Html.indexOf(fill(tZh('vc.shell.history.hitTag'), { name: 'IssueDetail.ts' })) >= 0, 'Z2f 标记上写的是文件名，不是整条路径（窄宽度下才放得下）')
+
+  // Z3 空态各说各的
+  check(VIEW.vcHistoryEmptyKeyOf({ scope: 'code', query: 'x' }) === 'vc.shell.history.emptyCode' && VIEW.vcHistoryEmptyKeyOf({ scope: 'message', query: 'x' }) === 'vc.shell.history.filterEmpty', 'Z3a 代码范围与说明范围的空态不是同一句话')
+  check(VIEW.vcHistoryEmptyKeyOf({ fileOnly: 'src/a.ts', scope: 'code', query: 'x' }) === 'vc.shell.history.fileOnlyEmpty', 'Z3b 只看某个文件时空态换成「没有提交改过它」')
+  const z3EmptyHtml = hcHtmlOf({ reads: zqReads(), ui: { historyScope: 'code', historyQuery: '没这回事' } })
+  check(z3EmptyHtml.indexOf(tZh('vc.shell.history.emptyCode')) >= 0, 'Z3c 代码范围搜不到时画的是那句专门的空态')
+
+  // Z4 单文件历史：列表换成那条读数、顶上一枚可点掉的「只看 …」、结果条写明在看哪个文件
+  const z4FileReads = zqReads(zqQueriesOf({ 'file-history': { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'file-history', path: 'src/client/views/IssueDetail.ts', commits: [zqCommits[0]], count: 1, reason: 'ok' } } }))
+  const z4Html = hcHtmlOf({ reads: z4FileReads, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts' } })
+  check(attrValuesOf(z4Html, 'data-vc-history-row').join(',') === zqCommits[0].oid, 'Z4a 只看某个文件时列表只留那份读数里的提交（实际 ' + attrValuesOf(z4Html, 'data-vc-history-row').join(',') + '）')
+  check(attrValuesOf(z4Html, 'data-vc-history-file-only-result').join(',') === 'src/client/views/IssueDetail.ts', 'Z4b 结果条写明现在只看哪个文件')
+  check(z4Html.indexOf('data-vc-history-file-only-strip="1"') >= 0 && z4Html.indexOf('data-vc-history-file-only-clear="1"') >= 0, 'Z4c 「只看 …」标签上有一枚叉可以点掉')
+  check(z4Html.indexOf('IssueDetail.ts') >= 0 && z4Html.indexOf(tZh('vc.shell.history.fileOnlyLead')) >= 0, 'Z4d 标签上写的是「只看 <文件>」')
+  const z4Loading = hcHtmlOf({ reads: zqReads(zqQueriesOf({ 'file-history': { state: 'loading', seq: 1, error: null, data: null } })), ui: { historyFileOnly: 'src/a.ts' } })
+  check(z4Loading.indexOf('data-vc-history-file-loading="1"') >= 0, 'Z4e 这份读数还在路上时画「正在读这个文件的历史」，不画成「没有提交改过它」')
+  const z4Err = hcHtmlOf({ reads: zqReads(zqQueriesOf({ 'file-history': { state: 'err', seq: 1, data: null, error: { kind: 'exit', message: 'boom' } } })), ui: { historyFileOnly: 'src/a.ts' } })
+  check(z4Err.indexOf('data-vc-history-file-error="1"') >= 0 && attrValuesOf(z4Err, 'data-vc-history-file-retry').length === 1, 'Z4f 读失败要说清楚并给重试')
+
+  // Z5 比较两个引用：两行表单预填 HEAD~1 与 HEAD；结果头写清两端与文件数；列表位置换成文件清单
+  const z5Form = hcHtmlOf({ reads: zqReads(), ui: { historyCompareOpen: true } })
+  check(z5Form.indexOf('data-vc-history-compare-form="1"') >= 0 && z5Form.indexOf('value="HEAD~1"') >= 0 && z5Form.indexOf('value="HEAD"') >= 0, 'Z5a 表单预填 HEAD~1 与 HEAD')
+  check(attrValuesOf(z5Form, 'data-vc-history-compare-field').join(',') === 'from,to', 'Z5b 两行输入分别是「从」与「到」')
+  const z5Data = { ok: true, kind: 'compare', files: [{ path: 'config/prompts/a.yaml', added: 36, deleted: 4 }, { path: 'tests/verify-prompts.ts', added: 7, deleted: 2 }], total: 2, truncated: false, reason: 'ok', leftOid: zqOid('b'), rightOid: zqOid('a') }
+  const z5Html = hcHtmlOf({ reads: zqReads(zqQueriesOf({ compare: { state: 'ok', seq: 1, error: null, data: z5Data } })), ui: { historyCompare: { left: 'HEAD~1', right: 'HEAD' } } })
+  check(attrValuesOf(z5Html, 'data-vc-history-compare-head').length === 1, 'Z5c 比较完列表顶上出现结果头')
+  check(z5Html.indexOf('bbbbbbb') >= 0 && z5Html.indexOf('aaaaaaa') >= 0, 'Z5d 结果头写的是解析之后的两个提交号（不是用户随手打的那几个字）')
+  check(z5Html.indexOf(fill(tZh('vc.shell.history.compareFiles'), { n: '2' })) >= 0 && z5Html.indexOf('+43') >= 0, 'Z5e 结果头写清几个文件与增删行数')
+  check(attrValuesOf(z5Html, 'data-vc-history-compare-file').join(',') === 'config/prompts/a.yaml,tests/verify-prompts.ts', 'Z5f 比较结果正文就是那份文件清单')
+  check(attrValuesOf(z5Html, 'data-vc-history-row').length === 0, 'Z5g 比较开着的时候不画提交行（同一块地方不叠两种读法）')
+  check(attrValuesOf(z5Html, 'data-vc-history-compare-end').length === 1, 'Z5h 结果头右侧有「退出比较」')
+  const z5ErrHtml = hcHtmlOf({ reads: zqReads(zqQueriesOf({ compare: { state: 'err', seq: 1, data: null, error: { kind: 'args', reason: 'unknown-rev', rev: 'nope', which: 'left', message: '找不到「nope」这个引用' } } })), ui: { historyCompareOpen: true } })
+  check(z5ErrHtml.indexOf(fill(tZh('vc.shell.history.compareUnknownRev'), { rev: 'nope' })) >= 0, 'Z5i 认不出的引用原样说给用户听（不悄悄当成 HEAD）')
+  check(VIEW.vcHistoryCompareSummaryOf([{ added: null, deleted: null }], tZh) === fill(tZh('vc.shell.history.compareFiles'), { n: '1' }), 'Z5j 没有增删数字时不补 0')
+
+  // Z6 详情的文件行菜单：「⋯」与行是兄弟节点，菜单里一条「看这个文件的历史」
+  const z6Reads = hcReadsOf({ commits: zqCommits, reads: { commit: { rev: zqCommits[0].oid, seq: 1, state: 'ok', files: [{ path: 'src/client/views/IssueDetail.ts', added: 2, deleted: 1 }], truncated: false, reason: 'ok', error: null } } })
+  const z6Html = hcHtmlOf({ reads: z6Reads, ui: { openCommit: zqCommits[0].oid } })
+  check(z6Html.indexOf('data-vc-history-file-more=') >= 0 && z6Html.indexOf('class="commit-file-line"') >= 0, 'Z6a 文件行尾有「⋯」，且与行本身是兄弟节点（点菜单不会连带展开那一行）')
+  const z6Open = hcHtmlOf({ reads: z6Reads, ui: { openCommit: zqCommits[0].oid, historyFileMenu: 'src/client/views/IssueDetail.ts' } })
+  check(attrValuesOf(z6Open, 'data-vc-history-file-history').join(',') === 'src/client/views/IssueDetail.ts', 'Z6b 展开的菜单里那一条带上了这个文件的路径')
+  check(z6Open.indexOf(tZh('vc.shell.history.fileHistory')) >= 0 && z6Open.indexOf('data-vc-history-file-menu-close="1"') >= 0, 'Z6c 菜单条目是「看这个文件的历史」，另有一条收起菜单')
+
+  // Z7 提交备注：详情底部一段可写可存；读过之后带「已有备注」；写过备注的行带「备注」标记
+  const z7Reads = hcReadsOf({ commits: zqCommits, reads: { commit: { rev: zqCommits[0].oid, seq: 1, state: 'ok', files: [], truncated: false, reason: 'ok', error: null }, queries: { notes: { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'notes', note: '这一版为了兼容旧数据', reason: 'ok', rev: zqCommits[0].oid } } } } })
+  const z7Html = hcHtmlOf({ reads: z7Reads, ui: { openCommit: zqCommits[0].oid } })
+  check(z7Html.indexOf('data-vc-history-note="' + zqCommits[0].oid + '"') >= 0 && z7Html.indexOf('data-vc-history-note-input="1"') >= 0 && z7Html.indexOf('data-vc-history-note-save="1"') >= 0, 'Z7a 详情底部有备注段：输入框与「保存备注」')
+  check(attrValuesOf(z7Html, 'data-vc-history-note-saved').length === 1 && z7Html.indexOf(tZh('vc.shell.history.noteSaved')) >= 0, 'Z7b 这条提交已经有备注时带一枚「已有备注」')
+  const z7Empty = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, reads: { commit: { rev: zqCommits[1].oid, seq: 1, state: 'ok', files: [], truncated: false, reason: 'ok', error: null } } }), ui: { openCommit: zqCommits[1].oid } })
+  check(attrValuesOf(z7Empty, 'data-vc-history-note-saved').length === 0, 'Z7c 没有备注时不画「已有备注」')
+  check(z7Empty.indexOf(tZh('vc.shell.history.notePlaceholder')) >= 0 && z7Empty.indexOf(tZh('vc.shell.history.noteHint')) >= 0, 'Z7d 输入框带着占位话术，旁边写清备注存在哪里（教用户写什么、存在哪）')
+  // 这两条用一份「谁都还没有备注」的提交清单：Z7e 只靠本次会话写过的记录挂标记，Z7f 证明没有记录就不挂。
+  const z7Plain = zqCommits.map(function (c) { return Object.assign({}, c, { hasNote: false }) })
+  const z7Saved = hcHtmlOf({ reads: hcReadsOf({ commits: z7Plain }), ui: { historyNotes: { [zqCommits[0].oid]: true } } })
+  check(attrValuesOf(z7Saved, 'data-vc-history-note-tag').length === 1 && z7Saved.indexOf(tZh('vc.shell.history.noteTag')) >= 0, 'Z7e 写过备注的那一行带「备注」标记')
+  check(attrValuesOf(hcHtmlOf({ reads: hcReadsOf({ commits: z7Plain }), ui: {} }), 'data-vc-history-note-tag').length === 0, 'Z7f 没写过备注的行没有这枚标记')
+  check(VIEW.vcHistoryHasNoteOf({}, { oid: 'x', hasNote: true }) === true && VIEW.vcHistoryHasNoteOf({ historyNotes: { x: false } }, { oid: 'x', hasNote: true }) === false, 'Z7g 本次会话删掉备注之后，标记立刻消失（不靠旧读数）')
+  check(VIEW.vcNoteDraftOf({ historyNoteDraft: '草稿', historyNoteFor: 'x' }, 'x') === '草稿' && VIEW.vcNoteDraftOf({ historyNoteDraft: '草稿', historyNoteFor: 'x' }, 'y') === '', 'Z7h 草稿跟着它被写时的那条提交走（换一条提交不串味）')
+  check(VIEW.VC_NOTE_PHONES.check === 'wf.gitNoteCheck' && VIEW.VC_NOTE_PHONES.write === 'wf.gitNoteWrite', 'Z7i 备注写路径的电话名在这一处定义，门禁与调用点都读它')
+
+  // Z8 范围行的三样：只看合并、条数、比较入口；「只看合并」不再和搜索框挤在同一行
+  check(z1Html.indexOf('data-vc-history-compare-open="1"') >= 0 && z1Html.indexOf('data-vc-history-merge-only') >= 0 && z1Html.indexOf('data-vc-history-scope="1"') >= 0,
+    'Z8 范围行同时有「只看合并」、已加载条数与「比较两个引用」三个入口')
+  check(VIEW.vcHistoryFilterOf(zqCommits, '', true, 'message').length === 0, 'Z8b 只看合并时只剩合并提交（这两条都不是合并）')
 
   // ---- R 组：远端与同步页（#1754 T18，域 8 的 8.1–8.4）----
   // 三种读数分开验：本地读数（git remote -v + 本地跟踪分支，不联网）、用户点「联网查看」后才走的

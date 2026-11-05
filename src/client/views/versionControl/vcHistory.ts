@@ -26,6 +26,23 @@ declare function vcCommitWhenText(...args: any[]): any
 declare function vcOneLine(...args: any[]): any
 declare function vcCommitKeyOf(...args: any[]): any
 declare function vcHistoryDetailOf(...args: any[]): any
+declare function vcHistoryFileMenuNode(...args: any[]): any
+declare function vcHistoryExtraNode(...args: any[]): any
+declare function vcHistoryToolsNode(...args: any[]): any
+declare function vcHistoryMarksNode(...args: any[]): any
+declare function vcHistoryCompareFilesNode(...args: any[]): any
+declare function vcHistoryNameOf(...args: any[]): string
+declare function vcHistoryScopeOf(...args: any[]): string
+declare function vcHistoryHitPathOf(...args: any[]): string
+declare function vcHistoryEmptyKeyOf(...args: any[]): string
+declare function vcHistoryReadOf(...args: any[]): any
+declare function vcHistoryDataOf(...args: any[]): any
+declare function vcHistoryCommitsOf(...args: any[]): any[]
+declare function vcHistoryFileStateOf(...args: any[]): string
+declare function vcHistoryFileSourceOf(...args: any[]): any
+declare function vcHistoryHasNoteOf(...args: any[]): boolean
+declare function vcHistoryFilterOf(...args: any[]): any[]
+declare function vcHistoryIsMergeCommitOf(...args: any[]): boolean
 declare function vcHistoryGraphOf(...args: any[]): any
 declare function vcHistoryGraphNode(...args: any[]): any
 declare const vcPageIconOf: (h: any, kind: string, size: number) => any
@@ -114,26 +131,10 @@ const VC_HISTORY_MENU_ACTS: any[] = [
 ]
 
 // 只看合并：两个父提交的才是合并提交（与图形视图的判据一致）。
+// #1903：判据与搜索筛选搬进 vcHistoryQuery 叶（那里还管两种搜索范围与只看单个文件），这里只留一个别名 —
+//   名字保持不变，是因为图形视图与门禁都按 vcHistoryIsMergeOf 认「合并提交」这一件事。
 const vcHistoryIsMergeOf = function (commit: any): boolean {
-  return Array.isArray(commit && commit.parents) && commit.parents.length >= 2
-}
-
-// 搜索只筛「已经读回来的」提交（票面边界：不为了筛选多读一条）；主题、作者、短号都能命中。
-export const vcHistoryFilterOf = function (commits: any, query: any, mergeOnly: any) {
-  const list: any[] = Array.isArray(commits) ? commits : []
-  const q: string = String(query === undefined || query === null ? '' : query).trim().toLowerCase()
-  const only: boolean = mergeOnly === true
-  const out: any[] = []
-  for (let i = 0; i < list.length; i += 1) {
-    const c: any = list[i] || {}
-    if (only && !vcHistoryIsMergeOf(c)) continue
-    if (q !== '') {
-      const hay: string = (String(c.subject || '') + ' ' + String(c.author || '') + ' ' + String(c.short || '') + ' ' + String(c.oid || '')).toLowerCase()
-      if (hay.indexOf(q) < 0) continue
-    }
-    out.push(c)
-  }
-  return out
+  return vcHistoryIsMergeCommitOf(commit)
 }
 
 // 日期分组：今天 / 昨天 / M 月 D 日，按提交时间与这次读数时刻的本地日算；往回超过一天就写日期。
@@ -216,6 +217,8 @@ export const vcHistoryRowNode = function (h: any, t: any, o: any) {
       typeof c.files === 'number' && c.files >= 0
         ? h('span', { key: 'files', className: 'commit-files', 'data-vc-history-files': '1' }, t('vc.shell.history.filesCount', { n: String(c.files) }))
         : null,
+      // 两枚标记：按代码搜命中时写清是哪份文件，写过备注的再带一枚「备注」（原型 history.ts 同一位置）。
+      vcHistoryMarksNode(h, t, { hitPath: opts.hitPath, hasNote: opts.hasNote === true }),
     ]) : null,
     h('span', { key: 'chev', className: 'commit-chevron', 'aria-hidden': 'true' }, vcPageIconOf(h, 'chevron', 12)),
   ]
@@ -252,10 +255,15 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
   const model = opts.model || {}
   const ui = opts.ui || {}
   const width = vcHistoryWidthOf(opts.width)
-  const commits: any[] = Array.isArray(model.commits) ? model.commits : []
+  const commits: any[] = vcHistoryCommitsOf(model, ui, opts.reads)
   const query: string = String(ui.historyQuery || '')
   const mergeOnly: boolean = ui.historyMergeOnly === true
-  const visible: any[] = vcHistoryFilterOf(commits, query, mergeOnly)
+  const scope: string = vcHistoryScopeOf(ui.historyScope)
+  const fileOnly: string = String(ui.historyFileOnly || '')
+  // 只看某个文件时，行来自那条「这个文件的历史」的读数本身（已经由 git log --follow 筛过），
+  //   客户端再按路径筛一次会把这些行全筛掉——它们的路径清单不是在这里读的。
+  const fromFileRead: boolean = fileOnly !== '' && vcHistoryFileSourceOf(ui, opts.reads) !== null
+  const visible: any[] = vcHistoryFilterOf(commits, query, mergeOnly, scope, fromFileRead ? '' : fileOnly)
   const menu: string = String(ui.historyMenu || '')
   const hasMore: boolean = model.hasMore === true
   const rows: any[] = []
@@ -273,52 +281,58 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
       isHead: i === 0,
       expanded: oid === String(model.openCommit || ''),
       menuOpen: menu !== '' && menu === oid,
+      hitPath: scope === 'code' ? vcHistoryHitPathOf(c, query) : '',
+      hasNote: vcHistoryHasNoteOf(ui, c),
     }))
   }
-  const tools: any[] = [
-    h('input', {
-      key: 'q', type: 'search', className: 'search-input', 'data-vc-history-query': '1',
-      placeholder: t('vc.shell.history.searchPlaceholder', { n: model.loaded }),
-      'aria-label': t('vc.shell.history.searchPlaceholder', { n: model.loaded }),
-      autoComplete: 'off', spellCheck: false, defaultValue: query,
-    }),
-    h('button', {
-      key: 'merge', type: 'button', className: 'toggle-btn' + (mergeOnly ? ' is-on' : ''),
-      'data-vc-history-merge-only': mergeOnly ? 'on' : 'off',
-      'aria-pressed': mergeOnly ? 'true' : 'false',
-      'data-press': 'button', 'data-log': 'vc.history.merge-only',
-    }, t('vc.shell.history.mergeOnly')),
-  ]
   // 范围行照原型是「已加载 n 条，共 m 条」：只有确认没有下一批（hasMore=false）时总数才可信，
   //   hasMore=true 时总数未知，沿用「已加载 n 条」；筛选态仍用「已加载 n 条，筛出 m 条」那句。
-  const filtered: boolean = mergeOnly || query.trim() !== ''
+  const filtered: boolean = mergeOnly || query.trim() !== '' || fileOnly !== ''
   const scopeText: string = filtered
     ? t('vc.shell.history.scopeFiltered', { n: commits.length, m: visible.length })
     : (hasMore ? t('vc.shell.history.scope', { n: commits.length }) : t('vc.shell.history.scopeTotal', { n: commits.length, m: commits.length }))
-  const head: any[] = [
-    h('div', {
-      key: 'tools', className: 'history-tools vcs-hist-tools',
-      'data-vc-history': '1',
-      'data-vc-history-state': model.state,
-      'data-vc-history-count': String(model.loaded),
-    }, tools),
-    h('div', { key: 'scope', className: 'history-scope', 'data-vc-history-scope': '1' }, scopeText),
-  ]
+  const head: any[] = vcHistoryToolsNode(h, t, { model: model, ui: ui, reads: opts.reads, scopeText: scopeText })
   const scroll: any[] = []
-  if (model.state === 'loading') {
+  const fileState: string = vcHistoryFileStateOf(ui, opts.reads)
+  // 「只看…」是一句结论，贴在列表最上面（原型 88 图里那条结果条）：读者点完回到列表，
+  //   第一眼要看见「现在只看的是什么」，而不是自己推断列表为什么短了。
+  if (fileOnly !== '') {
+    const name: string = vcHistoryNameOf(fileOnly)
+    scroll.push(h('div', { key: 'onlyRes', className: 'vcs-result vcs-result-ok', 'data-vc-result': 'ok', 'data-vc-history-file-only-result': fileOnly }, [
+      h('div', { key: 'text', className: 'vcs-result-text' }, t('vc.shell.history.fileOnlyResult', { name: name })),
+      h('div', { key: 'detail', className: 'vcs-result-detail' }, t('vc.shell.history.fileOnlyResultDetail')),
+    ]))
+  }
+  if (fileState === 'loading' || fileState === 'idle') {
+    scroll.push(h('div', { key: 'fileLoading', className: 'empty', 'data-vc-history-file-loading': '1' }, h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.fileOnlyLoading'))))
+  } else if (fileState === 'err') {
+    const one: any = vcHistoryReadOf(opts.reads, 'file-history')
+    const kids: any[] = [h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.fileOnlyError'))]
+    if (one && one.error && one.error.message) kids.push(h('div', { key: 'detail', className: 'empty-hint' }, t('vc.shell.history.errorDetail', { msg: String(one.error.message) })))
+    kids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-hist-retry', 'data-vc-history-file-retry': fileOnly, 'data-press': 'button', 'data-log': 'vc.history.file-only.retry' }, t('vc.shell.history.fileOnlyRetry')))
+    scroll.push(h('div', { key: 'fileError', className: 'empty', 'data-vc-history-file-error': '1' }, kids))
+  } else if (model.state === 'loading') {
     scroll.push(h('div', { key: 'loading', className: 'empty', 'data-vc-history-loading': '1' }, h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.loading'))))
   } else if (model.state === 'error') {
     const errorKids: any[] = [h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.error'))]
     if (model.error && model.error.message) errorKids.push(h('div', { key: 'detail', className: 'empty-hint' }, t('vc.shell.history.errorDetail', { msg: String(model.error.message) })))
     errorKids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-hist-retry', 'data-vc-history-retry': 'history', 'data-press': 'button', 'data-log': 'vc.history.retry' }, t('vc.shell.history.retry')))
     scroll.push(h('div', { key: 'error', className: 'empty', 'data-vc-history-error': '1' }, errorKids))
+  } else if (ui.historyCompare && vcHistoryDataOf(opts.reads, 'compare')) {
+    // 比较开着的时候列表位置画的是比较结果（原型 90）：两种读法不叠在同一个滚动区里。
+    scroll.push(vcHistoryCompareFilesNode(h, t, { data: vcHistoryDataOf(opts.reads, 'compare') }))
   } else if (model.state === 'empty') {
     scroll.push(h('div', { key: 'empty', className: 'empty', 'data-vc-history-empty': '1' }, [
       h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.empty')),
       h('div', { key: 'next', className: 'empty-hint', 'data-vc-history-next': '1' }, t('vc.shell.history.emptyNext')),
     ]))
   } else if (!visible.length) {
-    scroll.push(h('div', { key: 'filterEmpty', className: 'empty', 'data-vc-history-filter-empty': '1' }, h('div', { key: 'title', className: 'empty-title' }, t('vc.shell.history.filterEmpty'))))
+    // 空态各说各的：只看某个文件时是「没有提交改过它」，代码范围是「没有提交改到匹配这些文字的文件」。
+    const emptyKey: string = vcHistoryEmptyKeyOf({ scope: scope, query: query, fileOnly: fileOnly })
+    const emptyText: string = emptyKey === 'vc.shell.history.fileOnlyEmpty'
+      ? t(emptyKey, { name: vcHistoryNameOf(fileOnly) })
+      : t(emptyKey)
+    scroll.push(h('div', { key: 'filterEmpty', className: 'empty', 'data-vc-history-filter-empty': '1' }, h('div', { key: 'title', className: 'empty-title' }, emptyText)))
   } else {
     scroll.push(h('div', { key: 'list', id: 'vc-history-list', className: 'history-list', role: 'list', 'aria-label': t('vc.shell.history.listLabel') }, rows))
   }
@@ -359,9 +373,13 @@ export const vcHistoryPageNode = function (h: any, t: any, o: any) {
   const model = vcHistoryModelOf(reads, ui)
   const detail = ui.openCommit ? vcHistoryDetailOf(h, t, {
     model: model, commit: reads && reads.commit, commitDiffs: reads && reads.commitDiffs,
-    ui: ui, width: width, nowMs: readAt,
+    reads: reads, ui: ui, width: width, nowMs: readAt,
   }) : null
-  const list = vcHistoryListOf(h, t, { model: model, ui: ui, width: width, nowMs: readAt, withGraph: detail === null })
+  // 比较开着时不画图形化历史：列表位置已经是比较结果，再挂一条提交车道会让人以为那是比较出来的东西。
+  const list = vcHistoryListOf(h, t, {
+    model: model, ui: ui, width: width, nowMs: readAt, reads: reads,
+    withGraph: detail === null && !ui.historyCompare,
+  })
   const kids: any[] = []
   if (detail) {
     kids.push(h('div', { key: 'listHidden', hidden: true, style: { display: 'none' } }, list))

@@ -111,14 +111,20 @@ export function createFirstScreenPhone(deps: any): any {
     const part: any = await readPart('读每个提交改了哪些文件这一步', function (): any {
       return collect(exe, root, '读每个提交改了哪些文件这一步', (commandFor('log', { logCount: commits.length, logStats: true }) as any).args, parseLogStats)
     })
-    if (part.ok !== true) return
-    const stats: any[] = part.value && Array.isArray(part.value.stats) ? part.value.stats : []
-    const byOid: Record<string, number> = {}
-    for (let i = 0; i < stats.length; i += 1) byOid[String(stats[i].oid)] = Number(stats[i].files)
-    for (let i = 0; i < commits.length; i += 1) {
-      const oid: string = String(commits[i].oid)
-      commits[i].files = Object.prototype.hasOwnProperty.call(byOid, oid) ? byOid[oid] : null
+    if (part.ok === true) {
+      const stats: any[] = part.value && Array.isArray(part.value.stats) ? part.value.stats : []
+      const byOid: Record<string, number> = {}
+      for (let i = 0; i < stats.length; i += 1) byOid[String(stats[i].oid)] = Number(stats[i].files)
+      for (let i = 0; i < commits.length; i += 1) {
+        const oid: string = String(commits[i].oid)
+        commits[i].files = Object.prototype.hasOwnProperty.call(byOid, oid) ? byOid[oid] : null
+      }
     }
+    // 同一次读法的第二条：每条提交改到的文件路径（历史页「按代码变化搜」要在这些路径里找，
+    // 命中行还要写出是哪份文件）。与文件数同一口径：读不到就只留空路径，历史片不跟着变红。
+    // 读法住在 versionControlLogFiles 叶里，「加载更早的提交」那条电话补的是同一份东西。
+    // 同层静态 import 会破坏「宿主同层只许动态 import」那条规矩（tests/verify-layer-imports），所以按需加载。
+    const fileInfo: any = await import('./versionControlLogFiles.js'); await fileInfo.attachCommitFileInfo(runPinned, exe, root, commits, 0)
   }
 
   /** 聚合一次七片。返回永远是 ok 快照；单片失败只体现在该片 state==='err'。 */

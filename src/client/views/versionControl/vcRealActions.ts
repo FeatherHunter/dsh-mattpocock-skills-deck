@@ -13,7 +13,7 @@ declare function vcRetryFirstScreen(reads: any, call: any, cwd: any): any
 declare function vcRetryFirstScreenSlice(reads: any, call: any, cwd: any, id: any): any
 declare function vcReadCommitFiles(reads: any, call: any, cwd: any, rev: any): any
 declare function vcReadCommitFileDiff(reads: any, call: any, cwd: any, rev: any, path: any): any
-declare function vcReadMoreCommits(reads: any, call: any, cwd: any, skip: any): any
+declare function vcReadMoreCommits(reads: any, call: any, cwd: any, skip: any, names?: any): any
 declare function vcApplyCommitReply(currentReads: any, nextReads: any): any
 declare function vcApplyCommitFileDiffReply(currentReads: any, nextReads: any): any
 declare function vcCommitKeyOf(rev: any, path: any): string
@@ -34,6 +34,8 @@ declare function vcStashAutoRunOf(deps: any): any
 declare function vcReadFirstScreenSliceOf(reads: any, id: any): any
 declare function vcFirstScreenSliceOf(reads: any, id: any): any
 declare function vcFirstScreenSliceStateOf(reads: any, id: any): any
+declare function vcHistoryOpsOf(deps: any): any
+declare function vcHistoryNoteOpenOf(deps: any, rev: any): any
 declare function vcWorktreesUiOf(ui: any): any
 declare function createWorktreesOpsOf(deps: any): any
 
@@ -102,8 +104,8 @@ export const vcRealActionsOf = function (deps: any): any {
     },
     // 提交详情：同一笔已经读好就不重复发；打开另一笔时先落加载态（vcReadCommitFiles 自己处理）。
     openCommit: function (oid: any): any {
-      const ui: any = Object.assign({}, uiNow(), { openCommit: String(oid || ''), openFile: '', historyMenu: '' })
-      setUi(ui)
+      const ui: any = Object.assign({}, uiNow(), { openCommit: String(oid || ''), openFile: '', historyMenu: '', historyFileMenu: '' })
+      setUi(ui); vcHistoryNoteOpenOf({ callHost: call, cwd: cwd, getReads: readsNow, setReads: setReads, getUi: uiNow, setUi: setUi, nowMs: nowMs }, oid)
       const reads: any = readsNow()
       const prev: any = reads.commit || {}
       if (prev.rev === String(oid || '') && prev.state === 'ok') return Promise.resolve(reads)
@@ -112,7 +114,10 @@ export const vcRealActionsOf = function (deps: any): any {
         return next
       })
     },
-    closeCommit: function (): void { setUi(Object.assign({}, uiNow(), { openCommit: '', openFile: '', historyMenu: '' })) },
+    closeCommit: function (): void { setUi(Object.assign({}, uiNow(), { openCommit: '', openFile: '', historyMenu: '', historyFileMenu: '' })) },
+    // #1903 提交历史页四条能力的动作（搜索范围、只看单个文件、比较两个引用、提交备注）住在 vcHistoryOps 叶里；
+    //   容器每次渲染重建一份，闭包里抓着这一帧的读数与界面状态。
+    historyOps: function (): any { return vcHistoryOpsOf({ callHost: call, cwd: cwd, getReads: readsNow, setReads: setReads, getUi: uiNow, setUi: setUi, nowMs: nowMs }) },
     // 历史列表的筛选与「只看合并」：只筛已经读回来的那批提交，不另发电话（原型 68 的搜索框就是这样）。
     historyQuery: function (value: any): void { setUi(Object.assign({}, uiNow(), { historyQuery: String(value === undefined || value === null ? '' : value) })) },
     historyMerge: function (): void {
@@ -164,7 +169,7 @@ export const vcRealActionsOf = function (deps: any): any {
       const commits: any[] = (first.data && Array.isArray(first.data.commits)) ? first.data.commits : []
       const log: any = reads.log || {}
       const skip: number = commits.length + (Number(log.fetched) || 0)
-      return Promise.resolve(vcReadMoreCommits(reads, call, cwd, skip)).then(function (next: any) { setReads(next); return next })
+      return Promise.resolve(vcReadMoreCommits(reads, call, cwd, skip, String(uiNow().historyScope || '') === 'code')).then(function (next: any) { setReads(next); return next })
     },
     // 贮藏：写动作走三段式 —— 先预检签票，再把确认卡停在触发点；用户确认后凭 ticketId + requestId 执行。
     //   读动作（list / show）与最近丢弃的恢复不要票，直接走执行电话；预检失败只落结果，不发执行电话。
@@ -254,5 +259,6 @@ export const vcRealActionsOf = function (deps: any): any {
 export const vcRealCurrentUiOf = function (deps: any): any {
   return typeof deps.getUi === 'function' ? deps.getUi() : deps.ui || {}
 }
+
 
 export const VC_REAL_ACTIONS_SOURCE = 'src/client/views/versionControl/vcRealActions.ts'

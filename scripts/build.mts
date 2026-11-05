@@ -851,6 +851,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
   { id: 'vcCapabilityList', file: 'src/client/views/versionControl/vcCapabilityList.ts' }, // #1762 T26：「本页负责的能力」列表从壳拆出，排在壳之前
   { id: 'vcSearchPage', file: 'src/client/views/versionControl/vcSearchPage.ts' }, // #1846 全库搜索页自己的版式（输入框在首屏、结果按页面分组），排在壳之前，壳要调它
+  { id: 'vcHistoryQuery', file: 'src/client/views/versionControl/vcHistoryQuery.ts' }, // #1903 历史页四条能力的纯判定（搜索范围、命中文件、只看单个文件、比较摘要），排在 vcHistory 之前
+  { id: 'vcHistoryOps', file: 'src/client/views/versionControl/vcHistoryOps.ts' }, // #1903 历史页四条能力的动作层（三条只读复用一个三态槽，备注走预检签票 + 凭票执行）
+  { id: 'vcHistoryExtra', file: 'src/client/views/versionControl/vcHistoryExtra.ts' }, // #1903 历史页多出来的四块画法（范围切换、只看文件、比较表单与结果、备注段），vcHistory 与 vcHistoryDetail 都调它
   { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
   { id: 'vcHistoryGraph', file: 'src/client/views/versionControl/vcHistoryGraph.ts' }, // #1829 阶段 3：13.14 图形化视图从 vcHistory 拆出（数据与画法），由 vcHistory 调用
   { id: 'vcHistoryDetail', file: 'src/client/views/versionControl/vcHistoryDetail.ts' }, // #1829 阶段 3：提交详情按定稿原型 03 重排（dl 元信息、文件行、逐文件差异），由 vcHistory 调用
