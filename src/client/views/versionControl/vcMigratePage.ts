@@ -1,16 +1,21 @@
-// views/versionControl/vcMigratePage.ts —— 「管理 › 迁移与备份」页正文（#1759 T23，域 11 与 5.13）。
+// views/versionControl/vcMigratePage.ts —— 「管理 › 迁移与备份」页正文（#1759 T23；#1844 按定稿原型 43 重排）
 // 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回闭包。
 //
-// 这一页画九个动作：初始化仓库（11.1）、归档导出（11.12）、离线包三件事（11.13 create/verify/unbundle）、
-// 历史导出与导入（5.13 fast-export / fast-import），加 svn 探测与抓取一次（补充块，账本没有独立 id）。
+// 这一页画六个能力：克隆（8.16，克隆向导由页面壳当槽位递进来）、初始化仓库（11.1）、归档导出（11.12）、
+//   离线包（11.13：create / verify / unbundle 三行）、历史导出与导入（5.13 两行）、生成补丁邮件（14.1，
+//   导出向导由页面壳当槽位递进来）。svn 探测与抓取一次是补充块——账本里没有独立编号。
 // 11.14 refs migrate 与 11.15 scalar 是只读项、归维护页；这一页只在末尾放一句指路说明，不给触发按钮。
+//
+// 分区顺序照定稿原型 43（docs/prototype/vc-redesign/src/ui/views/pages-system.ts 的 renderMigrate）：
+//   克隆与初始化 → 归档与离线包 → 历史与邮件 → 备份与恢复。
+// 原型没有、但本产品必须有的两块排在原型分区之后：SVN 桥（补充块）与写动作的任务区 + 维护页指路。
+// 这条顺序是验收口径：原型区块在最前、首屏与原型一致，额外区块只许往后加，不许插到原型区块中间。
 //
 // 三条画法纪律（与同步页同一套）：
 //   ① 预检回的禁用理由常驻在触发点上，不把「不能做」画成灰按钮；
 //   ② 需要确认的动作（fast-import、svn-fetch）把确认卡贴在触发面板里，固定四段、默认焦点在取消；
 //   ③ 结果回到触发点：只读动作在预检这一步就读出结果，写动作由长任务通道执行后回到同一个面板。
-// 四档宽：300 只留动作名与一个主按钮；380 补命令原文；460 起补产物路径与任务细节；520 不额外增删入口。
-// 两套皮肤只换颜色，只读、危险与禁用各用各的语义色。
+// 四档宽：300 只留动作名与展开键；380 补命令原文；460 起补产物路径与任务细节；520 不额外增删入口。
 
 declare const VC_MIGRATE_ACTION_ROWS: any[]
 declare function vcMigrateStateOf(reads: any): string
@@ -22,6 +27,10 @@ declare function vcWhenText(t: any, nowMs: any, ms: any): string
 declare function vcShellConfirmCardNode(h: any, t: any, o: any): any
 declare function vcShellResultNode(h: any, t: any, o: any): any
 declare function vcShellStateNode(h: any, t: any, o: any): any
+// 页面骨架四个原语在同一个构建闭包里（vcPageHead 排在页面壳之前），这里只声明形状，不 import。
+declare function vcPageSectionNode(h: any, t: any, o: any): any
+declare function vcPageObjRowNode(h: any, t: any, o: any): any
+declare function vcPageCapSummaryNode(h: any, t: any, capId: any, label?: any): any
 
 /** 宽度归一：只认 300/380/460/520 四档，落在中间时按「至少能放下」往小取。 */
 const vcMigrateWidthOf = function (width: any): number {
@@ -39,12 +48,12 @@ export const vcMigrateModelOf = function (reads: any, ui: any, width: any, nowMs
   const data: any = vcMigrateDataOf(reads)
   const error: any = vcMigrateErrorOf(reads)
   const task: any = vcMigrateTaskOf(reads)
-  const pageState = state === 'ok' ? 'ok' : state === 'err' ? 'error' : 'loading'
   const u: any = ui || {}
   const plan: any = data && data.plan ? data.plan : null
   const openAction = String(u.open || (data && data.action ? String(data.action) : '') || '')
   return {
-    state: pageState,
+    // 读数没到之前叫 loading、失败叫 error；成功态不画状态块（这一页没有可筛选的列表，空态文案会误导）。
+    state: state === 'ok' ? 'ok' : state === 'err' ? 'error' : 'loading',
     data: data,
     error: error,
     task: task,
@@ -57,7 +66,7 @@ export const vcMigrateModelOf = function (reads: any, ui: any, width: any, nowMs
     confirmRequired: !!(data && data.confirmRequired === true && data.ticket),
     ticket: data && data.ticket ? data.ticket : null,
     readOnly: !!(data && data.readOnly === true),
-    result: u.result || null
+    result: u.result || null,
   }
 }
 
@@ -140,31 +149,46 @@ const vcMigrateFormNode = function (h: any, t: any, model: any, row: any) {
   return h('div', { key: 'form', className: 'vcs-migrate-form', 'data-vc-migrate-form': row.action }, kids)
 }
 
-/** 一个动作：按钮加展开面板。面板 id 与按钮 aria-controls 逐字对应，键盘与读屏都能跟到底。 */
+/**
+ * 一个动作行：整行是一颗按钮（编号 + 动作名 + 动作强度，右侧是只读标记与展开键），面板贴在按钮下面。
+ * 整行一颗按钮是刻意的：原型 43 的行就是「一行一个动作」，点哪里都展开同一段；
+ *   data-vc-migrate-act 与 aria-expanded/aria-controls 仍挂在按钮上，键盘与读屏跟得到，门禁也照旧按它数入口。
+ */
 const vcMigrateActionNode = function (h: any, t: any, model: any, row: any) {
   const action = String(row.action)
   const open = model.openAction === action
   const panelId = 'vc-migrate-panel-' + action
   const capId = String(row.id || '')
-  const cap: any = capId === '' ? {} : (vcCapabilityOf(capId) || {})
   const label = t(row.labelKey)
-  const button = h('button', {
+  const attrs: any = {
     key: 'btn',
-    className: 'vcs-migrate-act' + (open ? ' vcs-migrate-act-open' : ''),
+    className: 'vcs-migrate-act' + (open ? ' is-open' : ''),
     type: 'button',
     'data-vc-migrate-act': action,
     'aria-expanded': open ? 'true' : 'false',
-    'aria-controls': panelId,
     'data-press': 'button',
     'data-log': 'vc.migrate.open',
-  }, label)
+  }
+  // aria-controls 只在面板真的存在时挂：否则读屏与门禁都会追到一个不存在的 id。
+  if (open) attrs['aria-controls'] = panelId
+  attrs[capId === '' ? 'data-vc-migrate-extra' : 'data-vc-migrate-cap'] = capId === '' ? '1' : capId
+  // 折叠状态下也把 git 命令原文写在行里（原型 43 的每一行都有这一行等宽小字）；380 宽以下先收起，
+  //   点开面板仍能看到完整命令，任何档位都不删入口。这一行不带 data-vc-migrate-command：那个记号属于
+  //   面板里的命令原文，M16 按宽度收放面板时数的是它。
+  const cap: any = capId === '' ? {} : (vcCapabilityOf(capId) || {})
+  const rowMain: any[] = [vcPageCapSummaryNode(h, t, capId, label)]
+  if (model.width >= 380 && String(cap.command || '') !== '') rowMain.push(h('span', { key: 'cmd', className: 'vcs-migrate-act-cmd' }, String(cap.command)))
+  const button = h('button', attrs, [
+    h('span', { key: 'main', className: 'vcs-migrate-act-main' }, rowMain),
+    h('span', { key: 'side', className: 'vcs-migrate-act-side' }, [
+      row.readOnly === true ? h('span', { key: 'ro', className: 'page-chip is-read' }, t('vc.migrate.readonlyChip')) : null,
+      h('span', { key: 'go', className: 'page-btn' }, open ? t('vc.migrate.close') : t('vc.migrate.open')),
+    ]),
+  ])
   const kids: any[] = [button]
   if (open) {
     const panelKids: any[] = []
-    panelKids.push(h('p', { key: 'name', className: 'vcs-migrate-name' }, String(cap.name || label)))
-    if (capId !== '') panelKids.push(h('p', { key: 'cap', className: 'vcs-migrate-cap', 'data-vc-migrate-cap': capId }, capId + ' · ' + String(cap.level || '')))
-    else panelKids.push(h('p', { key: 'cap', className: 'vcs-migrate-cap', 'data-vc-migrate-extra': '1' }, t('vc.migrate.extraNote')))
-    if (model.width >= 380) panelKids.push(h('code', { key: 'cmd', className: 'vcs-migrate-command', 'data-vc-migrate-command': action }, String(cap.command || (model.data && model.data.command) || '')))
+    if (model.width >= 380) panelKids.push(h('code', { key: 'cmd', className: 'vcs-migrate-command', 'data-vc-migrate-command': action }, String((vcCapabilityOf(capId) || {}).command || (model.data && model.data.command) || '')))
     if (model.decision) panelKids.push(h('p', { key: 'decision', className: 'vcs-migrate-decision', 'data-vc-migrate-decision': model.decision }, t('vc.migrate.decision.' + model.decision)))
     const why = vcMigrateReasonsNode(h, t, model)
     if (why) panelKids.push(why)
@@ -198,18 +222,63 @@ const vcMigrateActionNode = function (h: any, t: any, model: any, row: any) {
   return h('li', { key: action, className: 'vcs-migrate-row', 'data-vc-migrate-row': action }, kids)
 }
 
-/** 迁移页正文：状态条 + 九个动作 + 任务区 + 维护页只读指路。宿主读数缺失时上层不会调用本函数。 */
+/** 一节里的动作行：按动作名挑出这一段的几条，顺序仍按 VC_MIGRATE_ACTION_ROWS 的账本次序。 */
+const vcMigrateGroupNode = function (h: any, t: any, model: any, actions: string[]) {
+  const rows: any[] = []
+  for (let i = 0; i < VC_MIGRATE_ACTION_ROWS.length; i = i + 1) {
+    const row: any = VC_MIGRATE_ACTION_ROWS[i]
+    if (actions.indexOf(String(row.action)) >= 0) rows.push(vcMigrateActionNode(h, t, model, row))
+  }
+  return h('ul', { key: 'acts', className: 'vcs-migrate-acts', role: 'list' }, rows)
+}
+
+/** 备份与恢复：两句常驻提醒（原型 43 的警告色与灰字两行），不是动作，不挂按钮。 */
+const vcMigrateBackupNode = function (h: any, t: any) {
+  return h('div', { key: 'backup', className: 'page-note-block', 'data-vc-migrate-backup': '1' }, [
+    h('p', { key: 'warn', className: 'page-note is-warn' }, t('vc.migrate.backup.warn')),
+    h('p', { key: 'muted', className: 'page-note is-muted' }, t('vc.migrate.backup.muted')),
+  ])
+}
+
+/**
+ * 迁移页正文。入参：
+ *   reads（预检与任务两槽读数）、ui（展开的动作与字段初值）、width、nowMs；
+ *   slots.clone（克隆向导 8.16）与 slots.exportWizard（导出向导 14.1）由页面壳递进来，分别落在
+ *   「克隆与初始化」「历史与邮件」两段；槽位为空就跳过（单测与全页自检不必造这两个组件）。
+ * 分区不依赖读数：读数为空时按状态块画加载态，动作入口照画，不藏功能。
+ */
 export const vcMigratePageNode = function (h: any, t: any, o: any) {
   const opts: any = o || {}
   const model: any = vcMigrateModelOf(opts.reads, opts.ui, opts.width, opts.nowMs)
   model.ui = opts.ui || {}
-  const kids: any[] = [h('p', { key: 'note', className: 'vcs-migrate-note', 'data-vc-migrate-note': '1' }, t('vc.migrate.note'))]
-  const stateNode = vcShellStateNode(h, t, { state: model.state, reasonKey: model.state === 'error' ? 'vc.migrate.loadFail' : undefined })
-  if (stateNode) kids.push(stateNode)
+  const slots: any = opts.slots || {}
+  const kids: any[] = []
+  // 状态块只在读数没到 / 失败时画：成功态这一页没有可筛选的列表，画空态会让人以为要清筛选条件。
+  if (model.state !== 'ok') {
+    const stateNode = vcShellStateNode(h, t, { state: model.state, reasonKey: model.state === 'error' ? 'vc.migrate.loadFail' : undefined })
+    if (stateNode) kids.push(stateNode)
+  }
   if (model.error && model.error.message) kids.push(h('p', { key: 'err', className: 'vcs-migrate-error', role: 'alert', 'data-vc-migrate-error': String(model.error.kind || 'host') }, String(model.error.message)))
-  kids.push(h('ul', { key: 'actions', className: 'vcs-migrate-acts', role: 'list', 'aria-label': t('vc.migrate.actionsLabel') }, VC_MIGRATE_ACTION_ROWS.map(function (row: any) { return vcMigrateActionNode(h, t, model, row) })))
+  // ① 克隆与初始化（原型 43 第一段）：克隆向导在前，初始化仓库是这一段唯一的受控写。
+  const cloneKids: any[] = []
+  if (slots.clone) cloneKids.push(slots.clone)
+  cloneKids.push(vcMigrateGroupNode(h, t, model, ['init']))
+  kids.push(vcPageSectionNode(h, t, { sectionKey: 'clone-init', title: 'vc.migrate.section.cloneInit.title', countText: 'vc.migrate.section.cloneInit.count', note: 'vc.migrate.section.cloneInit.note', children: cloneKids }))
+  // ② 归档与离线包：归档一行、离线包三行（create / verify / unbundle），产出都是一份文件。
+  kids.push(vcPageSectionNode(h, t, { sectionKey: 'archive', title: 'vc.migrate.section.archive.title', countText: 'vc.migrate.section.archive.count', note: 'vc.migrate.section.archive.note', children: [vcMigrateGroupNode(h, t, model, ['archive', 'bundle-create', 'bundle-verify', 'bundle-unbundle'])] }))
+  // ③ 历史与邮件：14.1 的导出向导（原型这一段的可见行）在前，5.13 的导出 / 导入两行跟在后面。
+  const historyKids: any[] = []
+  if (slots.exportWizard) historyKids.push(slots.exportWizard)
+  historyKids.push(vcMigrateGroupNode(h, t, model, ['fast-export', 'fast-import']))
+  kids.push(vcPageSectionNode(h, t, { sectionKey: 'history', title: 'vc.migrate.section.history.title', countText: 'vc.migrate.section.history.count', note: 'vc.migrate.section.history.note', children: historyKids }))
+  // ④ 备份与恢复：两句提醒，没有动作行。
+  kids.push(vcPageSectionNode(h, t, { sectionKey: 'backup', title: 'vc.migrate.section.backup.title', note: 'vc.migrate.section.backup.note', children: [vcMigrateBackupNode(h, t)] }))
+  // ⑤ 以下三块原型没有，按「额外区块排在原型之后」的顺序接在后面。
+  kids.push(vcPageSectionNode(h, t, { sectionKey: 'svn', title: 'vc.migrate.section.svn.title', countText: 'vc.migrate.section.svn.count', note: 'vc.migrate.section.svn.note', children: [vcMigrateGroupNode(h, t, model, ['svn-probe', 'svn-fetch'])] }))
   const task = vcMigrateTaskNode(h, t, model.task)
   if (task) kids.push(task)
-  kids.push(h('p', { key: 'maint', className: 'vcs-migrate-maint', 'data-vc-migrate-note': 'maintenance-pointer' }, t('vc.migrate.maintenanceNote')))
-  return h('section', { className: 'vcs-migrate', 'data-vc-migrate-page': '1', 'data-vc-migrate-state': model.state, 'data-vc-migrate-decision': model.decision }, kids)
+  kids.push(h('p', { key: 'maint', className: 'vcs-migrate-maint page-note', 'data-vc-migrate-note': 'maintenance-pointer' }, t('vc.migrate.maintenanceNote')))
+  // 九个动作行按分区分组后不再共用一个 ul，原 ul 的 aria-label（vc.migrate.actionsLabel）挪到页面根：
+  //   屏幕阅读器仍能一句话说明「这一页是迁移动作」，词条不必删。
+  return h('section', { className: 'vcs-migrate page-stack', 'data-vc-migrate-page': '1', 'data-vc-migrate-state': model.state, 'data-vc-migrate-decision': model.decision, 'aria-label': t('vc.migrate.actionsLabel') }, kids)
 }

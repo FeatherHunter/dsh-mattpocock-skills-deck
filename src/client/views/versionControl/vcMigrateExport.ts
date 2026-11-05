@@ -1,14 +1,16 @@
-// views/versionControl/vcMigrateExport.ts —— 「迁移与备份」页的 14.1 导出向导（#1762 T26，规格 #1586 域 14）
+// views/versionControl/vcMigrateExport.ts —— 「迁移与备份」页的 14.1 导出向导（#1762 T26；#1844 移进「历史与邮件」分区）
 // 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回闭包。
 //
-// 14.1 是这一页唯一可执行的能力：git format-patch 走长任务通道（#1740 的 start / query / cancel），
+// 14.1 是这一页唯一的可执行能力：git format-patch 走长任务通道（#1740 的 start / query / cancel），
 //   产出一组补丁文件并给出输出目录与文件路径。三步照交互契约：
 //   ① 预检：先问 wf.gitPlatformCheck，拿回 120 秒票据与规范化后的输出目录；参数不合规当场说原因。
 //   ② 确认：确认卡贴触发点，四段（会动什么 / 不会动什么 / 可逆性与恢复路径 / 动词写后果），默认焦点在取消。
 //   ③ 结果：任务发出后贴在这一块里；结束后按任务结论显示状态与输出目录，并重列一次目录里的补丁文件。
 // 失败如实：票据过期或仓库变了（stale）提示重新预检；任务失败显示原话；列目录失败不猜「没有补丁」。
 //
-// 本文件不画 data-cap-primary：14.1 的主入口行由页面壳统一给；这里只画向导本体。
+// #1844：页尾那份「本页其余能力说明」随 #1860 的能力清单退役一并删掉——它把已经画成行的能力又抄了一遍
+//   文字，正是「页面变成能力说明书」的来源。现在每条能力只在自己的行或向导里出现一次。
+// 本文件不画 data-cap-primary：14.1 的主入口在命令面板，正文只画向导本体。
 
 declare function vcCapabilityOf(capId: any): any
 declare function vcPlatformPatchesOf(reads: any): any
@@ -24,8 +26,6 @@ export const VC_MIGRATE_EXPORT_PHONES: Record<string, string> = {
   run: 'wf.gitPlatformRun',
   taskQuery: 'wf.gitTaskQuery',
 }
-/** 这一页其余能力的说明编号（不含 14.1：它的向导就在上方）。 */
-export const VC_MIGRATE_NOTE_IDS: string[] = ['5.13', '8.16', '11.1', '11.12', '11.13', '14.1']
 /** 演练导出一份全新的向导状态（不是读数；读数由调用方从宿主拿）。 */
 export const vcNewMigrateExport = function () {
   return { range: '', dir: '', stage: 'idle', ticket: null, error: null, task: null, requestId: '', checkedDir: '', checkedRange: '' }
@@ -133,7 +133,7 @@ const vcMigratePatchesNode = function (h: any, t: any, reads: any, ctx: any) {
   const st = vcPlatformPatchesStateOf(reads)
   const data = vcPlatformPatchesOf(reads)
   const kids: any[] = [
-    h('h4', { key: 'title', className: 'vcs-sec-title' }, vcMigText(t, 'vc.migrate.patches.title', null)),
+    h('h5', { key: 'title', className: 'vcs-migrate-export-sub' }, vcMigText(t, 'vc.migrate.patches.title', null)),
   ]
   // 数据层的失败态叫 err（与 vcRemoteData 等同一套约定），这里两者都认。
   if (st === 'err' || st === 'error') {
@@ -152,7 +152,8 @@ const vcMigratePatchesNode = function (h: any, t: any, reads: any, ctx: any) {
       })))
     }
     if (data.others > 0) kids.push(h('p', { key: 'others', className: 'vcs-platform-caption', 'data-vc-migrate-patches-others': String(data.others) }, vcMigText(t, 'vc.migrate.patches.others', { n: String(data.others) })))
-  } else {
+  } else if (st === 'loading') {
+    // 还没列过目录（idle）时什么都不写：把「还没读」画成「正在读」会让人以为卡住了。
     kids.push(h('p', { key: 'loading', className: 'vcs-platform-empty', 'data-vc-migrate-patches-loading': '1' }, vcMigText(t, 'vc.shell.state.loading', null)))
   }
   kids.push(h('button', {
@@ -162,31 +163,17 @@ const vcMigratePatchesNode = function (h: any, t: any, reads: any, ctx: any) {
     'data-vc-migrate-rescan': '1',
     'data-press': 'button', 'data-log': 'vc.migrate.export.rescan', onClick: function () { ctx.rescan() },
   }, vcMigText(t, 'vc.migrate.patches.rescan', null)))
-  return h('section', { key: 'patches', className: 'vcs-migrate-patches', 'data-vc-migrate-patches': '1' }, kids)
-}
-
-/** 其余六条能力的说明（5.13 / 8.16 / 11.1 / 11.12 / 11.13 / 14.1）。 */
-const vcMigrateNotesNode = function (h: any, t: any) {
-  const rows = VC_MIGRATE_NOTE_IDS.map(function (capId: string) {
-    const cap = vcCapabilityOf(capId) || { id: capId, name: capId, minVersion: '' }
-    return h('li', { key: capId, className: 'vcs-migrate-note', 'data-vc-migrate-note': capId }, [
-      h('h4', { key: 't', className: 'vcs-migrate-note-title' }, String(cap.id || capId) + ' ' + String(cap.name || '')),
-      h('p', { key: 'b', className: 'vcs-migrate-note-body' }, vcMigText(t, 'vc.migrate.note.' + capId, null)),
-    ])
-  })
-  return h('section', { key: 'notes', className: 'vcs-migrate-notes', 'data-vc-migrate-notes': '1' }, [
-    h('h4', { key: 'title', className: 'vcs-sec-title' }, vcMigText(t, 'vc.migrate.notes.title', null)),
-    h('ul', { key: 'rows', className: 'vcs-migrate-note-rows' }, rows),
-  ])
+  return h('div', { key: 'patches', className: 'vcs-migrate-patches', 'data-vc-migrate-patches': '1' }, kids)
 }
 
 /**
  * 迁移与备份页的 14.1 导出向导。入参：
  *   state（vcNewMigrateExport() 形状的交互态）、reads（补丁列表读数，见 vcPlatformData.ts）、
  *   width、nowMs，以及 onEdit / onCheck / onRun / onRescan 四个回调（缺省时按钮不做事）。
+ * 结构照原型 43 的「历史与邮件」段：一行小标题 → 一句说明 → 区间与目录两栏 → 预检 → 确认卡 → 结果 → 补丁清单。
  */
 export const vcMigrateExportNode = function (h: any, t: any, o: any) {
-  const opts = o || {}
+  const opts: any = o || {}
   const state = opts.state || vcNewMigrateExport()
   const stage = String(state.stage || 'idle')
   const busy = stage === 'checking' || stage === 'running'
@@ -198,15 +185,18 @@ export const vcMigrateExportNode = function (h: any, t: any, o: any) {
     run: function () { if (typeof opts.onRun === 'function') opts.onRun() },
     cancel: function () { if (typeof opts.onCancel === 'function') opts.onCancel() },
   }
+  const title = String((vcCapabilityOf('14.1') || {}).name || '')
   const kids: any[] = [
-    h('h3', { key: 'title', className: 'vcs-sec-title' }, vcMigText(t, 'vc.migrate.export.title', null)),
-    h('p', { key: 'note', className: 'vcs-platform-note-line' }, vcMigText(t, 'vc.migrate.export.note', null)),
-    vcMigrateField(h, t, 'range', 'vc.migrate.export.range', String(state.range || ''), busy, edit),
-    vcMigrateField(h, t, 'dir', 'vc.migrate.export.dir', String(state.dir || ''), busy, edit),
+    h('h4', { key: 'title', className: 'vcs-migrate-export-title', 'data-vc-migrate-export-title': '14.1' }, vcMigText(t, 'vc.migrate.export.title', null) || title),
+    h('p', { key: 'note', className: 'page-note' }, vcMigText(t, 'vc.migrate.export.note', null)),
+    h('div', { key: 'fields', className: 'vcs-migrate-fields' }, [
+      vcMigrateField(h, t, 'range', 'vc.migrate.export.range', String(state.range || ''), busy, edit),
+      vcMigrateField(h, t, 'dir', 'vc.migrate.export.dir', String(state.dir || ''), busy, edit),
+    ]),
     h('button', {
       key: 'check',
       type: 'button',
-      className: 'vcs-platform-btn',
+      className: 'vcs-platform-btn is-primary',
       'data-vc-migrate-check': '1',
       disabled: busy,
       'data-press': 'button', 'data-log': 'vc.migrate.export.check', onClick: function () { if (typeof opts.onCheck === 'function') opts.onCheck(String(state.range || ''), String(state.dir || '')) },
@@ -227,7 +217,7 @@ export const vcMigrateExportNode = function (h: any, t: any, o: any) {
       h('p', { key: 'verb', className: 'vcs-migrate-seg', 'data-vc-migrate-confirm-seg': 'verb' }, vcMigText(t, 'vc.migrate.export.verb', null)),
       h('div', { key: 'acts', className: 'vcs-migrate-confirm-acts' }, [
         h('button', { key: 'cancel', type: 'button', 'data-vc-migrate-confirm-cancel': '1', 'data-focus-default': 'cancel', 'data-press': 'button', 'data-log': 'vc.migrate.confirm-cancel', onClick: function () { ctx.cancel() } }, vcMigText(t, 'vc.shell.confirm.cancel', null)),
-        h('button', { key: 'go', type: 'button', 'data-vc-migrate-run': '1', 'data-press': 'button', 'data-log': 'vc.migrate.run', onClick: function () { ctx.run() } }, vcMigText(t, 'vc.migrate.export.run', null)),
+        h('button', { key: 'go', type: 'button', className: 'is-danger', 'data-vc-migrate-run': '1', 'data-press': 'button', 'data-log': 'vc.migrate.run', onClick: function () { ctx.run() } }, vcMigText(t, 'vc.migrate.export.run', null)),
       ]),
     ]))
   } else if (state.ticket && stage !== 'running' && stage !== 'done') {
@@ -247,6 +237,5 @@ export const vcMigrateExportNode = function (h: any, t: any, o: any) {
     if (state.task.failureLine) kids.push(h('p', { key: 'line', className: 'vcs-platform-caption', 'data-vc-migrate-fail-line': '1' }, String(state.task.failureLine)))
   }
   kids.push(vcMigratePatchesNode(h, t, opts.reads, ctx))
-  kids.push(vcMigrateNotesNode(h, t))
-  return h('section', { key: 'migrate', className: 'vcs-migrate' + (Number(opts.width) > 0 && Number(opts.width) <= 300 ? ' is-narrow' : ''), 'data-vc-migrate-export': '1' }, kids)
+  return h('div', { key: 'migrate-export', className: 'vcs-migrate-export' + (Number(opts.width) > 0 && Number(opts.width) <= 300 ? ' is-narrow' : ''), 'data-vc-migrate-export': '1' }, kids)
 }

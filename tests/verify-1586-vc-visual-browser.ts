@@ -118,6 +118,18 @@ const VC_FILES = [
   'src/client/views/versionControl/vcConfigOps.js',
   'src/client/views/versionControl/vcConfigPage.js',
   'src/client/views/versionControl/vcHooksPage.js',
+  // #1844 三页的叶子（与 scripts/build.mts 同序）：数据层 → 页面正文；克隆向导与导出向导由迁移页按分区块渲染。
+  //   闭包里少一片，壳渲染这三页时会 ReferenceError，量尺就什么也量不到。
+  '.build/shared/version-control/clone-options.js',
+  'src/client/views/versionControl/vcMigrateData.js',
+  // 查询面板的数据层 vcQuery 早已并按构建次序拼在前面的 #1745 那一段里，不再重复拼（重复声明会当场抛错）。
+  'src/client/views/versionControl/vcDiagnostics.js',
+  'src/client/views/versionControl/vcDiagnosticsPage.js',
+  'src/client/views/versionControl/vcMigratePage.js',
+  'src/client/views/versionControl/vcClonePage.js',
+  'src/client/views/versionControl/vcPlatformData.js',
+  'src/client/views/versionControl/vcPlatformPage.js',
+  'src/client/views/versionControl/vcMigrateExport.js',
   'src/client/views/versionControl/vcShellPages.js',
 ]
 
@@ -291,6 +303,32 @@ function entryOf(closureSrc: string): string {
     "    subErrorHint: root.querySelectorAll('[data-vc-sub-list=error] .empty-hint').length,",
     "    subErrorRetry: root.querySelectorAll('[data-vc-sub-list=error] [data-vc-sub-action=read]').length,",
     "    subClipped: (function () { const out = []; const sel = ['.section-title', '.section-note', '.empty-title', '.empty-hint', '.page-card-title', '.page-card-sub', '.inline-label']; root.querySelectorAll(sel.join(',')).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.push(String(el.className)) }); return out })(),",
+    // #1844 迁移与备份 / 诊断 / 平台与边界三页：分区顺序（data-vc-section 的 DOM 顺序）、各页入口与读数、
+    //   以及「关键句子不被截断」的扩用判据（这三页的行都是 obj-* 三段字，原 keySel 覆盖不到）。
+    "    sectionKeys: grab('[data-vc-section]', 'data-vc-section'),",
+    "    sectionTitles: (function () { const out = []; root.querySelectorAll('[data-vc-section] .section-head .section-title').forEach(function (el) { out.push(String(el.textContent)) }); return out })(),",
+    "    migratePage: !!root.querySelector('[data-vc-migrate-page]'),",
+    "    migrateActs: grab('[data-vc-migrate-act]', 'data-vc-migrate-act'),",
+    "    migrateState: (function () { const e = root.querySelector('[data-vc-migrate-page]'); return e ? e.getAttribute('data-vc-migrate-state') : null })(),",
+    "    migrateExport: !!root.querySelector('[data-vc-migrate-export]'),",
+    "    cloneWizard: !!root.querySelector('[data-vc-clone]'),",
+    "    diagPage: !!root.querySelector('[data-vc-diag-panel]'),",
+    "    diagFacts: (function () { const out = []; root.querySelectorAll('[data-vc-section=facts] .fact-key').forEach(function (el) { out.push(String(el.textContent)) }); return out })(),",
+    "    diagRows: grab('[data-vc-diag-row]', 'data-vc-diag-row'),",
+    "    diagReadonlyNote: !!root.querySelector('[data-vc-note=diagnostics-readonly]'),",
+    "    diagPointers: grab('[data-vc-diag-pointer]', 'data-vc-diag-pointer'),",
+    "    diagBisect: !!root.querySelector('[data-vc-diag-block=bisect]'),",
+    "    diagFsck: !!root.querySelector('[data-vc-maint-diag-page]'),",
+    "    diagQueries: !!root.querySelector('[data-vc-query-panel]'),",
+    "    platformPage: !!root.querySelector('[data-vc-platform]'),",
+    "    platformOutbound: grab('[data-vc-platform-outbound]', 'data-vc-platform-outbound'),",
+    "    platformBoundaries: grab('[data-vc-platform-boundary]', 'data-vc-platform-boundary'),",
+    "    platformUpdateRefs: (function () { const e = root.querySelector('[data-vc-platform-update-refs]'); return e ? e.getAttribute('data-vc-platform-update-refs') : null })(),",
+    "    platformRefuse: !!root.querySelector('[data-vc-platform-update-refs-refuse]'),",
+    "    pageClipped: (function () { const out = []; const sel = ['.section-title', '.section-note', '.obj-title', '.obj-sub', '.obj-meta', '.obj-cap-name', '.fact-key', '.fact-value', '.page-note', '.page-chip', '.vcs-platform-line', '.vcs-diag-result', '.vcs-query-name', '.vcs-migrate-export-title', '.vcs-diag-running']; root.querySelectorAll(sel.join(',')).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.push(String(el.className)) }); return out })(),",
+    // #1844：页头的三段读数——计数收没收起、有没有「含不可逆动作」红 chip、返回键在不在。
+    "    headDanger: (function () { const e = root.querySelector('[data-vc-page-head]'); return e === null ? -1 : e.querySelectorAll('.section-danger').length })(),",
+    "    headBack: (function () { const e = root.querySelector('[data-vc-page-head] [data-vc-back]'); return e === null ? 0 : 1 })(),",
     '  };',
     '};',
     'window.__expectedPalette = function (q) { return window.__VC.vcPaletteRowsOf(q).map((r) => r.id); };',
@@ -480,6 +518,40 @@ function subBoardOf() {
       },
     ],
   }
+}
+
+// ---------- 迁移与备份 / 诊断 / 平台与边界三页（#1844）的种子读数 ----------
+// 首屏读数只给三页真正读到的字段：仓库身份（HEAD / 分支 / 仓库根）、暂存与未暂存条数（工作区状态行）、
+// 本地分支表与额外工作区。迁移与平台两页各自的读数按数据层的形状造，页面只读这些字段。
+const PAGE_NOW = Date.parse('2026-10-04T10:00:00+08:00')
+function pageScreenOf() {
+  return {
+    identity: { worktreeDisplay: 'repo', worktreePath: 'D:/w/repo', branch: 'main', detached: false, oid: 'a'.repeat(40), sync: 'tracked-known', ahead: 2, behind: 1, basisMs: PAGE_NOW - 3600000 },
+    staged: [], unstaged: [], stagedCount: 2, unstagedCount: 11, conflictCount: 0,
+    otherWorktrees: [{ path: 'D:/w/copy', display: 'copy', head: 'b', branch: 'dev', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false }],
+    branches: [{ short: 'main', current: true }, { short: 'dev', current: false }], commits: [],
+    repo: { merging: false, rebasing: false, cherryPicking: false, reverting: false, hasCommits: true, bare: false, tier: 'full', autocrlf: null },
+  }
+}
+function pageReadsOf() {
+  return {
+    screen: { state: 'ok', data: { screen: pageScreenOf(), tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: PAGE_NOW }, error: null },
+    // 迁移页的预检槽与任务槽：正检过一次（数据为空），页面就不该再画「读数更新中」。
+    migrate: { state: 'ok', data: {}, error: null },
+    task: { state: 'idle', data: null, error: null },
+    diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null },
+  }
+}
+function pagePlatformReadsOf(over?: any) {
+  const data = Object.assign({
+    readAtMs: PAGE_NOW, repoRoot: 'D:/w/repo',
+    credential: { state: 'ok', helpers: ['manager'], store: '', risk: 'ok', advice: 'ok', error: null },
+    updateRefs: { state: 'ok', value: '', enabled: false, error: null },
+  }, over || {})
+  return { platform: { state: 'ok', data: data, error: null }, requestPull: { state: 'idle', data: null, error: null }, patches: { state: 'idle', dir: '', data: null, error: null } }
+}
+function pageMigrateStateOf(over?: any) {
+  return Object.assign({ range: '', dir: '', stage: 'idle', ticket: null, error: null, task: null, requestId: '', checkedDir: '', checkedRange: '' }, over || {})
 }
 
 async function run(browser: any, env: any) {
@@ -729,6 +801,74 @@ async function run(browser: any, env: any) {
         await page.screenshot({ path: path.join(shotDir, 'hooks-' + skin + '-' + width + '.png') })
       }
     }
+    // ---- K/L/M 组：#1844 迁移与备份 / 诊断 / 平台与边界三页 —— 四档宽 × 两皮肤 ----
+    // 判据只看结构与读数：分区顺序与原型一致（原型区块在前、产品补充区块在后）、各页入口一个不少、
+    //   正文里没有 data-cap-primary、没有横向溢出、关键句子不被截断。每档写一张截图给人看。
+    const zh = (k: string): string => String(dict[k] === undefined ? k : dict[k])
+    const MIGRATE_SECTIONS = ['clone-init', 'archive', 'history', 'backup', 'svn']
+    const DIAG_SECTIONS = ['facts', 'shapes', 'checks', 'replace', 'patch', 'trailer', 'more', 'pointer']
+    const PLATFORM_SECTIONS = ['outbound', 'boundaries', 'credentials', 'update-refs', 'request-pull', 'pointer']
+    const MIGRATE_ACTS = ['init', 'archive', 'bundle-create', 'bundle-verify', 'bundle-unbundle', 'fast-export', 'fast-import', 'svn-probe', 'svn-fetch']
+    for (let s = 0; s < SKINS.length; s += 1) {
+      const skin = SKINS[s]
+      for (let w = 0; w < WIDTHS.length; w += 1) {
+        const width = WIDTHS[w]
+        // 三页都长：把视口拉高，截图一张就能从头看到尾（量尺判据不受视口高度影响，横向才是它量的东西）。
+        await page.setViewportSize({ width: width, height: 2600 })
+        // ① 迁移与备份（原型 43）：克隆与初始化 → 归档与离线包 → 历史与邮件 → 备份与恢复 → SVN 桥（补充块）。
+        const mt = '迁移与备份页 ' + skin + ' / ' + width + ' 宽'
+        const m = await renderAt(page, { page: 'migrate', width: width, skin: skin, pageOpen: true, reads: pageReadsOf(), ui: {}, migrate: pageMigrateStateOf(), migrateReads: pagePlatformReadsOf() })
+        check(!!m && m.page === 'migrate' && m.width === String(width) && m.skin === skin && m.depth === '2', mt + '：根节点读数是迁移页 / 档宽 / 皮肤 / 层级 2')
+        check(!!m && m.headCount === 0 && m.headDanger === 1 && m.headBack === 1, mt + '：页头像原型 43——返回键 + 标题 + 「含不可逆动作」红 chip，不再画能力计数（实得计数 ' + (m && m.headCount) + ' / 红旗 ' + (m && m.headDanger) + '）')
+        check(!!m && !overflowOf(m), mt + '：没有横向溢出（文档 ' + (m && m.docScrollWidth) + ' ≤ viewport ' + (m && m.innerWidth) + '）')
+        const mSections = m && m.sectionKeys ? m.sectionKeys.join(',') : ''
+        check(mSections === MIGRATE_SECTIONS.join(','), mt + '：正文分区按原型 43 的顺序排，SVN 补充块排最后（实得 ' + mSections + '）')
+        check(!!m && m.migratePage === true && m.cloneWizard === true && m.migrateExport === true, mt + '：克隆向导（8.16）与导出向导（14.1）各在自己的分区里')
+        check(!!m && m.migrateActs.join(',') === MIGRATE_ACTS.join(','), mt + '：九个动作行一个不少、顺序按账本（实得 ' + (m && m.migrateActs.join(',')) + '）')
+        check(!!m && m.bodyPrimaries === 0 && m.primaries.length === 0, mt + '：正文里没有 data-cap-primary（主入口只在命令面板）')
+        check(!!m && m.pageClipped.length === 0 && m.clipped.length === 0, mt + '：关键句子没有被截断（截断的：' + (m && m.pageClipped.join(',') || '无') + '）')
+        await page.screenshot({ path: path.join(shotDir, 'migrate-' + skin + '-' + width + '.png'), fullPage: true })
+        // ② 诊断（原型 46）：版本与计数 → 只读对象查看 → 检查与定位 → 产品补充的五段。
+        const dt = '诊断页 ' + skin + ' / ' + width + ' 宽'
+        const d = await renderAt(page, { page: 'diagnostics', width: width, skin: skin, pageOpen: true, reads: pageReadsOf() })
+        check(!!d && d.page === 'diagnostics' && d.width === String(width) && d.skin === skin && d.depth === '2', dt + '：根节点读数是诊断页 / 档宽 / 皮肤 / 层级 2')
+        check(!!d && d.headCount === 0 && d.headDanger === 0 && d.headBack === 1, dt + '：页头像原型 46——返回键 + 标题 + 导语，不画能力计数、不挂危险 chip')
+        check(!!d && !overflowOf(d), dt + '：没有横向溢出（文档 ' + (d && d.docScrollWidth) + ' ≤ viewport ' + (d && d.innerWidth) + '）')
+        const dSections = d && d.sectionKeys ? d.sectionKeys.join(',') : ''
+        check(dSections === DIAG_SECTIONS.join(','), dt + '：正文分区按原型 46 的顺序排，替换 / 补丁 / 尾部签名等补充段排在后面（实得 ' + dSections + '）')
+        check(!!d && d.diagPage === true && d.diagFacts.join(',') === [zh('vc.diag.facts.gitVersion'), zh('vc.diag.facts.describe'), zh('vc.diag.facts.head'), zh('vc.diag.facts.refs'), zh('vc.diag.facts.worktrees'), zh('vc.diag.facts.statusLines'), zh('vc.diag.facts.repoRoot')].join(','), dt + '：版本与计数七格按原型顺序画出（实得 ' + (d && d.diagFacts.join(',')) + '）')
+        check(!!d && d.diagRows.join(',') === '13.5,13.6,13.7,13.8,13.9,13.11,13.4,13.10', dt + '：只读对象查看六条在前、原型没画的两条排在后面的「更多只读查询」里（实得 ' + (d && d.diagRows.join(',')) + '）')
+        check(!!d && d.diagBisect === true && d.diagFsck === true && d.diagQueries === true, dt + '：检查与定位里三块真界面都在（13.1 二分、11.2–11.4 完整性检查、3.5/3.9/3.11/3.13 查询面板）')
+        check(!!d && d.diagReadonlyNote === true && d.diagPointers.join(',') === '13.3,13.14', dt + '：只读口径说明与两条指回别的页面的指针都在')
+        check(!!d && d.bodyPrimaries === 0 && d.primaries.length === 0, dt + '：正文里没有 data-cap-primary（主入口只在命令面板）')
+        check(!!d && d.pageClipped.length === 0 && d.clipped.length === 0, dt + '：关键句子没有被截断（截断的：' + (d && d.pageClipped.join(',') || '无') + '）')
+        await page.screenshot({ path: path.join(shotDir, 'diagnostics-' + skin + '-' + width + '.png'), fullPage: true })
+        // ③ 平台与边界（原型 47）：交出去的六条能力 → 四条边界 → 产品补充的凭据链 / updateRefs / request-pull / 指针。
+        const pt = '平台与边界页 ' + skin + ' / ' + width + ' 宽'
+        const p = await renderAt(page, { page: 'platform', width: width, skin: skin, pageOpen: true, platform: pagePlatformReadsOf() })
+        check(!!p && p.page === 'platform' && p.width === String(width) && p.skin === skin && p.depth === '2', pt + '：根节点读数是平台页 / 档宽 / 皮肤 / 层级 2')
+        check(!!p && p.headCount === 0 && p.headDanger === 0 && p.headBack === 1, pt + '：页头像原型 47——返回键 + 标题 + 导语，不画能力计数、不挂危险 chip')
+        check(!!p && !overflowOf(p), pt + '：没有横向溢出（文档 ' + (p && p.docScrollWidth) + ' ≤ viewport ' + (p && p.innerWidth) + '）')
+        const pSections = p && p.sectionKeys ? p.sectionKeys.join(',') : ''
+        check(pSections === PLATFORM_SECTIONS.join(','), pt + '：正文分区按「原型两段在前、产品补充四段在后」排（实得 ' + pSections + '）')
+        check(!!p && p.platformOutbound.join(',') === '14.2,14.4,14.5,14.6,14.7,14.8', pt + '：交出去的六条能力按编号逐行画出（实得 ' + (p && p.platformOutbound.join(',')) + '）')
+        check(!!p && p.platformBoundaries.join(',') === 'editor,token,longtask,rewrite', pt + '：四条边界按 prototype 47 的顺序画出（实得 ' + (p && p.platformBoundaries.join(',')) + '）')
+        check(!!p && p.platformPage === true && p.bodyPrimaries === 0 && p.primaries.length === 0, pt + '：平台页画出正文、正文里没有 data-cap-primary（主入口只在命令面板）')
+        check(!!p && p.pageClipped.length === 0 && p.clipped.length === 0, pt + '：关键句子没有被截断（截断的：' + (p && p.pageClipped.join(',') || '无') + '）')
+        await page.screenshot({ path: path.join(shotDir, 'platform-' + skin + '-' + width + '.png'), fullPage: true })
+      }
+    }
+    // updateRefs 的四种状态各渲染一次（460 宽深色）：没开 / 开着被拒绝 / 读不到 / 版本要求那一行常驻。
+    await page.setViewportSize({ width: 460, height: 1800 })
+    const urOff = await renderAt(page, { page: 'platform', width: 460, skin: 'dark', platform: pagePlatformReadsOf() })
+    check(!!urOff && urOff.platformUpdateRefs === 'off' && urOff.platformRefuse === false, '平台页 5.9 四态之一：没开时画「没开」，不谎报拒绝（实得 ' + (urOff && urOff.platformUpdateRefs) + '）')
+    const urOn = await renderAt(page, { page: 'platform', width: 460, skin: 'dark', platform: pagePlatformReadsOf({ updateRefs: { state: 'ok', value: 'true', enabled: true, error: null } }) })
+    check(!!urOn && urOn.platformUpdateRefs === 'on' && urOn.platformRefuse === true, '平台页 5.9 四态之二：开着时如实标 on，并写明交互变基的预检会拒绝')
+    const urErr = await renderAt(page, { page: 'platform', width: 460, skin: 'dark', platform: pagePlatformReadsOf({ updateRefs: { state: 'error', value: '', enabled: false, error: { kind: 'env', message: '读不到配置' } } }) })
+    check(!!urErr && urErr.platformUpdateRefs === 'unknown' && urErr.platformRefuse === false, '平台页 5.9 四态之三：读不到时画「读不到」，不拿「没开」冒充（实得 ' + (urErr && urErr.platformUpdateRefs) + '）')
+    const urMin = await renderAt(page, { page: 'platform', width: 460, skin: 'dark', platform: pagePlatformReadsOf() })
+    check(!!urMin && urMin.sectionTitles.indexOf(zh('vc.platform.section.updateRefs.title')) >= 0, '平台页 5.9 四态之四：最低版本那一行常驻（2.38 以下只在命令面板留说明）')
+    await page.screenshot({ path: path.join(shotDir, 'platform-updaterefs-dark-460.png') })
     // ---- #1860：162 条能力的主入口从页面能力清单搬到命令面板 ----
     // 空查询一次列出全部能力，每条的 data-cap-primary 都落在面板行上；页面体里一条也没有。
     await page.setViewportSize({ width: 460, height: 1400 })
@@ -775,7 +915,10 @@ async function run(browser: any, env: any) {
   const vcm = await import(locUrl('src/client/kernel/locale-vcmaintenance.js'))
   const vcs = await import(locUrl('src/client/kernel/locale-vcsubmodules.js'))
   const vcrw = await import(locUrl('src/client/kernel/locale-vcrewrite.js'))
-  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh, vccfg.L_VCCONFIG.zh, vchk.L_VCHOOKS.zh, vcm.L_VCMAINTENANCE.zh, vcs.L_VCSUBMODULES.zh, vcrw.L_VCREWRITE.zh)
+  // #1844：诊断页与平台段（含迁移页）两族词条也并进来，三页截图里显示真实中文而不是词条键。
+  const vcdg = await import(locUrl('src/client/kernel/locale-vcdiagnostics.js'))
+  const vcpf = await import(locUrl('src/client/kernel/locale-vcplatform.js'))
+  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh, vccfg.L_VCCONFIG.zh, vchk.L_VCHOOKS.zh, vcm.L_VCMAINTENANCE.zh, vcs.L_VCSUBMODULES.zh, vcrw.L_VCREWRITE.zh, vcdg.L_VCDIAGNOSTICS.zh, vcpf.L_VCPLATFORM.zh)
   // vcText.js 单独拼进闭包时，相对时间窗口常量在真机闭包里由共享层提供；这里从 time-config 的
   // 生成物取同一份真值，挂到 window 上让闭包里的裸名读得到（与 verify-997 的手法一致）。
   const valuesMod = await import('file://' + path.join(ROOT, sourcePath('src/shared/time-config/values.js')).replace(/\\/g, '/'))
@@ -834,6 +977,41 @@ async function run(browser: any, env: any) {
       const bm = await renderAt(brokenPage.page, { page: 'maintenance', width: 300, skin: 'dark', open: { gear: true } })
       check(!!bm && bm.docScrollWidth > bm.innerWidth + 1, '反证：根节点被强制加宽后，300 宽必须测出横向溢出（scrollWidth ' + (bm && bm.docScrollWidth) + ' > 300）')
     } finally { await brokenPage.close() }
+    // 反证（#1844）：三页各两处——① 量尺在这三页上也测得出「真的坏了」：把根节点强加 640px 最小宽度，
+    //   300 宽必须量出横向溢出；② 分区顺序判据读的是页面真渲染出来的 DOM：把分区的 data-vc-section 改名，
+    //   同一份判据必须读成另一个顺序。两条都落在源码锚点上，锚点打不中就当场红（改法空转等于没证）。
+    // 闭包里的客户端叶子经 spliceableJs 转译，字符串与属性名都成了双引号；锚点按转译后的写法写
+    //   （改法落不到源码上等于没证，下面那条自证就是为这件事红的）。
+    const structPatches: Array<[string, string]> = [
+      ['sectionKey: "clone-init"', 'sectionKey: "clone-init-x"'],
+      ['vcDiagSection(h, t, "facts",', 'vcDiagSection(h, t, "facts-x",'],
+      ['sectionKey: "boundaries"', 'sectionKey: "boundaries-x"'],
+    ]
+    let brokenStruct = closure
+    for (const pair of structPatches) brokenStruct = brokenStruct.replace(pair[0], pair[1])
+    check(brokenStruct !== closure && brokenStruct.indexOf('clone-init-x') > 0 && brokenStruct.indexOf('facts-x') > 0 && brokenStruct.indexOf('boundaries-x') > 0, '反证自证：三处分区改名都真的落在闭包上')
+    const brokenPage2 = await pageFor(browser, brokenStruct, dict, css, relMs)
+    try {
+      await brokenPage2.page.setViewportSize({ width: 300, height: 1200 })
+      const bm = await renderAt(brokenPage2.page, { page: 'migrate', width: 300, skin: 'dark', reads: pageReadsOf(), migrate: pageMigrateStateOf(), migrateReads: pagePlatformReadsOf() })
+      check(!!bm && bm.sectionKeys.join(',') !== ['clone-init', 'archive', 'history', 'backup', 'svn'].join(','), '反证：迁移页第一段分区改名后，K 组的分区顺序判据必须读到不一样（实得 ' + (bm && bm.sectionKeys[0]) + '）')
+      const bd = await renderAt(brokenPage2.page, { page: 'diagnostics', width: 300, skin: 'dark', reads: pageReadsOf() })
+      check(!!bd && bd.sectionKeys[0] !== 'facts', '反证：诊断页第一段分区改名后，L 组的分区顺序判据必须读到不一样（实得 ' + (bd && bd.sectionKeys[0]) + '）')
+      const bp2 = await renderAt(brokenPage2.page, { page: 'platform', width: 300, skin: 'dark', platform: pagePlatformReadsOf() })
+      check(!!bp2 && bp2.sectionKeys.indexOf('boundaries') < 0, '反证：平台页「四条边界」分区改名后，M 组的分区顺序判据必须读到不一样（实得 ' + (bp2 && bp2.sectionKeys.join(',')) + '）')
+    } finally { await brokenPage2.close() }
+    // 量尺反证照旧用同一条 640px 改法，但这次量的是本票的三页：三页在 300 宽都必须测出横向溢出。
+    const brokenWide = closure.replace('"data-vc-shell": "1",', '"data-vc-shell": "1", style: { minWidth: \'640px\' },')
+    check(brokenWide !== closure && brokenWide.indexOf("minWidth: '640px'") > 0, '反证自证：三页的量尺反证闭包确实被改宽')
+    const brokenPage3 = await pageFor(browser, brokenWide, dict, css, relMs)
+    try {
+      await brokenPage3.page.setViewportSize({ width: 300, height: 1200 })
+      const rm = await renderAt(brokenPage3.page, { page: 'migrate', width: 300, skin: 'dark', reads: pageReadsOf(), migrate: pageMigrateStateOf(), migrateReads: pagePlatformReadsOf() })
+      const rd = await renderAt(brokenPage3.page, { page: 'diagnostics', width: 300, skin: 'dark', reads: pageReadsOf() })
+      const rp = await renderAt(brokenPage3.page, { page: 'platform', width: 300, skin: 'dark', platform: pagePlatformReadsOf() })
+      check(!!rm && overflowOf(rm) && !!rd && overflowOf(rd) && !!rp && overflowOf(rp), '反证：根节点被强制加宽后，本票三页在 300 宽都测出横向溢出（迁移 ' + (rm && rm.docScrollWidth) + ' / 诊断 ' + (rd && rd.docScrollWidth) + ' / 平台 ' + (rp && rp.docScrollWidth) + '）')
+    } finally { await brokenPage3.close() }
+
   } finally {
     await closeBrowser()
   }

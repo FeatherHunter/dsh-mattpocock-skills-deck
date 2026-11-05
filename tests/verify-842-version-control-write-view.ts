@@ -291,7 +291,7 @@ const EXPORTS = [
   'vcCredentialRiskOf', 'vcUpdateRefsOf', 'vcRequestPullArgsOf', 'vcPatchSummaryOf', 'VC_PLATFORM_PHONES', 'VC_PLATFORM_DATA_SOURCE', 'vcNewPlatformReads', 'vcPlatformStateOf',
   'vcPlatformDataOf', 'vcPlatformErrorOf', 'vcPlatformCredentialOf', 'vcPlatformUpdateRefsOf', 'vcPlatformRequestPullStateOf', 'vcPlatformRequestPullOf', 'vcPlatformRequestPullErrorOf', 'vcPlatformPatchesStateOf',
   'vcPlatformPatchesOf', 'vcPlatformPatchesErrorOf', 'vcApplyPlatformReply', 'vcApplyRequestPullReply', 'vcApplyPatchesReply', 'vcReadPlatform', 'vcRunRequestPull', 'vcReadPatchFiles',
-  'VC_PLATFORM_PAGE_SOURCE', 'VC_PLATFORM_NOTE_IDS', 'vcPlatformModelOf', 'vcPlatformPageNode', 'VC_MIGRATE_EXPORT_SOURCE', 'VC_MIGRATE_EXPORT_PHONES', 'VC_MIGRATE_NOTE_IDS', 'vcNewMigrateExport',
+  'VC_PLATFORM_PAGE_SOURCE', 'VC_PLATFORM_PAGE_CAP_IDS', 'VC_PLATFORM_OUTBOUND_IDS', 'VC_PLATFORM_BOUNDARY_KEYS', 'vcPlatformModelOf', 'vcPlatformPageNode', 'VC_MIGRATE_EXPORT_SOURCE', 'VC_MIGRATE_EXPORT_PHONES', 'VC_MIGRATE_PAGE_CAP_IDS', 'vcNewMigrateExport',
   'vcApplyMigrateCheck', 'vcApplyMigrateRun', 'vcApplyMigrateTask', 'vcRunMigrateCheck', 'vcRunMigrateExport', 'vcRunMigrateTaskQuery', 'vcMigrateExportNode', 'VC_UNDO_PHONE_CHECK',
   'VC_UNDO_PHONE_WRITE', 'VC_UNDO_COMMIT_MAX', 'VC_UNDO_MESSAGE_MAX', 'VC_UNDO_REV_MAX', 'VC_UNDO_CATALOG', 'vcUndoCatalogOf', 'vcUndoEntryOf', 'vcUndoInputsOf',
   'vcUndoSetInputOf', 'vcUndoPickOpOf', 'vcUndoRevProblem', 'vcUndoCommitsOf', 'vcUndoParamsOf', 'vcUndoCheckArgsOf', 'vcUndoWriteArgsOf', 'vcUndoCheckShapeOk',

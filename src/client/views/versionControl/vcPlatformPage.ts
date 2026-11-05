@@ -1,19 +1,18 @@
-// views/versionControl/vcPlatformPage.ts —— 「平台与边界」页正文（#1762 T26，规格 #1586 域 14 与 5.9 / 8.15）
+// views/versionControl/vcPlatformPage.ts —— 「平台与边界」页正文（#1762 T26；#1844 按定稿原型 47 重排）
 // 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回闭包。
 //
-// 这一页五块，全部只读或说明，没有一条可执行写动作：
-//   ① 凭据助手链（8.15）：只展示本机配置的 credential.helper 链与「面板持有的凭据=不持有」；
-//      命中 store 时只读标红并建议换 credential manager / cache；没有输入框，不读、不写、不落盘令牌。
-//   ② rebase.updateRefs 说明（5.9）：显示当前值与「面板不做 --update-refs」的理由；开着时写明
-//      交互变基的预检会拒绝，并指出替代路径（终端明确执行）。
-//   ③ request-pull 生成（14.3）：三个输入 + 一个按钮，只读调用 git request-pull 生成一段可粘贴的说明；
-//      不推送、不联网、不改仓库。
-//   ④ 逐条平台说明（14.2、14.4–14.8）：每条讲清是什么、为什么面板不做、去哪里做、被拒绝时看什么。
-//   ⑤ 13.14 的指回说明由页面壳画（平台与边界只放说明，历史页才是图形视图的主入口）。
+// 正文的分区顺序照定稿原型 47（docs/prototype/vc-redesign/src/ui/views/pages-system.ts 的 renderPlatform）：
+//   交出去的六条能力（14.2、14.4–14.8）→ 四条边界。
+// 原型没有、但本产品必须有的三段排在原型分区之后：凭据链（8.15）→ 其他分支指针（5.9，四种状态）→
+//   请求拉取说明（14.3）→ 指回提交历史页的 13.14 说明。这条顺序是验收口径：首屏与原型一致，额外区块只许往后加。
+// 页头（标题、导语、「含不可逆动作」以外的页级标记）由页面壳的 vcPageHeadNode 画，本文件不再画标题与导语。
 //
-// 本页不画 data-cap-primary、也不画 data-surface：那 9 条能力的主入口行由页面壳的能力清单统一给，
+// 全部只读或说明，没有一条写动作：凭据链与 updateRefs 各自有加载 / 失败态，不拿「没读到」冒充「没开」。
+// 六条「交出去的能力」右侧只有只读徽章：平台读数只有 credential / updateRefs / repoRoot，没有远端地址，
+//   画「在网页打开」得先新增一次远端读取或改读数协议；票面明令不改协议，所以「去哪里做」由文字承担。
+//
+// 本页不画 data-cap-primary、也不画 data-surface：那九条能力的主入口在命令面板，
 //   这里再画一个就成了「一个能力两个主入口」，门禁 Z1d 会当场判红。
-// 宽度只影响排版：300 宽收起说明的次要字段，任何档位都不删入口。
 
 declare function vcCapabilityOf(capId: any): any
 declare function vcPlatformStateOf(reads: any): string
@@ -25,11 +24,19 @@ declare function vcPlatformRequestPullStateOf(reads: any): string
 declare function vcPlatformRequestPullOf(reads: any): any
 declare function vcPlatformRequestPullErrorOf(reads: any): any
 declare const VC_PLATFORM_PHONES: Record<string, string>
+// 页面骨架原语在同一个构建闭包里（vcPageHead 排在页面壳之前），这里只声明形状，不 import。
+declare function vcPageSectionNode(h: any, t: any, o: any): any
+declare function vcPageObjRowNode(h: any, t: any, o: any): any
+declare function vcPageCapSummaryNode(h: any, t: any, capId: any, label?: any): any
 
 /** 真源标识：门禁按这一行找本文件，改路径要一起改门禁。 */
 export const VC_PLATFORM_PAGE_SOURCE = 'src/client/views/versionControl/vcPlatformPage.ts'
-/** 这一页承载的九条能力编号（14.2 / 14.3 / 14.4–14.8 / 5.9 / 8.15）；顺序就是说明区从上到下。 */
-export const VC_PLATFORM_NOTE_IDS: string[] = ['8.15', '5.9', '14.2', '14.3', '14.4', '14.5', '14.6', '14.7', '14.8']
+/** 这一页承载的九条能力编号（8.15 / 5.9 / 14.2 / 14.3 / 14.4–14.8），顺序与账本无关，只用于门禁对账。 */
+export const VC_PLATFORM_PAGE_CAP_IDS: string[] = ['8.15', '5.9', '14.2', '14.3', '14.4', '14.5', '14.6', '14.7', '14.8']
+/** 交出去的六条能力：14.2 是外部邮件，14.4–14.8 是托管平台网页端能力。顺序按编号，门禁按行核对。 */
+export const VC_PLATFORM_OUTBOUND_IDS: string[] = ['14.2', '14.4', '14.5', '14.6', '14.7', '14.8']
+/** 四条边界：值同时用作 data-vc-platform-boundary 的取值与词条键中段；顺序写死，门禁按行核对。 */
+export const VC_PLATFORM_BOUNDARY_KEYS: string[] = ['editor', 'token', 'longtask', 'rewrite']
 
 const vcPlatformText = function (t: any, key: string, vars: any): string {
   if (typeof t !== 'function') return key
@@ -58,12 +65,51 @@ export const vcPlatformModelOf = function (reads: any, ui: any, width: any) {
   }
 }
 
-/** 凭据助手链一块：只读展示，store 命中时标红并给替代建议。 */
-const vcPlatformCredentialNode = function (h: any, t: any, model: any) {
+/**
+ * 交出去的六条能力（原型 47 的第一段）：每行一条只读说明。
+ * 行里三行字：能力摘要（编号 / 名称 / 动作强度，都来自账本）→ 去哪里做 → 这条能力是什么；
+ * 右侧只有只读徽章。没有可点控件——这一页本来就不替人做平台动作。
+ */
+const vcPlatformOutboundRows = function (h: any, t: any) {
+  return VC_PLATFORM_OUTBOUND_IDS.map(function (capId: string) {
+    const cap: any = vcCapabilityOf(capId) || {}
+    const main: any[] = [
+      vcPageCapSummaryNode(h, t, capId),
+      h('span', { key: 'where', className: 'obj-meta' }, vcPlatformText(t, 'vc.platform.outbound.where.' + capId, null)),
+      h('span', { key: 'note', className: 'obj-sub' }, vcPlatformText(t, 'vc.platform.note.' + capId, null)),
+    ]
+    const command: string = String(cap.command || '')
+    if (command !== '') main.push(h('span', { key: 'cmd', className: 'obj-meta is-mono' }, command))
+    return vcPageObjRowNode(h, t, {
+      main: main,
+      side: [h('span', { key: 'chip', className: 'page-chip is-read' }, vcPlatformText(t, 'vc.platform.outbound.chip', null))],
+      attrs: { 'data-vc-platform-outbound': capId },
+    })
+  })
+}
+
+/** 四条边界（原型 47 的第二段）：每行「不做什么 + 为什么」，只解释责任边界，没有动作。 */
+const vcPlatformBoundaryRows = function (h: any, t: any) {
+  return VC_PLATFORM_BOUNDARY_KEYS.map(function (key: string) {
+    return vcPageObjRowNode(h, t, {
+      main: [
+        h('span', { key: 'title', className: 'obj-title' }, vcPlatformText(t, 'vc.platform.boundaries.' + key + '.title', null)),
+        h('span', { key: 'sub', className: 'obj-sub' }, vcPlatformText(t, 'vc.platform.boundaries.' + key + '.sub', null)),
+      ],
+      side: null,
+      attrs: { 'data-vc-platform-boundary': key },
+    })
+  })
+}
+
+/**
+ * 凭据链（8.15，额外区块）：只读展示本机配置的 credential.helper 链与「面板不持有凭据」，
+ * store 命中时只读标红并建议换 credential manager / cache；没有输入框，不读、不写、不落盘令牌。
+ */
+const vcPlatformCredentialKids = function (h: any, t: any, model: any) {
   const c = model.credential || {}
   const kids: any[] = [
-    h('h3', { key: 'title', className: 'vcs-sec-title' }, vcPlatformText(t, 'vc.platform.cred.title', null)),
-    h('p', { key: 'note', className: 'vcs-platform-note-line', 'data-vc-platform-cred-note': 'no-credentials-held' }, vcPlatformText(t, 'vc.platform.cred.note', null)),
+    h('p', { key: 'note', className: 'page-note', 'data-vc-platform-cred-note': 'no-credentials-held' }, vcPlatformText(t, 'vc.platform.cred.note', null)),
   ]
   if (c.state === 'error') {
     kids.push(h('p', { key: 'fail', role: 'alert', className: 'vcs-platform-fail', 'data-vc-platform-cred-error': '1' }, vcPlatformText(t, 'vc.platform.cred.loadFail', null)))
@@ -88,16 +134,19 @@ const vcPlatformCredentialNode = function (h: any, t: any, model: any) {
       kids.push(h('p', { key: 'ok', className: 'vcs-platform-ok', 'data-vc-platform-cred-ok': '1' }, vcPlatformText(t, 'vc.platform.cred.ok', null)))
     }
   }
-  return h('section', { key: 'cred', className: 'vcs-platform-sec', 'data-vc-platform-cred': '1' }, kids)
+  // 旧版挂在外层 section 上的 data-vc-platform-cred 挪到本块根节点：语义仍在，门禁与老断言照旧按名字定位。
+  return h('div', { key: 'cred', className: 'vcs-platform-block', 'data-vc-platform-cred': '1' }, kids)
 }
 
-/** rebase.updateRefs 一块：显示当前值、为什么不提供、开着时预检会拒绝与替代路径。 */
-const vcPlatformUpdateRefsNode = function (h: any, t: any, model: any) {
+/**
+ * 其他分支指针（5.9，额外区块）：四种状态都要有呈现——off 画「没开」、on 画当前值与「预检会拒绝」、
+ * 读不到（unknown）画「没有读到值」，min 说明这条能力要 git 2.38 以上。
+ */
+const vcPlatformUpdateRefsKids = function (h: any, t: any, model: any) {
   const u = model.updateRefs || {}
   const cap = vcCapabilityOf('5.9') || {}
   const mark = u.state !== 'ok' ? 'unknown' : (u.enabled ? 'on' : 'off')
   const kids: any[] = [
-    h('h3', { key: 'title', className: 'vcs-sec-title' }, vcPlatformText(t, 'vc.platform.updateRefs.title', null)),
     h('p', {
       key: 'value',
       className: 'vcs-platform-line',
@@ -110,11 +159,11 @@ const vcPlatformUpdateRefsNode = function (h: any, t: any, model: any) {
   ]
   if (mark === 'on') kids.push(h('p', { key: 'refuse', role: 'alert', className: 'vcs-platform-danger', 'data-vc-platform-update-refs-refuse': '1' }, vcPlatformText(t, 'vc.platform.updateRefs.refuse', null)))
   kids.push(h('p', { key: 'min', className: 'vcs-platform-caption', 'data-vc-platform-update-refs-min': '1' }, vcPlatformText(t, 'vc.platform.updateRefs.min', { v: String(cap.minVersion || '2.38') })))
-  return h('section', { key: 'update-refs', className: 'vcs-platform-sec', 'data-vc-platform-update-refs-block': '1' }, kids)
+  return h('div', { key: 'update-refs', className: 'vcs-platform-block', 'data-vc-platform-update-refs-block': '1' }, kids)
 }
 
-/** request-pull 一块：三个输入与一个只读按钮；结果贴在这一块里，截断时如实说只显示了前一段。 */
-const vcPlatformRequestPullNode = function (h: any, t: any, model: any, ctx: any) {
+/** 请求拉取（14.3，额外区块）：三个输入 + 一个只读按钮；结果贴在这一块里，截断时如实说只显示了前一段。 */
+const vcPlatformRequestPullKids = function (h: any, t: any, model: any, ctx: any) {
   const rp = model.requestPull || {}
   const form = rp.form || { start: '', url: '', end: '' }
   const busy = rp.state === 'loading'
@@ -132,11 +181,11 @@ const vcPlatformRequestPullNode = function (h: any, t: any, model: any, ctx: any
     ])
   }
   const kids: any[] = [
-    h('h3', { key: 'title', className: 'vcs-sec-title' }, vcPlatformText(t, 'vc.platform.rp.title', null)),
-    h('p', { key: 'note', className: 'vcs-platform-note-line' }, vcPlatformText(t, 'vc.platform.rp.note', null)),
-    field('start', 'vc.platform.rp.start', 'start', form.start),
-    field('url', 'vc.platform.rp.url', 'url', form.url),
-    field('end', 'vc.platform.rp.end', 'end', form.end),
+    h('div', { key: 'fields', className: 'vcs-platform-fields' }, [
+      field('start', 'vc.platform.rp.start', 'start', form.start),
+      field('url', 'vc.platform.rp.url', 'url', form.url),
+      field('end', 'vc.platform.rp.end', 'end', form.end),
+    ]),
     h('button', {
       key: 'run',
       type: 'button',
@@ -161,30 +210,13 @@ const vcPlatformRequestPullNode = function (h: any, t: any, model: any, ctx: any
   } else if (rp.state !== 'loading') {
     kids.push(h('p', { key: 'empty', className: 'vcs-platform-empty', 'data-vc-platform-rp-empty': '1' }, vcPlatformText(t, 'vc.platform.rp.empty', null)))
   }
-  return h('section', { key: 'rp', className: 'vcs-platform-sec', 'data-vc-platform-rp': '1' }, kids)
-}
-
-/** 逐条说明：九条能力各一段，编号与账本对齐；说明项没有执行按钮。 */
-const vcPlatformNotesNode = function (h: any, t: any, model: any) {
-  const rows = VC_PLATFORM_NOTE_IDS.map(function (capId: string) {
-    const cap = vcCapabilityOf(capId) || { id: capId, name: capId, minVersion: '' }
-    const body = vcPlatformText(t, 'vc.platform.note.' + capId, null)
-    return h('li', { key: capId, className: 'vcs-platform-note', 'data-vc-platform-note': capId }, [
-      h('h4', { key: 't', className: 'vcs-platform-note-title' }, String(cap.id || capId) + ' ' + String(cap.name || '')),
-      h('p', { key: 'b', className: 'vcs-platform-note-body' }, body),
-      cap.minVersion ? h('p', { key: 'v', className: 'vcs-platform-caption', 'data-vc-platform-note-min': String(cap.minVersion) }, vcPlatformText(t, 'vc.platform.note.min', { v: String(cap.minVersion) })) : null,
-    ])
-  })
-  return h('section', { key: 'notes', className: 'vcs-platform-sec', 'data-vc-platform-notes': '1' }, [
-    h('h3', { key: 'title', className: 'vcs-sec-title' }, vcPlatformText(t, 'vc.platform.notes.title', { n: String(rows.length) })),
-    h('ul', { key: 'rows', className: 'vcs-platform-note-rows' }, rows),
-  ])
+  return h('div', { key: 'rp', className: 'vcs-platform-block', 'data-vc-platform-rp': '1' }, kids)
 }
 
 /**
  * 平台与边界页的正文。入参：
  *   reads（平台读数，见 vcPlatformData.ts）、ui（request-pull 表单里已输入的值）、
- *   width、nowMs，以及三个回调 onEdit / onRunRequestPull（缺省时按钮不做事，静态渲染照常出 DOM）。
+ *   width、nowMs，以及两个回调 onRpInput / onRequestPull（缺省时按钮不做事，静态渲染照常出 DOM）。
  */
 export const vcPlatformPageNode = function (h: any, t: any, o: any) {
   const opts = o || {}
@@ -198,15 +230,51 @@ export const vcPlatformPageNode = function (h: any, t: any, o: any) {
     },
   }
   const children: any[] = [
-    h('p', { key: 'lede', className: 'vcs-platform-lede', 'data-vc-platform-lede': '1' }, vcPlatformText(t, 'vc.platform.lede', null)),
-    vcPlatformCredentialNode(h, t, model),
-    vcPlatformUpdateRefsNode(h, t, model),
-    vcPlatformRequestPullNode(h, t, model, ctx),
-    vcPlatformNotesNode(h, t, model),
+    vcPageSectionNode(h, t, {
+      sectionKey: 'outbound',
+      title: 'vc.platform.section.outbound.title',
+      countText: 'vc.platform.section.outbound.count',
+      note: 'vc.platform.section.outbound.note',
+      children: vcPlatformOutboundRows(h, t),
+    }),
+    vcPageSectionNode(h, t, {
+      sectionKey: 'boundaries',
+      title: 'vc.platform.section.boundaries.title',
+      note: 'vc.platform.section.boundaries.note',
+      children: vcPlatformBoundaryRows(h, t),
+    }),
+    // 以下四段原型没有，按「额外区块排在原型之后」接在后面。
+    vcPageSectionNode(h, t, {
+      sectionKey: 'credentials',
+      title: 'vc.platform.section.credentials.title',
+      countText: 'vc.platform.section.credentials.count',
+      note: 'vc.platform.section.credentials.note',
+      children: [vcPageObjRowNode(h, t, { main: [vcPageCapSummaryNode(h, t, '8.15')], side: null }), vcPlatformCredentialKids(h, t, model)],
+    }),
+    vcPageSectionNode(h, t, {
+      sectionKey: 'update-refs',
+      title: 'vc.platform.section.updateRefs.title',
+      countText: 'vc.platform.section.updateRefs.count',
+      note: 'vc.platform.section.updateRefs.note',
+      children: [vcPageObjRowNode(h, t, { main: [vcPageCapSummaryNode(h, t, '5.9')], side: null }), vcPlatformUpdateRefsKids(h, t, model)],
+    }),
+    vcPageSectionNode(h, t, {
+      sectionKey: 'request-pull',
+      title: 'vc.platform.section.requestPull.title',
+      countText: 'vc.platform.section.requestPull.count',
+      note: 'vc.platform.section.requestPull.note',
+      children: [vcPageObjRowNode(h, t, { main: [vcPageCapSummaryNode(h, t, '14.3')], side: null }), vcPlatformRequestPullKids(h, t, model, ctx)],
+    }),
+    // 13.14 的主入口在提交历史页：这一页只留一句指回说明（旧版这句由页面壳画在页头之前，
+    //   #1844 按原型把页头放回第一屏，说明挪到正文最后一段，记号 data-vc-note 保持原样）。
+    vcPageSectionNode(h, t, {
+      sectionKey: 'pointer',
+      title: 'vc.platform.section.pointer.title',
+      children: [h('div', { key: 'pointer', className: 'vcs-note', 'data-vc-note': 'platform-pointer' }, vcPlatformText(t, 'vc.shell.platform.pointer', null))],
+    }),
   ]
   return h('section', {
-    key: 'platform',
-    className: 'vcs-platform' + (model.narrow ? ' is-narrow' : ''),
+    className: 'vcs-platform page-stack' + (model.narrow ? ' is-narrow' : ''),
     'data-vc-platform': '1',
     'data-vc-platform-state': model.state,
     'data-vc-platform-width': String(model.width),
