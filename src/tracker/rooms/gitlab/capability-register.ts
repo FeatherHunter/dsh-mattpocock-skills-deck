@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/gitlab/capability-register.ts —— 能力登记数据的旧路径：纯转发（#1916、#1921）。
+ * src/tracker/rooms/gitlab/capability-register.ts —— 能力登记数据的旧路径：纯转发（#1921 收口）。
  *
  * 数据已经搬进 support/capability-register.ts。房外仍有读者按这条旧路径取 GITLAB_CAPABILITY_REGISTER：
  * tests/verify-capability-register.ts、tests/verify-1605-map-routing-guard.ts，以及

@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/gitlab/normalize.ts —— 回包归一的旧路径：纯转发（#1912、#1921）。
+ * src/tracker/rooms/gitlab/normalize.ts —— 回包归一的旧路径：纯转发（#1921 收口）。
  *
  * 实现已经搬进 model/normalize.ts；票面正文标记的六个函数由 model/description-markers.ts 提供
  * （#1911 把标记规则收成一处）。房外仍有读者按这条旧路径 import：契约夹具、快照门禁、字段三态

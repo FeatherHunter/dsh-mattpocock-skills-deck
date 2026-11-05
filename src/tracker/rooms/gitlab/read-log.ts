@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/gitlab/read-log.ts —— 读路径日志出口的旧路径：纯转发（#1913、#1921）。
+ * src/tracker/rooms/gitlab/read-log.ts —— 读路径日志出口的旧路径：纯转发（#1921 收口）。
  *
  * 实现已经搬进 support/read-log.ts。房外仍有读者按这条旧路径取登记值与发送函数：
  * tests/verify-1130-gitlab-marker-read.ts 从本文件取 READ_DEGRADED_OPS 与 READ_DEGRADED_REASONS；

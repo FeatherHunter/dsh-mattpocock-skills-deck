@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/gitlab/read-sources.ts —— 读来源数据的旧路径：纯转发（#1916、#1921）。
+ * src/tracker/rooms/gitlab/read-sources.ts —— 读来源数据的旧路径：纯转发（#1921 收口）。
  *
  * 数据已经搬进 support/read-sources.ts。房外仍有读者按这条旧路径取 GITLAB_READ_SOURCES：
  * tests/verify-operation-catalog.ts 拿它逐条核对 12 条读操作的本家通道默认值。这次结构改造
