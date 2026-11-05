@@ -22,7 +22,7 @@ import {
   SNAPSHOT_CHANGES_MAX_ROWS,
 } from '../../../shared/time-config/src/values.js'
 // #1899：两条读口的回包读数（行数、字节数、耗时、版本）与退化原因落在这里记，口径只此一份。
-import { noteChangesReply, noteLibraryFailure } from './snapshot-read-log.js'
+import { noteChangesReply, noteContainerReply, noteLibraryFailure } from './snapshot-read-log.js'
 import { SNAPSHOT_DEGRADE } from './snapshot-degradation.js'
 
 /** 这一层真正用到的库门面形状；调用方注入的实现可以更宽。 */
@@ -40,6 +40,8 @@ interface SnapshotReadLibrary {
    * 老门面没有这一口时回包不带 counts（客户端保留手上那份）。
    */
   readSnapshotCounts?(input: SnapshotLibraryKeyLike): Promise<any> | any
+  /** 按容器读一次（#1923）：已关闭容器的子票、层级与统计只在打开它时取，不进首屏投影。 */
+  readContainerProjection?(input: SnapshotLibraryKeyLike & { key: string, effortId?: string }): Promise<any> | any
   /**
    * 库的占用读数（#1922）：库文件字节数与票行数。只在环境检查页的诊断读数里用；
    * 老门面没有这一口时这条电话如实失败（不清理、不猜数）。
@@ -97,6 +99,7 @@ function textOf(value: unknown): string {
 export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
   handleSnapshotVersion: (args: any) => Promise<any>
   handleSnapshotChanges: (args: any) => Promise<any>
+  handleContainerProjection: (args: any) => Promise<any>
   handleSnapshotStoreStats: (args: any) => Promise<any>
 } {
   const canonicalKey = deps.canonicalKey
@@ -249,6 +252,54 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
   }
 
   /**
+   * 容器级投影（#1923）：一次交出「容器行 + 子票 + 层级 + 统计」。
+   *
+   * 为什么单开一条电话而不是把子票并进首屏：规格 §6 规定首屏投影只画开放工作集与开放容器的子票，
+   * 已关闭容器的子票属于「打开它才需要」的历史；这条电话只在用户选中一张已关闭容器时由视图模型的
+   * 命令发一次，首屏体积因此一个字节都不变。
+   *
+   * 库里没有这张容器时如实回失败（reason=container-not-in-library），不拿空数组冒充「确认一张都没有」
+   * ——那会把「本机还没取过」说成「它确实没有子票」（规格 I6）。
+   */
+  async function handleContainerProjection(args: any): Promise<any> {
+    const ctx = await resolveContext(args)
+    if ((ctx as ReadFailure).ok === false) return ctx
+    const resolved = ctx as ResolvedContext
+    const key = (args && typeof args.key === 'string') ? args.key.trim() : ''
+    if (!key) return failureOf('没有给容器编号，取不到它的子票。', 'env')
+    const effortId = (args && args.effortId !== undefined && args.effortId !== null) ? String(args.effortId) : ''
+    if (typeof resolved.lib.readContainerProjection !== 'function') {
+      return failureOf('本地快照库没有接上，读不到这张容器的子票。', 'library', SNAPSHOT_DEGRADE.libraryNotWired)
+    }
+    let result: any = null
+    const startedAt = Date.now()
+    try {
+      result = await Promise.resolve(resolved.lib.readContainerProjection(Object.assign({}, keyOf(resolved), { key, effortId })))
+    } catch (e) {
+      result = null
+    }
+    const projectionMs = Date.now() - startedAt
+    if (!result || typeof result.mergeVersion !== 'number') {
+      noteLibraryFailure(logEvent, 'containerProjection', resolved.workspaceKey)
+      return failureOf('本地快照库开不出来，读不到这张容器的子票。', 'library', SNAPSHOT_DEGRADE.libraryCorrupt)
+    }
+    if (!result.container) {
+      return failureOf('本地快照库里还没有这张容器的行，等下一次刷新后再看。', 'library', 'container-not-in-library')
+    }
+    const reply = {
+      ok: true,
+      version: Math.floor(result.mergeVersion),
+      workspaceKey: resolved.workspaceKey,
+      backend: resolved.backend,
+      container: result.container,
+      tickets: Array.isArray(result.tickets) ? result.tickets : [],
+      stats: result.stats && typeof result.stats === 'object' ? result.stats : null,
+    }
+    noteContainerReply(logEvent, reply, resolved.workspaceKey, Date.now() - startedAt, projectionMs)
+    return reply
+  }
+
+  /**
    * 库占用读数（#1922）：诊断用。回包多带版本（规格 I2：读回包都带版本），
    * 字节数与票行数与库里同一次读数一致；读不到就如实失败，不编 0。
    *
@@ -280,5 +331,5 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
     }
   }
 
-  return { handleSnapshotVersion, handleSnapshotChanges, handleSnapshotStoreStats }
+  return { handleSnapshotVersion, handleSnapshotChanges, handleContainerProjection, handleSnapshotStoreStats }
 }

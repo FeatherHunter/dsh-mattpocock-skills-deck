@@ -18,19 +18,44 @@
  */
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
 import type {
+  ContainerProjection,
   GroupState,
   IssueDetail,
   ListIssueRef,
   ListProjection,
   SnapshotComment,
 } from '../../../workspace-snapshot/contract/types.js'
-import { isoOf, projectSnapshotView } from './snapshot-view-projection.js'
+import { normalizeMapTickets } from '../../../host/tracker/snapshotAssemble.js'
+import { isoOf, projectSnapshotView, issueOfRow } from './snapshot-view-projection.js'
 
 export { isoOf, issueOfRow } from './snapshot-view-projection.js'
 
 /** 一次列表投影 → 与在线组装同形的快照主体（容器树、子票、瘦身行都在里面）。 */
 export function snapshotOfProjection(repo: RepositoryRef, projection: ListProjection): any {
   return projectSnapshotView({ repo, issues: projection.issues, version: projection.mergeVersion }).snapshot
+}
+
+/**
+ * 库里的「一个容器」投影 → 界面详情页要的形状（#1923）：容器行 + 子票 + 层级 + 统计。
+ *
+ * 为什么层级与统计在这一层算：它们是领域规则（normalizeMapTickets → groupTickets），
+ * 宿主与客户端都只该有一份实现；客户端拿到的是算好的票（带 level）与 stats.levels，
+ * 不自己再按编号推一遍层级（规格 D1）。
+ *
+ * 三态：容器行缺席时回 null（调用方如实回「库里还没有这张容器」），不拿空数组冒充确认没有；
+ * 子票按库里真实有的行给，库里没取过的子票这里不会凭空出现。
+ */
+export function containerProjectionOf(projection: ContainerProjection): any | null {
+  if (!projection || !projection.container) return null
+  // 库里的状态按 schema 存小写；界面认的是大写的 OPEN / CLOSED（与首屏快照的 upcaseSnapStates 同一口径）。
+  // groupTickets 的开放 / 关闭 / 层级计数只认大写，所以换算必须在算统计之前做，且只此一处。
+  const upcase = function (row: any): any { if (row && typeof row.state === 'string') row.state = row.state.toUpperCase(); return row }
+  const normalized = normalizeMapTickets(projection.issues.map(function (item: any): any { return upcase(issueOfRow(item)) }))
+  return {
+    container: upcase(issueOfRow(projection.container)),
+    tickets: normalized.tickets,
+    stats: normalized.stats,
+  }
 }
 
 /** 库里的一组三态 → 界面读得懂的三态（只留完整度、原因与时刻）。 */

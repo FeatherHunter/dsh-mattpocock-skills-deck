@@ -76,7 +76,9 @@ export interface DeckViewPorts {
   occupiedOf?(row: any, frame: DeckFrame): boolean
   labelNamesOf?(row: any): string[]
   /** 地图详情切片（#1895）：调用方从投影里取出当前容器那一份；不给时该切片恒为 null。 */
-  mapDetailOf?(frame: DeckFrame, reading: DeckReadingState): any
+  mapDetailOf?(frame: DeckFrame, reading: DeckReadingState, detail?: any): any
+  /** 「选中一张容器」背后的容器级读取（#1923）：接线层判「是不是已关闭、要不要取」，模型只负责喊。 */
+  loadContainerProjection?(payload: any): any
   /** 票详情切片（#1896）：入参是投影帧、阅读态与调用方给的按需详情状态；不给时该切片恒为 null。 */
   issueDetailOf?(frame: DeckFrame, reading: DeckReadingState, detail: any): any
   /** 拉取请求切片（#1897）：由调用方从同一份投影里收行；不给时该切片恒为 null。 */
@@ -169,7 +171,7 @@ export function deckReadingOf(value: any): DeckReadingState {
 function deckSameDetail(a: any, b: any): boolean {
   if (a === b) return true
   if (!a || !b) return false
-  return a.issue === b.issue && a.mode === b.mode && a.error === b.error
+  return a.issue === b.issue && a.container === b.container && a.mode === b.mode && a.error === b.error
     && a.loading === b.loading && a.failCount === b.failCount && a.seenAt === b.seenAt
     && a.seenBook === b.seenBook && a.cacheBook === b.cacheBook && a.readMode === b.readMode
 }
@@ -287,7 +289,7 @@ export function createDeckView(options: DeckViewOptions): DeckView {
   }
   // #1895：地图详情是「当前打开的那张容器」的切片，随投影与阅读态变；端口不给时恒为 null（别的屏不用它）。
   const rebuildMapDetail = function (changed: DeckViewSliceName[]): void {
-    const next = (typeof ports.mapDetailOf === 'function') ? ports.mapDetailOf(frame, reading) : null
+    const next = (typeof ports.mapDetailOf === 'function') ? ports.mapDetailOf(frame, reading, detail) : null
     bump('mapDetail', next, changed)
   }
   // #1896：票详情是「当前打开的那张票 + 这一趟取回的详情」的切片，随投影、阅读态与详情取数状态变。
@@ -379,6 +381,7 @@ export function createDeckView(options: DeckViewOptions): DeckView {
           readingChanged = true
           mapMoved = true
         }
+        if (target && typeof ports.loadContainerProjection === 'function') ports.loadContainerProjection({ number: target.number, effortId: target.effort })
       }
       else if (name === 'closeDetail') {
         if (reading.activeIssue !== null || reading.activeIssueEffort !== '' || reading.activeMap !== null || reading.activeMapEffort !== '') {
@@ -440,8 +443,7 @@ export function createDeckView(options: DeckViewOptions): DeckView {
       }
       // 详情取数状态变了（取回了、失败了、评论在加载或失败次数变了）才重算票详情这一片。
       if (input && input.detail !== undefined && !deckSameDetail(detail, input.detail)) {
-        detail = input.detail
-        rebuildIssueDetail(changed)
+        detail = input.detail; rebuildIssueDetail(changed); rebuildMapDetail(changed)
       }
       muted = false
       // 同一版本、同一份筛选与阅读态：一个切片都没动，结论是复用。

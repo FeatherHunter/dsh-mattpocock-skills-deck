@@ -48,6 +48,9 @@ declare function deckReadingOf(value: any): any
 declare function deckMapDetailOf(input: any): any
 // #1896：票详情切片（kernel/deck-issue-detail.ts，构建时排在本片之前拼进同一个闭包）。
 declare function deckIssueDetailOf(input: any): any
+// #1923：已关闭容器的容器级投影（kernel/deck-container-detail.ts，构建时排在本片之前）。
+declare function deckContainerDetailOfStore(...args: any[]): any
+declare function containerProjectionLoadOf(...args: any[]): any
 // #1896：详情投影（views/shared/detailProjection.ts）与导航栈顶（store-prefs.ts）都是同一闭包里的邻居：
 //   票详情切片的输入从这里取，视图与接线用同一把尺子回答「现在打开的是哪张票」。
 declare function detailViewFor(...args: any[]): any
@@ -224,7 +227,7 @@ function deckOpenIssueOf(scope: DeckViewScope, st: any): any {
  * 按需详情状态（#1896）：这一趟取回的详情、取数模式、错误、评论加载态与两个簿记对象。
  * 视图模型不比对象引用，只逐格比这几个字段；这里每次渲染都新造一个对象，所以两边的字段必须对得上。
  */
-function deckDetailFromStore(scope: DeckViewScope, st: any, openIssue: any): any {
+function deckDetailFromStore(scope: DeckViewScope, st: any, openIssue: any, reading: any): any {
   const s: any = st || {}
   let readMode: string = 'snapshot'
   try { if (typeof scope.projectionUsesSnapshot === 'function' && !scope.projectionUsesSnapshot()) readMode = 'legacy' } catch (e) {}
@@ -246,6 +249,8 @@ function deckDetailFromStore(scope: DeckViewScope, st: any, openIssue: any): any
     seenBook: s.detailSeenAt || null,
     cacheBook: s.issueCache || null,
     readMode: readMode,
+    // #1923：当前打开的那张容器若已经取过容器级投影，桶随这一格进视图模型；桶换了才重算 mapDetail。
+    container: (typeof deckContainerDetailOfStore === 'function') ? deckContainerDetailOfStore(scope, st, reading) : null,
   }
 }
 
@@ -283,15 +288,11 @@ function deckPortsOf(scope: DeckViewScope, frame: any, st: any): any {
     },
     // #1895：地图详情这一屏的数据全部从投影里的那棵容器树取；这里只把「当前打开的是哪一张」交给它，
     // 不打电话、不取数（页面进详情不再发 wf.mapTickets）。
-    mapDetailOf: function (f: any, reading: any): any {
-      // 单文件求值（门禁直接 import 本文件）时这一片可能没挂上：按「还没有」处理，不影响别的切片。
-      if (typeof deckMapDetailOf !== 'function') return null
-      return deckMapDetailOf({
-        projection: f.projection,
-        reading: reading,
-        mapOf: scope.findMapByIdentity,
-      })
+    mapDetailOf: function (f: any, reading: any, detail: any): any {
+      return (typeof deckMapDetailOf !== 'function') ? null : deckMapDetailOf({ projection: f.projection, reading: reading, mapOf: scope.findMapByIdentity, containerDetail: (detail && detail.container) || null, version: f.version })
     },
+    // #1923：openMap 命令背后的容器级读取；是不是已关闭、要不要取、一张取几次都在那一片里判。
+    loadContainerProjection: function (payload: any): any { return (typeof containerProjectionLoadOf === 'function') ? containerProjectionLoadOf(scope, st, payload) : null },
     // #1896：票详情这一屏的数据全部从投影与这一趟取回的详情里取；这里只把输入交给选择器，
     // 页面进详情不再自己挑字段，也不再自己发「加载更多」的请求。
     issueDetailOf: function (f: any, reading: any, detail: any): any {
@@ -342,15 +343,19 @@ const deckViewsByStore: WeakMap<object, any> = new WeakMap()
 /** 取这个会话的视图模型；同一版本重复调用不重算任何切片。 */
 export function deckViewOf(st: any, scopeOverride?: DeckViewScope): any {
   const scope = scopeOverride || deckScope()
-  let view = (st && typeof st === 'object') ? deckViewsByStore.get(st) : undefined
   const openIssue: any = deckOpenIssueOf(scope, st)
+  const reading: any = deckReadingFromStore(scope, st, openIssue)
+  let view = (st && typeof st === 'object') ? deckViewsByStore.get(st) : undefined
   if (!view) {
     const frame = deckFrameOf(scope, st)
-    view = createDeckView({ frame: frame, filters: deckFiltersFromStore(st), reading: deckReadingFromStore(scope, st, openIssue), detail: deckDetailFromStore(scope, st, openIssue), ports: deckPortsOf(scope, frame, st) })
+    view = createDeckView({ frame: frame, filters: deckFiltersFromStore(st), reading: reading, detail: deckDetailFromStore(scope, st, openIssue, reading), ports: deckPortsOf(scope, frame, st) })
     if (st && typeof st === 'object') deckViewsByStore.set(st, view)
-    return view
+  } else {
+    view.adopt({ frame: deckFrameOf(scope, st), filters: deckFiltersFromStore(st), reading: reading, detail: deckDetailFromStore(scope, st, openIssue, reading) }, { silent: true })
   }
-  view.adopt({ frame: deckFrameOf(scope, st), filters: deckFiltersFromStore(st), reading: deckReadingFromStore(scope, st, openIssue), detail: deckDetailFromStore(scope, st, openIssue) }, { silent: true })
+  // #1923：刷新后恢复导航栈不经过 pushNav，这里补一次「选中容器」的命令；端口按 (版本, 容器) 去重，
+  // 所以重复渲染、重复点开同一张都不会多发；开放容器由端口判为「不用取」。
+  try { if (reading.activeMap !== null && reading.activeMap !== undefined) view.command('openMap', { number: reading.activeMap, effortId: reading.activeMapEffort }) } catch (eMap) {}
   return view
 }
 

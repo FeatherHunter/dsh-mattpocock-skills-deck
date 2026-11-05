@@ -336,6 +336,8 @@ export default {
     // ==== kernel:deckViewModel (spliced by build) ====
     // #1895：地图详情这一屏的视图模型切片（容器树、子票、层级、统计都从投影取）。
     // ==== kernel:deckMapDetail (spliced by build) ====
+    // #1923：已关闭容器的容器级投影（打开时按容器取一次子票、层级与统计；首屏投影不放大）。
+    // ==== kernel:deckContainerDetail (spliced by build) ====
     // #1896：票详情这一屏的视图模型切片（正文、评论、评审、状态；「加载更多」也在这里）。
     // ==== kernel:deckIssueDetail (spliced by build) ====
     // #1897：拉取请求页这一屏的视图模型切片（投影里的 PR 行、三态、次序与四个数）。

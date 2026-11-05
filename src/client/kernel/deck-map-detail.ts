@@ -10,11 +10,18 @@
  *   map        当前打开的那张容器行（投影 maps 里的同一个对象，不是拷贝）；没打开时为 null；
  *   key        容器身份（key 优先，退回编号）；认不出时为空串；
  *   kind       'map' / 'spec'（认不出、没打开时为空串）；
- *   tickets    这张图的子票数组（与 map.tickets 同一个数组）；
- *   stats      投影里那张容器行自带的统计（groupTickets 的产物，含 levels / levelOf）；
+ *   tickets    这张图的子票数组：开放容器取 map.tickets（同一个数组）；已关闭容器取容器级读取那一份；
+ *   stats      这张图的统计（groupTickets 的产物，含 levels / levelOf）：开放容器取投影行上的，
+ *              已关闭容器取容器级读取算好的那一份（#1923）；
  *   levels     stats.levels（层级；来源没给统计时是空数组，不补零不补层）；
  *   containers 容器树：投影里的全部容器行（与 projection.maps 同一个数组）；
- *   source     'projection'（来自投影）/ 'none'（没打开或投影里找不到）。
+ *   source     'projection'（来自投影）/ 'container'（来自容器级读取）/ 'none'（没打开或投影里找不到）；
+ *   bucket     页面认的取数桶（#1923）：已关闭容器的子票与统计来自容器级读取时是
+ *              { mode:'real', items, stats }；在途是 { mode:'loading' }；失败是 { mode:'err', error }；
+ *              开放容器与还没取过时是 null（页面按首屏投影画）；
+ *   mode       容器级读取的状态：'idle' / 'loading' / 'real' / 'err'（页面据此显示取数中或失败）；
+ *   containerRow 容器级读取回来的容器行（与投影那一行同一个身份，只用于对账；没有时 null）；
+ *   error      容器级读取失败时的原因（人类可读的那一句在 message 里）；没有时 null。
  *
  * 三条不能改的约定：
  *  1. 纯函数：不打电话、不读时钟、不改入参；同一份投影与阅读态连续调用两次结果逐字相同。
@@ -37,6 +44,10 @@ export interface DeckMapDetail {
   levels: any[]
   containers: any[]
   source: string
+  bucket: any
+  mode: string
+  containerRow: any
+  error: any
 }
 
 /** 空切片的唯一写法：没打开任何容器时各字段的稳定形状（数组每次新建，调用方改了也不会串）。 */
@@ -50,6 +61,10 @@ function emptyDetail(containers: any[]): DeckMapDetail {
     levels: [],
     containers: containers,
     source: 'none',
+    bucket: null,
+    mode: 'idle',
+    containerRow: null,
+    error: null,
   }
 }
 
@@ -58,7 +73,9 @@ function emptyDetail(containers: any[]): DeckMapDetail {
  *
  * input.projection 是视图模型 projection 切片里的那份快照；
  * input.reading 是 reading 切片（读 activeMap / activeMapEffort）；
- * input.mapOf(maps, number, effortId) 由调用方给（生产是 findMapByIdentity），缺席时按「找不到」处理。
+ * input.mapOf(maps, number, effortId) 由调用方给（生产是 findMapByIdentity），缺席时按「找不到」处理；
+ * input.containerDetail 是已关闭容器的容器级读取桶（#1923；没有时回 null，按首屏投影画）；
+ * input.version 是投影帧的库版本，用来拒收比手上版本旧的桶。
  */
 export function deckMapDetailOf(input: any): DeckMapDetail {
   const projection: any = (input && input.projection) || {}
@@ -69,17 +86,34 @@ export function deckMapDetailOf(input: any): DeckMapDetail {
   const mapOf = (input && typeof input.mapOf === 'function') ? input.mapOf : null
   const map: any = mapOf ? mapOf(containers, number, reading.activeMapEffort) : null
   if (!map) return emptyDetail(containers)
-  const stats: any = (map.stats && typeof map.stats === 'object') ? map.stats : null
   const kind: string = String(map.type || '') === 'spec' ? 'spec' : 'map'
   const key: string = (map.key !== undefined && map.key !== null) ? String(map.key) : (map.number !== undefined && map.number !== null ? String(map.number) : '')
+  // #1923：已关闭容器的子票与统计来自「容器级读取」的桶；桶只在身份对得上、且不比手上版本旧时才算数。
+  const containerDetail: any = (input.containerDetail && typeof input.containerDetail === 'object') ? input.containerDetail : null
+  const frameVersion: number | null = (input && typeof input.version === 'number') ? input.version : null
+  const matched: boolean = !!containerDetail && String(containerDetail.key) === key
+    && String(containerDetail.effortId === undefined || containerDetail.effortId === null ? '' : containerDetail.effortId) === String(reading.activeMapEffort === undefined || reading.activeMapEffort === null ? '' : reading.activeMapEffort)
+  const versionOk: boolean = !matched || frameVersion === null || typeof containerDetail.version !== 'number' || containerDetail.version >= frameVersion
+  const mode: string = (matched && versionOk) ? String(containerDetail.mode || '') : 'idle'
+  const fromContainer: boolean = mode === 'real'
+  const tickets: any[] = fromContainer ? (Array.isArray(containerDetail.items) ? containerDetail.items : []) : (Array.isArray(map.tickets) ? map.tickets : [])
+  const stats: any = fromContainer ? ((containerDetail.stats && typeof containerDetail.stats === 'object') ? containerDetail.stats : null) : ((map.stats && typeof map.stats === 'object') ? map.stats : null)
+  const bucket: any = mode === 'real' ? { mode: 'real', items: tickets, stats: stats }
+    : mode === 'loading' ? { mode: 'loading' }
+    : mode === 'err' ? { mode: 'err', error: containerDetail.error || null }
+    : null
   return {
     map: map,
     key: key,
     kind: kind,
-    tickets: Array.isArray(map.tickets) ? map.tickets : [],
+    tickets: tickets,
     stats: stats,
     levels: (stats && Array.isArray(stats.levels)) ? stats.levels : [],
     containers: containers,
-    source: 'projection',
+    source: fromContainer ? 'container' : 'projection',
+    bucket: bucket,
+    mode: mode,
+    containerRow: fromContainer ? (containerDetail.container || null) : null,
+    error: mode === 'err' ? (containerDetail.error || null) : null,
   }
 }
