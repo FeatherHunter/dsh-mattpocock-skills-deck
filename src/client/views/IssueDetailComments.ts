@@ -10,7 +10,6 @@
 //   它的分页游标也只有详情带回来的那一份才有。
 // 本文件由 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
 declare function submitIssueComment(...args: any[]): any;
-declare function fetchIssueDetail(...args: any[]): any;
 // #1896：「加载更多评论」是视图模型的一条命令 —— 视图只喊命令，取数与电话都在接线层里，
 // 本文件不再认识取数函数（自己也就不再发请求）。
 declare function deckViewCommand(...args: any[]): any;
@@ -87,7 +86,8 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
           emit(st)
           // 评论结果提示的停留时间：成功后绿闪亮这么久自己退掉；失败的红闪由上面那句注释说的规矩留着不动。
           try { setTimeout(function () { if (st.cmtResult && st.cmtResult.kind === 'ok' && st.cmtResult.at === startedAt) { st.cmtResult = null; try { emit(st) } catch (eR) {} } }, COMMENT_RESULT_FLASH_MS) } catch (eT) {}
-          if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true, effortId: _eff })
+          // #1885 评审修复：评论发完刷新详情也走同一条视图模型命令（与进入详情 / 重试同一套）。
+          if (typeof deckViewCommand === 'function') deckViewCommand(st, 'loadIssueDetail', { number: issueNumber, effortId: _eff, force: true })
           try { if (typeof probeNow === 'function') probeNow(false) } catch (ePn) {}
         }).catch(function (eSub: any) {
           st.cmtSending = false

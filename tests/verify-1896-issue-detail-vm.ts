@@ -46,7 +46,10 @@ function codeOnly(source: string): string {
     .replace(/"(?:[^"\\]|\\.)*"/g, '""')
 }
 
-/** 视图层直连宿主或自己发取数的形状：host.call( / rpcCall( / .call('wf.…) / fetchIssueComments(。 */
+/**
+ * 视图层直连宿主或自己发取数的形状：host.call( / rpcCall( / .call('wf.…) / fetchIssueComments( /
+ * fetchIssueDetail(。最后一个由 #1885 评审补上：详情页原来自己调它，静态判据只扫前四个名字时漏了。
+ */
 function judgeDirectFetch(source: string): string[] {
   const code = codeOnly(source)
   const hits: string[] = []
@@ -54,6 +57,7 @@ function judgeDirectFetch(source: string): string[] {
   if (/\brpcCall\s*\(/.test(code)) hits.push('rpcCall(')
   if (/\.\s*call\s*\(\s*['"]wf\./.test(code)) hits.push(".call('wf.…)")
   if (/\bfetchIssueComments\s*\(/.test(code)) hits.push('fetchIssueComments(')
+  if (/\bfetchIssueDetail\s*\(/.test(code)) hits.push('fetchIssueDetail(')
   return hits
 }
 
@@ -327,6 +331,8 @@ async function main(): Promise<void> {
     const commentsView = sourceText('src/client/views/IssueDetailComments.ts')
     check(detailView.indexOf("useDeckViewSlice(st, 'issueDetail')") >= 0,
       'C9 详情页从视图模型的 issueDetail 切片取这一屏的数据（正文、评论、评审、状态）')
+    check(detailView.indexOf("deckViewCommand(st, 'loadIssueDetail'") >= 0,
+      'C9b 详情页的首取与重试都走视图模型命令 loadIssueDetail（视图不直接调取数函数）')
     check(commentsView.indexOf("deckViewCommand(st, 'loadMoreComments'") >= 0,
       'C10 评论区的「加载更多」走视图模型命令，不再自己调取数函数')
     const direct: any = {}
@@ -335,12 +341,13 @@ async function main(): Promise<void> {
       if (hits.length) direct[rel] = hits
     }
     check(Object.keys(direct).length === 0,
-      'C11 两个迁移过的详情页文件都不直连宿主电话、也不自己发评论取数（host.call( / rpcCall( / .call(wf.…) / fetchIssueComments(）', direct)
+      'C11 两个迁移过的详情页文件都不直连宿主电话、也不自己发取数（host.call( / rpcCall( / .call(wf.…) / fetchIssueComments( / fetchIssueDetail(）', direct)
     const selfCheck1 = judgeDirectFetch("export const x = function () { return fetchIssueComments(st, 9, '1', {}) }")
     const selfCheck2 = judgeDirectFetch("host.call('wf.issueComments', { number: 9 })")
     const selfCheck3 = judgeDirectFetch("const p = rpcCall('wf.issueComments', {})")
-    check(selfCheck1.length === 1 && selfCheck2.length === 1 && selfCheck3.length === 1,
-      'C12 反证：自己取评论、直连宿主、rpc 三种写法都会被这道静态判据当场抓住', { selfCheck1, selfCheck2, selfCheck3 })
+    const selfCheck4 = judgeDirectFetch("if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, 9, {})")
+    check(selfCheck1.length === 1 && selfCheck2.length === 1 && selfCheck3.length === 1 && selfCheck4.length === 1,
+      'C12 反证：自己取评论、直连宿主、rpc、自己取详情四种写法都会被这道静态判据当场抓住', { selfCheck1, selfCheck2, selfCheck3, selfCheck4 })
     check(judgeDirectFetch("// 以前这里调过 fetchIssueComments(st) 与 host.call('wf.issueComments')").length === 0,
       'C13 注释里提到旧写法不算直连（判据只看代码形状）')
     const binding = sourceText('src/client/kernel/deck-view-binding.ts')

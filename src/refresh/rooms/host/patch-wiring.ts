@@ -56,6 +56,9 @@ export function createPatchWiring(deps: PatchWiringDeps): { patchOf: () => any }
       ? function (cwd: any): any { return d.getRepoKey(cwd) }
       : null,
     getTrackerRegistry: getTrackerRegistry,
+    // #1885 评审修复：本地证据（describe / 本地远程 / Markdown 目录）都答不上时才问会话；
+    // 与两条读口同一条身份补齐链（tracker/session/repo-ref 的 resolveRepoRefForCwd）。
+    openSession: (typeof openSession === 'function') ? openSession : null,
     backendIdOf: function (): string { return String(backendIdOf() || '') },
   })
   let patchRunner: any = null

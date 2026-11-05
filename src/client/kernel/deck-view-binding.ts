@@ -31,6 +31,8 @@ declare const listPrefs: any;
 declare const saveListPrefs: any;
 declare const peekNav: any;
 declare const fetchIssueComments: any;
+// #1885 评审修复：详情页「进入 / 重试」的取数也收进接线层（与「加载更多」同一套命令）。
+declare const fetchIssueDetail: any;
 declare const idOfParts: any;
 // #1897：拉取请求片段的接线端口、选中命令背后的导航入口、重试命令背后的取数入口（三个都可能是缺席的，
 //   所以调用处一律用 typeof 守卫；门禁单独 import 本文件时按需把它们挂到 globalThis 上）。
@@ -53,7 +55,9 @@ declare function snapshotRowFor(...args: any[]): any
 declare function projectionUsesSnapshot(...args: any[]): any
 // #1895：容器身份查找的真源仍住 store-derived.ts（与列表、详情页同一把尺子）。
 declare function findMapByIdentity(...args: any[]): any
-type DeckViewSliceName = 'projection' | 'filters' | 'rows' | 'counts' | 'readout' | 'reading' | 'mapDetail' | 'issueDetail'
+// #1894 的切片名清单只有一份（deck-view-model.ts 的联合类型）：这里只做类型导入，
+// 转译时会被剥掉，拼进闭包不留 import。凭记忆在本地再写一份联合曾经漏掉 'prList'（#1897 在用）。
+import type { DeckViewSliceName } from './deck-view-model.js'
 
 /** 接线用到的闭包邻居；门禁传第二参时整份换掉（宿主电话与全部派生函数都可替换）。 */
 export interface DeckViewScope {
@@ -78,6 +82,8 @@ export interface DeckViewScope {
   snapshotRowFor?: any
   projectionUsesSnapshot?: any
   fetchIssueComments?: any
+  // #1885 评审修复：详情首取 / 重试的取数口（视图不再直接调它）。
+  fetchIssueDetail?: any
   idOfParts?: any
 }
 
@@ -103,29 +109,21 @@ function deckScope(): DeckViewScope {
     snapshotRowFor: (typeof snapshotRowFor !== 'undefined' ? snapshotRowFor : null),
     projectionUsesSnapshot: (typeof projectionUsesSnapshot !== 'undefined' ? projectionUsesSnapshot : null),
     fetchIssueComments: (typeof fetchIssueComments !== 'undefined' ? fetchIssueComments : null),
+    fetchIssueDetail: (typeof fetchIssueDetail !== 'undefined' ? fetchIssueDetail : null),
     idOfParts: (typeof idOfParts !== 'undefined' ? idOfParts : null),
   }
 }
 
 function deckVersionOf(scope: DeckViewScope, st: any): number | null {
-  try {
-    const book = scope.snapshotVersionBookOf ? scope.snapshotVersionBookOf(st && st.cwd) : null
-    return (book && typeof book.version === 'number') ? book.version : null
-  } catch (e) { return null }
+  try { const book = scope.snapshotVersionBookOf ? scope.snapshotVersionBookOf(st && st.cwd) : null; return (book && typeof book.version === 'number') ? book.version : null } catch (e) { return null }
 }
 
 function deckWsKeyOf(scope: DeckViewScope, st: any): string {
-  try {
-    const cwd = (st && st.cwd) || ''
-    return String((scope.wsKeyOf ? scope.wsKeyOf(cwd) : cwd) || '')
-  } catch (e) { return '' }
+  try { const cwd = (st && st.cwd) || ''; return String((scope.wsKeyOf ? scope.wsKeyOf(cwd) : cwd) || '') } catch (e) { return '' }
 }
 
 function deckRowsOf(scope: DeckViewScope, projection: any): any[] {
-  try {
-    const issues = (projection && Array.isArray(projection.issues)) ? projection.issues : []
-    return scope.ticketRowsOf ? scope.ticketRowsOf(issues) : issues
-  } catch (e) { return [] }
+  try { const issues = (projection && Array.isArray(projection.issues)) ? projection.issues : []; return scope.ticketRowsOf ? scope.ticketRowsOf(issues) : issues } catch (e) { return [] }
 }
 
 function deckPageRowsOf(scope: DeckViewScope, st: any): any[] {
@@ -328,6 +326,13 @@ function deckPortsOf(scope: DeckViewScope, frame: any, st: any): any {
       if (typeof fn !== 'function' || !st || typeof st !== 'object') return null
       return fn(st, input.number, input.after, { effortId: input.effortId })
     },
+    // #1885 评审修复：进入详情页的首次取数与失败重试都走这里；视图只喊命令，不直接碰取数函数。
+    loadIssueDetail: function (payload: any): any {
+      const fn = scope.fetchIssueDetail
+      const input: any = payload || {}
+      if (typeof fn !== 'function' || !st || typeof st !== 'object') return null
+      return fn(st, input.number, { effortId: input.effortId, force: input.force === true })
+    },
   }
 }
 
@@ -350,9 +355,7 @@ export function deckViewOf(st: any, scopeOverride?: DeckViewScope): any {
 }
 
 /** 按切片取一份只读状态（视图渲染时读它，不自己从 st 里挑字段）。 */
-export function deckViewSliceOf(st: any, name: DeckViewSliceName, scopeOverride?: DeckViewScope): any {
-  return deckViewOf(st, scopeOverride).slice(name)
-}
+export function deckViewSliceOf(st: any, name: DeckViewSliceName, scopeOverride?: DeckViewScope): any { return deckViewOf(st, scopeOverride).slice(name) }
 
 /** 全局读数（状态栏与检查页读同一份）：没有视图模型时返回空对象，调用方自己退回旧函数。 */
 export function deckViewCountsOf(st: any, scopeOverride?: DeckViewScope): any {
@@ -367,12 +370,8 @@ export function deckProjectionOf(st: any, scopeOverride?: DeckViewScope): any {
 /** 把筛选命令写回会话存储（界面别的角落还按 st 字段读，镜像保持同步），并按旧口径持久化列表偏好。 */
 function deckMirrorFilters(st: any, filters: any, command: string, scope: DeckViewScope): void {
   if (!st || !filters) return
-  st.stateFilter = filters.stateFilter
-  st.lblFilters = filters.lblFilters.slice()
-  st.effFilters = filters.effFilters.slice()
-  st.sortKey = filters.sortKey
-  st.sortDir = filters.sortDir
-  st.expLabels = filters.expLabels
+  st.stateFilter = filters.stateFilter; st.lblFilters = filters.lblFilters.slice(); st.effFilters = filters.effFilters.slice()
+  st.sortKey = filters.sortKey; st.sortDir = filters.sortDir; st.expLabels = filters.expLabels
   const prefs = scope.listPrefs
   if (prefs) {
     if (command === 'setStateFilter') { prefs.stateFilter = filters.stateFilter }
@@ -395,6 +394,11 @@ export function deckViewCommand(st: any, name: string, payload?: any, scopeOverr
   if (result.changed.indexOf('filters') >= 0) deckMirrorFilters(st, result.filters, name, scope)
   // #1897：拉取请求页的「重试」只是一条命令 —— 取数入口在接线层，视图自己不再调 loadSnapshot。
   if (name === 'retrySnapshot') { if (typeof loadSnapshot === 'function') loadSnapshot(st, true); return null }
+  // #1885 评审修复：详情页的首取 / 重试也走同一条命令入口；取数函数在接线层，视图不碰它。
+  if (name === 'loadIssueDetail') {
+    const input: any = (payload && typeof payload === 'object') ? payload : {}; const fetchFn = scope.fetchIssueDetail
+    if (typeof fetchFn === 'function') fetchFn(st, input.number, { effortId: input.effortId, force: input.force === true }); return null
+  }
   try {
     // #1897：「选中一行」= 改视图模型的阅读态 + 交给导航入口（压栈换屏）；这一路上不打电话、不取数。
     if (name === 'openIssue') { if (typeof setActiveIssue === 'function') setActiveIssue(st, result.reading.activeIssue, result.reading.activeIssueEffort); else { st.activeIssue = result.reading.activeIssue; st.activeEffortId = result.reading.activeIssueEffort } }

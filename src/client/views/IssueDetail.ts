@@ -10,7 +10,9 @@
 declare function peekNav(...args: any[]): any;
 declare function repoStr(...args: any[]): any;
 declare function buildColorOf(...args: any[]): any;
-declare function fetchIssueDetail(...args: any[]): any;
+// #1885 评审修复：进入详情页 / 重试的取数也走视图模型命令（与「加载更多」同一套），
+//   view 层不再直接调取数函数。命令背后的电话住在 deck-view-binding 的 loadIssueDetail 端口。
+declare function deckViewCommand(...args: any[]): any;
 // #1896：票详情这一屏的视图模型切片（正文、评论、评审、状态都从这里取）；「加载更多」是它的命令。
 declare function useDeckViewSlice(...args: any[]): any;
 // #1694：详情读快照投影（这一趟取回的详情优先，没有就读快照行）住在 views/shared/detailProjection.ts，本文件只消费。
@@ -83,7 +85,8 @@ export const IssueDetail = function (props: any): any {
       // 触发拉取（缓存命中则同步回 real，不多发请求；force 重试由按钮控制）
       React.useEffect(function () {
         if (issueNumber === undefined || issueNumber === null || issueNumber === '' || Number.isNaN(Number(issueNumber))) return
-        if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { effortId: issueEffort })
+        // #1885 评审修复：视图只喊命令；取数、缓存与失败态仍由接线层与视图模型负责。
+        if (typeof deckViewCommand === 'function') deckViewCommand(st, 'loadIssueDetail', { number: issueNumber, effortId: issueEffort })
       }, [issueNumber, issueEffort, st.cwd])
       // #255 提交确认闪烁定时清除（类 rowFlash 同语义，防堆积；置于 early-return 之前保 hooks 顺序恒定）
       React.useEffect(function () {
@@ -114,7 +117,7 @@ export const IssueDetail = function (props: any): any {
       // T4 #554：返回只弹一层（上一级是地图就回到该地图，是工单就回到该工单，
       // 栈空才回列表）。直接调弹栈，不经过按种类守卫的旧入口，混合栈也只退一级。
       const goBack = function () { popNav(st) }
-      const doRetry = function () { if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true, effortId: issueEffort }) }
+      const doRetry = function () { if (typeof deckViewCommand === 'function') deckViewCommand(st, 'loadIssueDetail', { number: issueNumber, effortId: issueEffort, force: true }) }
       // #1111 · 失败横幅三小块（主行/档位小标签/原文折叠区）的显示口径统一在 views/issueDetailErrorView.ts 里算，
       // 这里只拿结果；errView 在上面按 st.issueError 算好，两处横幅共用同一份。
       const copyUrl = function (n: any) {
