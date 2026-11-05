@@ -171,7 +171,10 @@ export function createHistoryQueryPhone(deps: any): (args: any) => Promise<any> 
     if (res.truncated) return failPhone('truncated', whatOf(kind) + '的输出超过了 ' + String(limitOf(kind)) + ' 字节上限，读不全就不给半份数据')
     const out: any = payloadOf(kind, res.stdout)
     if (kind === 'compare' && out && out.ok === true) { out.leftOid = ends.leftOid; out.rightOid = ends.rightOid }
-    // 备注回包里带上「问的是哪条提交」：界面靠它判断这段备注属不属于正在看的那一条（换一条提交时草稿要跟着走）。
+    // 回包里带上「问的是哪条提交 / 哪个文件」：界面靠它判断这份读数属不属于正在看的那一条
+    //   （单文件历史的列表只认「这份读数的路径就是当前只看的那一个」；备注那一段也只认同一条提交）。
+    //   不带回来就等于让界面猜，猜错的症状是「点了没反应，一直停在读取中」。
+    if (kind === 'file-history' && out && out.ok === true) out.path = String((args && args.params && args.params.path) || '')
     if (kind === 'notes' && out && out.ok === true) out.rev = String((args && args.params && args.params.rev) || 'HEAD')
     return out
   }

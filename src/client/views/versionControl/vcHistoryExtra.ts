@@ -129,9 +129,10 @@ export const vcHistoryCompareFilesNode = function (h: any, t: any, o: any) {
   for (let i = 0; i < files.length; i += 1) {
     const f: any = files[i] || {}
     const path: string = String(f.path || '')
+    // 增删行数为 0 的那一格不画（原型 data/format.ts 的 lineDelta 同一条规矩：0 不是「没改」，是没什么可说的）。
     const delta: any[] = []
-    if (typeof f.added === 'number' && isFinite(f.added)) delta.push(h('span', { key: 'a', className: 'dl-add', 'data-vc-file-delta-add': '1' }, String(f.added)))
-    if (typeof f.deleted === 'number' && isFinite(f.deleted)) delta.push(h('span', { key: 'd', className: 'dl-del', 'data-vc-file-delta-del': '1' }, String(f.deleted)))
+    if (typeof f.added === 'number' && isFinite(f.added) && f.added !== 0) delta.push(h('span', { key: 'a', className: 'dl-add', 'data-vc-file-delta-add': '1' }, String(f.added)))
+    if (typeof f.deleted === 'number' && isFinite(f.deleted) && f.deleted !== 0) delta.push(h('span', { key: 'd', className: 'dl-del', 'data-vc-file-delta-del': '1' }, String(f.deleted)))
     kids.push(h('div', { key: 'f-' + i, className: 'file-row compare-file', 'data-vc-history-compare-file': path }, [
       h('span', { key: 'path', className: 'file-path' }, [
         h('span', { key: 'dir', className: 'file-dir' }, vcHistoryDirOf(path)),

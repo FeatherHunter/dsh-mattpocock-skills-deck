@@ -375,10 +375,11 @@ export const vcHistoryPageNode = function (h: any, t: any, o: any) {
     model: model, commit: reads && reads.commit, commitDiffs: reads && reads.commitDiffs,
     reads: reads, ui: ui, width: width, nowMs: readAt,
   }) : null
-  // 比较开着时不画图形化历史：列表位置已经是比较结果，再挂一条提交车道会让人以为那是比较出来的东西。
+  // 比较开着、或者只看某个文件时都不画图形化历史：列表位置已经是比较结果 / 只是改过这个文件的提交，
+  //   下面再挂一条全部提交的车道，会让人以为那是筛出来的东西（原型 88 / 90 里这块也不在）。
   const list = vcHistoryListOf(h, t, {
     model: model, ui: ui, width: width, nowMs: readAt, reads: reads,
-    withGraph: detail === null && !ui.historyCompare,
+    withGraph: detail === null && !ui.historyCompare && String(ui.historyFileOnly || '') === '',
   })
   const kids: any[] = []
   if (detail) {
