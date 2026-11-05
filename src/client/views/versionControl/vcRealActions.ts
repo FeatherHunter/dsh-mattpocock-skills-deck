@@ -34,20 +34,8 @@ declare function vcStashAutoRunOf(deps: any): any
 declare function vcReadFirstScreenSliceOf(reads: any, id: any): any
 declare function vcFirstScreenSliceOf(reads: any, id: any): any
 declare function vcFirstScreenSliceStateOf(reads: any, id: any): any
-declare const VC_CHANGES_PHONES: any
-declare function vcChangesOpMetaOf(op: any): any
-declare function vcChangesCheckArgsOf(cwd: any, op: any, values: any): any
-declare function vcChangesWriteArgsOf(cwd: any, op: any, values: any, ticketId: any, requestId: any): any
-declare function vcChangesRequestIdOf(nowMs: any, salt: any): string
-declare function vcChangesRowKeyOf(op: any, payload: any): string
 declare function vcWorktreesUiOf(ui: any): any
 declare function createWorktreesOpsOf(deps: any): any
-declare function vcFailureOf(reply: any): any
-// #1860 D7：改动页展开一行时按路径读一次工作区差异（不带提交号 = 相对 HEAD），读数住在 reads.diffs。
-declare function vcReadDiff(reads: any, call: any, cwd: any, path: any, untracked: any, staged?: any, cacheKey?: any): any
-declare function vcChangesDiffKeyOf(row: any): string
-declare function vcApplyDiffReply(currentReads: any, nextReads: any): any
-declare function vcMarkDiffLoading(reads: any, key: any): any
 
 // 本层看到的宿主电话：call(phone, args) 回 Promise（容器负责把全局 host.call 包一层兜底）。
 export const VC_REAL_REFRESH_MOMENTS: string[] = ['enter', 'task-done', 'manual']
@@ -265,134 +253,6 @@ export const vcRealActionsOf = function (deps: any): any {
 //   所以这里把「当前 ui」交给它即可。容器统一用下面这个包装，避免两处各写一份。
 export const vcRealCurrentUiOf = function (deps: any): any {
   return typeof deps.getUi === 'function' ? deps.getUi() : deps.ui || {}
-}
-
-// 改动页 13 条动作的处理器：状态由容器持有（values 与 rows），这里只做电话与落状态。
-//   begin 先走预检电话拿 120 秒票；危险动作停确认卡，其余直接凭票执行；run 只认确认卡给的票。
-// readsApi 是容器的读数口子（{ get, set }）：行展开要读补丁（#1860 D7），补丁住在 reads.diffs 里而不是
-//   改动页自己的 values/rows 里 —— 与历史详情、diffOps 同一条缓存与 stale-drop 通路，不另开一份。
-export const vcRealChangesHandlersOf = function (state: any, setState: any, call: any, cwd: any, translate: any, gate: any, readsApi?: any): any {
-  const t = typeof translate === 'function' ? translate : function (key: string) { return key }
-  const s: any = state || {}
-  // 每次改动都交给容器的函数式更新：异步回包落地时按「当前态」算下一态，不会被旧的闭包快照覆盖。
-  const put = function (patch: any): void {
-    if (typeof setState === 'function') setState(function (cur: any) { return Object.assign({}, cur || {}, patch) })
-  }
-  const values: any = s.values || {}
-  // #1829 行级状态按「动作 + 作用对象」分键：同一动作有多个文件行时各自落自己的忙/确认/结果，
-  //   旧 13 条动作面板不带 payload，键仍是动作名，行为与以前完全一样。
-  // 键的算法只有一处：vcChangesRowKeyOf（与改动页界面行、13 条动作面板共用）。
-  const putRow = function (op: any, patch: any, payload?: any): void {
-    if (typeof setState !== 'function') return
-    const key: string = vcChangesRowKeyOf(op, payload)
-    setState(function (cur: any) {
-      const rows: any = Object.assign({}, (cur && cur.rows) || {})
-      rows[key] = Object.assign({}, rows[key] || {}, patch)
-      return Object.assign({}, cur || {}, { rows: rows })
-    })
-  }
-  // 行内按钮只递 payload（例如 path），表单值是共享的 values：拼电话参数时把两层合并成这一次要操作的对象。
-  const effOf = function (payload: any): any { return Object.assign({}, values, payload || {}) }
-  // 闸键＝动作 + 作用对象（路径 / 来源 / 去向 / 块号）：同对象同动作撞一把，不同对象各走各的。
-  const objectKeyOf = function (op: any, payload: any): string {
-    const p: any = payload || {}
-    const pick = function (k: string): string { return p[k] !== undefined && p[k] !== null ? String(p[k]) : String(values[k] === undefined || values[k] === null ? '' : values[k]) }
-    return String(op) + '|' + pick('path') + '|' + pick('from') + '|' + pick('to') + '|' + pick('hunkIndex')
-  }
-  const gated = function (phase: string, op: any, payload: any, start: any): any {
-    if (typeof gate !== 'function') return start()
-    return gate(phase + '|' + objectKeyOf(op, payload), start)
-  }
-  const handlers: any = {
-    onValue: function (field: any, value: any): void {
-      if (typeof setState !== 'function') return
-      setState(function (cur: any) {
-        const next: any = Object.assign({}, (cur && cur.values) || {})
-        next[String(field)] = value
-        return Object.assign({}, cur || {}, { values: next })
-      })
-    },
-    begin: function (op: any, payload: any): any {
-      return gated('changes-action', op, payload, function () { return handlers.beginNow(op, payload) })
-    },
-    beginNow: function (op: any, payload: any): any {
-      const meta: any = vcChangesOpMetaOf(op)
-      if (!meta || meta.write !== true) return handlers.read(op, payload)
-      putRow(op, { busy: true, result: null, confirm: null, read: null }, payload)
-      return Promise.resolve(call(VC_CHANGES_PHONES.check, vcChangesCheckArgsOf(cwd, op, effOf(payload)))).then(function (reply: any) {
-        if (!reply || reply.ok !== true) {
-          putRow(op, { busy: false, result: { ok: false, error: vcFailureOf(reply), values: effOf(payload) } }, payload)
-          return reply
-        }
-        const ticket: any = reply.ticket || {}
-        const ticketId: string = String(ticket.id || reply.ticketId || '')
-        const requestId: string = vcChangesRequestIdOf(Date.now(), String(op))
-        if (reply.confirmRequired === true || meta.dangerous === true) {
-          putRow(op, { busy: false, confirm: { ticketId: ticketId, requestId: requestId } }, payload)
-          return reply
-        }
-        return handlers.run(op, payload, { ticketId: ticketId, requestId: requestId })
-      })
-    },
-    run: function (op: any, payload: any, ticket: any): any {
-      return gated('changes-write', op, payload, function () { return handlers.runNow(op, payload, ticket) })
-    },
-    runNow: function (op: any, payload: any, ticket: any): any {
-      const t: any = ticket || {}
-      putRow(op, { busy: true, confirm: null }, payload)
-      return Promise.resolve(call(VC_CHANGES_PHONES.write, vcChangesWriteArgsOf(cwd, op, effOf(payload), t.ticketId, t.requestId))).then(function (reply: any) {
-        if (reply && reply.ok === true) {
-          putRow(op, { busy: false, result: { ok: true, cmd: String(reply.cmd || op), ms: reply.ms, n: reply.n, values: effOf(payload) } }, payload)
-          if (typeof handlers.onDone === 'function') handlers.onDone()
-        } else {
-          putRow(op, { busy: false, result: { ok: false, error: vcFailureOf(reply), values: effOf(payload) } }, payload)
-        }
-        return reply
-      })
-    },
-    cancel: function (op: any, payload?: any): void { putRow(op, { busy: false, confirm: null }, payload) },
-    // 展开 / 收起一行：收起只改 values，不再发电话；展开时这一路径已经有读数（读到或正在读）就复用，
-    //   否则读一次。同一路径连点两下只会起一个 git 进程（第二下在 loading 里直接返回）。
-    onOpen: function (path: any, row: any): void {
-      const bare: string = String(path || '')
-      // 展开状态与缓存键都用「分组 + 路径」（#1860 D17）：同一个文件换一组就是另一行、另一份补丁。
-      const diffKey: string = vcChangesDiffKeyOf(row || { path: bare })
-      const open: boolean = String(values.openPath || '') === diffKey
-      handlers.onValue('openPath', open ? '' : diffKey)
-      if (open) return
-      const have: any = ((readsApi && readsApi.get && readsApi.get().diffs) || {})[diffKey]
-      if (have && (have.state === 'ok' || have.state === 'loading')) return
-      handlers.diffLoad(bare, row)
-    },
-    // 读这一行的补丁：先写「正在读」再发电话，回包按代际号落地（晚到的旧回包丢掉），换工作区后在飞的那一枪作废。
-    diffLoad: function (path: any, row: any): any {
-      const api: any = readsApi || {}
-      if (typeof api.get !== 'function' || typeof api.set !== 'function') return Promise.resolve(null)
-      const key: string = vcChangesDiffKeyOf(row || { path: String(path || '') })
-      api.set(vcMarkDiffLoading(api.get(), key))
-      // staged 一路向宿主取「索引相对 HEAD」；未暂存一路仍是默认的「工作区相对 HEAD」。
-      return Promise.resolve(vcReadDiff(api.get(), call, cwd, String(path || ''), row && row.untracked === true, row && row.staged === true, key)).then(function (next: any) {
-        api.set(function (cur: any) { return vcApplyDiffReply(cur, next) })
-        return next
-      })
-    },
-    // 读失败后重试：不论当前是什么状态都重发一次（用户在失败块上点了重试，就是在说「再读一遍」）。
-    onDiffRetry: function (path: any, row: any): any { return handlers.diffLoad(path, row) },
-    read: function (op: any, payload: any): any {
-      return gated('changes-read', op, payload, function () { return handlers.readNow(op, payload) })
-    },
-    readNow: function (op: any, payload: any): any {
-      putRow(op, { busy: true, read: null }, payload)
-      return Promise.resolve(call(VC_CHANGES_PHONES.check, vcChangesCheckArgsOf(cwd, op, effOf(payload)))).then(function (reply: any) {
-        const ok: boolean = !!(reply && reply.ok === true)
-        const text: string = String((reply && (reply.text || reply.output || reply.stdout)) || '')
-        const message: string = String((reply && reply.error && reply.error.message) || (ok ? '' : t('vc.shell.live.readFailed')))
-        putRow(op, { busy: false, read: { ok: ok, text: text, message: message } }, payload)
-        return reply
-      })
-    },
-  }
-  return handlers
 }
 
 export const VC_REAL_ACTIONS_SOURCE = 'src/client/views/versionControl/vcRealActions.ts'

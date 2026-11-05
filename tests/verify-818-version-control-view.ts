@@ -200,6 +200,10 @@ const VC_FILES = [
   'src/client/views/versionControl/vcMaintenancePage.js',
   'src/client/views/versionControl/vcMaintenanceDiag.js',
   'src/client/views/versionControl/vcShellIdentity.js',
+  // #1902 改动页三叶（与构建同序）：纯规则（拆块 / 合并 / 分组）→ 一行的画法 → 页面本体。
+  'src/client/views/versionControl/vcChangesHunks.js',
+  'src/client/views/versionControl/vcChangesAct.js',
+  'src/client/views/versionControl/vcChangesRow.js',
   'src/client/views/versionControl/vcChangesView.js',
   // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳的挂载段要看到它们。
   // #1845 流程页共用小部件（状态芯片 / 进度条 / 动作条 / 行内提示）紧跟页头之后：任务、变基、冲突三页都会调它们。
@@ -221,6 +225,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcRealShell.js',
   'src/client/views/versionControl/vcRealDelegate.js',
   'src/client/views/versionControl/vcRealActions.js',
+  // #1902：改动页动作处理器从 vcRealActions 搬出（那一叶贴着 350 有效行上限），容器照旧只调它一个入口。
+  'src/client/views/versionControl/vcChangesHandlers.js',
   // #1877：提交选项浮层的关闭与焦点行为（换页签 / 点外面 / 收起后焦点回箭头）拆成独立叶子，容器调它。
   'src/client/views/versionControl/vcRealCommitFlow.js',
   'src/client/views/versionControl/vcRealTab.js',

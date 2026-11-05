@@ -58,6 +58,19 @@ function commitPrimaryKeyOf(mode: any): string {
   return ''
 }
 
+/** 只暂存了一部分的文件：同时出现在两组里，提交只会带上它已进索引的那几块。
+ *  这个数只用来写提交区那一句提示——计数本身仍按 git 的已暂存文件数（它才是这次提交会带上的文件）。 */
+function commitPartialCountOf(changes: any): number {
+  const files = (changes && changes.files) || {}
+  const staged: any[] = Array.isArray(files.staged) ? files.staged : []
+  const unstaged: any[] = Array.isArray(files.unstaged) ? files.unstaged : []
+  const both: any = {}
+  for (let i = 0; i < unstaged.length; i += 1) both[String((unstaged[i] || {}).path || '')] = true
+  let n = 0
+  for (let i = 0; i < staged.length; i += 1) if (both[String((staged[i] || {}).path || '')] === true) n += 1
+  return n
+}
+
 /** 2.2 的「一起提交」会额外收进多少个文件：只数已跟踪、非冲突的未暂存行。
  *  未跟踪的新文件不在 git commit -a 的范围里，数进来会让人以为它们也会被提交。 */
 function commitTrackedCountOf(changes: any): number {
@@ -85,6 +98,7 @@ export function vcCommitPanelOf(o: any): any {
   const headOid = head ? String(head.oid || '') : ''
   const headSubject = head ? String(head.subject || '') : ''
   const stagedCount = Number(((opts.changes || {}).counts || {}).staged || 0)
+  const partialCount = commitPartialCountOf(opts.changes)
   const trackedCount = commitTrackedCountOf(opts.changes)
   const allTracked = plan.all === true
   const effectiveCount = stagedCount + (allTracked ? trackedCount : 0)
@@ -122,6 +136,9 @@ export function vcCommitPanelOf(o: any): any {
   else if (plan.mode === 'fixup') hintText = t('vc.commit.hint.fixup')
   else if (plan.mode === 'squash') hintText = t('vc.commit.hint.squash')
   else if (allTracked) hintText = t('vc.commit.hint.allTracked', { n: String(trackedCount) })
+  // 只暂存了一部分的文件：提交会带上它已进索引的那几块。这句话要写在提交区，因为顶部「已暂存」按整份文件数，
+  //   不把部分暂存算进去；不说清楚，读者会以为底部说「1 个文件已暂存」和顶部「已暂存 0」是两回事。
+  else if (partialCount > 0) hintText = t('vc.changes.view.partialHint', { n: String(partialCount) })
   else hintText = t('vc.changes.view.composerHint')
   const submitDisabled = running || reasonKey !== ''
   const formNoteKey = function (mode: any): string { return 'vc.commit.formNote.' + mode }

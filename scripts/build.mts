@@ -922,6 +922,11 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1829 改动页首屏两叶：身份行与同步带（仓库名 / 分支 / 短号 + 同步事实行 + 同步动作行）、
   //   统计卡与分组文件行。都排在页面壳之前，壳的挂载段才调得到；壳自己只保留页面顺序。
   { id: 'vcShellIdentity', file: 'src/client/views/versionControl/vcShellIdentity.ts' },
+  // #1902 改动页三叶，次序即依赖：纯规则（拆块 / 合并 / 分组）→ 一行的画法（菜单、确认卡、改名表单、逐块差异）→ 页面本体。
+  //   页面那一叶只留统计卡、结果条与分组，一行里的东西全部在 vcChangesRow；两叶都排在页面壳之前，壳的挂载段才调得到。
+  { id: 'vcChangesHunks', file: 'src/client/views/versionControl/vcChangesHunks.ts' },
+  { id: 'vcChangesAct', file: 'src/client/views/versionControl/vcChangesAct.ts' },
+  { id: 'vcChangesRow', file: 'src/client/views/versionControl/vcChangesRow.ts' },
   { id: 'vcChangesView', file: 'src/client/views/versionControl/vcChangesView.ts' },
   // #1829 阶段 4 三个共享件：页头与四个页面原语、齿轮里的管理索引卡片、分支浮层；
   //   都排在页面壳之前，壳的挂载段才调得到（页面壳自己只保留页面顺序）。
@@ -948,6 +953,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcRealShell', file: 'src/client/views/versionControl/vcRealShell.ts' },
   { id: 'vcRealDelegate', file: 'src/client/views/versionControl/vcRealDelegate.ts' },
   { id: 'vcRealActions', file: 'src/client/views/versionControl/vcRealActions.ts' },
+  // #1902：改动页动作处理器从 vcRealActions 搬出（那一叶贴着 350 有效行上限），容器照旧只调它一个入口。
+  { id: 'vcChangesHandlers', file: 'src/client/views/versionControl/vcChangesHandlers.ts' },
   { id: 'vcRealCommitFlow', file: 'src/client/views/versionControl/vcRealCommitFlow.ts' }, // #1877 提交选项浮层的关闭与焦点行为（换页签 / 点外面 / 收起后焦点回箭头），容器调它
   { id: 'vcRealTab', file: 'src/client/views/versionControl/vcRealTab.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },

@@ -40,6 +40,11 @@ const NEW_FILES = [
   'src/client/views/versionControl/vcRealShell.js',
   'src/client/views/versionControl/vcRealDelegate.js',
   'src/client/views/versionControl/vcRealActions.js',
+  // #1902：改动页动作处理器从 vcRealActions 搬出；改动页另外三叶（纯规则 / 一行 / 页面）各有自己的真源。
+  'src/client/views/versionControl/vcChangesHandlers.js',
+  'src/client/views/versionControl/vcChangesHunks.js',
+  'src/client/views/versionControl/vcChangesAct.js',
+  'src/client/views/versionControl/vcChangesRow.js',
   // #1877：提交选项浮层的关闭与焦点行为拆成独立叶子（容器贴着 350 有效行上限），容器要调它。
   'src/client/views/versionControl/vcRealCommitFlow.js',
   'src/client/views/versionControl/vcRealTab.js',

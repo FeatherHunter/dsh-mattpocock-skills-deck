@@ -60,9 +60,15 @@ export const vcChangesPayloadOf = function (op: any, values: any) {
   const meta: any = vcChangesOpMetaOf(op)
   const v: any = values || {}
   if (!meta) return {}
-  if (meta.needs === 'hunks') return { path: String(v.path === undefined || v.path === null ? '' : v.path), hunkIndex: (typeof v.hunkIndex === 'number' && isFinite(v.hunkIndex)) ? Math.floor(v.hunkIndex) : 0 }
+  // reverse（#1902）：同一块两个方向——false 放进索引，true 从索引里退回来。宿主按这一位选读哪一份差异。
+  if (meta.needs === 'hunks') return { path: String(v.path === undefined || v.path === null ? '' : v.path), hunkIndex: (typeof v.hunkIndex === 'number' && isFinite(v.hunkIndex)) ? Math.floor(v.hunkIndex) : 0, reverse: v.reverse === true }
   if (meta.needs === 'path') return { path: String(v.path === undefined || v.path === null ? '' : v.path) }
-  if (meta.needs === 'two-paths') return { path: String(v.from === undefined || v.from === null ? '' : v.from), to: String(v.to === undefined || v.to === null ? '' : v.to) }
+  // two-paths：老面板填的是 from / to，改动页行上的「重命名」递的是 path（旧路径）+ to。两者都认，
+  //   否则行上的改名会拿着表单里空着的 from 去拼电话参数。
+  if (meta.needs === 'two-paths') {
+    const from: any = (v.from === undefined || v.from === null || v.from === '') ? v.path : v.from
+    return { path: String(from === undefined || from === null ? '' : from), to: String(v.to === undefined || v.to === null ? '' : v.to) }
+  }
   return {}
 }
 
