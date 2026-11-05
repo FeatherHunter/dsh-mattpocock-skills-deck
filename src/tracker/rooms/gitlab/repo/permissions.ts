@@ -1,20 +1,25 @@
 /**
- * src/tracker/rooms/gitlab/identity-ops.ts —— GitLab 房的两条单点读：当前登录人、仓库写权限。
+ * src/tracker/rooms/gitlab/repo/permissions.ts —— GitLab 房的一条单点读：当前账号在这张仓库上能做什么。
  *
- * ── 这两条为什么住在同一份文件里 ────────────────────────────────────────────────
- * 它们都是「问一句、拿一个短结论」的只读操作，都不写任何东西，共用两样东西：
- *   1）仓库坐标（`repo.refId`，形如 `group/sub/project`）的入口检查；
- *   2）「这一趟没读成」要在 `fail(...)` 之前落一行 `read.degraded` 的纪律（`./read-log.ts`）。
- * 契约把它们分列为两条能力（`getCurrentUser` / `getRepoPermissions`），这里也导出两个函数，
- * 只是把上面那两样共用的东西写在一处，免得日后两处各改一半。
+ * ── 为什么住在 repo/ 子树（#1918）──────────────────────────────────────────────
+ * 这条读与「当前登录人」（`repo/current-user.ts`）原来同住根目录的 `identity-ops.ts`。它们共用的
+ * 是两样东西：仓库坐标的入口检查，以及「这一趟没读成」要在失败之前落一行 `read.degraded` 的纪律。
+ * 按规格 #1907 的竖切口径，仓库身份与这两条读都属于「仓库」这个概念，一起搬进 `repo/`；
+ * 两条读各占一个 module，入口检查的判据收在 `repo/identity.ts` 的 `looksLikeProjectPath`。
  *
- * ── 远端问法与回包形状（GitLab 官方文档，2026-10-14 查）─────────────────────────
- *   · 当前登录人：`GET /user` → `{id, username, name, avatar_url, bot, ...}`，本房用 `glab api user`。
- *   · 仓库权限：`GET /projects/:id` 的回包里 `"permissions"` 形如
- *     `{"project_access": {"access_level": 10, "notification_level": 3},
- *       "group_access":   {"access_level": 50, "notification_level": 3}}`；
- *     两格分别表示「直接加在这个项目上的成员档位」与「从上层分组继承来的档位」，
- *     用户没有那一侧的关系时那一格是 `null`（不是 0，也不是缺这一格）。
+ * ── 请求边界不在这个文件里 ─────────────────────────────────────────────────────
+ * `GET /projects/:id?simple=true` 的形状（方法、路径、超时怎么传）住在根目录 `requests.ts` 的
+ * `requestProjectPermissions`；项目路径的编码仍只有 `queries.ts` 一处口径，由请求函数去调它。
+ * 本文件只做请求前后属于操作上下文的事：入口检查、解析回包、按失败档位挑话术、落降级日志。
+ * 行为与搬进子树之前逐字一致：返回的两个布尔、失败档位、提示话术、`read.degraded` 的 op 与 reason、
+ * 以及 `GITLAB_READ_TIMEOUT_MS` 这一档超时都没有变。
+ *
+ * ── 远端回包形状（GitLab 官方文档，2026-10-14 查）───────────────────────────────
+ * 仓库权限：`GET /projects/:id` 的回包里 `"permissions"` 形如
+ *   `{"project_access": {"access_level": 10, "notification_level": 3},
+ *     "group_access":   {"access_level": 50, "notification_level": 3}}`；
+ * 两格分别表示「直接加在这个项目上的成员档位」与「从上层分组继承来的档位」，
+ * 用户没有那一侧的关系时那一格是 `null`（不是 0，也不是缺这一格）。
  *
  * ── 档位数字与含义：核实到什么程度，写清楚 ──────────────────────────────────────
  * 已核实（官方文档原文）：
@@ -40,20 +45,22 @@
  *     不会退化成「猜一个 false」。
  */
 
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { Actor, ErrorKind } from '../../contract/identity.js'
-import type { OpContext } from '../../contract/contexts.js'
-import type { RepositoryRef } from '../../contract/entities.js'
-import type { OpResult, RepoPermissions } from '../../contract/results.js'
-import { fail } from '../../kernel/preflight.js'
-import { glabClient } from './client.js'
-import { failGlab } from './errors.js'
-import { emitReadDegraded } from './read-log.js'
-import { projectPath } from './queries.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { ErrorKind } from '../../../contract/identity.js'
+import type { OpContext } from '../../../contract/contexts.js'
+import type { RepositoryRef } from '../../../contract/entities.js'
+import type { OpResult, RepoPermissions } from '../../../contract/results.js'
+import { fail } from '../../../kernel/preflight.js'
+import { failGlab } from '../errors.js'
+import { emitReadDegraded } from '../read-log.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
-import { repoRefId } from './model/repo-identity.js'
+import { repoRefId } from '../model/repo-identity.js'
+// 入口检查的判据与仓库坐标解析同一口径，住在仓库身份 module 一处（#1918）。
+import { looksLikeProjectPath } from './identity.js'
+// 请求的形状住在房间根目录的 requests.ts（#1918）：读仓库权限的端点在那里收口。
+import { requestProjectPermissions } from '../requests.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { GITLAB_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 
 /**
  * 能推代码的最低档位：Developer(30)。
@@ -81,26 +88,6 @@ const PUSH_MIN_LEVEL = 30
  * 契约里没有这句话（`RepoPermissions` 只定义了两个布尔，一个档位数字都没提），是编的，已删。**
  */
 const TRIAGE_MIN_LEVEL = 15
-
-// 只取 refId/name 两格，是因为这两条读只认仓库坐标，拿全量会把 effortId 之类搅进来。
-type RepoLike = Partial<RepositoryRef> | null | undefined
-
-/**
- * refId 是不是一个「像 GitLab 项目路径」的样子：至少两段、每段都不空、整串没有空白。
- *
- * 为什么要有这道检查：GitLab 上一个项目至少要「分组/项目」两段（`./repo.ts` 的 `parseGitlabRepo`
- * 是同一套口径），只给一段的字符串多半是目录名或显示名，把它当项目路径拼进 URL 会问错仓库，
- * 而远端对「问错仓库」的常见回答是 404 —— 那就从「入参没给全」变成了「仓库不存在」，归因是错的。
- */
-function looksLikeProjectPath(id: string): boolean {
-  if (!id || /\s/.test(id)) return false
-  const segs = id.split('/')
-  if (segs.length < 2) return false
-  for (const seg of segs) {
-    if (!seg) return false
-  }
-  return true
-}
 
 /** 取异常里那句话；取不到就把异常本身转成字符串（与房内其余文件的同一套写法）。 */
 function errMsg(err: unknown): string {
@@ -158,72 +145,6 @@ function maxAccessLevel(permissions: unknown): number | null {
 }
 
 /**
- * 问「这个远端上我是谁」（契约的 `getCurrentUser`）。
- *
- * 成功回 `{login, name?, avatarUrl?, kind?}`：
- *   · `login` 取回包的 `username`（它才是 GitLab 里那个全局唯一的短名，`name` 是显示名）；
- *   · `kind` 只在回包明说 `bot: true` 时填 `'bot'`（GitLab 的机器人账号就是这个标记）；
- *     其余一律**省略**而不是填 `'user'` —— 契约对 `kind` 的约定是「认不出来就省略」。
- *
- * 关于入口那道 refId 检查（有一条要如实说清楚）：`GET /user` 本身**不需要**项目路径，
- * 这道检查不是远端的要求，而是本房的入口纪律 —— 本房其余读操作（`get` / `list`）在同一处缺失时
- * 也走同一个失败分支，且 `read-log.ts` 里登记了 `currentUser:repo-ref` 这一格。
- * 之所以不让它例外：refId 认不出来时调用方还没拿到一个可用的仓库坐标，此时给出「当前登录人」
- * 会让上层把一次没做完的准备当成做完的结论。
- *
- * @param repo 仓库身份（只取 refId/name；refId 缺失或不像项目路径就如实失败）
- * @param ctx 单次调用上下文（glab 从这里取平台与执行器；日志也记在它上面）
- */
-export async function getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<Actor>> {
-  // 这一笔的起点：下面每条降级日志带的是「从入口到这里花掉的毫秒数」。
-  const t0 = Date.now()
-  const id = repoRefId(repo)
-  if (!looksLikeProjectPath(id)) {
-    emitReadDegraded(ctx, 'currentUser', 'currentUser:repo-ref', Date.now() - t0)
-    return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'getCurrentUser: repo.refId 缺失或不像是「分组/项目」', '')
-  }
-
-  try {
-    const res = await glabClient(ctx).run(['api', 'user'], { timeout: GITLAB_READ_TIMEOUT_MS })
-    if (res.code !== 0) {
-      // 按 read-log.ts 里 transport 的定义，非 0 退出（glab 不在、没登录、远端 401/403）都归这一格；
-      // 具体档位仍由 failGlab 按原文判，这里只负责让「权限没问出来」在日志里是一条线。
-      emitReadDegraded(ctx, 'currentUser', 'currentUser:transport', Date.now() - t0)
-      // 原文 = 这一次 glab 调用的进程结果。
-      return failGlab(res, res.stderr || res.stdout || 'getCurrentUser 没问出来', res, ctx)
-    }
-
-    const bag = parseJsonObject(res.stdout)
-    if (!bag) {
-      emitReadDegraded(ctx, 'currentUser', 'currentUser:json', Date.now() - t0)
-      return fail(ERROR_KIND.PARSE as ErrorKind, 'getCurrentUser: 回包不是 JSON 对象', res.stdout)
-    }
-
-    const login = typeof bag['username'] === 'string' ? bag['username'].trim() : ''
-    if (!login) {
-      // 命令成功、JSON 也解析得动，缺的正是这一条读必须有的一格：这种「成功却没读到」最容易被
-      // 当成「没有登录人」糊过去，所以单独落一行，再如实失败。
-      emitReadDegraded(ctx, 'currentUser', 'currentUser:shape', Date.now() - t0)
-      return fail(ERROR_KIND.PARSE as ErrorKind, 'getCurrentUser: 回包里没有 username', res.stdout)
-    }
-
-    const actor: Actor = { login }
-    const name = typeof bag['name'] === 'string' ? bag['name'].trim() : ''
-    if (name) actor.name = name
-    const avatar = typeof bag['avatar_url'] === 'string' ? bag['avatar_url'].trim() : ''
-    if (avatar) actor.avatarUrl = avatar
-    if (bag['bot'] === true) actor.kind = 'bot'
-    return { ok: true, data: actor }
-  } catch (err: unknown) {
-    // 走到这里说明这一趟调用是抛上来的而不是回一个进程结果 —— 按 read-log.ts 对 transport 的定义
-    // （起不了进程、超时、非 0 退出这一族）它同样属于「没读成」，所以先落一行再失败。
-    emitReadDegraded(ctx, 'currentUser', 'currentUser:transport', Date.now() - t0)
-    // 原文 = 抛上来的那个 Error 对象本身。
-    return failGlab(err, errMsg(err), err, ctx)
-  }
-}
-
-/**
  * 问「当前账号在这张仓库上能不能推、能不能整理别人的票」（契约的 `getRepoPermissions`）。
  *
  * 两道门槛与依据写在文件头与两个常量上，这里只说清楚三件不许改的事：
@@ -238,20 +159,20 @@ export async function getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promi
  *      不继承其它档位的全部权限，只有逐行读表才算数。
  *
  * @param repo 仓库身份（refId 缺失或不像项目路径就如实失败）
- * @param ctx 单次调用上下文（glab 从这里取平台与执行器；日志也记在它上面）
+ * @param ctx 单次调用上下文（平台与执行器从这里取；日志也记在它上面）
  */
 export async function getRepoPermissions(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<RepoPermissions>> {
   const t0 = Date.now()
   const id = repoRefId(repo)
   if (!looksLikeProjectPath(id)) {
-    // 与 getCurrentUser 同一道入口检查，理由见那条函数的注释；这一格的 reason 已登记。
+    // 与 getCurrentUser 同一道入口检查，理由见 repo/current-user.ts 那条函数的注释；这一格的 reason 已登记。
     emitReadDegraded(ctx, 'permissions', 'permissions:repo-ref', Date.now() - t0)
     return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'getRepoPermissions: repo.refId 缺失或不像是「分组/项目」', '')
   }
 
   try {
-    // 项目路径的编码只有 queries.ts 一处口径，这里照旧走它；`simple=true` 的来龙去脉见文件头。
-    const res = await glabClient(ctx).run(['api', `${projectPath(id)}?simple=true`], { timeout: GITLAB_READ_TIMEOUT_MS })
+    // 项目路径的编码只有 queries.ts 一处口径，请求函数照旧走它；`simple=true` 的来龙去脉见文件头。
+    const res = await requestProjectPermissions(ctx, id, GITLAB_READ_TIMEOUT_MS)
     if (res.code !== 0) {
       emitReadDegraded(ctx, 'permissions', 'permissions:transport', Date.now() - t0)
       // 原文 = 这一次 glab 调用的进程结果。
@@ -290,4 +211,4 @@ export async function getRepoPermissions(repo: RepositoryRef, ctx: OpContext): P
   }
 }
 
-export default { getCurrentUser, getRepoPermissions }
+export default { getRepoPermissions }
