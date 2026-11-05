@@ -201,7 +201,10 @@ export function openWorkspaceSnapshot(
         return { committed: false, reason: 'readonly' }
       }
       const startedAt = now()
-      const result = ingestWrites(db, batch.writes, batch.startMergeVersion, startedAt, batch.sync)
+      const result = ingestWrites(
+        db, batch.writes, batch.startMergeVersion, startedAt, batch.sync,
+        batch.kind === 'receipt' ? 'receipt' : 'read',
+      )
       const elapsedMs = now() - startedAt
       if (result.committed) {
         logSnapshot(logEvent, 'info', 'workspaceSnapshot.ingest', {

@@ -79,6 +79,42 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   `sync.expectedGeneration` 是库这一侧的世代门：库里世代号与它不等就整批丢弃（回 `stale`），
   行与簿记一个字节都不动。只写簿记的那一趟不动 `merge_version`（版本号只由数据提交推进）。
 
+## 写回执与回执优先窗口（#1889 起）
+
+- **写回执**：写操作成功之后 tracker 交回来的那张票，按组并进库（调用方传 `ingest({ kind: 'receipt' })`）。
+  每一组在 `issue_group.receipt_ms` 上记下「上次由回执写入的时刻」；提交之后界面才该更新。
+- **回执优先窗口**：回执提交后的一个短窗口（`config/ttl.yaml` 的 `snapshotReceiptPriorityMs`，
+  经生成器进 `SNAPSHOT_RECEIPT_PRIORITY_MS`）之内，任何**读结果**都不得覆盖回执表达过的字段组。
+  它补的是版本门挡不住的那种迟到：写已经在 v10 提交，一趟读 v10 才开始、却从远端拿到写之前的状态。
+- **按组判，不是整行挡**：回执表达过的组让给回执，其余组照常更新；窗口一过读结果照常覆盖。
+  `unknown`（只盖章不动值）的读结果不受影响。全部组都被挡下时这一趟不推进库版本——什么都没写，
+  不该让客户端以为有变化。判据住 `merge/receipt-priority.ts`（纯函数），接线在 `runtime/ingest.ts`。
+
+## 写路径清单（#1889 盘点结果）
+
+| 写路径（文件:入口） | 行为 | 证据 |
+| --- | --- | --- |
+| 建票 `create`（`src/deck/tools/issue-create.ts` → 写事件 → `thin-row-fetch.ts` 的 receipt 回调） | 经库 | V1889 B11 |
+| 关票 / 重开 `close`/`reopen`（`src/deck/tools/issue-patch.ts` → `recordWriteReceipt`） | 经库 | V1889 B1 |
+| 发评论 `comment`（`issue-patch.ts` / 面板 `comment-thread-fetch.ts` 的 `storeCommentReceipt`） | 经库 | V1889 B9、verify-1866 |
+| 改标题与正文 `update`（`issue-patch.ts` → `receiptIssueWriteOf`） | 经库 | V1889 B1/B2 |
+| 改标签 `setLabels`（`issue-patch-labels.ts`） | 经库 | V1889 B3 |
+| 改指派人 `setAssignees`（`issue-patch.ts` → `issueWriteOf` 的指派组） | 经库 | V1889 B4 |
+| 父子边 `setParent`（`map-link.ts` → `parentsGroupOf`） | 经库 | V1889 B5 |
+| 阻塞边 `setBlockedBy`（`map-link.ts` → `blockedByGroupOf`） | 经库 | V1889 B6 |
+| 子票计数与合并信息（`issue-patch.ts` 的回执带 fieldStates） | 经库 | V1889 B7/B8 |
+| `deck_issue_patch` / `deck_issue_create` / `deck_map_link` / `deck_map_plan_create` | 经库 | V1889 B1-B9/B11 |
+| 面板发评论 `panel-comment`（`comment-thread-fetch.ts` 的 `storeCommentReceipt`） | 经库 | verify-1866-replay |
+| `initProject` / `setLabelColors` / `ensureLabelColorsFile`（仓库级元数据） | 不经库 | 回执无票级字段；标签颜色随 labels 组入库 |
+| `deck_issue_report`（在办表） | 不适用 | 规格 D2：在办表会话私有 |
+| `publishFlow`（发布 npm 包） | 不适用 | 写的是注册表，不是工作区数据 |
+| `handoffClaim`（会话交接） | 不适用 | 会话私有状态 |
+| `namingGuardian`（命名持久化） | 不适用 | 规格 D2：不进库 |
+| 拉取请求合并 | 不适用 | 本仓没有发起合并的写路径；合并信息走 mergeInfo 组（V1889 B8），S7 另票 |
+
+「经库」= 写回执先提交进库、成功之后才更新界面；失败一个字节不改。表里每一条在
+`tests/verify-1889-write-receipts.ts` 里都有对应的断言组。
+
 ## 统计（#1887 起）
 
 面板顶上的六个数字（总数 / 开放 / 已关闭 / 可接 / 阻塞 / 已认领）由 `projection/counts.ts` 一条 SQL
@@ -127,5 +163,7 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
 - `tests/verify-1888-changes-to-store.ts`：后台发现的变化先写进库——差分基线从库读、水印/世代号/待办
   写进库级元信息并在关库重开后仍在、库写入失败时内存副本不改、迟到的整池结果被世代号挡住、
   行级增量的回包键集与改造前一致。
+- `tests/verify-1889-write-receipts.ts`：写路径清单与操作百科逐条对账（经库 / 不经库 / 不适用）、
+  十类写各自先落库再显示、整批失败不留半写、回执优先窗口的字段组粒度与时间边界（真 SQLite + 假时钟）。
 
 单扇跑法：`node --import ./scripts/ts-hook.mts tests/verify-1862-snapshot-database.ts`。

@@ -284,6 +284,8 @@ const KEYS: Array<[string, string, string]> = [
   // （#1893 退役）snapshotCacheMs：会话快照内存缓存随宿主内存副本一起删除，不再生成。
   // #1862：工作区快照库写者租约的有效期（心跳在 intervals 那档，这里是多久没续可以被接管）。
   ['snapshotLeaseTtlMs', 'SNAPSHOT_LEASE_TTL_MS', 'ttl'],
+  // #1889：写回执优先窗口——回执提交后这么久之内，读结果不得覆盖它表达过的字段组。
+  ['snapshotReceiptPriorityMs', 'SNAPSHOT_RECEIPT_PRIORITY_MS', 'ttl'],
   // #1890：变化集的两个降级阈值成对使用，住同一份文件、相邻两行。行数上限不是时间，
   // 但它与「落后多久就回整份」是同一个决定的两半（任一越线都回整份），放进同一处才不会改一个漏一个。
   ['snapshotChangesMaxRows', 'SNAPSHOT_CHANGES_MAX_ROWS', 'ttl'],
