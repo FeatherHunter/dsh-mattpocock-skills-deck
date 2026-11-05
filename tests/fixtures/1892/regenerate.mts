@@ -4,10 +4,13 @@
  * 用途：把「库列表投影里的行」按**当前实现**投影一次，落成逐字基线。
  *
  * 重要：这一份是金标准夹具的生成器，不是门禁。它的输出会被
- * tests/verify-1892-pure-projection.ts 逐字节比对。仓库里那四份基线是改代码之前用当时的
- * snapshotOfProjection 跑出来的，这就是「搬前搬后一致」的证据；只有在确认行为有意改变、
- * 并且评审过之后才允许重跑它——重跑会把基线换成当前实现的输出，等价性门禁仍然会绿，
- * 但那条证据就没有了。
+ * tests/verify-1892-pure-projection.ts 逐字节比对。仓库里那四份基线最早是 #1892 改代码之前用当时的
+ * snapshotOfProjection 跑出来的，这就是「搬前搬后一致」的证据。
+ *
+ * #1893（规格 #1885 I6）有意改了一次行为：未知组不再写空数组/null。按本文件自己的规矩，
+ * 确认行为有意改变之后重跑了它，并把 #1893 之前的四份基线原样留在 tests/fixtures/1892/pre-1893/：
+ * verify-1892 的 H 段拿新旧两份逐字段比，只允许三态字段（blockedBy / parentKey / labels /
+ * assignees / mergedAt）按组状态变化。以后再重跑之前先看那条差异判据，别把真回归当预期改掉。
  *
  * 怎么重跑（在仓库根目录）：
  *   node --import ./scripts/ts-hook.mts tests/fixtures/1892/regenerate.mts
@@ -234,8 +237,8 @@ function main(): void {
   writeFixture(
     '01-real-1682.json',
     '#1682 真机夹具（两页 200 行里挑出的 10 行，8 张工单 + 2 个拉取请求，字段形状原样保留）；' +
-    '经 GitHub 归一化写进真 SQLite 快照库、readList({state:"all"}) 读回，再按 #1892 搬前的实现投影。' +
-    '覆盖容器树、父子边、已关闭行与拉取请求。',
+    '经 GitHub 归一化写进真 SQLite 快照库、readList({state:"all"}) 读回；期望值在 #1892 搬前冻结，' +
+    '#1893 按规格 I6（unknown 不写字段）重新冻结，旧基线见 pre-1893/。覆盖容器树、父子边、已关闭行与拉取请求。',
     'github',
     sampleReal1682(),
   )
@@ -243,6 +246,7 @@ function main(): void {
     '02-edges-and-closed.json',
     '手工整理的页面样本（内容参照本仓库的规格与地图票面）：两张地图（一开一关）、一张规格、' +
     '阻塞边与引用态、已关闭子票、破链票与两个拉取请求；经真 SQLite 快照库写入再读回。' +
+    '#1893 按规格 I6 重新冻结（mergeInfo complete + null 现在写 mergedAt:null），旧基线见 pre-1893/。' +
     '覆盖阻塞边、已关闭容器里的子票与瘦身行。',
     'github',
     sampleEdgesAndClosed(),

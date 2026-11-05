@@ -190,7 +190,10 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
     st.snapLoading = true;
     // v1.5 T9：silent（后台静默刷新）不显示加载遮罩、不弹错误 toast
     // #58 缓存优先：已有内存缓存时不显示全屏 loading，静默刷新
-    if (force && !silent && !hasCache) st.snapMode = 'loading';
+    // #1893：库空时首屏要等一趟在线重建，这一段不许空白。判据不再是「只有 force 才显示」——
+    //   手上没有数据、又不是后台静默刷新时，一律进加载态，界面说「正在取数」并画骨架；
+    //   数据一到（这一次回包或下一次装快照）就退出加载态，看到的是库的投影。
+    if (!hasCache && !st.snapshot && !silent) st.snapMode = 'loading';
     emit(st);
     const ver: any = (typeof getSnapshotVersion === 'function' ? getSnapshotVersion(st.cwd) : '') || (st.snapshot && st.snapshot.version) || '';
     // #669 第 6 件（ADR 20260921）：只有用户亲手选过的那条才当 hint 上报 —— 派生值不许冒充意图

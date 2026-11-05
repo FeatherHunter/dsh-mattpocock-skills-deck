@@ -28,6 +28,8 @@
  *   · 04-empty.json：空库。
  *   这份基线是在改代码之前跑的：node --import ./scripts/ts-hook.mts tests/fixtures/1892/regenerate.mts
  *   搬完之后重跑它会把基线换成新实现的输出（等价性证据随之丢失），只在确认行为有意改变且评审过之后才做。
+ *   #1893 正是这样一次有意变更（规格 I6：未知组不再写空数组/null）：主夹具按新实现重新冻结，
+ *   旧基线原样留在 tests/fixtures/1892/pre-1893/，H 段用两份逐字段比对，只允许三态字段按组状态变化。
  *
  * 跑法：node --import ./scripts/ts-hook.mts tests/verify-1892-pure-projection.ts
  */
@@ -268,6 +270,155 @@ for (const { file, data } of fixtures) {
     check(Array.isArray(snap.thinTickets) && snap.thinTickets.length === 0 && snap.deck === null, 'F2 空库的瘦身行与 deck 仍是确定形状')
     check(bytes(snap.repository) === bytes(empty.data.repo), 'F3 空库也保留仓库身份')
   }
+}
+
+// ---------------------------------------------------------------------------
+// G 三态（#1893，规格 I6）：不知道不写、确认没有才写空值
+//
+// 为什么加在这一扇而不另开一份：这一组用例守的是同一个投影函数的同一条输出契约
+// （「库里的行 → 界面形状」），与 A–F 共用同一份夹具加载与比较工具。改动是规格要求的：
+// #1892 的等价性基线记录的是「搬动前后一字不差」，而 #1893 明确要求把 unknown 组从
+// 「写出空数组」改成「不写字段」——这不是行为回归，是把 I6 的判据真正落到实现上。
+// 旧基线保留在 tests/fixtures/1892/pre-1893/ 下，G8–G9 用它证明这次差异只落在三态字段上。
+// ---------------------------------------------------------------------------
+function groupState(completeness: 'complete' | 'truncated' | 'unknown' | null): any {
+  if (completeness === null) return null
+  return { completeness, reason: completeness === 'unknown' ? 'not-expressed' : null, source: 'gate-1892', operation: 'list', lastQueriedMs: 1 }
+}
+
+function triRow(key: string, opts: any): any {
+  const o = opts || {}
+  return {
+    effortId: '',
+    key,
+    row: { type: 'issue', title: '三态票 ' + key, state: 'open', url: '', createdAtMs: 1, updatedAtMs: 2, closedAtMs: null },
+    labels: o.labels || [],
+    assignees: o.assignees || [],
+    parents: o.parents || [],
+    blockedBy: o.blockedBy || [],
+    subIssues: null,
+    mergedAtMs: o.mergedAtMs === undefined ? null : o.mergedAtMs,
+    groups: {
+      row: groupState('complete'),
+      body: null,
+      labels: groupState(o.labelsGroup === undefined ? null : o.labelsGroup),
+      assignees: groupState(o.assigneesGroup === undefined ? null : o.assigneesGroup),
+      parents: groupState(o.parentsGroup === undefined ? null : o.parentsGroup),
+      blockedBy: groupState(o.blockedByGroup === undefined ? null : o.blockedByGroup),
+      subIssues: null,
+      mergeInfo: groupState(o.mergeGroup === undefined ? null : o.mergeGroup),
+    },
+  }
+}
+
+function triIssueOf(rows: any[], key: string): any {
+  const snap = projectSnapshotView({ repo: { refId: 'o/n' } as any, issues: rows, version: 1 }).snapshot
+  return (snap.issues || []).filter((row: any) => String(row.key) === key)[0]
+}
+
+{
+  // unknown：组在、但完整度是「不知道」——字段整个不写（哪怕手上还有上一次的旧值）。
+  const unknownRow = triRow('901', {
+    labels: [{ name: 'bug', color: '' }], assignees: [{ login: 'alice' }], parents: ['900'],
+    blockedBy: [{ key: '902', title: '挡住它的票' }], mergedAtMs: 123,
+    labelsGroup: 'unknown', assigneesGroup: 'unknown', parentsGroup: 'unknown', blockedByGroup: 'unknown', mergeGroup: 'unknown',
+  })
+  const unknown = triIssueOf([unknownRow], '901')
+  check(unknown && !('blockedBy' in unknown), 'G1 unknown 的阻塞组不写 blockedBy（不知道 ≠ 确认没有）', unknown && unknown.blockedBy)
+  check(unknown && !('parentKey' in unknown), 'G2 unknown 的父票组不写 parentKey', unknown && unknown.parentKey)
+  check(unknown && !('labels' in unknown) && !('assignees' in unknown), 'G3 unknown 的标签/指派组不写字段', unknown && { labels: unknown.labels, assignees: unknown.assignees })
+  check(unknown && !('mergedAt' in unknown), 'G4 unknown 的合并信息组不写 mergedAt', unknown && unknown.mergedAt)
+
+  // 组记录缺席（null）：同样不写。
+  const absent = triIssueOf([triRow('903', { blockedBy: [], parents: [] })], '903')
+  check(absent && !('blockedBy' in absent) && !('parentKey' in absent), 'G5 组记录缺席时不写 blockedBy / parentKey', absent)
+
+  // complete + 空 = 确认没有：写空数组 / null。
+  const confirmedEmpty = triIssueOf([triRow('904', { blockedByGroup: 'complete', parentsGroup: 'complete', labelsGroup: 'complete', assigneesGroup: 'complete', mergeGroup: 'complete' })], '904')
+  check(confirmedEmpty && Array.isArray(confirmedEmpty.blockedBy) && confirmedEmpty.blockedBy.length === 0, 'G6 complete + 空 = 确认没有被挡（写空数组）', confirmedEmpty && confirmedEmpty.blockedBy)
+  check(confirmedEmpty && confirmedEmpty.parentKey === null, 'G7 complete + 空 = 确认没有父票（写 null）', confirmedEmpty && confirmedEmpty.parentKey)
+  check(confirmedEmpty && Array.isArray(confirmedEmpty.labels) && confirmedEmpty.labels.length === 0 && Array.isArray(confirmedEmpty.assignees) && confirmedEmpty.assignees.length === 0,
+    'G8 complete + 空 = 确认没有标签与指派（写空数组）', confirmedEmpty && { labels: confirmedEmpty.labels, assignees: confirmedEmpty.assignees })
+  check(confirmedEmpty && confirmedEmpty.mergedAt === null, 'G9 complete + null = 确认还没合并（写 null）', confirmedEmpty && confirmedEmpty.mergedAt)
+
+  // truncated + 空 = 一条都没取到：不写（不能说成确认没有）；有值时照写。
+  const truncatedEmpty = triIssueOf([triRow('905', { blockedByGroup: 'truncated', labelsGroup: 'truncated' })], '905')
+  check(truncatedEmpty && !('blockedBy' in truncatedEmpty) && !('labels' in truncatedEmpty),
+    'G10 truncated + 空不写字段（一条都没取到 ≠ 确认没有）', truncatedEmpty)
+  const truncatedWithValues = triIssueOf([triRow('906', { blockedBy: [{ key: '907', title: '挡住它的票' }], blockedByGroup: 'truncated' })], '906')
+  check(truncatedWithValues && Array.isArray(truncatedWithValues.blockedBy) && truncatedWithValues.blockedBy.length === 1,
+    'G11 truncated 但有值：已取到的那几条照写', truncatedWithValues && truncatedWithValues.blockedBy)
+  const truncatedParents = triIssueOf([triRow('908', { parentsGroup: 'truncated' })], '908')
+  check(truncatedParents && !('parentKey' in truncatedParents),
+    'G12 truncated + 空也不写 parentKey（一条都没取到 ≠ 确认没有父票）', truncatedParents && truncatedParents.parentKey)
+}
+
+// ---------------------------------------------------------------------------
+// H 与 #1893 之前的基线比：差异只允许落在三态字段上
+// ---------------------------------------------------------------------------
+function issuesByKey(snapshot: any): Map<string, any> {
+  const map = new Map<string, any>()
+  const put = (row: any): void => {
+    if (!row || row.key === undefined || row.key === null) return
+    const id = String(row.effortId || '') + '#' + String(row.key)
+    if (!map.has(id)) map.set(id, row)
+  }
+  ;(snapshot.issues || []).forEach(put)
+  ;(snapshot.maps || []).forEach((container: any) => {
+    put(container)
+    ;(container.tickets || []).forEach(put)
+  })
+  return map
+}
+
+const TRI_FIELDS = ['blockedBy', 'parentKey', 'labels', 'assignees', 'mergedAt']
+{
+  const beforeDir = path.join(FIXTURE_DIR, 'pre-1893')
+  let compared = 0
+  for (const { file, data } of fixtures) {
+    const beforePath = path.join(beforeDir, file)
+    let before: any = null
+    try { before = JSON.parse(readFileSync(beforePath, 'utf8')) } catch { before = null }
+    if (!before) continue
+    compared += 1
+    const oldIssues = issuesByKey(before.expected)
+    const newIssues = issuesByKey(data.expected)
+    const changedOutside: string[] = []
+    const directionProblems: string[] = []
+    const rowById: Map<string, any> = new Map()
+    for (const row of data.rows as any[]) rowById.set(String(row.effortId || '') + '#' + String(row.key), row)
+    for (const [id, oldIssue] of oldIssues) {
+      const newIssue = newIssues.get(id)
+      if (!newIssue) { changedOutside.push(id + ':整行消失'); continue }
+      const keys = new Set<string>([...Object.keys(oldIssue), ...Object.keys(newIssue)])
+      for (const key of keys) {
+        const a = JSON.stringify(oldIssue[key])
+        const b = JSON.stringify(newIssue[key])
+        if (a === b) continue
+        if (TRI_FIELDS.indexOf(key) < 0) { changedOutside.push(id + ':' + key); continue }
+        const row = rowById.get(id)
+        const groups = row && row.groups
+        if (!groups) { directionProblems.push(id + ':' + key + ':夹具里找不到这一行的组状态'); continue }
+        if (key === 'blockedBy') {
+          const unknown = !groups.blockedBy || groups.blockedBy.completeness === 'unknown'
+          if (!(a === '[]' && b === undefined && unknown)) directionProblems.push(id + ':blockedBy 由 ' + a + ' 变为 ' + b)
+        } else if (key === 'parentKey') {
+          const unknown = !groups.parents || groups.parents.completeness === 'unknown'
+          if (!(a === 'null' && b === undefined && unknown)) directionProblems.push(id + ':parentKey 由 ' + a + ' 变为 ' + b)
+        } else if (key === 'labels' || key === 'assignees') {
+          const complete = groups[key] && groups[key].completeness === 'complete'
+          const emptyThen = (row[key] || []).length === 0
+          if (!(emptyThen && complete && a === undefined && b === '[]')) directionProblems.push(id + ':' + key + ' 由 ' + a + ' 变为 ' + b)
+        } else if (key === 'mergedAt') {
+          const complete = groups.mergeInfo && groups.mergeInfo.completeness === 'complete'
+          if (!(complete && a === undefined && b === 'null')) directionProblems.push(id + ':mergedAt 由 ' + a + ' 变为 ' + b)
+        }
+      }
+    }
+    check(changedOutside.length === 0, 'H1 ' + file + ' 与 #1893 之前的基线相比，差异只落在三态字段上', changedOutside)
+    check(directionProblems.length === 0, 'H2 ' + file + ' 每一处差异的方向都与组的三态一致（unknown 不写、complete + 空才写空）', directionProblems)
+  }
+  check(compared >= 2, 'H0 至少两份夹具留有 #1893 之前的副本，差异可复核（实比 ' + compared + ' 份）', compared)
 }
 
 console.log('快照纯投影门禁：' + (total - failed) + '/' + total + ' 通过')

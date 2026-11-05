@@ -1,5 +1,5 @@
 {
-  "note": "#1682 真机夹具（两页 200 行里挑出的 10 行，8 张工单 + 2 个拉取请求，字段形状原样保留）；经 GitHub 归一化写进真 SQLite 快照库、readList({state:\"all\"}) 读回，再按 #1892 搬前的实现投影。覆盖容器树、父子边、已关闭行与拉取请求。",
+  "note": "#1682 真机夹具（两页 200 行里挑出的 10 行，8 张工单 + 2 个拉取请求，字段形状原样保留）；经 GitHub 归一化写进真 SQLite 快照库、readList({state:\"all\"}) 读回；期望值在 #1892 搬前冻结，#1893 按规格 I6（unknown 不写字段）重新冻结，旧基线见 pre-1893/。覆盖容器树、父子边、已关闭行与拉取请求。",
   "repo": {
     "backend": "github",
     "refId": "acme/widgets",
@@ -919,14 +919,13 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
         "labels": [
           {
             "name": "wayfinder:map",
             "color": ""
           }
         ],
-        "blockedBy": [],
+        "assignees": [],
         "isPullRequest": false,
         "tickets": [],
         "destination": "",
@@ -949,8 +948,8 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
-        "blockedBy": [],
+        "labels": [],
+        "assignees": [],
         "isPullRequest": false
       },
       {
@@ -965,7 +964,6 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
         "labels": [
           {
             "name": "ready-for-agent",
@@ -976,7 +974,7 @@
             "color": ""
           }
         ],
-        "blockedBy": [],
+        "assignees": [],
         "isPullRequest": false
       },
       {
@@ -991,8 +989,8 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
-        "blockedBy": [],
+        "labels": [],
+        "assignees": [],
         "isPullRequest": true
       },
       {
@@ -1007,14 +1005,13 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
         "labels": [
           {
             "name": "ready-for-agent",
             "color": ""
           }
         ],
-        "blockedBy": [],
+        "assignees": [],
         "isPullRequest": false
       },
       {
@@ -1029,7 +1026,6 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
         "labels": [
           {
             "name": "dependencies",
@@ -1040,7 +1036,7 @@
             "color": ""
           }
         ],
-        "blockedBy": [],
+        "assignees": [],
         "isPullRequest": true
       },
       {
@@ -1055,14 +1051,13 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
         "labels": [
           {
             "name": "wayfinder:grilling",
             "color": ""
           }
         ],
-        "blockedBy": [],
+        "assignees": [],
         "isPullRequest": false
       },
       {
@@ -1077,14 +1072,13 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
         "labels": [
           {
             "name": "ready-for-agent",
             "color": ""
           }
         ],
-        "blockedBy": [],
+        "assignees": [],
         "isPullRequest": false
       },
       {
@@ -1099,14 +1093,13 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
         "labels": [
           {
             "name": "ready-for-agent",
             "color": ""
           }
         ],
-        "blockedBy": [],
+        "assignees": [],
         "isPullRequest": false
       },
       {
@@ -1121,14 +1114,13 @@
         "createdAt": "",
         "updatedAt": "",
         "closedAt": null,
-        "parentKey": null,
         "labels": [
           {
             "name": "ready-for-agent",
             "color": ""
           }
         ],
-        "blockedBy": [],
+        "assignees": [],
         "isPullRequest": false
       }
     ],

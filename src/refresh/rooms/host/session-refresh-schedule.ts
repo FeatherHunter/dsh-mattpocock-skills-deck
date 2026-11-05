@@ -54,7 +54,7 @@ type Levels = { byNumber?: Record<string, unknown>; byKey?: Record<string, unkno
 type Deck = { counts?: { open?: unknown; closed?: unknown } | null; partial?: boolean; missingOpen?: unknown; [k: string]: unknown }
 // 信封（与 wf.snapshot 同一个实例）：这里只声明本文件用到的两口。
 type Envelope = { buildSnap(o: SnapInput): SnapOut; withWorkRouteTable<T>(reply: T, args?: Args): Promise<T> }
-type SnapInput = { repo?: unknown; repoRoot?: unknown; workspaceRoot?: unknown; maps?: unknown[]; issues?: unknown[]; thinTickets?: unknown[]; labels?: unknown[]; repository?: unknown; backendModules?: unknown; selection?: unknown; viewer?: unknown; viewerLogin?: unknown; deck?: unknown }
+type SnapInput = { repo?: unknown; repoRoot?: unknown; workspaceRoot?: unknown; maps?: unknown[]; issues?: unknown[]; thinTickets?: unknown[]; labels?: unknown[]; repository?: unknown; backendModules?: unknown; selection?: unknown; viewer?: unknown; viewerLogin?: unknown; deck?: unknown; snapshotFetch?: unknown }
 // 组装出来的快照：本文件读 fromCache / generatedMs / deck / maps / issues / labels，落盘时整份交回去。
 type SnapOut = { [k: string]: unknown; fromCache?: boolean; generatedMs?: number; maps?: unknown[]; issues?: unknown[]; labels?: unknown[]; deck?: Deck | null }
 type LogCtx = { fire(level: string, event: string, payload?: unknown): void; isEnabled(name: string): boolean }
@@ -139,7 +139,10 @@ export function createSessionRefresh(deps: RefreshDeps) {
       // #1869：整轮刷新先把行收在内存里，编排成功后再整批一个事务写库；写库失败算刷新失败，
       // 不能只更新内存而让重启回到旧库。
       const refreshRows: unknown[] = []
-      const collectRows = function (rows: unknown): void { if (Array.isArray(rows)) for (let i = 0; i < rows.length; i += 1) refreshRows.push(rows[i]) }
+      // #1893：这一轮取到了几行（回包的 snapshotFetch 进度）；写库那一步会把 refreshRows 清空，
+      // 所以条数在收集时单独记，不靠数组长度后算。
+      let refreshRowCount = 0
+      const collectRows = function (rows: unknown): void { if (Array.isArray(rows)) { refreshRowCount += rows.length; for (let i = 0; i < rows.length; i += 1) refreshRows.push(rows[i]) } }
       const persistRefreshRows = async function (persistCwd: string, persistBackend: string, persistRepo: RepoRef): Promise<void> {
         if (!refreshRows.length || typeof getSnapshotLibrary !== 'function') return
         const rows = refreshRows.splice(0, refreshRows.length)
@@ -302,6 +305,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
             maps: inner.maps, issues: allForList, thinTickets: inner.thinTickets, labels: labels,
             repository: repoRef, backendModules: backendModules, selection: _sel,
             deck: inner.deck,
+            snapshotFetch: { source: 'online-rebuild', rows: refreshRowCount, at: Date.now() },
           })
           return adoptSnapLog(snap, cwd)
         }
@@ -321,6 +325,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
             maps: [], issues: [], thinTickets: [], labels: [],
             repository: null, backendModules, selection: _sel,
             deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+            snapshotFetch: { source: 'online-rebuild', rows: refreshRowCount, at: Date.now() },
           })
           return adoptSnapLog(snap, cwd)
         }
@@ -359,6 +364,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
               maps: [], issues: [], thinTickets: [], labels: [],
               repository: null, backendModules: backendModulesNoRepo, selection: _selNoRepo,
               deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+              snapshotFetch: { source: 'online-rebuild', rows: refreshRowCount, at: Date.now() },
             })
             return adoptSnapLog(snapNoRepo, cwd)
           }
@@ -444,6 +450,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
           maps: inner2.maps, issues: allForList2, thinTickets: inner2.thinTickets, labels: labels2,
           repository: repoRef2, backendModules: backendModules2, selection: _sel,
           viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck,
+          snapshotFetch: { source: 'online-rebuild', rows: refreshRowCount, at: Date.now() },
         })
         return adoptSnapLog(snap2, cwd)
       } catch (e) {

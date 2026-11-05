@@ -94,7 +94,7 @@ function sortRows(rows: any[]): any[] {
 }
 
 export function createIssueList(deps: any): any {
-  const { getRepoKey, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, logCtx, noteSnapshot } = deps as any
+  const { getRepoKey, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, logCtx, noteSnapshot } = deps as any
 
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   function hash8(s: any): string { try { const t: string = String(s || ''); let h: number = 5381; for (let i: number = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e: any) { return '00000000' } }
@@ -328,13 +328,19 @@ export function createIssueList(deps: any): any {
       return current
     } catch (e) { return null }
   }
+  /**
+   * #1893：宿主内存里的快照工作副本已删，采纳快照不再「存进某个缓存」，只记两件事实：
+   *   ① 通知事件库（#1693）；② 远端索引记忆。
+   * 面板数据本身只住在快照库里，下一次首屏从库里回放——所以这里不许再出现任何把整份快照存起来的一步。
+   * 「这个工作区是不是降级常驻」由宿主入口在调用本函数时顺手记下（那边才有探针要的同步读数口）。
+   */
   const adoptSnapshot: any = function (snap: any, cwd: any): any {
-    setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd })
     // #1693：采纳快照是降级开始/恢复的唯一迁移点（缓存命中、304 与失败都不走这里）。没接事件库或记失败都不影响采纳结果。
     try { if (typeof noteSnapshot === 'function') Promise.resolve(noteSnapshot(snap, cwd)).catch(function () {}) } catch (eN) {}
     if (snap && snap.repo) rememberIssueIndex(snap.repo, issueIndexFromSnapshot(snap))
     return snap
   }
+
   // 旧的两个手工分页兜底与地图详情 REST 通道已删（#1444）：它们直调 gh，且房间内部已有同样的降级。
   return { fetchMaps, fetchIssues, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, cacheSnapshotIsCurrent, adoptSnapshot }
 }
