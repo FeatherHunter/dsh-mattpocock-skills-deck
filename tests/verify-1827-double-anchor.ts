@@ -21,7 +21,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { anchorLineFor, idempotencyKeyOf, stripAnchorLines } from '../src/refresh/contract/idempotency-keys.ts'
 import { withAnchor as withAnchorGithub } from '../src/tracker/rooms/github/routing/idempotency.ts'
-import { withAnchor as withAnchorGitlab } from '../src/tracker/rooms/gitlab/idempotency.ts'
+import { withAnchor as withAnchorGitlab } from '../src/tracker/rooms/gitlab/issues/idempotency.ts'
 import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

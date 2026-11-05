@@ -53,7 +53,7 @@ GitHub 那种「背景色 + 前景色」的双色在 GitLab 不存在：一条�
 
 ## 二、目录树
 
-路径都相对 `src/tracker/rooms/gitlab/`。根目录分三层：7 个真实文件、9 个只做转发的旧路径文件、两份说明；其余实现按概念住在子目录里。
+路径都相对 `src/tracker/rooms/gitlab/`。根目录只有 7 个真实文件与两份说明（`README.md`、`SETUP-PROMPT.md`），其余实现按概念住在子目录里。这是 #1925 收口之后的形态：之前那 9 个只为房外旧 import 存在的转发文件已经删除，详见第三节。
 
 ```
 src/tracker/rooms/gitlab/
@@ -64,15 +64,6 @@ src/tracker/rooms/gitlab/
 ├── errors.ts                错误判档的唯一出口（classifyGlabError / failGlab）
 ├── preflight.ts             环境探针：glab 装没装、登没登、接口通不通
 ├── budget.ts                额度探针：读 RateLimit 响应头
-├── normalize.ts             旧路径转发 → model/normalize.ts 与 model/description-markers.ts
-├── issues.ts                旧路径转发 → issues/read.ts 与 issues/write.ts
-├── maps.ts                  旧路径转发 → issues/maps.ts
-├── repo.ts                  旧路径转发 → repo/identity.ts
-├── graph-membership.ts      旧路径转发 → graph/membership.ts
-├── idempotency.ts           旧路径转发 → issues/idempotency.ts
-├── capability-register.ts   旧路径转发 → support/capability-register.ts
-├── read-log.ts              旧路径转发 → support/read-log.ts
-├── read-sources.ts          旧路径转发 → support/read-sources.ts
 ├── README.md                这份交接说明
 ├── SETUP-PROMPT.md          用户第一次配置 GitLab 的现场指引
 │
@@ -82,7 +73,7 @@ src/tracker/rooms/gitlab/
 │   └── repo-identity.ts    从仓库引用或识别句柄取仓库标识的唯一一处
 │
 ├── issues/                  票的读、写与地图清单
-│   ├── index.ts            票操作的默认导出出口：按六个公开名字组装，供根目录转发
+│   ├── index.ts            票操作的统一出口：按六个公开名字组装，供需要整体取默认导出的调用方
 │   ├── read.ts             列票、读单票、评论与链接富化
 │   ├── write.ts            建票、关票、重开、改票
 │   ├── shared.ts           票读与票写共用的回包收尾助手
@@ -128,23 +119,25 @@ src/tracker/rooms/gitlab/
 
 目录轴只有一条：按后端概念竖切；读与写是文件名的属性，不是顶层目录。要改一张票的读法打开 `issues/read.ts`，要改标签颜色打开 `labels/colors.ts`；跨概念的共享件只在 `model/`、`support/`、`room/` 里出现。
 
-## 三、旧路径 → 新位置对照表
+## 三、旧路径已经删除（#1925）
 
-根目录这 9 个文件只为房外读者保留，**只做 `export ... from '新位置'`，没有逻辑、没有包装、没有副作用；不新造默认值，只把新位置已有的默认导出原样转出**（#1921 已逐项核对）。房里的实现文件一律直接从新位置 import，不经过这些转发文件。
+根目录曾经有 9 个文件只为房外读者保留，内容只有 `export ... from '新位置'`，没有逻辑（#1921 收口时已逐项核对）。#1925 把这层壳删掉了：房外读者的 import 全部改到新位置，根目录不再有任何转发文件。
 
-| 旧路径（根目录） | 新位置 | 为什么还留着 |
-|---|---|---|
-| `normalize.ts` | `model/normalize.ts`；正文标记的六个函数在 `model/description-markers.ts` | 房外的契约夹具、快照门禁与 `tests/verify-1599-gitlab-hidden-markers.ts` 仍按这条路径取 `normalizeIssue` 与标记函数 |
-| `issues.ts` | `issues/read.ts`（listIssues / getIssue）与 `issues/write.ts`（create / close / reopen / update） | `tests/verify-1770-gitlab-list-truncated.ts`、`tests/verify-1784-comment-pagination.ts` 按路径动态加载 |
-| `maps.ts` | `issues/maps.ts` | `tests/verify-1605-gitlab-map-list.ts`、`tests/verify-1605-map-routing-guard.ts` |
-| `repo.ts` | `repo/identity.ts` | `tests/tracker-contract/sections/room-gitlab-extras.ts` |
-| `graph-membership.ts` | `graph/membership.ts` | `tests/verify-1785-assign-unknown.ts` |
-| `idempotency.ts` | `issues/idempotency.ts` | `tests/verify-1827-double-anchor.ts` |
-| `capability-register.ts` | `support/capability-register.ts` | `tests/verify-capability-register.ts`、`tests/verify-1605-map-routing-guard.ts`、`tests/verify-1446-gitlab-budget.ts` |
-| `read-log.ts` | `support/read-log.ts` | `tests/verify-1130-gitlab-marker-read.ts` |
-| `read-sources.ts` | `support/read-sources.ts` | `tests/verify-operation-catalog.ts` |
+删除的依据是维护者定下的原则：**源码禁止向门禁让步，除非门禁有百分之一万的理由比我们源码需要的效果更加优秀。** 只为旧 import 路径而存在的文件不属于源码需要的东西，所以正确做法是改房外读者，而不是让源码留在原地。同理，以后也不要为了迁就任何旧写法，在根目录重建转发文件。
 
-删除这些文件的唯一前提是**房外读者先改完 import**（这次结构改造的约束是不改房外代码）。删的时候按上表逐项核对，删掉的只是一行 import 与 export，不需要把逻辑搬回根目录；谁想提前删，先把房外引用改掉，而不是直接删文件。
+| 已删除的旧路径（根目录） | 现在该从哪里取 |
+|---|---|
+| `normalize.ts` | `model/normalize.ts`（回包归一）；正文标记的六个函数在 `model/description-markers.ts` |
+| `issues.ts` | `issues/read.ts`（listIssues / getIssue）与 `issues/write.ts`（create / close / reopen / update）；默认导出在 `issues/index.ts` |
+| `maps.ts` | `issues/maps.ts` |
+| `repo.ts` | `repo/identity.ts` |
+| `graph-membership.ts` | `graph/membership.ts` |
+| `idempotency.ts` | `issues/idempotency.ts` |
+| `capability-register.ts` | `support/capability-register.ts` |
+| `read-log.ts` | `support/read-log.ts` |
+| `read-sources.ts` | `support/read-sources.ts` |
+
+房里的实现文件一律直接从新位置 import；房外的门禁、测试与脚本也已经改到上表右列。改 import 路径时保留原来取的名字与门禁断言，不改测试语义——这是「读的人跟着源码走」，不是「源码为读的人让路」。
 
 ## 四、根目录语法
 

@@ -54,7 +54,7 @@ export const ISSUE_TYPE = Object.freeze({
  * （GLOSSARY.md「对象类型（objectKind）」词条：标记 → 标签 → 形状，标记是唯一真源）。
  *
  * #1403 T1 读侧统一：GitHub 房（`src/tracker/rooms/github/model/normalize.ts` 的 `isSpecBody`）、
- * GitLab 房（`src/tracker/rooms/gitlab/normalize.ts` 的 `deriveType`）与本地 Markdown 房
+ * GitLab 房（`src/tracker/rooms/gitlab/model/normalize.ts` 的 `deriveType`）与本地 Markdown 房
  * （`src/tracker/rooms/markdown/parse.ts`）用同一条判据、同一个共享包函数，结论一致。
  * 这里只放这一串常量：契约目录只放类型与常量、不放行为，也不许引共享包
  * （tests/verify-contract-types.ts 第二项），所以判定逻辑留在各房归一层，别把这份常量当成实现。

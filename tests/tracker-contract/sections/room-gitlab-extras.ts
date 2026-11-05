@@ -72,7 +72,7 @@ import {
   issueAddress as gitlabIssueAddress,
   repoSearchAddress as gitlabRepoSearchAddress,
 } from '../../../src/tracker/rooms/gitlab/index.ts'
-import { parseGitlabOrigin } from '../../../src/tracker/rooms/gitlab/repo.ts'
+import { parseGitlabOrigin } from '../../../src/tracker/rooms/gitlab/repo/identity.ts'
 
 const KNOWN_KINDS = Object.values(ERROR_KIND)
 const GL_REPO = { backend: 'gitlab', refId: 'acme/demo', name: 'demo', url: '' }

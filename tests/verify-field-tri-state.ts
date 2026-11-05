@@ -22,7 +22,7 @@
 
 import { printGateResult } from './lib/gate-result.ts'
 import { normalizeIssue as normalizeGithub } from '../src/tracker/rooms/github/model/normalize.ts'
-import { normalizeIssue as normalizeGitlab } from '../src/tracker/rooms/gitlab/normalize.ts'
+import { normalizeIssue as normalizeGitlab } from '../src/tracker/rooms/gitlab/model/normalize.ts'
 import { normalizeIssue as normalizeMarkdown } from '../src/tracker/rooms/markdown/normalize.ts'
 import type { Issue } from '../src/tracker/contract/entities.ts'
 

@@ -109,7 +109,7 @@ try {
   results.push(...runContractTests(gitlabFreeFixture))
   results.push(...runContractTests(gitlabPremiumFixture))
   // 额外校验：free回退应解析 Blocked by 行；premium应优先原生
-  const { normalizeIssue: norm } = await import('../src/tracker/rooms/gitlab/normalize.js')
+  const { normalizeIssue: norm } = await import('../src/tracker/rooms/gitlab/model/normalize.js')
   const freeIssue = norm(gitlabFreeFixture.withData)
   const premIssue = norm(gitlabPremiumFixture.withData)
   const freeOk = Array.isArray(freeIssue.blockedBy) && freeIssue.blockedBy.length === 2 && freeIssue.blockedBy[0].key === '1' && freeIssue.blockedBy[1].key === '2'

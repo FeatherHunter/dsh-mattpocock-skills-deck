@@ -9,7 +9,7 @@
  * 回退行字样、blocked_by 数组、milestone 字面量、emptyData、checkFreeBlockedBy 一字不动。
  */
 
-import { normalizeIssue } from '../../../src/tracker/rooms/gitlab/normalize.js'
+import { normalizeIssue } from '../../../src/tracker/rooms/gitlab/model/normalize.js'
 
 interface GitlabSource {
   iid?: number
