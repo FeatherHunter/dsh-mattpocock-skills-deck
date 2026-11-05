@@ -76,7 +76,7 @@ function toApiError(message: string, stderr: string, stdout: string, code: numbe
  * 按 iid 拉一张票的原始形状：成功回票面，失败抛带原文的错以便上层归一。
  *
  * 这是「多处共用的原始票读取」的唯一出处（#1914）：关系读写的三个文件（graph/read.ts、
- * graph-blocking.ts 与 graph-membership.ts）都从这里取，不再在各自文件里再养一份。请求本身仍走根目录
+ * graph/write.ts 与 graph/membership.ts）都从这里取，不再在各自文件里再养一份。请求本身仍走根目录
  * requests.ts 的 requestIssueGet，method、路径与 with_labels_details 只在那一处；本函数只决定超时，以及失败时
  * 把原始回包挂在错上，让上层 `fail()` 能取到 glab 的原话。
  *

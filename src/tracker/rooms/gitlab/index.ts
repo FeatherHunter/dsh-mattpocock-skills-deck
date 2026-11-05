@@ -35,7 +35,7 @@ import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue
 import { addComment } from './comments/write.js'
 import { setLabels } from './labels/assign.js'
 import { getDependencies } from './graph/read.js'
-import { setBlockedBy } from './graph-blocking.js'
+import { setBlockedBy } from './graph/write.js'
 import { setParent, setAssignees } from './graph-membership.js'
 import { getRepoKey, gitlabOriginOf } from './repo.js'
 import { counts } from './issues/counts.js'
@@ -331,7 +331,7 @@ export const prompts = {
     // #716 两处改正：
     //   ① 建边与校验已经搬进契约层的 deck_map_link / deck_map_snapshot，所以这里只讲用哪个工具，不留裸命令；
     //   ② 原先这段写「建原生父子边」，与本后端的实现不符 —— setParent 落下去的是票文件头的
-    //      隐藏标记 `<!-- DSH-PARENT: <地图> -->`（见 graph-membership.ts），不是原生父子边。以契约为准，文案同步改正。
+    //      隐藏标记 `<!-- DSH-PARENT: <地图> -->`（见 graph/membership.ts），不是原生父子边。以契约为准，文案同步改正。
     // #1176 之后补正（2026-10-15，来自对抗式审查）：原先这里写「GitLab 上没有原生父子关系」，这句是错的
     //   —— 平台有原生的父子层级（官方有整页在讲「Child items」，免费档就有），只是它在 work items 那条路上，
     //   入口是界面与 GraphQL；本房取数一律走 glab api 的 REST issue links，而那个接口的 link_type 只有

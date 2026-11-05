@@ -15,9 +15,10 @@
  *      不写失败话术、不记日志：每个调用点的容错与说法都不一样，这些留在调用方。
  *
  * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）、评论写入、票的写端点（建票、改票、
- * 按名字读里程碑）、标签的三条请求（整集赋值、列一页清单、改一条颜色），以及仓库身份的两条单点读
- * （当前登录人、仓库写权限）与项目本体的一条读（#1918）；其余写端点与操作族按票逐步搬进来，
- * 命名与返回约定照本文件：request 加领域动作，返回原始进程结果。
+ * 按名字读里程碑）、标签的三条请求（整集赋值、列一页清单、改一条颜色）、仓库身份的两条单点读
+ * （当前登录人、仓库写权限）、项目本体的一条读（#1918），以及关系（阻塞边）的写端点与按登录名查用户
+ * （#1920：加一条原生阻塞边、删一条原生阻塞边、环检用的整页票快照、用户名换用户编号）；其余写端点
+ * 与操作族按票逐步搬进来，命名与返回约定照本文件：request 加领域动作，返回原始进程结果。
  */
 
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
@@ -380,5 +381,109 @@ export function requestProject(opCtx: MaybeCtx, refId: string, timeoutMs: number
  */
 export function requestProjectPermissions(opCtx: MaybeCtx, refId: string, timeoutMs: number): Promise<GlabRunResult> {
   return clientOf(opCtx).run(['api', `${projectPath(refId)}?simple=true`], { timeout: timeoutMs })
+}
+
+/**
+ * 列一页票，固定取满 100 条：GET projects/{仓库}/issues?per_page=100。
+ *
+ * 这是关系写路径的环检快照（graph/write.ts 的 buildBlockMap）：要判断「这次写入会不会把依赖连成环」，
+ * 得先把全仓的阻塞关系拉一页回来。查询串在这里写死成字面量，不交给调用方拼：登记表里的
+ * `issues-list-capped` 是一条形状固定的端点，门禁也按字面量 `?per_page=100` 认它。
+ * 为什么不是复用 requestIssueList：后者的查询串是调用方领域值拼出来的，门禁看到的是 `?{}`，
+ * 会把这条「整页快照」读成别的请求形状。
+ *
+ * 本函数只发请求，不解析回包、不判「取满是截断」：调用方（环检）在拉不全时按既有纪律不拦这次写。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识（例如 group/sub/project；拼路径时统一编码）
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestIssueListCapped(opCtx: MaybeCtx, refId: string, timeoutMs: number): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(['api', issuesPath(refId) + '?per_page=100'], { timeout: timeoutMs })
+}
+
+/**
+ * 加一条原生阻塞边：POST projects/{仓库}/issues/{票号}/links，表单三格
+ * target_project_id / target_issue_iid / link_type。
+ *
+ * 原生阻塞（`link_type=is_blocked_by`）是远端付档能力；能不能加、加失败算不算「远端没能力」
+ * 由调用方（graph/write.ts 的 writeNativeBlockedBy）判。这里只按原顺序把三格表单写出去：
+ * 表单顺序就是搬迁前 argv 里的顺序，网关与脱敏日志按它核对，所以不能调换。
+ *
+ * targetProjectId 收的是**原样的仓库引用**（与 issuesPath 的编码那一份不同）：它是表单值，不经过
+ * URL 解码，写成编码值远端会认成另一个仓库（#1181 踩过的那条）。调用方传 repoRefId(repo) 的原值。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识（拼路径时统一编码）
+ * @param iid 被阻塞票的票号（这条边从它这一头发起）
+ * @param targetProjectId 阻塞者所在的仓库引用原值（表单值，不编码）
+ * @param targetIid 阻塞者的票号
+ * @param linkType 关系类型；当前唯一的调用方传 'is_blocked_by'
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestLinkCreate(
+  opCtx: MaybeCtx,
+  refId: string,
+  iid: string | number,
+  targetProjectId: string,
+  targetIid: string,
+  linkType: string,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(
+    [
+      'api',
+      linksPath(refId, iid),
+      '--method',
+      'POST',
+      '-f',
+      `target_project_id=${targetProjectId}`,
+      '-f',
+      `target_issue_iid=${targetIid}`,
+      '-f',
+      `link_type=${linkType}`,
+    ],
+    { timeout: timeoutMs },
+  )
+}
+
+/**
+ * 删一条原生阻塞边：DELETE projects/{仓库}/issues/{票号}/links/{链接编号}。
+ *
+ * 链接编号是远端在加边时分配的 `issue_link_id`，不是任何一头的票号；删边时只能用它。
+ * 路径按 `linksPath` 再拼一段编号，编号原样拼进去（搬迁前也不编码，数字编号两者等价，
+ * 这里保持同一形状，不让请求边界多一层行为）。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识（拼路径时统一编码）
+ * @param iid 被阻塞票的票号
+ * @param linkId 远端分配的链接编号（调用方从 links 回包里的 issue_link_id 取出）
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestLinkDelete(
+  opCtx: MaybeCtx,
+  refId: string,
+  iid: string | number,
+  linkId: string | number,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(['api', `${linksPath(refId, iid)}/${String(linkId)}`, '--method', 'DELETE'], {
+    timeout: timeoutMs,
+  })
+}
+
+/**
+ * 按登录名查一个人：GET users?username={登录名}。
+ *
+ * 指派票要的是数字用户编号（`assignee_ids` 不吃名字），所以写指派前先把每个登录名换成编号。
+ * 查询串的键与第一个字面量段写死在这里，登录名只做一次 encodeURIComponent：名字里的空格、斜杠
+ * 不能被当成查询串分隔符。回包是数组还是空数组、换不到编号算不算失败，都由调用方判。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param username 登录名原文（本函数负责编码，不收已经编码好的查询串片段）
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_PROBE_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestUserByName(opCtx: MaybeCtx, username: string, timeoutMs: number): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(['api', 'users?username=' + encodeURIComponent(username)], { timeout: timeoutMs })
 }
 

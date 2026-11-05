@@ -60,7 +60,7 @@ import { PAGINATION } from '../../../contract/pagination.js'
 const MAX_SUB_ISSUES = PAGINATION.gitlab.subIssuesMax
 // 翻页扫仓时一页取多少张：与房内列表路径一致（./read.ts 的 listIssues 也是 100）。
 const PAGE_SIZE = PAGINATION.gitlab.subIssuesPageSize
-// 列表页与重试共用这个超时；与房内其它读路径保持一致（./read.ts / ../graph-blocking.ts 都是 8000）。
+// 列表页与重试共用这个超时；与房内其它读路径保持一致（./read.ts / ../graph/write.ts 都是 8000）。
 
 // 本房既有形状：仓库标识只取 partial，缺了按 404 那一档如实回而不是抛（与 ../issues.ts / ../labels.ts 同一份写法）。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -112,7 +112,7 @@ export async function listSubIssues(
   const logCtx = ctx as OpContext | null | undefined
   // 判档那一格只读 logEvent / isEnabled 两样，null 与 undefined 在这里同义（都是「没有上下文」）。
   const classifyCtx = ctx || undefined
-  // 入参两格都没问题才起进程：这之前一个请求都没发，所以原文给空串（本房既有做法，见 ../graph-membership.ts:60）。
+  // 入参两格都没问题才起进程：这之前一个请求都没发，所以原文给空串（本房既有做法，见 ../graph/membership.ts 的 setParent）。
   const id = repoRefId(repo)
   const key = text(mapKey).trim()
   if (!id || !key) {

@@ -2,7 +2,7 @@
  * src/tracker/rooms/gitlab/graph/read.ts —— 关系（阻塞边）的读路径：读一张票被谁阻塞。
  *
  * 为什么搬进 graph/ 子树（#1917）：阻塞关系是一个概念，读与写的落点都应该在这个概念目录里。
- * 根目录 graph-blocking.ts 暂时只留写半边（设置阻塞边、环检、原生真写与正文成对回退）；读半边——
+ * 写半边搬进 graph/write.ts（#1920：设置阻塞边、环检、原生真写与正文成对回退）；读半边——
  * getDependencies、原生阻塞能力探测 tryNativeBlockedBy、对端状态落实 resolveBlockerStates——搬到这里。
  * 入口 index.ts 的 getDependencies 因此改从 './graph/read.js' 取。
  *
@@ -81,7 +81,7 @@ export async function tryNativeBlockedBy(
   key: string,
 ): Promise<NativeProbe> {
   // 探针读不出（403/404/超时/回包形状不对）都只表示「这次探测不到原生」，交给回退路径；
-  // 真写阶段的 500/超时另按故障如实失败，不滑进回退（见 graph-blocking.ts 的 isNativeCapabilityError）。
+  // 真写阶段的 500/超时另按故障如实失败，不滑进回退（见 ./write.ts 的 isNativeCapabilityError）。
   const res = await requestIssueLinks(opCtx, refId, key, GITLAB_READ_TIMEOUT_MS)
   if (res.code !== 0) return { native: null, probeFailed: true }
   try {
