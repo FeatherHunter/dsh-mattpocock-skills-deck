@@ -1287,6 +1287,98 @@ async function scenarioStashAutoDetail() {
   await h.unmount()
   await m.unmount()
 }
+// ---------------- 场景十二（#1902）：逐块暂存与三个行级动作真点一遍 ----------------
+// 依据：票面验收——展开一行按块给按钮、点过之后这一块进索引并回一条结果；「⋯」菜单里三个行级动作
+//   各自先出贴行确认（改名是贴行表单），确认后发的是哪一通电话、带的是哪几个参数。
+async function scenarioChangesHunkActions() {
+  console.log('\n== 场景十三：逐块暂存与删除 / 停止跟踪 / 改名（#1902） ==')
+  const snap = snapshotOf()
+  snap.slices.changes.data = {
+    staged: [],
+    unstaged: [
+      { path: 'h2.txt', status: ' M', staged: false, untracked: false, change: 'modified', addedLines: 2, deletedLines: 1 },
+      { path: 'm2.txt', status: ' M', staged: false, untracked: false, change: 'modified', addedLines: 1, deletedLines: 0 },
+    ],
+    stagedCount: 0, unstagedCount: 2, conflictCount: 0, lineCountsKnown: true,
+  }
+  const headline = [
+    { kind: 'filehead', text: 'diff --git a/h2.txt b/h2.txt' },
+    { kind: 'hunk', text: '@@ -1,2 +1,3 @@' },
+    { kind: 'context', text: ' a' },
+    { kind: 'add', text: '+b' },
+    { kind: 'hunk', text: '@@ -20,2 +21,2 @@' },
+    { kind: 'context', text: ' x' },
+    { kind: 'add', text: '+y' },
+  ]
+  const oneHunk = [{ kind: 'filehead', text: 'diff --git a/m2.txt b/m2.txt' }, { kind: 'hunk', text: '@@ -1 +1 @@' }, { kind: 'add', text: '+改了一行' }]
+  const checks = []
+  const writes = []
+  const host = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
+      'wf.gitDiff': function (args) {
+        const path = String((args || {}).path || '')
+        if ((args || {}).staged === true) return { ok: true, path: path, lines: [], truncated: false, reason: 'no-diff' }
+        if ((args || {}).unstaged === true) return { ok: true, path: path, lines: path === 'h2.txt' ? headline : oneHunk, truncated: false, reason: 'ok' }
+        return { ok: true, path: path, lines: path === 'h2.txt' ? headline : oneHunk, truncated: false, reason: 'ok' }
+      },
+      'wf.gitChangesCheck': function (args) {
+        const a = args || {}
+        checks.push(a)
+        return { ok: true, decision: { verdict: 'allow', reasons: [] }, plan: { op: a.op }, confirmRequired: a.op === 'rm-cached' || a.op === 'rm-tracked', ticket: { id: 'chk-' + checks.length }, readAtMs: NOW }
+      },
+      'wf.gitChangesWrite': function (args) { writes.push(args || {}); return { ok: true, cmd: 'git ' + String((args || {}).op || ''), ms: 3, n: 1 } },
+    },
+  })
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+
+  // 1) 展开一行：两块，各带一颗「暂存这一块」。
+  const opened = await m.click('[data-vc-file-open="h2.txt"]')
+  const hunksShown = await waitFor(function () { return m.qa('[data-vc-changes-diff="h2.txt"] [data-vc-hunk]').length === 2 })
+  check(opened && hunksShown, 'T39 展开一个已修改文件：按块画出来（2 块）')
+  const bars = m.qa('[data-vc-changes-diff="h2.txt"] [data-vc-hunk]')
+  check(bars.length === 2 && String((m.q('[data-vc-changes-diff="h2.txt"] [data-vc-hunk-name]') || {}).textContent || '') === tZh('vc.changes.view.hunkTitle', { n: '1' }),
+    'T39b 每一块的块头写「第 N 块」（第 1 块是 ' + tZh('vc.changes.view.hunkTitle', { n: '1' }) + '）')
+  const stageBtns = m.qa('[data-vc-changes-diff="h2.txt"] [data-vc-hunk-act="stage"]')
+  check(stageBtns.length === 2 && String(stageBtns[0].textContent || '') === tZh('vc.changes.view.hunkStage'), 'T39c 每块的按钮写「暂存这一块」，还没进索引时两块都是它')
+  await m.click(stageBtns[0])
+  const checkCall = checks.filter(function (a) { return a && a.op === 'stage-hunks' })[0]
+  check(!!checkCall && checkCall.path === 'h2.txt' && checkCall.hunkIndex === 0 && checkCall.reverse === false,
+    'T39d 点第一块：预检电话带动作 stage-hunks、路径与块号 0，方向是正向')
+  check(writes.length === 1 && writes[0].op === 'stage-hunks' && writes[0].hunkIndex === 0, 'T39e 预检不需要确认时直接凭票执行，写电话带的是同一块')
+  const banner = m.q('[data-vc-changes-result="stage-hunks"]')
+  check(!!banner && String(banner.textContent || '').indexOf(tZh('vc.changes.view.resultHunkStaged', { name: 'h2.txt', n: '1' })) >= 0,
+    'T39f 结果条贴着改动列表顶部，写明这一次暂存的是哪一块')
+
+  // 2) 行菜单：三个新入口都在，点「停止跟踪」先贴行确认。
+  await m.click('[data-vc-file-menu="m2.txt"]')
+  const ops = m.qa('[data-vc-file-row="m2.txt"] ~ .row-menu [data-vc-file-op]').map(function (el) { return String(el.getAttribute('data-vc-file-op')) })
+  check(ops.join(',') === 'discard-file,mv,rm-cached,rm-tracked', 'T39g 已跟踪的未暂存行菜单：丢弃 / 重命名 / 停止跟踪 / 删除已跟踪（实得 ' + ops.join(',') + '）')
+  await m.click('[data-vc-file-row="m2.txt"] ~ .row-menu [data-vc-file-op="rm-cached"]')
+  const card = await waitFor(function () { return !!m.q('[data-vc-file-confirm="rm-cached"]') })
+  check(card && String((m.q('[data-vc-file-confirm="rm-cached"]') || {}).textContent || '').indexOf(tZh('vc.changes.view.confirmUntrackBody')) >= 0,
+    'T39h 点「停止跟踪，保留文件」先出贴行确认，正文写清文件还在磁盘上')
+  await m.click('[data-vc-file-confirm="rm-cached"] [data-vc-file-confirm-go]')
+  const untrackWrite = writes.filter(function (w) { return w.op === 'rm-cached' })[0]
+  check(!!untrackWrite && untrackWrite.path === 'm2.txt' && untrackWrite.confirm === true, 'T39i 确认之后凭票执行 rm-cached（写电话带 confirm）')
+
+  // 3) 改名：贴着这一行展开只填新路径的表单，保存后把旧路径与新路径一起递下去。
+  await m.click('[data-vc-file-menu="m2.txt"]')
+  await m.click('[data-vc-file-row="m2.txt"] ~ .row-menu [data-vc-file-op="mv"]')
+  const formShown = await waitFor(function () { return !!m.q('[data-vc-rename-form="m2.txt"]') })
+  const inputValue = String((m.q('[data-vc-rename-input="m2.txt"]') || {}).value || '')
+  check(formShown && inputValue === 'm2.txt', 'T39j 点「重命名或移动」贴着这一行展开表单，输入框预填当前路径')
+  await m.type('[data-vc-rename-input="m2.txt"]', 'src/moved.ts')
+  await m.click('[data-vc-rename-apply="m2.txt"]')
+  const mvCall = checks.filter(function (a) { return a && a.op === 'mv' })[0]
+  check(!!mvCall && mvCall.path === 'm2.txt' && mvCall.to === 'src/moved.ts', 'T39k 保存新路径：预检电话带旧路径与新路径（不带表单里空着的 from）')
+  await m.unmount()
+}
+
+
 // ---------------- 场景十三：提交选项的入口与关闭路径（#1877，按 #1876 原型） ----------------
 // 依据：原型提交区首屏只有三块（已暂存计数 + 两个链接 / 说明框 / 底行），提交按钮右边多一枚 24 像素箭头；
 //   点开才是「提交选项」浮层（提交形态 / 内容来源 / 提交说明 / 记录方式四组）。这一段验：入口位置与默认收起、
@@ -1401,6 +1493,7 @@ async function main() {
   await scenarioM4d()
   await scenarioHistoryRedesign()
   await scenarioChangesDiff()
+await scenarioChangesHunkActions()
   await scenarioStashAutoDetail()
   await scenarioComposerOptions()
   await scenarioSkinFollow()
