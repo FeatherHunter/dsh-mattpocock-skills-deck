@@ -15,6 +15,10 @@ export const VC_MIGRATE_PHONES: Record<string, string> = {
   write: 'wf.gitMigrateWrite'
 }
 
+// 这一页承载的六条能力（与能力账本逐条一致）：克隆 8.16 与生成补丁邮件 14.1 的向导由页面壳当槽位递进来，
+// 其余四条各在动作行里。门禁按这份名单对账，页面与壳都不另抄第二份。
+export const VC_MIGRATE_PAGE_CAP_IDS: string[] = ['8.16', '11.1', '11.12', '11.13', '5.13', '14.1']
+
 // 九个动作：id 与能力账本逐条一致（11.1 / 11.12 / 11.13 / 5.13）；svn 两条是迁移页补充块，
 // 账本里没有独立 id（规格与票面都不许为它造新 id），所以 id 留空、extra 标真。
 export const VC_MIGRATE_ACTION_ROWS: any[] = [

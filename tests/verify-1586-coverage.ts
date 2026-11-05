@@ -78,6 +78,9 @@ const CLOSURE_FILLERS = [
   'const vcRewritePageNode = function () { return null }',
   'const vcQueryPageNode = function () { return null }',
   'const vcDiagnosticsMountNode = function () { return null }',
+  // #1844：迁移页正文改成无条件挂载（页内自己画加载 / 失败态），壳会先收进变量、为 null 就不挂；
+  //   覆盖验收只量能力行与主入口，正文给最小替身。平台页与导出向导在壳里是 typeof 判空，不拼也不会 ReferenceError。
+  'const vcMigratePageNode = function () { return null }',
 ].join('\n')
 const EXPORTS = [
   'CAPABILITIES', 'CAPABILITY_TOTAL', 'PAGE_SURFACES', 'PAGE_COUNTS', 'LEVEL_COUNTS', 'PLACEMENT_COUNTS', 'FINAL_FORM_COUNTS',

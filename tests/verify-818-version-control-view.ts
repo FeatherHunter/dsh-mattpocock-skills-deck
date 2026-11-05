@@ -348,7 +348,7 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcConfigPageNode', 'vcHooksPageNode', 'VC_CONFIG_PAGE_SOURCE', 'VC_HOOKS_PAGE_SOURCE',
   // #1761 诊断页与 5.12 替换：电话名、查询目录、动作层、页面正文（13.3 / 13.14 只画指针，13.13 只读）。
   'VC_DIAG_PHONES', 'VC_DIAG_QUERY_ROWS', 'VC_DIAG_BISECT_ACTIONS', 'VC_DIAG_POINTERS',
-  'VC_DIAG_BISECT_CAP', 'VC_DIAG_PATCH_CAP', 'VC_DIAG_TRAILER_CAP', 'VC_DIAG_REPLACE_CAP',
+  'VC_DIAG_BISECT_CAP', 'VC_DIAG_PATCH_CAP', 'VC_DIAG_TRAILER_CAP', 'VC_DIAG_REPLACE_CAP', 'VC_DIAG_SHAPE_CAPS', 'VC_DIAG_MORE_CAPS',
   'vcDiagnosticsStateNew', 'vcDiagnosticsInputOf', 'vcDiagnosticsReadPayloadOf', 'vcDiagnosticsPatchPayloadOf',
   'vcDiagnosticsTrailerPayloadOf', 'vcDiagnosticsReplaceListPayloadOf', 'vcDiagnosticsWritePayloadOf', 'vcDiagnosticsDangerousOf',
   'vcDiagnosticsCallOf', 'vcDiagnosticsFailKeyOf', 'vcDiagnosticsShortOidOf', 'vcDiagnosticsResultOf', 'vcDiagnosticsRowsOf',
@@ -366,8 +366,8 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'VC_PLATFORM_PHONES', 'VC_PLATFORM_DATA_SOURCE', 'vcNewPlatformReads', 'vcPlatformStateOf', 'vcPlatformDataOf', 'vcPlatformErrorOf', 'vcPlatformCredentialOf', 'vcPlatformUpdateRefsOf',
   'vcPlatformRequestPullStateOf', 'vcPlatformRequestPullOf', 'vcPlatformRequestPullErrorOf', 'vcPlatformPatchesStateOf', 'vcPlatformPatchesOf', 'vcPlatformPatchesErrorOf',
   'vcApplyPlatformReply', 'vcApplyRequestPullReply', 'vcApplyPatchesReply', 'vcReadPlatform', 'vcRunRequestPull', 'vcReadPatchFiles',
-  'VC_PLATFORM_PAGE_SOURCE', 'VC_PLATFORM_NOTE_IDS', 'vcPlatformModelOf', 'vcPlatformPageNode',
-  'VC_MIGRATE_EXPORT_SOURCE', 'VC_MIGRATE_EXPORT_PHONES', 'VC_MIGRATE_NOTE_IDS', 'vcNewMigrateExport', 'vcApplyMigrateCheck', 'vcApplyMigrateRun', 'vcApplyMigrateTask',
+  'VC_PLATFORM_PAGE_SOURCE', 'VC_PLATFORM_PAGE_CAP_IDS', 'VC_PLATFORM_OUTBOUND_IDS', 'VC_PLATFORM_BOUNDARY_KEYS', 'vcPlatformModelOf', 'vcPlatformPageNode',
+  'VC_MIGRATE_EXPORT_SOURCE', 'VC_MIGRATE_EXPORT_PHONES', 'VC_MIGRATE_PAGE_CAP_IDS', 'vcNewMigrateExport', 'vcApplyMigrateCheck', 'vcApplyMigrateRun', 'vcApplyMigrateTask',
   'vcRunMigrateCheck', 'vcRunMigrateExport', 'vcRunMigrateTaskQuery', 'vcMigrateExportNode',
   // #1748 变基待办页历史改写：两条电话、五条动作目录、参数整理与三个阶段的回包归一（页面本体里也要看）。
   'VC_UNDO_PHONE_CHECK', 'VC_UNDO_PHONE_WRITE', 'VC_UNDO_COMMIT_MAX', 'VC_UNDO_MESSAGE_MAX', 'VC_UNDO_REV_MAX',
@@ -1479,7 +1479,7 @@ async function main() {
   const dgPlain = dgRenderOf(VIEW, null)
   check(typeof VIEW.vcDiagnosticsPageNode === 'function' && typeof VIEW.vcDiagnosticsMountNode === 'function' && VIEW.VC_DIAG_PHONES.read === 'wf.gitDiagnosticsRead' && VIEW.VC_DIAG_PHONES.check === 'wf.gitDiagnosticsCheck' && VIEW.VC_DIAG_PHONES.write === 'wf.gitDiagnosticsWrite' && VIEW.VC_DIAG_PAGE_SOURCE === 'src/client/views/versionControl/vcDiagnosticsPage.ts', 'DG1 诊断页两片与三条电话已按构建次序拼进闭包（读 / 预检 / 凭票执行各一条，电话名只有一处定义）')
   const dgChangesHtml = shellHtmlOf({ page: 'changes', width: 460, skin: 'dark', reads: dgReads })
-  check(dgPlain.indexOf('data-vc-diag-panel="1"') >= 0 && dgPlain.indexOf('data-vc-page="diagnostics"') >= 0 && dgChangesHtml.indexOf('data-vc-diag-panel') < 0, 'DG2 只有诊断页画出正文面板（拿到读数才挂，别的页签不被塞进来）')
+  check(dgPlain.indexOf('data-vc-diag-panel="1"') >= 0 && dgPlain.indexOf('data-vc-diag-panel') === dgPlain.lastIndexOf('data-vc-diag-panel') && dgChangesHtml.indexOf('data-vc-diag-panel') < 0, 'DG2 只有诊断页画出正文面板（一份面板，别的页签不被塞进来；页面身份由壳根的 data-vc-page 单独给）')
   const dgOps = attrValuesOf(dgPlain, 'data-vc-diag-op')
   check(dgCapCountOf(dgPlain, '13.1') === 5 && ['bisect-start', 'bisect-bad', 'bisect-good', 'bisect-skip', 'bisect-reset'].every(function (op) { return dgOps.indexOf(op) >= 0 }), 'DG3 13.1 二分是受控写：开始 / 标坏 / 标好 / 跳过 / 重置五颗按钮（各自带动作名，不提供任意命令）')
   const dgReadCaps = ['13.4', '13.5', '13.6', '13.7', '13.8', '13.9', '13.10', '13.11']
@@ -1519,9 +1519,9 @@ async function main() {
   check(dgRowAt >= 0 && dgReadOk.indexOf('data-vc-diag-result="ok"', dgRowAt) > dgRowAt && dgReadOk.indexOf('ls-files -z', dgRowAt) > dgRowAt && dgReadOk.indexOf('a.txt', dgRowAt) > dgRowAt, 'DG13 只读结果画在那一行查询里（命令原文与结果行都在同一行内）')
   const dgBisectOk = dgRenderOf(VIEW, { results: { '13.1': { ok: true, command: 'bisect start', op: 'bisect-start' } } })
   const dgBisectBlockAt = dgBisectOk.indexOf('data-vc-diag-block="bisect"')
-  const dgReadBlockAt = dgBisectOk.indexOf('data-vc-diag-block="read"')
+  const dgNextBlockAt = dgBisectOk.indexOf('data-vc-diag-block="replace"')
   const dgBisectResultAt = dgBisectOk.indexOf('data-vc-diag-result="ok"')
-  check(dgBisectResultAt > dgBisectBlockAt && dgBisectResultAt < dgReadBlockAt, 'DG14 13.1 的结果落在二分块里，不跑到别的块')
+  check(dgBisectResultAt > dgBisectBlockAt && dgNextBlockAt > dgBisectBlockAt && dgBisectResultAt < dgNextBlockAt, 'DG14 13.1 的结果落在二分块里，不跑到下一块（#1844 的分区顺序：只读对象查看在前、检查与定位在后）')
   const dgInactive = dgRenderOf(VIEW, { reads: { '13.2': { kind: 'bisect-status', atMs: NOW, rows: ['0'] } } })
   check(dgInactive.indexOf('data-vc-diag-bisect-inactive="1"') >= 0 && dgInactive.indexOf(tZh('vc.diag.bisect.inactive')) >= 0, 'DG15 不在二分时不画假范围：明说「没有正在进行的二分」（读数与按钮状态分开）')
   check(VIEW.vcDiagnosticsFailKeyOf('blocked', 'not-a-commit') === 'vc.diag.reason.notACommit' && VIEW.vcDiagnosticsFailKeyOf('git-failed', 'no-replace') === 'vc.diag.reason.noReplace' && VIEW.vcDiagnosticsFailKeyOf('args', 'x') === 'vc.diag.fail.args' && VIEW.vcDiagnosticsFailKeyOf('weird', 'y') === 'vc.diag.fail.unknown', 'DG16 失败分类只翻词条键：理由优先、其次按 kind 归族、认不出的一律落 unknown（不现编人话）')
@@ -2943,7 +2943,7 @@ async function main() {
     return shellHtmlOf({ page: 'migrate', width: width || 460, skin: 'dark', migrate: state, migrateReads: reads })
   }
   const platformWideHtml = platformPageOf(platformReadsOf(null))
-  check(platformWideHtml.indexOf('data-vc-platform="1"') >= 0 && platformWideHtml.indexOf('data-vc-platform-lede="1"') >= 0, 'Z17a 平台页画出正文（导语 + 凭据链 + updateRefs + request-pull + 说明区），不是一块骨架')
+  check(platformWideHtml.indexOf('data-vc-platform="1"') >= 0 && platformWideHtml.indexOf('data-vc-platform-cred-helper') >= 0 && platformWideHtml.indexOf('data-vc-platform-update-refs') >= 0 && platformWideHtml.indexOf('data-vc-platform-rp-field') >= 0, 'Z17a 平台页画出正文（凭据链 + updateRefs + 六条交出去的能力 + 四条边界 + request-pull），导语由页面壳的页头给，不是一块骨架')
   check(attrValuesOf(platformWideHtml, 'data-vc-platform-cred-helper').join(',') === 'manager' && attrValuesOf(platformWideHtml, 'data-vc-platform-cred-helpers')[0] === '1', 'Z17b 凭据助手链按宿主读数原样列出（helper 名字与条数都不改写）')
   check(platformWideHtml.indexOf('data-vc-platform-cred-ok="1"') >= 0 && platformWideHtml.indexOf('data-vc-platform-cred-risk') < 0, 'Z17c 没配 store 时不标红，画「不用改」的读数')
   const storeHtml = platformPageOf(platformReadsOf({ credential: { state: 'ok', helpers: ['manager', 'store'], store: 'store', risk: 'store', advice: 'replace-store', error: null } }))
@@ -2960,8 +2960,13 @@ async function main() {
   check(rpTruncHtml.indexOf('data-vc-platform-rp-truncated="1"') >= 0 && rpTruncHtml.indexOf(LOC.zh['vc.platform.rp.truncated']) >= 0, 'Z17j request-pull 输出被截断时如实说（不装作完整）')
   const rpErrHtml = platformPageOf(Object.assign(platformReadsOf(null), { requestPull: { state: 'err', data: null, error: { kind: 'args', reason: 'bad-range', message: '引用不认识', hint: '' } } }))
   check(rpErrHtml.indexOf('data-vc-platform-rp-error="1"') >= 0 && rpErrHtml.indexOf('引用不认识') >= 0, 'Z17k request-pull 失败贴回原话与环节（不吞错误、不只说失败）')
-  check(attrValuesOf(platformWideHtml, 'data-vc-platform-note').join(',') === VIEW.VC_PLATFORM_NOTE_IDS.join(','), 'Z17l 平台页九条说明按账本编号逐条画出（8.15 / 5.9 / 14.2 / 14.3–14.8，不抄第二份名单）')
-  check(VIEW.VC_PLATFORM_NOTE_IDS.every(function (id: string) { return !!LOC.zh['vc.platform.note.' + id] && platformWideHtml.indexOf(LOC.zh['vc.platform.note.' + id]) >= 0 }), 'Z17m 每条说明都落到真词条上（九段都不是键名回显）')
+  // #1844：平台页按原型 47 重排——「交出去的六条能力」与「四条边界」两段在最前，凭据链 / updateRefs /
+  //   request-pull 三段排在原型分区之后；门禁自己抄一份顺序，页面常量少一行时这里照样能红。
+  const PLATFORM_OUTBOUND_IDS = ['14.2', '14.4', '14.5', '14.6', '14.7', '14.8']
+  const PLATFORM_BOUNDARY_KEYS = ['editor', 'token', 'longtask', 'rewrite']
+  check(attrValuesOf(platformWideHtml, 'data-vc-section').join(',') === 'outbound,boundaries,credentials,update-refs,request-pull,pointer', 'Z17l 平台页正文六段按「原型两段在前、产品补充四段在后」排（实得 ' + attrValuesOf(platformWideHtml, 'data-vc-section').join(',') + '）')
+  check(attrValuesOf(platformWideHtml, 'data-vc-platform-outbound').join(',') === PLATFORM_OUTBOUND_IDS.join(',') && attrValuesOf(platformWideHtml, 'data-vc-platform-boundary').join(',') === PLATFORM_BOUNDARY_KEYS.join(','), 'Z17m 六条交出去的能力与四条边界按规格顺序逐行画出（编号与键都取自页面的同一份真源）')
+  check(PLATFORM_OUTBOUND_IDS.every(function (id: string) { return !!LOC.zh['vc.platform.outbound.where.' + id] && !!LOC.zh['vc.platform.note.' + id] && platformWideHtml.indexOf(LOC.zh['vc.platform.outbound.where.' + id]) >= 0 }) && PLATFORM_BOUNDARY_KEYS.every(function (k: string) { return !!LOC.zh['vc.platform.boundaries.' + k + '.title'] && platformWideHtml.indexOf(LOC.zh['vc.platform.boundaries.' + k + '.sub']) >= 0 }), 'Z17m2 每条说明都落到真词条上（「去哪里做」与四条边界的说明都不是键名回显）')
   check(attrValuesOf(platformWideHtml, 'data-cap-primary').length === 0 && platformWideHtml.indexOf('data-surface=') < 0 && pagePaletteIdsOf('platform').join(',') === VIEW.vcPageCapabilitiesOf('platform').map(function (c) { return c.id }).join(','), 'Z17n 平台页页面体不再画主入口（0 个），新正文也不另画操作面；这 ' + VIEW.PAGE_COUNTS.platform + ' 条能力的入口都在命令面板里、顺序=账本')
   const migHtml = migratePageOf(VIEW.vcNewMigrateExport(), VIEW.vcNewPlatformReads())
   check(migHtml.indexOf('data-vc-migrate-export="1"') >= 0 && attrValuesOf(migHtml, 'data-vc-migrate-field').join(',') === 'range,dir' && migHtml.indexOf('data-vc-migrate-check="1"') >= 0, 'Z17o 迁移页画出 14.1 导出向导（区间与输出目录两个输入 + 预检按钮）')
@@ -2982,20 +2987,28 @@ async function main() {
   check(migratePageOf(migDone, patchMissingReads).indexOf('data-vc-migrate-patches-missing="1"') >= 0, 'Z17u 输出目录不存在时如实画「目录还没有」，不猜「没有补丁」')
   check(migratePageOf(migDone, patchEmptyReads).indexOf('data-vc-migrate-patches-empty="1"') >= 0, 'Z17v 目录存在但空时画空态（与「目录不存在」分开）')
   check(migratePageOf(migDone, patchErrReads).indexOf('data-vc-migrate-patches-error="1"') >= 0, 'Z17w 列目录失败贴失败原话，不拿旧清单冒充新读数')
-  check(attrValuesOf(migDoneHtml, 'data-vc-migrate-note').join(',') === VIEW.VC_MIGRATE_NOTE_IDS.join(','), 'Z17x 迁移页六条说明逐条画出（5.13 / 8.16 / 11.1 / 11.12 / 11.13 / 14.1）')
+  // #1844：页尾「本页其余能力说明」随能力清单退役一并删掉；六条能力仍各有自己的动作行或向导，
+  //   所以判据改成「说明块不再出现 + 六条能力都能在页面上找到入口」。
+  const migCapsShown = ['8.16', '11.1', '11.12', '11.13', '5.13', '14.1'].every(function (id: string) {
+    if (id === '8.16') return migDoneHtml.indexOf('data-vc-clone="1"') >= 0
+    if (id === '14.1') return migDoneHtml.indexOf('data-vc-migrate-export="1"') >= 0
+    return migDoneHtml.indexOf('data-vc-migrate-cap="' + id + '"') >= 0
+  })
+  check(migDoneHtml.indexOf('data-vc-migrate-notes') < 0 && migCapsShown && attrValuesOf(migDoneHtml, 'data-vc-migrate-note').join(',') === 'maintenance-pointer', 'Z17x 迁移页不再画页尾能力说明（#1860 退役），六条能力仍各有动作行或向导；页尾只剩维护页指路一句')
   check(VIEW.VC_SHELL_WIDTHS.every(function (w: number) {
     const p = platformPageOf(platformReadsOf(null), w)
     const m = migratePageOf(migChecked, patchesReads, w)
     return p.indexOf('data-vc-width="' + w + '"') >= 0 &&
-      attrValuesOf(p, 'data-vc-platform-note').length === VIEW.VC_PLATFORM_NOTE_IDS.length &&
+      attrValuesOf(p, 'data-vc-platform-outbound').length === PLATFORM_OUTBOUND_IDS.length &&
+      attrValuesOf(p, 'data-vc-platform-boundary').length === PLATFORM_BOUNDARY_KEYS.length &&
       attrValuesOf(p, 'data-vc-platform-rp-field').length === 3 &&
       m.indexOf('data-vc-migrate-export="1"') >= 0 &&
-      attrValuesOf(m, 'data-vc-migrate-note').length === VIEW.VC_MIGRATE_NOTE_IDS.length
-  }), 'Z17y 四档宽下两页入口一个不少（平台页九条说明 + request-pull 三输入；迁移页向导 + 六条说明）')
-  const platformNotesJudgmentOf = function (v: any) {
+      attrValuesOf(m, 'data-vc-migrate-act').length === VIEW.VC_MIGRATE_ACTION_ROWS.length
+  }), 'Z17y 四档宽下两页入口一个不少（平台页六条交出去 + 四条边界 + request-pull 三输入；迁移页向导 + 九个动作行）')
+  const platformStructureJudgmentOf = function (v: any) {
     const reads: any = Object.assign(v.vcNewPlatformReads(), { platform: { state: 'ok', data: { readAtMs: NOW, repoRoot: 'D:/w/repo', credential: { state: 'ok', helpers: ['manager'], store: '', risk: 'ok', advice: 'ok', error: null }, updateRefs: { state: 'ok', value: '', enabled: false, error: null } }, error: null } })
     const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'platform', width: 460, skin: 'dark', platform: reads }))
-    return attrValuesOf(html, 'data-vc-platform-note').length === v.VC_PLATFORM_NOTE_IDS.length
+    return attrValuesOf(html, 'data-vc-platform-outbound').join(',') === PLATFORM_OUTBOUND_IDS.join(',') && attrValuesOf(html, 'data-vc-platform-boundary').join(',') === PLATFORM_BOUNDARY_KEYS.join(',')
   }
   const platformStoreJudgmentOf = function (v: any) {
     const reads: any = Object.assign(v.vcNewPlatformReads(), { platform: { state: 'ok', data: { readAtMs: NOW, repoRoot: 'D:/w/repo', credential: { state: 'ok', helpers: ['manager', 'store'], store: 'store', risk: 'store', advice: 'replace-store', error: null }, updateRefs: { state: 'ok', value: '', enabled: false, error: null } }, error: null } })
@@ -3294,7 +3307,7 @@ async function main() {
 
   const antiCases: AntiCase[] = [
     // #1762 T26：平台页正文与页面壳的挂载段是两处单独可坏的地方，各给一条反证。
-    { name: '平台页不再画九条说明', patch: (s) => s.replace('    vcPlatformNotesNode(h, t, model),', ''), test: platformNotesJudgmentOf, what: 'Z17l' },
+    { name: '平台页不再画六条交出去的能力', patch: (s) => s.replace('      children: vcPlatformOutboundRows(h, t),', '      children: [],'), test: platformStructureJudgmentOf, what: 'Z17l' },
     { name: 'store 命中不再标红', patch: (s) => s.replace("'data-vc-platform-cred-risk': 'replace-store',", "'data-vc-platform-cred-risk': 'ok',"), test: platformStoreJudgmentOf, what: 'Z17d' },
     // #1253：真源已经转成 .ts，形参后面多了类型标注（st: any），锚点用正则把标注写成可选的，
     //   写法上仍只认「这一处原样」，不放大到别的地方。
@@ -3346,11 +3359,11 @@ async function main() {
     // #1743：确认卡删掉「可逆性与恢复路径」那一段 —— P7 的四段判据必须当场红。
     { name: '确认卡删掉可逆性与恢复路径', patch: (s) => s.replace("          { seg: 'reversible', text: t('vc.commit.confirm.reversible', params) },\n", ''), test: pConfirmJudgmentOf, what: 'P7' },
     // #1761：13.13 尾部签名行从只读变成又一颗按钮 —— DG7 的只读判据必须当场红。
-    { name: '13.13 尾部签名行加回按钮', patch: (s) => s.replace("  kids.push(h('p', { key: 'note', className: 'vcs-diag-note', 'data-vc-diag-trailer-note': '1' }, t('vc.diag.trailer.note')))", "  kids.push(h('p', { key: 'note', className: 'vcs-diag-note', 'data-vc-diag-trailer-note': '1' }, t('vc.diag.trailer.note')))\n  kids.push(h('button', { key: 'extra', 'data-cap-control': '13.13' }, 'x'))"), test: dgReadOnlyJudgmentOf, what: 'DG7' },
+    { name: '13.13 尾部签名行加回按钮', patch: (s) => s.replace("    h('p', { key: 'note', className: 'page-note', 'data-vc-diag-trailer-note': '1' }, t('vc.diag.trailer.note')),", "    h('p', { key: 'note', className: 'page-note', 'data-vc-diag-trailer-note': '1' }, t('vc.diag.trailer.note')),\n    h('button', { key: 'extra', 'data-cap-control': '13.13' }, 'x'),"), test: dgReadOnlyJudgmentOf, what: 'DG7' },
     // #1761：5.12 的撤销按钮挂到 13.1 上 —— DG9 的「撤销就在那一行」判据必须当场红。
     { name: '5.12 撤销按钮挂到 13.1', patch: (s) => s.replace("cap: VC_DIAG_REPLACE_CAP, logId: 'vc.diag.replace.undo', label: t('vc.diag.replace.undo')", "cap: '13.1', logId: 'vc.diag.replace.undo', label: t('vc.diag.replace.undo')"), test: dgReplaceJudgmentOf, what: 'DG9' },
     // #1761：13.3 / 13.14 的指针整块不画（只剩骨架）—— DG8 的指针判据必须当场红。
-    { name: '诊断页不再指回 13.3 与 13.14 的主入口', patch: (s) => s.replace('    vcDiagPointerBlock(h, t),', '    null,'), test: dgPointerJudgmentOf, what: 'DG8' },
+    { name: '诊断页不再指回 13.3 与 13.14 的主入口', patch: (s) => s.replace("vcDiagSection(h, t, 'pointer', 'vc.diag.section.pointer.title', '', 'vc.diag.section.pointer.note', [vcDiagPointerBlock(h, t)]),", "vcDiagSection(h, t, 'pointer', 'vc.diag.section.pointer.title', '', 'vc.diag.section.pointer.note', []),"), test: dgPointerJudgmentOf, what: 'DG8' },
     // #1751：贮藏页的三处反证 —— 挂载被摘掉、版本门恒放行、危险动作不出确认卡，对应断言必须当场红。
     { name: '贮藏页不再挂进页面壳（十条入口全没了）', patch: (s) => s.replace("if (page === 'stash' && typeof vcStashPageNode === 'function') {", 'if (false) {'), test: stashMountedJudgmentOf, what: 'Z16a' },
     { name: '7.3 的版本门恒放行（低版本也画按钮）', patch: (s) => s.replace('const state = vcStashOpVersionStateOf(VC_STASH_STAGED_OP, versionText)', "const state = 'full'"), test: stashGateJudgmentOf, what: 'Z16m' },

@@ -59,6 +59,8 @@ async function main(): Promise<void> {
   const data = await load('src/client/views/versionControl/vcPlatformData.ts')
   const page = await load('src/client/views/versionControl/vcPlatformPage.ts')
   const migrate = await load('src/client/views/versionControl/vcMigrateExport.ts')
+  // #1844：迁移页承载的六条能力清单从数据层读（导出向导只claim 14.1 一条，不再持有整页名单）。
+  const migrateData = await load('src/client/views/versionControl/vcMigrateData.ts')
 
   // ---- 一、账本落点（规格第 11 节矩阵；主入口唯一性由 818 的 data-cap-primary 判据守） ----
   const caps = ledger.CAPABILITIES
@@ -93,8 +95,10 @@ async function main(): Promise<void> {
   const patchMail = rowOf('14.1')
   check(patchMail.finalForm === '操作' && patchMail.page === 'migrate' && patchMail.level === '写' && patchMail.command.indexOf('git format-patch') === 0,
     '14.1 format-patch 是迁移页唯一的写操作（面板真做，走任务通道产出补丁文件）')
-  check(SAME(sorted(Array.from(page.VC_PLATFORM_NOTE_IDS as string[])), platformIds), '平台页叶子的说明清单与账本九条逐个相同（不另抄一份 id）')
-  check(SAME(sorted(Array.from(migrate.VC_MIGRATE_NOTE_IDS as string[])), sorted(migrateCaps.map((c: any) => c.id))), '迁移页叶子的说明清单与账本六条逐个相同')
+  check(SAME(sorted(Array.from(page.VC_PLATFORM_PAGE_CAP_IDS as string[])), platformIds), '平台页叶子的能力清单与账本九条逐个相同（不另抄一份 id）')
+  check(SAME(sorted(Array.from(page.VC_PLATFORM_OUTBOUND_IDS as string[])), sorted(['14.2', '14.4', '14.5', '14.6', '14.7', '14.8'])), '平台页「交出去的六条能力」恰好是 14.2 与 14.4–14.8（原型 47 与规格同一条线）')
+  check(SAME(Array.from(page.VC_PLATFORM_BOUNDARY_KEYS as string[]), ['editor', 'token', 'longtask', 'rewrite']), '平台页四条边界按原型 47 的顺序写死（编辑器 / 令牌 / 长任务 / 整仓重写）')
+  check(SAME(sorted(Array.from(migrateData.VC_MIGRATE_PAGE_CAP_IDS as string[])), sorted(migrateCaps.map((c: any) => c.id))), '迁移页叶子的能力清单与账本六条逐个相同')
 
   // ---- 二、共享纯函数：宿主与界面读同一份守卫 ----
   const helpers = inspect.vcCredentialHelpersOf('manager\u0000store --file=/tmp/x\u0000')
@@ -265,8 +269,8 @@ async function main(): Promise<void> {
   const indexText = readText('src/client/index.ts')
   check(['leaf:vcPlatformData', 'leaf:vcPlatformPage', 'leaf:vcMigrateExport', 'shared:vcPlatformInspect'].every((mark) => indexText.indexOf(mark) >= 0), 'src/client/index.ts 有四个新拼接标记（构建按标记拼接）')
   const copyText = readText('config/copy/vcplatform.yaml')
-  check(copyText.indexOf('vc.platform.') >= 0 && copyText.indexOf('vc.migrate.') >= 0 && page.VC_PLATFORM_NOTE_IDS.length === 9 && migrate.VC_MIGRATE_NOTE_IDS.length === 6,
-    '平台页与迁移页的词条族在 config/copy/vcplatform.yaml 里，两页说明条数与账本一致')
+  check(copyText.indexOf('vc.platform.') >= 0 && copyText.indexOf('vc.migrate.') >= 0 && page.VC_PLATFORM_PAGE_CAP_IDS.length === 9 && migrateData.VC_MIGRATE_PAGE_CAP_IDS.length === 6,
+    '平台页与迁移页的词条族在 config/copy/vcplatform.yaml 里，两页能力条数与账本一致')
   check(page.VC_PLATFORM_PAGE_SOURCE === 'src/client/views/versionControl/vcPlatformPage.ts' && migrate.VC_MIGRATE_EXPORT_SOURCE === 'src/client/views/versionControl/vcMigrateExport.ts',
     '两页各自给出真源路径（门禁按它找文件，搬路径要一起改）')
 

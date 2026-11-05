@@ -3,13 +3,43 @@
 # 文案口径：只读查询说清「查什么」，受控写说清「改的是哪一份记录」；13.3 / 13.14 的主入口不在本页，指针写清去哪里。
 zh:
   vc.diag.title: 诊断
-  vc.diag.lede: 这一页做只读查询与两个受控写：二分查找的记录、替换对象的清单。图形历史与全文搜索仍在各自的页面。
-  vc.diag.section.bisect: 二分查找
-  vc.diag.section.read: 只读查询
-  vc.diag.section.patch: 预演补丁
-  vc.diag.section.trailer: 尾部签名行
-  vc.diag.section.replace: 替换对象
-  vc.diag.section.pointer: 其他页面的入口
+  vc.diag.section.facts.title: 版本与计数
+  vc.diag.section.facts.note: 这些数字全部来自本仓库此刻的 git 读数。读不到时界面写「读不到」，不写 0。
+  vc.diag.section.shapes.title: 只读对象查看
+  vc.diag.section.shapes.count: 6 条能力
+  vc.diag.section.shapes.note: 底层排查只展示读到的形状，不提供可操作按钮。需要执行时交给终端或诊断工具。
+  vc.diag.section.checks.title: 检查与定位
+  vc.diag.section.checks.count: 4 条能力
+  vc.diag.section.checks.note: 完整性检查、可回收对象、二分查找与引用日志：都能在面板里发起并看到结果，但都不写提交。
+  vc.diag.section.replace.title: 替换对象：受控写
+  vc.diag.section.replace.count: 1 条能力
+  vc.diag.section.replace.note: 替换只改「引用指向哪个对象」，不动提交内容；先预演再确认，撤销列表就在这一块里。
+  vc.diag.section.patch.title: 应用补丁：先预演
+  vc.diag.section.patch.count: 1 条能力
+  vc.diag.section.patch.note: 预演只回答「这段补丁能不能干净应用」，不改工作区；确认应用仍走受控写通道。
+  vc.diag.section.trailer.title: 尾部签名
+  vc.diag.section.trailer.count: 1 条能力
+  vc.diag.section.trailer.note: 尾部签名只读：看到提交尾部的签名行，不在面板里改签名。
+  vc.diag.section.more.title: 更多只读查询
+  vc.diag.section.more.count: 2 条能力
+  vc.diag.section.more.note: 按条件列文件与补丁等价是原型没画的两条只读查询，放在这里，结果同样贴在这一行下面。
+  vc.diag.section.pointer.title: 换页去找
+  vc.diag.section.pointer.note: 按内容搜工作区去搜索页，图形历史浏览器去提交历史页：这两处更适合用完整界面。
+  vc.diag.facts.gitVersion: git 版本
+  vc.diag.facts.describe: describe
+  vc.diag.facts.head: HEAD
+  vc.diag.facts.refs: 引用总数
+  vc.diag.facts.worktrees: 工作区
+  vc.diag.facts.statusLines: 工作区状态行
+  vc.diag.facts.repoRoot: 仓库根
+  vc.diag.facts.unreadable: 读不到
+  vc.diag.facts.headValue: '{oid}（{branch}）'
+  vc.diag.facts.refsValue: '{total} · 本地分支 {local} 条'
+  vc.diag.facts.worktreesValue: '{n} 棵'
+  vc.diag.facts.statusValue: '{n} 行'
+  vc.diag.checks.fsck.sub: 完整性检查会读全库对象，真实实现里显示进度与「发现几个问题」，不写仓库。
+  vc.diag.checks.bisect.sub: 二分查找要选一段提交范围与一个好/坏判定。它会检出中间提交，结束后要回到原分支。
+  vc.diag.checks.log.sub: 引用日志按时间倒序列出 HEAD 与分支的移动记录。它是误操作后的第一道找回入口。
   vc.diag.bisect.range: 开始二分要同时给最近的坏提交与好提交；之后的标坏、标好、跳过只改二分记录。
   vc.diag.bisect.start: 开始二分
   vc.diag.bisect.bad: 标为坏
@@ -73,13 +103,43 @@ zh:
   vc.diag.reason.needConfirm: 这个动作会改仓库状态，先点确认卡上的确认
 en:
   vc.diag.title: Diagnostics
-  vc.diag.lede: 'Read-only queries plus two controlled writes on this page: bisect records and replace references. The graphical history and full-text search stay on their own pages.'
-  vc.diag.section.bisect: Bisect
-  vc.diag.section.read: Read-only queries
-  vc.diag.section.patch: Preview a patch
-  vc.diag.section.trailer: Trailer lines
-  vc.diag.section.replace: Replace references
-  vc.diag.section.pointer: Entries on other pages
+  vc.diag.section.facts.title: 'Version and counts'
+  vc.diag.section.facts.note: 'Every number here comes from a git reading of this repository at this moment. When a value cannot be read, the interface says "not readable" instead of showing 0.'
+  vc.diag.section.shapes.title: 'Read-only object inspection'
+  vc.diag.section.shapes.count: '6 capabilities'
+  vc.diag.section.shapes.note: 'Troubleshooting only shows the shapes that were read and offers no action buttons. To run something, use a terminal or the diagnostics tools.'
+  vc.diag.section.checks.title: 'Checks and pinpointing'
+  vc.diag.section.checks.count: '4 capabilities'
+  vc.diag.section.checks.note: 'Integrity checks, recoverable objects, bisection, and the reflog: all of them can be started here with their results shown, but none of them writes a commit.'
+  vc.diag.section.replace.title: 'Replace objects: controlled write'
+  vc.diag.section.replace.count: '1 capability'
+  vc.diag.section.replace.note: 'Replacement only changes which object a reference points to; commit content stays untouched. Preview first, then confirm; the undo list sits in this section.'
+  vc.diag.section.patch.title: 'Apply a patch: preview first'
+  vc.diag.section.patch.count: '1 capability'
+  vc.diag.section.patch.note: 'The preview only answers whether the patch applies cleanly and leaves the working tree untouched. Applying it still goes through the controlled-write channel.'
+  vc.diag.section.trailer.title: 'Trailer signature'
+  vc.diag.section.trailer.count: '1 capability'
+  vc.diag.section.trailer.note: 'Trailer signatures are read-only here: you see the signature lines at the end of a commit, and signing is not edited in the panel.'
+  vc.diag.section.more.title: 'More read-only queries'
+  vc.diag.section.more.count: '2 capabilities'
+  vc.diag.section.more.note: 'Listing files by condition and patch equivalence are two read-only queries the prototype did not draw; their results also appear right under the row.'
+  vc.diag.section.pointer.title: 'Go to another page'
+  vc.diag.section.pointer.note: 'Search the working tree by content on the search page, and open the graphical history browser on the commit history page; both are more comfortable with their full interface.'
+  vc.diag.facts.gitVersion: 'git version'
+  vc.diag.facts.describe: 'describe'
+  vc.diag.facts.head: 'HEAD'
+  vc.diag.facts.refs: 'Total references'
+  vc.diag.facts.worktrees: 'Worktrees'
+  vc.diag.facts.statusLines: 'Working tree status lines'
+  vc.diag.facts.repoRoot: 'Repository root'
+  vc.diag.facts.unreadable: 'Not readable'
+  vc.diag.facts.headValue: '{oid} ({branch})'
+  vc.diag.facts.refsValue: '{total} · {local} local branches'
+  vc.diag.facts.worktreesValue: '{n} worktrees'
+  vc.diag.facts.statusValue: '{n} status lines'
+  vc.diag.checks.fsck.sub: 'The integrity check reads every object in the repository; the real implementation shows progress and "how many problems were found" and writes nothing to the repository.'
+  vc.diag.checks.bisect.sub: 'A bisect needs a commit range and a good/bad verdict. It checks out middle commits, and you have to return to the original branch afterwards.'
+  vc.diag.checks.log.sub: 'The reflog lists HEAD and branch moves newest first. It is the first place to look after a mistaken operation.'
   vc.diag.bisect.range: Starting a bisect needs both the latest bad commit and a good commit; marking bad, good or skipping only changes the bisect record.
   vc.diag.bisect.start: Start bisect
   vc.diag.bisect.bad: Mark bad

@@ -15,6 +15,8 @@
 // 都不一样，且读屏会把它念出来。vcPageIconOf 只给页头与骨架原语用，路径直接照抄原型 dom.ts。
 
 declare const PAGE_COUNTS: Record<string, number>
+// 能力摘要只从账本取编号与名称（#1844 三页共用）：账本是单一真源，页面不另抄一份名单。
+declare function vcCapabilityOf(capId: any): any
 
 // 子节点允许数组、单个节点或空；这里统一成数组，原语就不必各写一份判空。
 // 注意空数组也要原样交回 h：React 对空数组与不传子节点的结果一致，不会多出空壳。
@@ -94,6 +96,9 @@ export const vcPageHeadNode = function (h: any, t: any, o: any) {
 //   ② countText：给带量词的词条键（例如 vc.branch.count 产出「3 条本地分支」），#1858 按原型 38 需要量词就用这一种。
 //      countText 里的 {n} 等占位符由同一次调用里的 countVars 填；两种都传时以 countText 为准，
 //      它已经是读者要看到的那句话，数字不再拼一遍。
+// `sectionKey` 是这一段的稳定名字（#1844 三页的 clone-init / facts / boundaries 等）：给了就写
+// data-vc-section=<键>，门禁按它核对分区顺序与归属；不给就不写这个属性，老调用方的渲染结果一个字节不变。
+// 名字没沿用 React 的 key：key 是 React 的兄弟去重标记，混在一起会让「布局用的名字」与「重排用的名字」分不清。
 export const vcPageSectionNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const danger = opts.danger === true
@@ -109,6 +114,7 @@ export const vcPageSectionNode = function (h: any, t: any, o: any) {
   const body = vcPageKidsOf(opts.children)
   if (body.length > 0) kids.push.apply(kids, body)
   const attrs: any = { className: 'page-section' + (danger ? ' is-danger' : '') }
+  if (opts.sectionKey !== undefined && opts.sectionKey !== null && String(opts.sectionKey) !== '') attrs['data-vc-section'] = String(opts.sectionKey)
   if (danger) attrs['data-vc-danger-section'] = '1'
   return h('section', attrs, kids)
 }
@@ -160,6 +166,37 @@ export const vcPageFactGridNode = function (h: any, t: any, o: any) {
       h('dd', { key: 'value', className: cls }, t(value)),
     ])
   }))
+}
+
+// 能力摘要是「编号 + 名称 + 动作强度」三段，三段都从能力账本取（编号与名称是账本字段，强度是 level）：
+//   三个页面每一条动作行都要写「这是哪条能力」，只在这里写一份，页面不各抄一套行内结构。
+// 强度只画值（读 / 写 / 改写 / 毁 / 非 git），与原型一致；「动作强度」这句解释挂在 title 与 aria-label 上，
+//   不做成可见前缀——原型没有前缀，多一个字就把行撑长，300 宽时最容易把名称挤断。
+// 账本查不到这条编号时原样印编号：界面会露出一个孤零零的编号，门禁与人工一眼能看出漏账。
+const VC_PAGE_LEVEL_TONE: Record<string, string> = {
+  '读': 'is-read', '写': 'is-write', '改写': 'is-rewrite', '毁': 'is-danger', '非 git': 'is-info',
+}
+// label 可选：动作行要写的是「这个动作」而不是「整条能力」（例如 11.13 的三行离线包），
+//   传进来就代替账本里的能力名；不传时用账本名。编号与强度始终取账本，页面不另写。
+export const vcPageCapSummaryNode = function (h: any, t: any, capId: any, label: any) {
+  const id: string = String(capId === undefined || capId === null ? '' : capId)
+  const cap: any = id !== '' && typeof vcCapabilityOf === 'function' ? vcCapabilityOf(id) : null
+  const override: string = label === undefined || label === null ? '' : String(label)
+  const name: string = override !== '' ? override : (cap && cap.name ? String(cap.name) : '')
+  const level: string = cap && cap.level ? String(cap.level) : ''
+  const kids: any[] = []
+  // 补充块（svn 两条）在账本里没有编号：不画空编号，只画动作名，调用方另外挂 data-vc-migrate-extra。
+  if (id !== '') kids.push(h('span', { key: 'id', className: 'obj-cap-id' }, id))
+  if (name !== '') kids.push(h('span', { key: 'name', className: 'obj-cap-name' }, name))
+  if (level !== '') {
+    kids.push(h('span', {
+      key: 'level',
+      className: 'obj-cap-level ' + (VC_PAGE_LEVEL_TONE[level] || 'is-read'),
+      title: t('vc.shell.cap.level') + '：' + level,
+      'aria-label': t('vc.shell.cap.level') + '：' + level,
+    }, level))
+  }
+  return h('span', { key: 'cap', className: 'obj-cap', 'data-vc-cap-summary': id }, kids)
 }
 
 // 对象行：div.obj-row 左边是主体（obj-main）、右边是次要事实或入口（obj-side）；危险行整体加 is-danger。

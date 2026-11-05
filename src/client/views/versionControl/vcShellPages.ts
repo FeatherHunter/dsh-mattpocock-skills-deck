@@ -178,12 +178,8 @@ const vcPageNotesOf = function (h: any, t: any, page: string) {
   const notes: any[] = []
   // #1860：提交历史页不再有「13.14 图形历史浏览器落在本页」说明块（票面：删说明块、图形标题改原型文案）。
   //   图形区块本身的标题在历史叶子里画成「图形化提交历史」。
-  if (page === 'platform') {
-    notes.push(h('div', { key: 'platform', className: 'vcs-note', 'data-vc-note': 'platform-pointer' }, t('vc.shell.platform.pointer')))
-  }
-  if (page === 'diagnostics') {
-    notes.push(h('div', { key: 'diag', className: 'vcs-note', 'data-vc-note': 'diagnostics-readonly' }, t('vc.shell.diagnostics.note')))
-  }
+  // #1844：平台页的 13.14 指回说明与诊断页的只读口径说明从页头之前搬进各自正文的分区（原型 46 / 47 的
+  //   首屏是页头，说明块压在页头上会挡住标题）。记号 data-vc-note 保持原样，旧判据仍按它定位。
   // 维护页的两条只读项（11.14 refs migrate / 11.15 scalar，规格 3.9）：只给版本要求、影响范围与官方命令说明，
   // 不给触发按钮；这一句是页面级说明，真正的只读行由能力账本 finalForm='只读' 统一画（见 818 的 M 组断言）。
   if (page === 'maintenance') notes.push(h('div', { key: 'ro', className: 'vcs-note', 'data-vc-note': 'maintenance-readonly' }, t('vc.shell.maintenance.readonlyNote')))
@@ -202,11 +198,13 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   const isTabPage = VC_TAB_PAGES.indexOf(page) >= 0
   // #1881：分支与标签页的页头不画「N 条能力」计数——那枚数字指向一份已经退役、不在页面上的清单。
   //   #1843：子模块页与维护页同样收起计数（原型 40 / 41 的页头只有标题与导语），维护页另挂危险页标记。
+  //   #1844：迁移与备份、诊断、平台与边界三页照原型 43 / 46 / 47 也收起计数——页头只有返回、标题与导语；
+  //   迁移页多一枚「含不可逆动作」红 chip（原型 43 的 pageShell 带 danger: true，5.13 是毁级动作）。
   //   其余页照旧；九张分区页要不要一起去留给 #1848，所以这里还留了一个可透传的开关。
   const head = Object.assign({}, vcPageHeadNode(h, t, {
     page: page, back: opts.back === true, backLog: opts.backLog,
-    hideCount: opts.hideCount === true || page === 'branch-tags' || page === 'submodules' || page === 'maintenance',
-    danger: page === 'maintenance',
+    hideCount: opts.hideCount === true || page === 'branch-tags' || page === 'submodules' || page === 'maintenance' || page === 'migrate' || page === 'diagnostics' || page === 'platform',
+    danger: page === 'maintenance' || page === 'migrate',
   }), { key: 'meta' })
   if (!isTabPage) children.push.apply(children, vcPageNotesOf(h, t, page))
   // #1840 管理索引屏：页头之后整屏都是索引（说明句、九张卡、两条跨区入口、覆盖口径），
@@ -251,10 +249,16 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     children.push(Object.assign({}, vcRemotePageNode(h, t, {
       reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
     }), { key: 'remote' }))
-  } else if (page === 'migrate' && opts.reads) {
-    // 迁移与备份页正文（#1759 T23，域 11 的 11.1 / 11.12 / 11.13 与域 5 的 5.13，加 svn 补充块）。与远端页同一口径：
-    // 只在拿到读数时换成真正文，没读数的骨架渲染保持不变；主入口 data-cap-primary 仍由下面的能力行统一给。
-    children.push(Object.assign({}, vcMigratePageNode(h, t, { reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs }), { key: 'migrate' }))
+  } else if (page === 'migrate') {
+    // 迁移与备份页正文（#1759 T23；#1844 按原型 43 重排）：分区与九个动作入口是静态的，没读数也照画
+    //   （页自己画加载 / 失败态），壳不再替它决定画骨架。克隆向导（8.16）与导出向导（14.1）由壳当槽位
+    //   递进「克隆与初始化」「历史与邮件」两段，顺序按原型钉死，页面自己不再并排挂它们。
+    const cloneSlot = h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })
+    const exportSlot = typeof vcMigrateExportNode === 'function' && opts.migrate !== undefined ? vcMigrateExportNode(h, t, { state: opts.migrate, reads: opts.migrateReads, width: opts.width, nowMs: opts.nowMs, onEdit: opts.onMigrateEdit, onCheck: opts.onMigrateCheck, onRun: opts.onMigrateRun, onRescan: opts.onMigrateRescan, onCancel: opts.onMigrateCancel }) : null
+    // 页面正文可能返回 null（验收里用替身替换页面叶）：Object.assign 拿 null 会得到只剩 key 的普通对象，
+    //   React 会当场报「不是合法的子节点」，所以先收进变量再决定挂不挂。
+    const migrateBody = vcMigratePageNode(h, t, { reads: opts.reads || null, ui: opts.ui || null, width: opts.width, nowMs: opts.nowMs, slots: { clone: cloneSlot, exportWizard: exportSlot } })
+    if (migrateBody) children.push(Object.assign({}, migrateBody, { key: 'migrate' }))
   } else if (page === 'platform' && typeof vcPlatformPageNode === 'function') {
     // #1762 T26 平台与边界页：九条只读/说明能力没有可执行写动作，正文无条件画（不依赖首屏读数），
     //   凭据链与 updateRefs 各自有加载/失败态；这一块不画 data-cap-primary，主入口仍由下面的能力清单给。
@@ -276,11 +280,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       })),
     ]))
   }
-  // #1762 T26 / #1776 M2 迁移与备份页的 14.1 导出向导：它是本页唯一可执行能力，和上面的迁移页正文并排挂（原来接在
-  //   上面那条骨架判断链里，被『迁移页有读数就画正文』的分支挡成永远不可达，M2 改成独立的判断）。
-  if (page === 'migrate' && typeof vcMigrateExportNode === 'function' && opts.migrate !== undefined) children.push(Object.assign({}, vcMigrateExportNode(h, t, { state: opts.migrate, reads: opts.migrateReads, width: opts.width, nowMs: opts.nowMs, onEdit: opts.onMigrateEdit, onCheck: opts.onMigrateCheck, onRun: opts.onMigrateRun, onRescan: opts.onMigrateRescan, onCancel: opts.onMigrateCancel }), { key: 'migrate-body' }))
-  // #1756 T20 克隆向导（能力 8.16）：迁移与备份页的正文；组件自己保存表单与进度，壳只把取词、工作区与发电话的函数递进去。
-  if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcMaintenancePageNode, { key: 'maintenance-cards', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1843：维护页的三个分区（仓库体量 / 整理动作 / 危险区）先画完，再画 5.11 整仓重写的执行表单（#1750 T15）——执行表单是危险区的落点，原型 41 的三段顺序不能被它顶到前面。三块同一物理行：本文件贴着 350 有效行上限
+  // #1844：克隆向导（8.16）与 14.1 导出向导不再并排挂在迁移页正文后面，改由上面 migrate 分支当槽位递进
+  //   各自的分区；这里只剩维护页的两块（三个分区画完再画 5.11 整仓重写表单，原型 41 的顺序不能被它顶到前面）。
+  if (page === 'maintenance') children.push(h(vcMaintenancePageNode, { key: 'maintenance-cards', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })) // 两块同一物理行：本文件贴着 350 有效行上限
   // 分支与标签页（#1746 T11；#1829 阶段 3 换成有状态组件叶子）：调用方把一份读数传进来才画，
   //   没传整块不出现，其它页渲染不变；筛选与搜索的组件状态在叶子内部，壳只往下递读数与处理函数。
   if (page === 'branch-tags' && opts.branchBoard !== undefined) children.push(h(vcBranchPageOf, { key: 'branch-board', t: t, board: opts.branchBoard, state: opts.branchState, error: opts.branchError, confirm: opts.branchConfirm, result: opts.branchResult, onRetry: opts.onBranchRetry, nowMs: opts.nowMs }))
@@ -288,7 +290,15 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
   // #1860：提交历史页的高级查询表单（git log --follow 等六组命令）整块退役；诊断页那四组仍保留。
-  const queryNode = page === 'diagnostics' ? vcQueryPageNode(h, t, opts) : null; if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })); const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' })); if (page === 'diagnostics' && typeof vcMaintenanceDiagNode === 'function') { const maintDiagNode: any = h(vcMaintenanceDiagNode, { key: 'maintenance-diag', t: t, cwd: opts.cwd || '', call: opts.call || null }); children.push(Object.assign({}, maintDiagNode, { key: 'maintenance-diag' })) } // #1758 T22 诊断页 11.2–11.4 正文；#1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；判断与推入也并成一行（本文件贴着 350 有效行上限）。
+  // #1844：诊断页把查询面板（3.5 / 3.9 / 3.11 / 3.13）与 11.2–11.4 的长任务界面当槽位递给页面正文，
+  //   由页面放在「检查与定位」的两条引导行下面；壳不再并排挂这两块（并排挂会跑到页面最尾，脱离所属分区）。
+  //   页面叶不在（覆盖验收用替身）或这一页不是诊断页时，仍按老路并排挂，别的页渲染不变。
+  const diagMaintenance: any = page === 'diagnostics' && typeof vcMaintenanceDiagNode === 'function' ? h(vcMaintenanceDiagNode, { key: 'maintenance-diag', t: t, cwd: opts.cwd || '', call: opts.call || null }) : null
+  const diagQuery: any = page === 'diagnostics' ? vcQueryPageNode(h, t, opts) : null
+  const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, Object.assign({}, opts, { diagnosticsSlots: { query: diagQuery, maintenance: diagMaintenance } })) : null
+  if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' }))
+  if (!diagNode && diagQuery) children.push(Object.assign({}, diagQuery, { key: 'query' }))
+  if (!diagNode && diagMaintenance) children.push(Object.assign({}, diagMaintenance, { key: 'maintenance-diag' }))
   // #1845：三个流程页的正文排在能力清单之前，读者先看到这一页要做什么，再看到「本页负责 N 条能力」的长清单。
   //   变基页先画变基正文（第一段「本次变基」按原型 48 打头），历史改写五条面板从壳根挪进来紧随其后。
   if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' })); if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(Object.assign({}, h(VC_UNDO_PANEL, { t: t, cwd: opts.cwd || '', state: opts.undo }), { key: 'undo-page' })); if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
