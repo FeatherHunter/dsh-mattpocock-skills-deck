@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T03:24:01.044Z",
+  "generatedAt": "2026-11-05T03:57:26.342Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 581,
-  "gateCount": 581,
-  "attributedGates": 525,
+  "chainLength": 582,
+  "gateCount": 582,
+  "attributedGates": 526,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 125,
+  "completionRecordedGates": 126,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 917,
+  "graphFileCount": 919,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6958,6 +6958,29 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
+      "step": "node tests/verify-1899-degradation-logs.ts",
+      "file": "tests/verify-1899-degradation-logs.ts",
+      "guards": [
+        "src/refresh/rooms/client/snapshot-version-sync.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/snapshot-degradation.ts",
+        "src/refresh/rooms/host/snapshot-library-first-screen.ts",
+        "src/refresh/rooms/host/snapshot-library.ts",
+        "src/refresh/rooms/host/snapshot-read-channels.ts",
+        "src/shared/log-event-list.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/client",
+        "src/refresh/rooms/host",
+        "src/shared"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 74,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -12826,6 +12849,7 @@
         "src/refresh/rooms/host/refusal-messages.ts",
         "src/refresh/rooms/host/row-patch-state.ts",
         "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/snapshot-library.ts",
         "src/refresh/rooms/host/snapshot-read-channels.ts",
         "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
         "src/refresh/rooms/host/write-event-fetch.ts",
@@ -12903,7 +12927,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 175 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 176 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -14894,6 +14918,7 @@
       "node tests/verify-1640-unopened-merge.ts",
       "node tests/verify-1891-version-sync.ts",
       "node tests/verify-1893-projection-only.ts",
+      "node tests/verify-1899-degradation-logs.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-chain-after-pick.ts",
@@ -15002,6 +15027,7 @@
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-1892-pure-projection.ts",
       "node tests/verify-1893-projection-only.ts",
+      "node tests/verify-1899-degradation-logs.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -15078,6 +15104,7 @@
       "node tests/verify-1642-toggle-logs.ts",
       "node tests/verify-1837-legend-browser.ts",
       "node tests/verify-1837-skill-importance.ts",
+      "node tests/verify-1899-degradation-logs.ts",
       "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-948-feedback-map.ts",
       "node tests/verify-952-short-text.ts",
@@ -15984,9 +16011,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 940,
+    "fileCount": 942,
     "dirCount": 92,
-    "coveredFileCount": 940,
+    "coveredFileCount": 942,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 74,
@@ -16564,6 +16591,7 @@
       "src/refresh/rooms/host/session-refresh-schedule.ts",
       "src/refresh/rooms/host/session-snapshot-cache.ts",
       "src/refresh/rooms/host/snapshot-decoration.ts",
+      "src/refresh/rooms/host/snapshot-degradation.ts",
       "src/refresh/rooms/host/snapshot-library-adapter.ts",
       "src/refresh/rooms/host/snapshot-library-first-screen.ts",
       "src/refresh/rooms/host/snapshot-library-handles.ts",
@@ -16572,6 +16600,7 @@
       "src/refresh/rooms/host/snapshot-library-view.ts",
       "src/refresh/rooms/host/snapshot-library.ts",
       "src/refresh/rooms/host/snapshot-read-channels.ts",
+      "src/refresh/rooms/host/snapshot-read-log.ts",
       "src/refresh/rooms/host/snapshot-view-projection.ts",
       "src/refresh/rooms/host/thin-row-fetch.ts",
       "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
@@ -17137,7 +17166,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 66
+        "fileCount": 68
       },
       {
         "path": "src/shared/command-cleanup",

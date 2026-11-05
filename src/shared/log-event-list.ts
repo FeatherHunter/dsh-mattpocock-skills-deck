@@ -159,5 +159,14 @@ export const LOG_EVENT_LIST: {
     'workspaceSnapshot.open': { level: 'info', kind: 'resident', fields: ['backend', 'rootHash', 'repoHash', 'dbExisted', 'journalMode', 'mode', 'reason', 'mergeVersion'] },
     'workspaceSnapshot.lease': { level: 'info', kind: 'resident', fields: ['acquired', 'ownerHash', 'reason', 'detail', 'nowMs'] },
     'workspaceSnapshot.ingest': { level: 'info', kind: 'resident', fields: ['committed', 'reason', 'writes', 'startMergeVersion', 'mergeVersion', 'elapsedMs', 'detail'] },
+    // 2026-11-05 #1899：把「出了事能查」补齐的两条（规格 #1885 可诊断性）。这两条都定信息级常驻：
+    //   snapshot.read —— wf.snapshot 与 wf.snapshotChanges 每次回包一行：行数、字节数、耗时、
+    //   投影耗时、库版本、数据来源（库回放 / 在线重建）。它回答「这一趟交出去多少、花了多久」，
+    //   用户在面板上看到异常时不会先去打开调试开关，所以要在常驻名单里。
+    //   snapshot.degrade —— 这一趟为什么退成整份：五个原因值（库没接 / 库空 / 库坏 / 数据太旧 /
+    //   落后太多）各自独立。它回答「这次为什么走了整份」，是这一票验收里唯一的那一行；
+    //   只在进入一段退化时写一行，不是心跳（版本轮询每五秒一拍，但退化行只在进段那一刻记）。
+    'snapshot.read': { level: 'info', kind: 'resident', fields: ['phone', 'source', 'cwdHash', 'version', 'rows', 'bytes', 'elapsedMs', 'projectionMs', 'full'] },
+    'snapshot.degrade': { level: 'info', kind: 'resident', fields: ['side', 'phone', 'reason', 'cwdHash', 'version'] },
   },
 }

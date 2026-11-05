@@ -180,6 +180,11 @@ export interface SnapshotReplay {
   oldestRowAtMs: number
   /** 回放的行数，便于日志与门禁断言。 */
   rows: number
+  /**
+   * 这一趟库投影花了多少毫秒（从 readList 进到出）。日志里的投影时长取它，不拿整趟回包的耗时冒充：
+   * 序列化与组装装饰各占一块，混在一起就分不清「库慢」还是「回包大」。
+   */
+  projectionMs: number
 }
 
 /**
@@ -198,16 +203,30 @@ export async function readSnapshotDiagnostics(input: SnapshotLibraryKey): Promis
   }
 }
 
+/**
+ * 库这一趟开得出来吗：只回答「句柄能不能拿到」，不读数据、不改任何状态。
+ *
+ * 为什么单开一口：首屏没有回放时，「库空」与「库坏了/打不开」给出的界面动作完全不同（前者等一次
+ * 取数就好，后者本机数据被清过、要重新取一遍），而两者都回不出数据。只靠回放为 null 分不开，
+ * 所以让门面自己回答一次；老门禁的假库没有这一口时由调用方按「开得出来」处理。
+ */
+export async function readSnapshotLibraryHealth(input: SnapshotLibraryKey): Promise<'open' | 'unavailable'> {
+  const handle = await handleOf(input)
+  return handle ? 'open' : 'unavailable'
+}
+
 /** 库为空（或者开不出来）回 null；有行就回放成与在线组装同形的快照主体。 */
 export async function readSnapshotReplay(input: SnapshotReplayInput): Promise<SnapshotReplay | null> {
   const handle = await handleOf(input)
   if (!handle) return null
   let projection: ListProjection
+  const projectionStartedAt = Date.now()
   try {
     projection = handle.readList({ state: 'all' })
   } catch (e) {
     return null
   }
+  const projectionMs = Date.now() - projectionStartedAt
   if (!projection || !projection.issues.length) return null
   return {
     snapshot: snapshotOfProjection(input.repo, projection),
@@ -215,6 +234,7 @@ export async function readSnapshotReplay(input: SnapshotReplayInput): Promise<Sn
     lastKnownAtMs: lastKnownAtMsOf(projection),
     oldestRowAtMs: oldestRowAtMsOf(projection),
     rows: projection.issues.length,
+    projectionMs: projectionMs,
   }
 }
 

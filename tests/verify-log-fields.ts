@@ -121,6 +121,13 @@ const ALLOWED = {
   'workspaceSnapshot.open': ['backend', 'rootHash', 'repoHash', 'dbExisted', 'journalMode', 'mode', 'reason', 'mergeVersion'],
   'workspaceSnapshot.lease': ['acquired', 'ownerHash', 'reason', 'detail', 'nowMs'],
   'workspaceSnapshot.ingest': ['committed', 'reason', 'writes', 'startMergeVersion', 'mergeVersion', 'elapsedMs', 'detail'],
+  // 2026-11-05（#1899）新增常驻 #154 snapshot.read 与 #155 snapshot.degrade：快照与变化集回包的读数
+  //   （行数、字节数、耗时、投影耗时、库版本、数据来源）与「这一趟为什么退成整份」的原因值。字段只有
+  //   枚举、数字、布尔与 8 位短散列（cwdHash），不记路径原文、不记回包内容本身。
+  //   落点：src/refresh/rooms/host/snapshot-read-log.ts（两条读口与首屏共用一份口径）、
+  //   src/refresh/rooms/client/snapshot-version-sync.ts（客户端退回整份那一行）。
+  'snapshot.read': ['phone', 'source', 'cwdHash', 'version', 'rows', 'bytes', 'elapsedMs', 'projectionMs', 'full'],
+  'snapshot.degrade': ['side', 'phone', 'reason', 'cwdHash', 'version'],
   'workspaceSnapshot.corrupt': ['stage', 'action', 'backupSuffix', 'oldBackend', 'oldRepoHash', 'detail'],  // 2026-10-28（#1617）：删掉 `since`。逐版本核过发射行（从 #708 落地起直到今天）都只记三格，
   //   附录里写的「since 增量起点」是设计稿口径、从未发射；白名单要按真实发射维护。这条事件现在
   //   由运行时采集断言「实得键集与白名单一字不差」，多一格少一格都会变红。

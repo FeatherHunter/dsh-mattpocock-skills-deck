@@ -17,6 +17,7 @@
  */
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { SnapshotDiagnostic } from '../../../workspace-snapshot/contract/types.js'
+import { hasRebuildDiagnostic, SNAPSHOT_DEGRADE } from './snapshot-degradation.js'
 
 /** 库门面里这一层真正用到的两件：读回放、按批写行。 */
 export interface FirstScreenLibrary {
@@ -25,7 +26,15 @@ export interface FirstScreenLibrary {
     backend: string
     repoIdentity: string
     repo: RepositoryRef
-  }): Promise<{ snapshot: any; lastKnownAtMs: number } | null>
+  }): Promise<{
+    snapshot: any
+    lastKnownAtMs: number
+    /** 回放的库版本与行数；老假库可能不带，缺一个都当「不知道」而不是 0。 */
+    mergeVersion?: number
+    rows?: number
+    /** 这一趟库投影花了多少毫秒（#1899 日志的投影时长读数）。 */
+    projectionMs?: number
+  } | null>
   recordIssueRows(input: {
     workspaceRoot: string
     backend: string
@@ -39,6 +48,15 @@ export interface FirstScreenLibrary {
     backend: string
     repoIdentity: string
   }): Promise<SnapshotDiagnostic[]> | SnapshotDiagnostic[]
+  /**
+   * 库这一趟开不开得出来（#1899）。没有回放时用它区分「库空」与「库坏了/打不开」：
+   * 老门禁的假库没有这个口，缺席时按「开得出来」处理（空库那一档）。
+   */
+  readSnapshotLibraryHealth?(input: {
+    workspaceRoot: string
+    backend: string
+    repoIdentity: string
+  }): Promise<'open' | 'unavailable'> | 'open' | 'unavailable'
 }
 
 /** 造首屏要的输入：库门面（可能是异步取到的）、库身份三格、仓库引用、这一趟是不是强制重建。 */
@@ -58,7 +76,12 @@ export interface FirstScreenOptions {
 /** 首屏回放的结果：从库来的那份（或 null）、去后端取时用的写库回调、回包注记。 */
 export interface FirstScreen {
   /** 库里已有数据时的回放主体（与在线组装同形）；null = 库里还没数据，得去后端取。 */
-  replay: { snapshot: any; lastKnownAtMs: number } | null
+  replay: { snapshot: any; lastKnownAtMs: number; mergeVersion?: number; rows?: number; projectionMs?: number } | null
+  /**
+   * 这一趟没有回放时是哪种退化（#1899）：库里没有行 library-empty、库被重建/打不开 library-corrupt。
+   * 有回放时是空串。库门面根本没接上时这一层回 null，由调用方记 library-not-wired。
+   */
+  degradeReason: string
   /** 这一趟要去后端取时，把取回的行先收在内存里；库不可用时是 undefined。 */
   writeRows: ((rows: unknown[]) => void) | undefined
   /** 组装结束后整批一个事务写库；没有收到行时回 null。 */
@@ -90,7 +113,13 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
     backend: String(options.backend || ''),
     repoIdentity: String(options.repoIdentity || ''),
   }
-  let replay: { snapshot: any; lastKnownAtMs: number } | null = null
+  let replay: {
+    snapshot: any
+    lastKnownAtMs: number
+    mergeVersion?: number
+    rows?: number
+    projectionMs?: number
+  } | null = null
   if (options.force !== true) {
     try {
       replay = await lib.readSnapshotReplay(Object.assign({ repo: options.repo }, key))
@@ -108,6 +137,9 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
       diagnostics = []
     }
   }
+  // 没有回放时把「为什么没有」说清（#1899）：有重建诊断 = 库坏；门面说开不出来 = 库坏；
+  // 其余 = 库空。三者都回不出数据，但该修的地方完全不同，日志按这三个值分辨。
+  const degradeReason = replay ? '' : await degradeReasonOf(lib, key, diagnostics)
   const pendingRows: unknown[] = []
   const writeRows = function (rows: unknown[]): void {
     if (!Array.isArray(rows) || !rows.length) return
@@ -124,6 +156,7 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
   }
   return {
     replay: replay,
+    degradeReason: degradeReason,
     writeRows: writeRows,
     commitRows: commitRows,
     diagnostics: diagnostics,
@@ -134,4 +167,27 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
       snap.diskReplay = { schema: 'snapshot-sqlite-v1', source: 'sqlite', lastKnownAtMs: replay.lastKnownAtMs }
     },
   }
+}
+
+/**
+ * 没有回放时这一趟算哪种退化：重建诊断 → 库坏；门面回答开不出来 → 库坏；否则 → 库空。
+ *
+ * 为什么顺序不能反：刚被重建过的库也是空的，先判「有没有行」会把库坏报成库空，
+ * 查的人就会去怀疑「是不是第一次用」，而不是去查那个把库写坏的文件。
+ */
+async function degradeReasonOf(lib: FirstScreenLibrary, key: {
+  workspaceRoot: string
+  backend: string
+  repoIdentity: string
+}, diagnostics: SnapshotDiagnostic[]): Promise<string> {
+  if (hasRebuildDiagnostic(diagnostics)) return SNAPSHOT_DEGRADE.libraryCorrupt
+  if (typeof lib.readSnapshotLibraryHealth === 'function') {
+    try {
+      const health = await Promise.resolve(lib.readSnapshotLibraryHealth(key))
+      if (health === 'unavailable') return SNAPSHOT_DEGRADE.libraryCorrupt
+    } catch (e) {
+      // 健康检查自己出错不改变结论：库这一侧拿不到话，就按空库处理，日志里另有读失败的原因。
+    }
+  }
+  return SNAPSHOT_DEGRADE.libraryEmpty
 }
