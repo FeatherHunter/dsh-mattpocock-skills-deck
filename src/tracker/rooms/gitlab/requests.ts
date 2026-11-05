@@ -21,7 +21,7 @@
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import { glabClient } from './client.js'
 import type { GlabRunResult } from './client.js'
-import { issuesPath, issuePath, notesPath, linksPath } from './queries.js'
+import { projectPath, issuesPath, issuePath, notesPath, linksPath } from './queries.js'
 
 // 上下文只取平台与执行器两样，而且允许缺：缺了客户端会按 127 如实回，不抛。
 // 写成与 client.ts 的 GlabCtx 同款的两形交叉，读半边与写半边都能把各自的 effective 原样传进来。
@@ -132,4 +132,27 @@ export function requestIssueLinks(
   timeoutMs: number,
 ): Promise<GlabRunResult> {
   return clientOf(opCtx).run(['api', linksPath(refId, iid)], { timeout: timeoutMs })
+}
+
+/**
+ * 数这个仓库里符合条件的票：GET projects/{仓库}/issues_statistics?{查询串}。
+ *
+ * 这是计数（counts）与分页读票（listPage）取总数的那条端点。查询串由调用方按筛选口径拼好
+ * （至少带 scope=all：项目级 issues_statistics 的属性表没写这个参数的默认值，不赌它）；
+ * 本函数只把路径与查询串接起来，不解析回包里的三个数，也不判档与写话术。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识（例如 group/sub/project；拼路径时统一编码）
+ * @param query 已经拼好的查询串（例如 scope=all&labels=bug）
+ * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
+ */
+export function requestIssueStatistics(
+  opCtx: MaybeCtx,
+  refId: string,
+  query: string,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(['api', `${projectPath(refId)}/issues_statistics?${query}`], {
+    timeout: timeoutMs,
+  })
 }
