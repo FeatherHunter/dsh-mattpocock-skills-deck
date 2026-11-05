@@ -21,6 +21,9 @@ import {
   SNAPSHOT_CHANGES_MAX_AGE_MS,
   SNAPSHOT_CHANGES_MAX_ROWS,
 } from '../../../shared/time-config/src/values.js'
+// #1899：两条读口的回包读数（行数、字节数、耗时、版本）与退化原因落在这里记，口径只此一份。
+import { noteChangesReply, noteLibraryFailure } from './snapshot-read-log.js'
+import { SNAPSHOT_DEGRADE } from './snapshot-degradation.js'
 
 /** 这一层真正用到的库门面形状；调用方注入的实现可以更宽。 */
 interface SnapshotReadLibrary {
@@ -47,6 +50,8 @@ export interface SnapshotReadChannelsDeps {
   getSnapshotLibrary?: (() => Promise<SnapshotReadLibrary | null> | SnapshotReadLibrary | null) | null
   getRepoKey?: ((cwd: string) => Promise<{ owner?: unknown, name?: unknown } | null> | { owner?: unknown, name?: unknown } | null) | null
   openSession?: ((cwd: string, options?: { write?: boolean }) => Promise<any>) | null
+  /** 宿主日志出口（#1899）：没接就完全不记，与快照库那几族事件同一个可选注入口径。 */
+  logEvent?: ((level: string, event: string, fields?: unknown) => void) | null
 }
 
 interface ResolvedContext {
@@ -57,11 +62,17 @@ interface ResolvedContext {
   lib: SnapshotReadLibrary
 }
 
-/** 两条电话共用的失败回包：ok:false 只在出错时出现，成功回包不带它。 */
-type ReadFailure = { ok: false, error: string, errorKind: 'env' | 'library' }
+/**
+ * 两条电话共用的失败回包：ok:false 只在出错时出现，成功回包不带它。
+ *
+ * #1899 起库这一侧的失败多带一格 reason（library-not-wired / library-corrupt）：客户端据此决定
+ * 「退回整份」并把原因原样写进日志。环境类失败（还没选后端、认不出仓库）不带 reason——
+ * 那不是库退化，退回整份也取不到数据。
+ */
+type ReadFailure = { ok: false, error: string, errorKind: 'env' | 'library', reason?: string }
 
-function failureOf(error: string, errorKind: 'env' | 'library'): ReadFailure {
-  return { ok: false, error, errorKind }
+function failureOf(error: string, errorKind: 'env' | 'library', reason?: string): ReadFailure {
+  return reason ? { ok: false, error, errorKind, reason } : { ok: false, error, errorKind }
 }
 
 function textOf(value: unknown): string {
@@ -92,6 +103,7 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
   const getSnapshotLibrary = deps.getSnapshotLibrary || null
   const getRepoKey = deps.getRepoKey || null
   const openSession = deps.openSession || null
+  const logEvent = deps.logEvent || null
 
   async function resolveContext(args: any): Promise<ResolvedContext | ReadFailure> {
     const raw = (args && typeof args.cwd === 'string') ? args.cwd : ''
@@ -144,11 +156,13 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
       }
     }
     if (!repoRef) return failureOf('认不出这个工作区的仓库身份，读不到本地快照库。', 'env')
-    if (typeof getSnapshotLibrary !== 'function') return failureOf('本地快照库没有接上，读不到版本与变化集。', 'library')
+    if (typeof getSnapshotLibrary !== 'function') {
+      return failureOf('本地快照库没有接上，读不到版本与变化集。', 'library', SNAPSHOT_DEGRADE.libraryNotWired)
+    }
     let lib: SnapshotReadLibrary | null = null
     try { lib = await Promise.resolve(getSnapshotLibrary()) } catch (e) { lib = null }
     if (!lib || typeof lib.readLibraryVersion !== 'function' || typeof lib.readLibraryChangeSet !== 'function') {
-      return failureOf('本地快照库没有接上，读不到版本与变化集。', 'library')
+      return failureOf('本地快照库没有接上，读不到版本与变化集。', 'library', SNAPSHOT_DEGRADE.libraryNotWired)
     }
     return {
       cwd,
@@ -173,7 +187,9 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
     let version: unknown = null
     try { version = await Promise.resolve(resolved.lib.readLibraryVersion(keyOf(resolved))) } catch (e) { version = null }
     if (typeof version !== 'number' || !Number.isFinite(version) || version < 0) {
-      return failureOf('本地快照库开不出来，读不到当前版本。', 'library')
+      // 这一拍是五秒一次的轮询：这里不记日志（记了就是心跳），只把原因交给客户端；
+      // 客户端在真正退回整份那一拍记一行 snapshot.degrade，只记一次。
+      return failureOf('本地快照库开不出来，读不到当前版本。', 'library', SNAPSHOT_DEGRADE.libraryCorrupt)
     }
     return {
       version: Math.floor(version),
@@ -197,6 +213,7 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
     const rawSinceMs = args ? args.sinceMs : undefined
     const sinceMs = (typeof rawSinceMs === 'number' && Number.isFinite(rawSinceMs) && rawSinceMs > 0) ? Math.floor(rawSinceMs) : 0
     let result: any = null
+    const startedAt = Date.now()
     try {
       result = await Promise.resolve(resolved.lib.readLibraryChangeSet(Object.assign({}, keyOf(resolved), {
         sinceVersion,
@@ -207,22 +224,31 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
     } catch (e) {
       result = null
     }
+    // 投影时长只量库这一次查询：取数、解析与组装另算，混在一起就分不清「库慢」还是「回包大」。
+    const projectionMs = Date.now() - startedAt
     if (!result || typeof result.mergeVersion !== 'number') {
-      return failureOf('本地快照库开不出来，读不到变化集。', 'library')
+      // 变化集只有版本推进时才问一次，低频，所以库这一侧读失败照实记一行退化（不节流也不刷）。
+      noteLibraryFailure(logEvent, 'changes', resolved.workspaceKey)
+      return failureOf('本地快照库开不出来，读不到变化集。', 'library', SNAPSHOT_DEGRADE.libraryCorrupt)
     }
     const head = {
       version: Math.floor(result.mergeVersion),
       workspaceKey: resolved.workspaceKey,
       backend: resolved.backend,
     }
+    let reply: any
     if (result.full === true) {
-      return Object.assign(head, { full: true, reason: textOf(result.reason) || 'no-baseline' })
+      reply = Object.assign(head, { full: true, reason: textOf(result.reason) || 'no-baseline' })
+    } else {
+      reply = Object.assign(head, {
+        full: false,
+        changed: Array.isArray(result.changes) ? result.changes : [],
+        missing: Array.isArray(result.missing) ? result.missing : [],
+      })
     }
-    return Object.assign(head, {
-      full: false,
-      changed: Array.isArray(result.changes) ? result.changes : [],
-      missing: Array.isArray(result.missing) ? result.missing : [],
-    })
+    // 读数与退化原因都在这一处记：回包已经拼好，字节数就是客户端真正收到的那一份。
+    noteChangesReply(logEvent, reply, resolved.workspaceKey, Date.now() - startedAt, projectionMs)
+    return reply
   }
 
   return { handleSnapshotVersion, handleSnapshotChanges }

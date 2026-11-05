@@ -27,14 +27,22 @@ declare const snapshotWithoutWorkRoute: any;
 declare const loadOwnWorkRoute: any;
 declare const _snapInstallBody: any;
 declare const applySnapshotChangeSet: any;
+declare const log: any;
 
-/** 一次版本读数：只有版本、工作区键、后端三格（规格 I4「信号不带真相」）。 */
+/**
+ * 一次版本读数：只有版本、工作区键、后端三格（规格 I4「信号不带真相」）。
+ *
+ * 失败时多带两格（#1899）：errorKind 是失败类别（env 环境没就绪 / library 库这一侧），
+ * reason 是库退化的原因值。它们不是「真相」，只是让客户端分得清「等一等就好了」与「退回整份」。
+ */
 export interface SnapshotVersionReading {
   ok?: boolean
   version?: number
   workspaceKey?: string
   backend?: string
   error?: string
+  errorKind?: string
+  reason?: string
 }
 
 /**
@@ -51,14 +59,41 @@ export interface SnapshotVersionBook {
   seenAtMs: number
 }
 
-/** 同步引擎要的五条门口。缺哪条都判不出来，所以一律由调用方给全。 */
+/** 同步引擎要的门口。缺哪条都判不出来，所以一律由调用方给全。 */
 export interface SnapshotVersionPorts {
   held(): SnapshotVersionBook
   setHeld(next: SnapshotVersionBook): void
   changes(input: { sinceVersion: number, seenAtMs: number }): Promise<any>
-  full(input: { reason: string }): Promise<any>
+  /**
+   * 整份取数。allowUnknownVersion 为真时，版本读数拿不到也照样取（库没接/库坏那一档）：
+   * 界面先有完整数据，版本簿记留在「不知道」，等读数恢复再重建基线。
+   */
+  full(input: { reason: string, allowUnknownVersion?: boolean }): Promise<any>
   merge(input: { reply: any }): { version: number } | null
   now(): number
+  /** 进入一段库退化时记一行（#1899）；不接就完全不记。 */
+  logDegrade?(reason: string): void
+}
+
+/** 字符串里像库退化原因的那些值：库这一侧统一以 library- 开头（真源见 snapshot-degradation.ts）。 */
+function syncLibraryReasonOf(reading: any): string {
+  if (!reading || reading.ok !== false) return ''
+  const kind = String(reading.errorKind || '')
+  const reason = String(reading.reason || '')
+  if (kind !== 'library' && reason.indexOf('library-') !== 0) return ''
+  return reason || 'library-corrupt'
+}
+
+/** 工作区键的 8 位短散列（djb2，与宿主日志里的 cwdHash 同一算法）；不记路径原文。 */
+function syncHash8(value: any): string {
+  try {
+    const text = String(value || '')
+    let hash = 5381
+    for (let i = 0; i < text.length; i += 1) hash = ((hash << 5) + hash + text.charCodeAt(i)) >>> 0
+    return ('0000000' + hash.toString(16)).slice(-8)
+  } catch (e) {
+    return '00000000'
+  }
 }
 
 export type SnapshotVersionOutcome = 'skipped' | 'merged' | 'full' | 'failed'
@@ -81,15 +116,28 @@ export function createSnapshotVersionSync(ports: SnapshotVersionPorts): {
   let scheduled = false
   let pending: SnapshotVersionReading | null = null
   let waiters: Array<(outcome: SnapshotVersionOutcome) => void> = []
-  const fullOutcome = function (reply: any): SnapshotVersionOutcome {
+  // 这一拍是不是正处在一段库退化里：进段时退一次整份，之后同一段里不再重复取（整份不是心跳）。
+  let degraded = false
+  const fullOutcome = function (reply: any, allowUnknownVersion?: boolean): SnapshotVersionOutcome {
     if (!reply) return 'failed'
     const version = syncVersionNumber(reply.version)
-    if (version === null) return 'failed'
-    ports.setHeld({ version: version, seenAtMs: ports.now() })
+    if (version === null && !(allowUnknownVersion === true && reply.unknownVersion === true)) return 'failed'
+    // 版本不知道时簿记也记「不知道」，不拿 0 冒充：下一拍读数恢复后按「没有基线」重建。
+    ports.setHeld({ version: version, seenAtMs: version === null ? 0 : ports.now() })
     return 'full'
   }
   const step = async function (reading: SnapshotVersionReading): Promise<SnapshotVersionOutcome> {
+    const libraryReason = syncLibraryReasonOf(reading)
+    if (libraryReason) {
+      // 库没接/库坏：这一拍不许「不动作」——退回整份，界面拿得到完整数据（规格 #1885「五种退化都退回整份」）。
+      if (degraded) return 'skipped'
+      degraded = true
+      ports.setHeld({ version: null, seenAtMs: 0 })
+      try { if (typeof ports.logDegrade === 'function') ports.logDegrade(libraryReason) } catch (e) {}
+      return fullOutcome(await ports.full({ reason: libraryReason, allowUnknownVersion: true }), true)
+    }
     if (!reading || reading.ok === false) return 'failed'
+    degraded = false
     const version = syncVersionNumber(reading.version)
     if (version === null) return 'failed'
     const book = ports.held() || { version: null, seenAtMs: 0 }
@@ -241,7 +289,15 @@ export function forgetSnapshotVersion(cwd: any, scopeOverride?: any): void {
 function syncReadVersionOf(ctx: any): Promise<SnapshotVersionReading> {
   const cwd = (ctx.st && ctx.st.cwd) || ''
   return Promise.resolve(ctx.scope.host.call('wf.snapshotVersion', { cwd: cwd })).then(function (reply: any): SnapshotVersionReading {
-    if (!reply || reply.ok === false) return { ok: false, error: String((reply && reply.error) || 'snapshot-version-failed') }
+    if (!reply || reply.ok === false) {
+      // #1899：把失败类别与退化原因原样带下去——同步引擎据此决定「退回整份」还是「这一拍不动作」。
+      return {
+        ok: false,
+        error: String((reply && reply.error) || 'snapshot-version-failed'),
+        errorKind: String((reply && reply.errorKind) || ''),
+        reason: String((reply && reply.reason) || ''),
+      }
+    }
     return { ok: true, version: reply.version, workspaceKey: reply.workspaceKey, backend: reply.backend }
   }, function (error: any): SnapshotVersionReading {
     return { ok: false, error: String((error && error.message) || error) }
@@ -300,7 +356,9 @@ function syncPortsOf(ctx: any): SnapshotVersionPorts {
       // 先问版本、再取整份：起点宁可比数据旧，不可比数据新 —— 否则这期间的变化会被当成「已经取过」。
       const version = await syncReadVersionOf(ctx)
       const seen = syncVersionNumber(version && version.version)
-      if (seen === null) return null
+      // 库没接/库坏时版本读不到，但整份快照仍旧拿得到：allowUnknownVersion 那一档按「版本不知道」取，
+      // 让界面先有完整数据；其余场合版本读不到仍然算这一趟失败（不拿一份不知道起点的数据冒充干净）。
+      if (seen === null && !(input && input.allowUnknownVersion === true)) return null
       const snap = await Promise.resolve(ctx.scope.host.call('wf.snapshot', { cwd: (ctx.st && ctx.st.cwd) || '' }))
       if (!snap || snap.ok !== true || !Array.isArray(snap.maps)) return null
       const st = ctx.st
@@ -308,7 +366,16 @@ function syncPortsOf(ctx: any): SnapshotVersionPorts {
         if (typeof ctx.scope.installSnapshot === 'function') ctx.scope.installSnapshot(st, snap)
         else { st.snapshot = snap; st.snapMode = 'real'; st.snapError = null; if (typeof ctx.scope.emit === 'function') ctx.scope.emit(st) }
       } catch (e) {}
-      return { version: seen }
+      return seen === null ? { version: null, unknownVersion: true } : { version: seen }
+    },
+    logDegrade: function (reason: string): void {
+      // 一行说清「哪一侧、哪条路、为什么退回整份」；同一段退化只记一次（进段那一刻），恢复不再补记。
+      const fields = { side: 'client', phone: 'sync', reason: reason, cwdHash: syncHash8(syncKeyOfIn(ctx.scope, (ctx.st && ctx.st.cwd) || '')), version: -1 }
+      try {
+        const scopeLog = ctx.scope && typeof ctx.scope.log === 'function' ? ctx.scope.log : null
+        if (scopeLog) { scopeLog('info', 'snapshot.degrade', fields); return }
+        if (typeof log === 'function') log('info', 'snapshot.degrade', fields)
+      } catch (e) {}
     },
     merge: function (input: any): any {
       const applyChanges = ctx.scope.applyChanges

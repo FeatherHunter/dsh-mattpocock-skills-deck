@@ -658,6 +658,10 @@ const EXEMPTS: ExemptRow[] = [
   // #1890：变化集读口把客户端交来的时刻归一成非负整数再往下传；两格都是同一个输入，不是两个参数。
   { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', name: 'rawSinceMs', reason: '客户端交来的原始时刻（参数原文），只做归一与校验，不是可调参数' },
   { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', name: 'sinceMs', reason: '归一之后的起点时刻（客户端上次看到该库版本的时刻），只参与降级判断，不是可调参数' },
+  // 2026-11-05 #1899：两条读口与首屏回包的「投影耗时」读数（日志字段），是由起止时刻相减算出来的派生值，
+  // 不是可调时长；真要有可调的时间参数，那是变化集的两个降级阈值（上面 REFERENCES 里的两行）。
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', name: 'projectionMs', reason: '变化集投影的实际耗时（起止时刻相减的派生值），只进日志，不是可调参数' },
+  { file: 'src/refresh/rooms/host/snapshot-library.ts', name: 'projectionMs', reason: '库投影的实际耗时（起止时刻相减的派生值），只进日志，不是可调参数' },
 ]
 
 // 时间味判定，两类都认：

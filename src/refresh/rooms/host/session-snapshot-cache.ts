@@ -18,6 +18,13 @@ import { createFailureSegmentNotes } from './failure-segment-notes.js'
 import { createSnapshotDecoration } from './snapshot-decoration.js'
 // #1867：首屏先读本地快照库这件事收在 ./snapshot-library-first-screen.ts（GitHub 与 GitLab 两支路共用）。
 import { firstScreenFromLibrary, type FirstScreenLibrary } from './snapshot-library-first-screen.js'
+// #1899：首屏回包的读数（行数/字节数/耗时/版本）与退化原因落在这里记，口径只此一份。
+import {
+  applySnapshotReadout,
+  createSnapshotReadout,
+  noteSnapshotReply,
+  type SnapshotReplyReadout,
+} from './snapshot-read-log.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都堆在文件顶部：本文件的依赖全部由接线处 index.js 那份对象注入（JS 不查编译错误），
@@ -124,14 +131,19 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
    */
   async function handleSnapshot(args: Args) {
     const cwdRef: { cwd: string } = { cwd: '' } // 路径归一见下面 snapshotOf 里的 canonicalKey（#1835）
-    const reply: any = await snapshotOf(args, cwdRef)
+    const readout: SnapshotReplyReadout = createSnapshotReadout()
+    const startedAt = Date.now()
+    const reply: any = await snapshotOf(args, cwdRef, readout)
     if (cwdRef.cwd) {
       if (reply && reply.ok === false) failureNotes.fail(cwdRef.cwd, 'snapshot', reply && reply.failKind)
       else failureNotes.clear(cwdRef.cwd)
     }
-    return await attachWorkRouteTable(reply, args)
+    const out: any = await attachWorkRouteTable(reply, args)
+    // #1899：这一趟交出去几行、多少字节、花了多久、为什么没有从库出——只看日志能回答的那几格。
+    noteSnapshotReply(logCtx, out, cwdRef.cwd, readout, Date.now() - startedAt)
+    return out
   }
-  async function snapshotOf(args: Args, cwdRef: { cwd: string }) {
+  async function snapshotOf(args: Args, cwdRef: { cwd: string }, readout: SnapshotReplyReadout) {
       const _rawSnapCwd = (args && args.cwd) || ''; if (!String(_rawSnapCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawSnapCwd); if (String(cwd == null ? '' : cwd)) cwdRef.cwd = String(cwd) // #1003 空目录闸：没目录不冒充取快照；#1835 外层要按这个工作区记失败段
       // 第一性原理分发前置：先算 selection，再决定数据链路（避免旧判断遮住 Markdown）
       const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
@@ -179,6 +191,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           // #1893：即使 force 也读一次回放——它不是用来交付的，而是给编排层的 previousSnapshot
           // （来源不完整时补回上次已知的容器与子票）。交付要不要用回放，下面单独判 isForce。
           const first = (libraryBackend && identityResolved) ? await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId, repoIdentity: String((repoRef && repoRef.refId) || ''), repo: repoRef, force: false }) : null
+          applySnapshotReadout(readout, first, isForce) // #1899：这一趟从库出还是在线重建、没有回放时是哪种退化
           // #1893：库里有数据就只读库；库空则走在线重建（取数 → 写库 → 再交付），没有内存副本兜底。
           // #1869：开库诊断（损坏重建、只读租约）仍随在线重建的回包一起交给界面——库坏了重建完，
           // 界面得能看出本机数据被清过。
@@ -366,6 +379,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         // #1870：旧的整份磁盘快照文件已退役，这里不再有「磁盘回放」这一档。
         // #1893：与 composer 支路同一口径——force 也读一次回放，只把它交给 previousSnapshot，不用于交付。
         const first = await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId2, repoIdentity: String((repoRef2 && repoRef2.refId) || ''), repo: repoRef2, force: false })
+        applySnapshotReadout(readout, first, isForce) // #1899：与 composer 支路同一口径
         // #1893：库里有数据就只读库；库空则走在线重建，没有内存副本兜底（与 composer 支路同一口径）。
         // #1869：开库诊断随在线重建的回包一起交给界面（见 composer 支路同一处的说明）。
         if (isForce || !(first && first.replay)) noteMiss()
