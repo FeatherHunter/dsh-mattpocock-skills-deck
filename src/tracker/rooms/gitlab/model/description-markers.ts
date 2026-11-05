@@ -201,7 +201,7 @@ export function parseVisibleBlockedBy(body: unknown): VisibleBlockedRef[] | null
 
 /**
  * 正文回退读阻塞（机器表优先，可见行兜底）：原生不可用时调用，返回票号数组，没有任何写法返回 null。
- * graph-blocking 的读回退与环检快照都走这一处，不各写一遍认法——这一条以前在 normalize.ts，
+ * graph/read.ts 的读回退与 graph-blocking.ts 的环检快照都走这一处，不各写一遍认法——这一条以前在 normalize.ts，
  * 与机器表解析分居两处；现在两个读法同住本文件，顺序固定，改口径只改这里。
  */
 export function parseBlockedByFallback(body: unknown): string[] | null {
