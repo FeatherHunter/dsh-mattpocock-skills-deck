@@ -2,7 +2,7 @@
 
 这份文件写给「以后要改这一房的人」。房间的通用规矩（跨房引用怎么判、一次会话只改一个房间）在上一级的 `src/tracker/rooms/README.md`，契约层的书面承诺在 `src/tracker/contract/README.md`，这里不重复。**这一份只讲这一家与另外两家不一样的地方**——照着它走，就不会把 GitHub 或本地 Markdown 的习惯硬套到 GitLab 上。
 
-能力账（26 条逐条登记：哪条做了、哪条为什么不做）在 `docs/tracker/capability-gitlab.md`。程序侧的同一份答案是 `support/capability-register.ts`，两边由门禁 `tests/verify-capability-register.ts` 逐条比对，改一边不改另一边会红。
+能力账（27 条逐条登记：26 条真提供、1 条明确不支持，哪条做了、哪条为什么不做）在 `docs/tracker/capability-gitlab.md`。程序侧的同一份答案是 `support/capability-register.ts`，两边由门禁 `tests/verify-capability-register.ts` 逐条比对，改一边不改另一边会红。
 
 **用户第一次在这台机器上配 GitLab**（装命令行工具、登录、建一个能用的项目）时，把同目录的 `SETUP-PROMPT.md` 整段贴进对话框即可。那一份是写给用户的现场指引，与「改这一房的代码」无关。
 
@@ -82,8 +82,10 @@ src/tracker/rooms/gitlab/
 │   └── repo-identity.ts    从仓库引用或识别句柄取仓库标识的唯一一处
 │
 ├── issues/                  票的读、写与地图清单
+│   ├── index.ts            票操作的默认导出出口：按六个公开名字组装，供根目录转发
 │   ├── read.ts             列票、读单票、评论与链接富化
 │   ├── write.ts            建票、关票、重开、改票
+│   ├── shared.ts           票读与票写共用的回包收尾助手
 │   ├── create-write.ts     建票的单条写路径（一次调用最多一条写请求）
 │   ├── idempotency.ts      建票幂等锚：写锚与建后按锚回查
 │   ├── counts.ts           计数（issues_statistics）
@@ -115,7 +117,7 @@ src/tracker/rooms/gitlab/
 │
 ├── support/
 │   ├── read-log.ts         读路径日志出口（read.degraded / preflight.gate / repo.resolve.tier）
-│   ├── capability-register.ts  26 条能力的数据化回答
+│   ├── capability-register.ts  27 条能力的数据化回答（26 条真提供 + 1 条明确不支持）
 │   └── read-sources.ts     12 条读操作的读来源默认值
 │
 └── room/
@@ -127,7 +129,7 @@ src/tracker/rooms/gitlab/
 
 ## 三、旧路径 → 新位置对照表
 
-根目录这 9 个文件只为房外读者保留，**只做 `export ... from '新位置'`，没有逻辑、没有包装、没有默认值、没有副作用**（#1921 已逐项核对）。房里的实现文件一律直接从新位置 import，不经过这些转发文件。
+根目录这 9 个文件只为房外读者保留，**只做 `export ... from '新位置'`，没有逻辑、没有包装、没有副作用；不新造默认值，只把新位置已有的默认导出原样转出**（#1921 已逐项核对）。房里的实现文件一律直接从新位置 import，不经过这些转发文件。
 
 | 旧路径（根目录） | 新位置 | 为什么还留着 |
 |---|---|---|

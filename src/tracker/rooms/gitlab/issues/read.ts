@@ -24,6 +24,8 @@ import type { GlabRunResult } from '../client.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { failGlab } from '../errors.js'
 import { emitReadDegraded } from '../support/read-log.js'
+// 票读与票写共用的回包收尾助手只在同目录的 shared.ts 一处（#1907 评审修复）。
+import { apiJson, errMsg, parseJsonSafe, toApiError } from './shared.js'
 import { issuePath, notesPath, linksPath } from '../queries.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml；请求函数收领域值 timeoutMs，档位由这里按操作选。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
@@ -43,34 +45,6 @@ type RepoLike = Partial<RepositoryRef> | null | undefined
 // 上下文两形都收，是因为调用方有时把执行器放在 ctx、有时放在 opCtx，缺了就让请求函数里的 glabClient 按 127 回。
 type CtxLike = Partial<OpContext> & Partial<BackendContext>
 type RawBag = Record<string, unknown>
-
-function parseJsonSafe(s: string): unknown {
-  try {
-    return JSON.parse(s) as unknown
-  } catch {
-    return null
-  }
-}
-
-function errMsg(err: unknown): string {
-  if (err !== null && typeof err === 'object' && 'message' in (err as Record<string, unknown>)) {
-    const m = (err as Record<string, unknown>)['message']
-    if (typeof m === 'string' && m) return m
-  }
-  return String(err)
-}
-
-// 抛出去的错要带原始回包，是因为上层只 catch 到一个 Error，原文得躺在错身上才拿得到。
-interface ApiError extends Error {
-  stderr?: string
-  stdout?: string
-  code?: number
-}
-
-function toApiError(message: string, stderr: string, stdout: string, code: number): ApiError {
-  const err = { message, stderr, stdout, code }
-  return Object.assign(new Error(err.message), err) as ApiError
-}
 
 /**
  * 按 iid 拉一张票的原始形状：成功回票面，失败抛带原文的错以便上层归一。
@@ -103,25 +77,6 @@ export async function fetchRawIssue(
   }
   if (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) return raw as RawBag
   return raw as RawBag | null
-}
-
-/**
- * 把一次已经发出去的请求收成 JSON。
- *
- * 请求本身由根目录 requests.ts 发出；本函数只处理回来的三件套：非零退出码按原来那句话术抛出
- * （message 优先用 stderr，其次 stdout，两者都空才用 path 兜底），零退出码按旧的容错解析。
- * path 只用来拼那句兜底失败消息，不参与发请求 —— 请求函数自己从 refId 与票号拼路径。
- *
- * @param request 已经发出的那次请求的承诺（调用请求函数时请求就开始了）
- * @param path 这次请求的路径（只在 stderr 与 stdout 都为空时用来兜底）
- * @returns 解析出来的值；回包不是 JSON 时回 null（旧行为）
- */
-async function apiJson(request: Promise<GlabRunResult>, path: string): Promise<unknown> {
-  const res = await request
-  if (res.code !== 0) {
-    throw toApiError(res.stderr || res.stdout || `api ${path} failed`, res.stderr, res.stdout, res.code)
-  }
-  return parseJsonSafe(res.stdout)
 }
 
 // 一次详情最多取多少条评论（与宿主 comment-thread-fetch.ts 的 COMMENTS_MAX 同一个上限）。

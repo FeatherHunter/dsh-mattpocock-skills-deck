@@ -2,11 +2,12 @@
  * src/tracker/rooms/gitlab/issues/write.ts —— 票的写路径：建票、关票、重开、改票（#1913）。
  *
  * 为什么在 issues/ 子树：票是一个概念，读在 read.ts、写在 write.ts；根目录 issues.ts 只剩转发，
- * 房外按旧路径 import 的六个名字因此不用改。本文件同时收下写路径要用的几个助手。
+ * 房外按旧路径 import 的六个名字因此不用改。
  *
  * 请求的形状不在这里：建票走 issues/create-write.ts 的单写路径（它再调根目录 requests.ts 的
- * requestIssueCreate），关票、重开与改票走 requestIssuePatch，按名字查里程碑走 requestMilestones。
- * 本文件只做拿到原始进程结果之后的事：非零退出码按原话术抛、解析 JSON、归一成契约形状。
+ * requestIssueCreate），关票、重开、改正文、改认领人与改票走 requests.ts 各自的具名函数，按名字
+ * 查里程碑走 requestMilestones。本文件只做拿到原始进程结果之后的事：非零退出码按原话术抛、解析
+ * JSON、归一成契约形状。读请求与写请求共用的回包收尾助手在 ./shared.ts 一处。
  * 行为与搬迁前逐字一致，包括失败话术、错误档位、空补丁读回与自定义字段的拒绝。
  */
 
@@ -36,8 +37,11 @@ import type { CreateIssueBody } from './create-write.js'
 import { repoRefId } from '../model/repo-identity.js'
 // 票的读半边住在同一个概念目录里：建票后的富化与改票的空补丁回读仍要用它交出的函数。
 import { getIssue, fetchAugment } from './read.js'
+// 票读与票写共用的回包收尾助手只在同目录的 shared.ts 一处（#1907 评审修复）。
+import { apiJson, errMsg, parseJsonSafe, toApiError } from './shared.js'
 // 写端点与里程碑查询的形状住在房间根目录的 requests.ts（#1913）：本文件只传领域值。
-import { requestIssuePatch, requestMilestones } from '../requests.js'
+import { requestIssueClose, requestIssueReopen, requestIssueUpdate, requestMilestones } from '../requests.js'
+import type { IssueUpdateFields } from '../requests.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml；请求函数收领域值 timeoutMs，档位由这里按操作选。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 
@@ -46,53 +50,6 @@ type RepoLike = Partial<RepositoryRef> | null | undefined
 // 上下文两形都收，是因为调用方有时把执行器放在 ctx、有时放在 opCtx，缺了就让请求函数里的 glabClient 按 127 回。
 type CtxLike = Partial<OpContext> & Partial<BackendContext>
 type RawBag = Record<string, unknown>
-
-function parseJsonSafe(s: string): unknown {
-  try {
-    return JSON.parse(s) as unknown
-  } catch {
-    return null
-  }
-}
-
-function errMsg(err: unknown): string {
-  if (err !== null && typeof err === 'object' && 'message' in (err as Record<string, unknown>)) {
-    const m = (err as Record<string, unknown>)['message']
-    if (typeof m === 'string' && m) return m
-  }
-  return String(err)
-}
-
-// 抛出去的错要带原始回包，是因为上层只 catch 到一个 Error，原文得躺在错身上才拿得到。
-interface ApiError extends Error {
-  stderr?: string
-  stdout?: string
-  code?: number
-}
-
-function toApiError(message: string, stderr: string, stdout: string, code: number): ApiError {
-  const err = { message, stderr, stdout, code }
-  return Object.assign(new Error(err.message), err) as ApiError
-}
-
-/**
- * 把一次已经发出去的读请求收成 JSON。
- *
- * 请求本身由根目录 requests.ts 发出；本函数只处理回来的三件套：非零退出码按原来那句话术抛出
- * （message 优先用 stderr，其次 stdout，两者都空才用 path 兜底），零退出码按旧的容错解析。
- * path 只用来拼那句兜底失败消息，不参与发请求 —— 请求函数自己从 refId 与票号拼路径。
- *
- * @param request 已经发出的那次请求的承诺（调用请求函数时请求就开始了）
- * @param path 这次请求的路径（只在 stderr 与 stdout 都为空时用来兜底）
- * @returns 解析出来的值；回包不是 JSON 时回 null（旧行为）
- */
-async function apiJson(request: Promise<GlabRunResult>, path: string): Promise<unknown> {
-  const res = await request
-  if (res.code !== 0) {
-    throw toApiError(res.stderr || res.stdout || `api ${path} failed`, res.stderr, res.stdout, res.code)
-  }
-  return parseJsonSafe(res.stdout)
-}
 
 /**
  * 把一次已经发出去的写请求（PUT）收成 JSON。
@@ -210,7 +167,7 @@ export async function closeIssue(
   const k = String(key)
   try {
     const raw = ((await apiPut(
-      requestIssuePatch(effective, id, k, { state_event: 'close' }, GITLAB_READ_TIMEOUT_MS),
+      requestIssueClose(effective, id, k, GITLAB_READ_TIMEOUT_MS),
       issuePath(id, k),
     )) || { iid: k, state: 'closed' }) as unknown
     const issue = normalizeIssue(raw)
@@ -241,7 +198,7 @@ export async function reopenIssue(
   const k = String(key)
   try {
     const raw = ((await apiPut(
-      requestIssuePatch(effective, id, k, { state_event: 'reopen' }, GITLAB_READ_TIMEOUT_MS),
+      requestIssueReopen(effective, id, k, GITLAB_READ_TIMEOUT_MS),
       issuePath(id, k),
     )) || { iid: k, state: 'opened' }) as unknown
     const issue = normalizeIssue(raw)
@@ -274,11 +231,11 @@ export async function updateIssue(
   const k = String(key)
   if (!patch || typeof patch !== 'object') return fail(ERROR_KIND.PARSE as ErrorKind, 'update: patch required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   try {
-    const body: RawBag = {}
-    if (typeof patch.title === 'string') body['title'] = patch.title
-    if (typeof patch.body === 'string') body['description'] = patch.body
+    const fields: IssueUpdateFields = {}
+    if (typeof patch.title === 'string') fields.title = patch.title
+    if (typeof patch.body === 'string') fields.description = patch.body
     if ('milestone' in patch) {
-      if (patch.milestone === null) body['milestone_id'] = 0 // 清除
+      if (patch.milestone === null) fields.milestoneId = 0 // 清除
       else if (patch.milestone && typeof patch.milestone.name === 'string') {
         // 查 milestone_id
         const search = encodeURIComponent(patch.milestone.name)
@@ -292,23 +249,23 @@ export async function updateIssue(
           : null
         // 原文 = 按名字查里程碑那一次 GET 的回包（人据此看出远端到底有哪些里程碑）。
         if (!found) return fail(ERROR_KIND.NOTFOUND as ErrorKind, `milestone '${patch.milestone.name}' not found`, JSON.stringify(miles))
-        body['milestone_id'] = found['id']
+        fields.milestoneId = found['id'] as string | number
       }
     }
     if (Array.isArray(patch.customFields) && patch.customFields.length) {
       // 原文给这次传进来的那些自定义字段（这条支路一个请求都没发，没有远端回包）。
       return fail(ERROR_KIND.UNSUPPORTED as ErrorKind, 'customFields not supported on gitlab', JSON.stringify(patch.customFields))
     }
-    if (Object.keys(body).length === 0) {
+    if (Object.keys(fields).length === 0) {
       // 无可更新字段，返回当前
       return getIssue(ctx, repo, k, {}, effective)
     }
     const raw = ((await apiPut(
-      requestIssuePatch(effective, id, k, body, GITLAB_READ_TIMEOUT_MS),
+      requestIssueUpdate(effective, id, k, fields, GITLAB_READ_TIMEOUT_MS),
       issuePath(id, k),
     )) || { iid: k }) as unknown
     await fetchAugment(effective, id, (raw || { iid: k }) as RawBag)
-    const issue = normalizeIssue((raw || { iid: k, ...body }) as unknown)
+    const issue = normalizeIssue((raw || { iid: k }) as unknown)
     return { ok: true, data: issue }
   } catch (err: unknown) {
     // 原文 = 抛上来的那个 Error 对象（请求失败时它带着 stderr/stdout/退出码）。
