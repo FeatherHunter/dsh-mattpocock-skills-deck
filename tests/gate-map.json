@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T08:32:00.378Z",
+  "generatedAt": "2026-11-05T10:05:50.844Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 590,
-  "gateCount": 590,
-  "attributedGates": 534,
+  "chainLength": 591,
+  "gateCount": 591,
+  "attributedGates": 535,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 134,
+  "completionRecordedGates": 135,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
   "graphFileCount": 937,
@@ -5408,18 +5408,18 @@
       "step": "node tests/verify-1692-disk-replay-eviction.ts",
       "file": "tests/verify-1692-disk-replay-eviction.ts",
       "guards": [
-        "src/refresh/kernel/detail-eviction.ts",
-        "src/refresh/rooms/host/git-execution.ts"
+        "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
       ],
       "dirs": [
-        "src/refresh/kernel",
         "src/refresh/rooms/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 55,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+      "expectedAssertions": 19,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-1706-gitlab-project.ts",
@@ -6495,7 +6495,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 25,
+      "expectedAssertions": 24,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -7172,6 +7172,32 @@
       "completionRecord": true,
       "expectedAssertions": 45,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1922-retire-eviction.ts",
+      "file": "tests/verify-1922-retire-eviction.ts",
+      "guards": [
+        "docs/adr/20261030-panel-snapshot-single-source.md",
+        "src/client/views/ChecksTab.ts",
+        "src/client/views/shared/detailProjection.ts",
+        "src/client/views/shared/truthLines.ts",
+        "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/snapshot-library-read.ts",
+        "src/refresh/rooms/host/snapshot-read-channels.ts",
+        "src/workspace-snapshot/runtime/storage-stats.ts"
+      ],
+      "dirs": [
+        "docs/adr",
+        "src/client/views",
+        "src/client/views/shared",
+        "src/refresh/rooms/host",
+        "src/workspace-snapshot/runtime"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 45,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -13023,7 +13049,6 @@
         "src/refresh/kernel/admission-policy.ts",
         "src/refresh/kernel/attention-model.ts",
         "src/refresh/kernel/chain-pruning.ts",
-        "src/refresh/kernel/detail-eviction.ts",
         "src/refresh/kernel/failure-backoff.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/index-window-rules.ts",
@@ -13139,7 +13164,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 178 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 177 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -13882,6 +13907,7 @@
       "node tests/verify-thanks-table.ts"
     ],
     "docs/adr": [
+      "node tests/verify-1922-retire-eviction.ts",
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-skill-probe-redcard-and-waiting.ts"
@@ -14540,6 +14566,7 @@
       "node tests/verify-1894-view-model.ts",
       "node tests/verify-1896-issue-detail-vm.ts",
       "node tests/verify-1897-pr-page-vm.ts",
+      "node tests/verify-1922-retire-eviction.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -14645,6 +14672,7 @@
       "node tests/verify-1864-snapshot-detail-view.ts",
       "node tests/verify-1866-write-ui.ts",
       "node tests/verify-1890-read-channels.ts",
+      "node tests/verify-1922-retire-eviction.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -15064,7 +15092,6 @@
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1610-parallel-read.ts",
-      "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
@@ -15256,6 +15283,7 @@
       "node tests/verify-1893-projection-only.ts",
       "node tests/verify-1898-pr-merged-refresh.ts",
       "node tests/verify-1899-degradation-logs.ts",
+      "node tests/verify-1922-retire-eviction.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -15958,6 +15986,7 @@
       "node tests/verify-1888-changes-to-store.ts",
       "node tests/verify-1889-write-receipts.ts",
       "node tests/verify-1890-read-channels.ts",
+      "node tests/verify-1922-retire-eviction.ts",
       "node tests/verify-time-config.ts"
     ],
     "tests": [
@@ -16777,7 +16806,6 @@
       "src/refresh/kernel/budget-readings.ts",
       "src/refresh/kernel/chain-pruning.ts",
       "src/refresh/kernel/create-write-policy.ts",
-      "src/refresh/kernel/detail-eviction.ts",
       "src/refresh/kernel/failure-backoff.ts",
       "src/refresh/kernel/failure-window.ts",
       "src/refresh/kernel/fallback-fetch-budget.ts",
@@ -17219,6 +17247,7 @@
       "src/workspace-snapshot/runtime/open-schema.ts",
       "src/workspace-snapshot/runtime/open.ts",
       "src/workspace-snapshot/runtime/paths.ts",
+      "src/workspace-snapshot/runtime/storage-stats.ts",
       "src/workspace-snapshot/runtime/tombstone-write.ts",
       "src/workspace-snapshot/sources/README.md",
       "src/workspace-snapshot/tsconfig.json"

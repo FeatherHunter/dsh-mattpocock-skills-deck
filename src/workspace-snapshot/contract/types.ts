@@ -19,6 +19,7 @@ import type {
   SnapshotLabel,
   SnapshotMode,
   SnapshotReview,
+  SnapshotStorageStats,
   SubIssueCountsValue,
 } from '../model/types.js'
 
@@ -49,6 +50,7 @@ export type {
   SnapshotLabel,
   SnapshotMode,
   SnapshotReview,
+  SnapshotStorageStats,
   SubIssueCountsValue,
 } from '../model/types.js'
 
@@ -310,6 +312,11 @@ export interface WorkspaceSnapshotHandle {
    * 只读句柄也能读：它不改任何库内容。
    */
   readCounts(): SnapshotCounts
+  /**
+   * 库的占用读数（#1922）：库文件字节数与票行数。只读、不改库，只读句柄也能读。
+   * 库只增不删，但增长要看得见——环境检查页的诊断读数用它，不使用它做任何清理决定。
+   */
+  readStorageStats(): SnapshotStorageStats
   readList(query?: ListQuery): ListProjection
   /**
    * 读一张票的详情：行、正文、标签、指派、父子、阻塞、被阻塞、子票、合并信息与各组三态。

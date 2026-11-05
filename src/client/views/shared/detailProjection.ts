@@ -10,12 +10,15 @@
  * 1. 本模块只读快照与详情状态，不写任何缓存、不发请求——写入仍只有宿主那一条合并服务；
  *    视图里出现的每个字都来自 st（快照或详情状态），本模块不自己攒业务数据。
  * 2. 「上次数据」的时刻取自快照的合并组戳记 snapshot.merge.groups[组].atMs（宿主合并时盖的），
- *    取不到才退回该行磁盘回放/淘汰记号的时刻；不许用渲染时的 Date.now() 冒充数据时刻。
+ *    取不到就没有时刻（不画时间），不许用渲染时的 Date.now() 冒充数据时刻。
  * 3. 读投影开关默认新路径（snapshot）；切到 legacy 时只认这一趟取回的详情、不读快照投影，
  *    两条路都要能跑（#1694 回滚开关，退役旧缓存是 #1695 的事）。
  *
  * 反例：把快照行直接当成详情整块塞给视图，会把「没取过正文」画成「无描述」；
- * 只有行里真的带正文或评论时才做投影，其余情况交回原来的占位与淘汰提示。
+ * 只有行里真的带正文或评论时才做投影，其余情况交回原来的占位（加载中 / 还没拿到）。
+ *
+ * #1922：按需细节的淘汰机制已退役（2026-11-05 决定：不设上限、不按容量丢内容），
+ * 所以这里不再有「曾取过但被淘汰（曾于某时）」这一档；详情只有「有 / 确认没有 / 还没拿到」三态。
  */
 declare function log(...args: any[]): any
 declare function tr(...args: any[]): any
@@ -73,7 +76,7 @@ export function snapshotRowFor(st: any, n: any, effortId?: any): any {
   return byNumber
 }
 
-/** 快照行里上次取到详情的时刻：取合并组戳记里最新的那个；取不到回退到行的淘汰/回放记号。 */
+/** 快照行里上次取到详情的时刻：取合并组戳记里最新的那个；取不到就是 0（不知道）。 */
 export function lastKnownDetailAtMs(st: any): number {
   let at: number = 0
   const groups: any = st && st.snapshot && st.snapshot.merge && st.snapshot.merge.groups
@@ -226,9 +229,9 @@ export function detailViewFor(st: any, n: any, effortId?: any): any {
         lastKnownAtMs: at,
         noticeKey: at > 0 ? 'detail.lastKnownData' : '',
         notice: at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '',
-      }, liveNow, null, st.issueMode)
+      }, liveNow, st.issueMode)
     }
-    return withSlots({ issue: liveNow, source: 'live', lastKnownAtMs: 0, noticeKey: '', notice: '' }, liveNow, null, st.issueMode)
+    return withSlots({ issue: liveNow, source: 'live', lastKnownAtMs: 0, noticeKey: '', notice: '' }, liveNow, st.issueMode)
   }
   if (projectionUsesSnapshot()) {
     const row: any = snapshotRowFor(st, n, effortId)
@@ -239,7 +242,7 @@ export function detailViewFor(st: any, n: any, effortId?: any): any {
       if (typeof seen === 'number' && seen > at) at = seen
       const rowDetail: any = detailFromRow(row)
       // 列表行的关系边来自列表读结果，不在 snapshotGroups 里；这一条路照旧不画「关系不知道」那句。
-      return withSlots({ issue: rowDetail, source: 'snapshot', lastKnownAtMs: at, noticeKey: 'detail.lastKnownData', notice: at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }, rowDetail, null, st.issueMode, null)
+      return withSlots({ issue: rowDetail, source: 'snapshot', lastKnownAtMs: at, noticeKey: 'detail.lastKnownData', notice: at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }, rowDetail, st.issueMode, null)
     }
   }
   const live: any = st && st.issueDetail
@@ -252,9 +255,9 @@ export function detailViewFor(st: any, n: any, effortId?: any): any {
     const seen: any = st && st.detailSeenAt && st.detailSeenAt[idOfParts(eff, Number(n))]
     const entry: any = st.issueCache && st.issueCache[idOfParts(eff, Number(n))]
     const at: number = keptAfterFail ? (typeof seen === 'number' && seen > 0 ? seen : (entry && typeof entry.ts === 'number' ? entry.ts : 0)) : 0
-    return withSlots({ issue: live, source: 'live', lastKnownAtMs: at, noticeKey: '', notice: keptAfterFail && at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }, live, null, st.issueMode)
+    return withSlots({ issue: live, source: 'live', lastKnownAtMs: at, noticeKey: '', notice: keptAfterFail && at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }, live, st.issueMode)
   }
-  return withSlots({ issue: null, source: 'none', lastKnownAtMs: 0, noticeKey: '', notice: '' }, null, null, st.issueMode)
+  return withSlots({ issue: null, source: 'none', lastKnownAtMs: 0, noticeKey: '', notice: '' }, null, st.issueMode)
 }
 
 /**
@@ -263,8 +266,8 @@ export function detailViewFor(st: any, n: any, effortId?: any): any {
  * 为什么在这里一次算完：视图只认 proj.bodySlot 与 proj.relationsNotice，不再认识新的全局名字；
  * 判据（三态、上次已知时刻）只有本模块一处，老门禁渲染 IssueDetail 时不用跟着加替身。
  */
-function withSlots(view: any, detail: any, snapIssue: any, mode: any, relationsDetail?: any): any {
-  view.bodySlot = bodySlotOf(detail, view, snapIssue, mode)
+function withSlots(view: any, detail: any, mode: any, relationsDetail?: any): any {
+  view.bodySlot = bodySlotOf(detail, view, mode)
   view.relationsNotice = relationsNoticeOf(relationsDetail === undefined ? detail : relationsDetail, view)
   // #1866：评论输入框的判据也在这里一次算完，理由与上面两条相同：视图不新增全局名字，
   // 老门禁渲染 IssueDetail 时不用跟着加替身。这里只算「知道不知道」，拉取请求那条判据留在视图里。
@@ -287,7 +290,6 @@ export type BodySlot =
   | { kind: 'text', text: string }
   | { kind: 'none', caption: string }
   | { kind: 'unknown', atMs: number, caption: string }
-  | { kind: 'evicted', atMs: number, caption: string }
   | { kind: 'loading', caption: string }
 
 /**
@@ -296,9 +298,11 @@ export type BodySlot =
  * detail 是这一趟要画的详情（可能来自库、也可能是这次取回来的）：
  *  - body 是字符串：有内容就画，空串就是「确认没有」（完整来源说没有正文）；
  *  - 没有 body 字段：库里不知道正文，画「还没拿到」并带上次已知时刻；
- *  - 没有 detail：先看按需细节有没有被淘汰过，再看是不是取数失败，否则就是加载中。
+ *  - 没有 detail：取数失败画「还没拿到」，否则就是加载中。
+ *
+ * 只有这四档：没有「曾取过但被淘汰」那一档了（#1922 起不设上限、不淘汰，库里的内容不会被清掉）。
  */
-export function bodySlotOf(detail: any, proj: any, snapIssue: any, mode: any): BodySlot {
+export function bodySlotOf(detail: any, proj: any, mode: any): BodySlot {
   const at: number = proj && typeof proj.lastKnownAtMs === 'number' ? proj.lastKnownAtMs : 0
   const tail: string = at > 0 ? (' · ' + tr('detail.lastKnownData', { time: hhmmOf(at) })) : ''
   if (detail) {
@@ -307,9 +311,6 @@ export function bodySlotOf(detail: any, proj: any, snapIssue: any, mode: any): B
     }
     return { kind: 'unknown', atMs: at, caption: tr('detail.bodyNotYet') + tail }
   }
-  const evicted: any = snapIssue && snapIssue.detailEvicted
-  const evictedAtMs: number = evicted && typeof evicted.lastKnownAtMs === 'number' && evicted.lastKnownAtMs > 0 ? evicted.lastKnownAtMs : 0
-  if (evictedAtMs > 0) return { kind: 'evicted', atMs: evictedAtMs, caption: tr('detail.evictedAt', { time: hhmmOf(evictedAtMs) }) }
   if (mode === 'err') return { kind: 'unknown', atMs: at, caption: tr('detail.bodyNotYet') + tail }
   return { kind: 'loading', caption: tr('list.loading') }
 }

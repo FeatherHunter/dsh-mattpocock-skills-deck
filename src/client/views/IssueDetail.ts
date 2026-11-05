@@ -230,8 +230,9 @@ export const IssueDetail = function (props: any): any {
       const SHOW_EFFORT_BADGE = false
       // effort 维度：详情页标出这张票属于哪个 effort（只在多 effort 仓库出现，单 effort 界面不变）
       const effortChip = (SHOW_EFFORT_BADGE && issueEffort && effortNamesOf(st).length > 1) ? h(Tip, { content: issueEffort }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': issueEffort, style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, issueEffort)) : null
-      // #1864：正文格怎么画（确认没有 / 有正文 / 不知道带上次已知时刻 / 被淘汰 / 加载中）由投影判，
+      // #1864：正文格怎么画（确认没有 / 有正文 / 不知道带上次已知时刻 / 加载中）由投影判，
       // 判据与文案住在 views/shared/detailProjection.ts；这里只把 proj.bodySlot 画出来。
+      // #1922：按需细节的淘汰机制退役（不设上限、不按容量丢内容），没有「曾取过但后来被清掉」那一档了。
       const slot = proj.bodySlot || { kind: 'loading', caption: '' }
       const bodySlot = slot.kind === 'text'
         ? h('div', { style: { fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof mdToHtml === 'function' ? mdToHtml(slot.text, { st: st }) : String(slot.text)))
