@@ -46,6 +46,10 @@ declare function scheduleStatusClose(...args: any[]): any;
 declare function workRouteActionKeyOf(...args: any[]): any;
 declare function workRouteTableClock(...args: any[]): any;
 declare function workRouteTableOf(...args: any[]): any;
+// #1894：胶囊的票面数据与在办表读数从视图模型取（与列表页、状态栏同一份投影/读数）。
+//   单文件求值的门禁里没有这一片，用 typeof 兜住，退回 st.snapshot。
+declare function deckProjectionOf(...args: any[]): any;
+declare function useDeckViewSlice(...args: any[]): any;
 // #1511：编号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件的文字通道仍只调它一条。
 declare function ticketLabelOf(...args: any[]): any;
 // #1564：单子里的药丸徽标与主胶囊的折叠徽标统一走 views/shared/ticketBadge.ts（各自一种外壳）；
@@ -56,11 +60,7 @@ declare const PortalOverlay: any;
 declare const Tip: any;
 
 /** ISO 时刻 → 毫秒（读数里 actionAt 是 ISO 串；解析不了回 0，调用方显示空串）。 */
-const capsuleAtMsOf = function (v: any) {
-  if (typeof v !== 'string' || v === '') return 0
-  const t = Date.parse(v)
-  return isFinite(t) && t > 0 ? Math.floor(t) : 0
-};
+const capsuleAtMsOf = function (v: any) { if (typeof v !== 'string' || v === '') return 0; const t = Date.parse(v); return isFinite(t) && t > 0 ? Math.floor(t) : 0 };
 
 /** 票键的形状检查：只收纯数字串（与旧链同一条口径）。
  * 第二个参数传真值时补零到两位再回：同一容器号的两种写法（快照里数字 0、读数里字串 '00'）
@@ -69,7 +69,7 @@ const capsuleAtMsOf = function (v: any) {
 const capsuleTicketKeyOf = function (v: any, pad?: any) {
   const t = v === null || v === undefined ? '' : String(v).trim()
   return !/^\d{1,10}$/.test(t) ? '' : (pad ? t.padStart(2, '0') : t)
-};
+}
 
 
 
@@ -93,7 +93,7 @@ const capsuleKindOf = function (x: any) {
 const capsuleTitlesOf = function (st: any) {
   const byId: any = {}
   const byNumber: any = {}
-  const snap = (st && st.snapshot) ? st.snapshot : null
+  const snap = (typeof deckProjectionOf === 'function') ? deckProjectionOf(st) : ((st && st.snapshot) ? st.snapshot : null)
   if (!snap) return { byId: byId, byNumber: byNumber }
   const put = function (x: any) {
     if (!x || typeof x !== 'object') return
@@ -114,10 +114,7 @@ const capsuleTitlesOf = function (st: any) {
   const issues = Array.isArray(snap.issues) ? snap.issues : []
   for (let i = 0; i < issues.length; i++) put(issues[i])
   const maps = Array.isArray(snap.maps) ? snap.maps : []
-  for (let i = 0; i < maps.length; i++) {
-    const ts = (maps[i] && Array.isArray(maps[i].tickets)) ? maps[i].tickets : []
-    for (let j = 0; j < ts.length; j++) put(ts[j])
-  }
+  for (let i = 0; i < maps.length; i++) { const ts = (maps[i] && Array.isArray(maps[i].tickets)) ? maps[i].tickets : []; for (let j = 0; j < ts.length; j++) put(ts[j]) }
   // #907：首屏不收的行宿主另留了一份瘦身行 —— 胶囊那一行仍要显示标题。
   //   放在最后 put：票池里已有的行以票池那份为准（put 只认第一次写进去的那条）。
   const thin = Array.isArray(snap.thinTickets) ? snap.thinTickets : []
@@ -128,8 +125,7 @@ const capsuleTitlesOf = function (st: any) {
 const capsuleTitleFor = function (titles: any, ticketKey: any, effortId: any) {
   const eff = (effortId === null || effortId === undefined) ? '' : String(effortId)
   if (titles && titles.byId && titles.byId[eff + '\0' + ticketKey]) return titles.byId[eff + '\0' + ticketKey]
-  if (titles && titles.byNumber && titles.byNumber[ticketKey]) return titles.byNumber[ticketKey]
-  return null
+  return (titles && titles.byNumber && titles.byNumber[ticketKey]) ? titles.byNumber[ticketKey] : null
 };
 
 /**
@@ -209,14 +205,18 @@ const capsuleOpenTicket = function (st: any, entry: any) {
  *   · { state: 'ok', entry, list } —— entry 是当前会话最新那一条（胶囊版面上只写它的号），
  *     list 是当前会话全部记录（从新到旧，悬停里列出来）。
  */
-export const sessionChainCapsuleOf = function (st: any, sid: any) {
+export const sessionChainCapsuleOf = function (st: any, sid: any, deckReadout?: any) {
   // #1355：本函数不做「这张表是谁算的」的归属判断 —— 读数里没有会话号，判不出。归属靠上游保证：宿主按请求里
   //   那个会话号现算，客户端缓存不保留这张表，缺表会补发一次带当前会话号的请求。sid 保留在签名里（调用方照旧传）。
   //   行上的 currentSession 只是行级过滤，它认不出整张表属于别人 —— 那种情况登记在票里另立票。
   void sid
   // #1436：先看首帧那条只读电话的读数（本机存档，不用等整份快照重建）；一次都还没读到时画「读取中」。
   const pick = (typeof capsuleOwnRoutePick === 'function') ? capsuleOwnRoutePick(st) : null
-  const view = (pick && pick.view) || ((typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null)
+  // #1894：视图模型的 readout 里有同一份在办表；优先用它解析，视图模型不在时才回落到 st.snapshot。
+  const tableSt = (deckReadout && Object.prototype.hasOwnProperty.call(deckReadout, 'workRouteTable'))
+    ? { snapshot: { workRouteTable: deckReadout.workRouteTable } }
+    : st
+  const view = (pick && pick.view) || ((typeof workRouteTableOf === 'function') ? workRouteTableOf(tableSt) : null)
   if (pick && pick.fallback && (!view || view.state === 'idle' || view.state === 'empty')) return pick.fallback
   if (!view || view.state === 'idle') return { state: 'idle', reason: '', entry: null, list: [] }
   if (view.state === 'empty') return { state: 'empty', reason: '', entry: null, list: [] }
@@ -432,7 +432,9 @@ export const SessionChainCapsule = function (props: any) {
   const setActiveRow = activeState && typeof activeState[1] === 'function' ? activeState[1] : function () {}
   const st = props ? props.st : null
   const sid = props ? props.sid : ''
-  const view = sessionChainCapsuleOf(st, sid)
+  // #1894：订阅视图模型的 readout 切片（库版本、生成时刻、在办表）；门禁单文件求值时没有这一片。
+  const deckReadout = (typeof useDeckViewSlice === 'function') ? useDeckViewSlice(st, 'readout') : null
+  const view = sessionChainCapsuleOf(st, sid, deckReadout)
   if (view.state === 'loading') return (typeof capsuleOwnRouteFallbackNode === 'function') ? capsuleOwnRouteFallbackNode(h, tr, view, Ic) : null
   if (view.state === 'idle' || view.state === 'empty') return null
   if (view.state !== 'ok') {

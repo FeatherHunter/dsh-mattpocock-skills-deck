@@ -12,6 +12,11 @@
  *    否则那条变化会被挤出下一次的扫描窗口，此后再也发现不了（原来文件头第 3 条）。
  * 2. since 语义：窗口索引返回 changed=true 才视为变化；GitHub 与 composer 两条路各走各的取数，
  *    配额仍走 REST 池，不烧穿。
+ * 3. #1891（规格 #1885 S4）：wf.probe 回包不再带整份快照 —— 读契约把它定成「版本 + 是否变化 + 变化的
+ *    行号（或该整份了）」，数据由客户端按库版本经 wf.snapshotChanges 取走。1000 张票的整份快照约 411 KB，
+ *    每五秒跨进程传一次正是这一期要消掉的东西；本文件两处 patch 返回点因此都不再拼 snapshot 字段，
+ *    其余字段（ok / changed / mode / rows / version / queries / partial / since / reason / pending / count）
+ *    与改造前逐字相同。
  */
 import { idOfParts } from '../../../tracker/kernel/identity-keys.js'
 // #1584 F4：探针的 composer 分支原来也用注册表 describe 自己造身份，空 refId 会被当成「答出来了」；
@@ -19,7 +24,7 @@ import { idOfParts } from '../../../tracker/kernel/identity-keys.js'
 import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
 // #1689 降级取数的预算与节流：降级常驻时整仓探测从 5 秒放宽到 60 秒、自动校准至少隔 10 分钟。
 // 两件事都挂在这条现有探测拍上判（下面用两个按 cwd 记的毫秒时刻），本文件不新建任何定时器。
-import { calibrationDue, createFallbackRoundBudget, fallbackStandingOf, probeDue } from '../../kernel/fallback-fetch-budget.js'
+import { calibrationDue, createFallbackRoundBudget, probeDue } from '../../kernel/fallback-fetch-budget.js'
 import { FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
 // #1770：房间报「列表只取了第一页」用的事件名与原因值住在契约层（房间与宿主同一份），
 // 探针这边不抄房间的内部字面量，也不依赖房间文件。
@@ -43,8 +48,11 @@ export interface ProbeHandlerDeps {
   issueIndexChanged: any
   rememberIssueIndex: any
   commitIssueIndex: any
-  getCache: any
-  setCache: any
+  /**
+   * #1893：这个工作区当前是不是「降级常驻」（REST 兜底通道）——由采纳快照那一步记下来的一个小布尔，
+   * 不是整份快照。探针拿它判 60 秒探测窗口与 10 分钟校准窗口（#1689）。缺席时按「没降级」处理。
+   */
+  degradedStandingOf?: any
   lastIssueIndexByRepo: any
   lastProbeAtByRepo: any
   deltaRefresh: any
@@ -60,11 +68,21 @@ export interface ProbeHandlerDeps {
   //   没有历史，事后查不到「哪个环节、什么时候、为什么」。这里只在「这一段失败」的第一次失败记
   //   一条；恢复（真的探成功一次）后清标记，下一段再失败才又记。缺席时探针照旧工作，只是没有历史。
   noteRefreshFailure?: any
+  /**
+   * #1898：已关闭/已合并拉取请求的补取（实现住 issue-list-fetch.ts，自带 10 分钟节拍与一页上限）。
+   * 探针这一拍探成之后顺手调它一次；缺席时探针照旧工作，只是不补这一页（老装配与门禁不受影响）。
+   */
+  refreshClosedPulls?: any
+  /**
+   * #1885 评审修复（规格 I2）：读回包要带库版本。门面缺席时这一格不挂（老装配与门禁照旧工作）。
+   * 只读版本，不写任何库内容。
+   */
+  getSnapshotLibrary?: (() => Promise<any> | any) | null
 }
 
 /** 造出探针电话：目前只有一个 handleProbe（wf.probe 的处理体）。 */
 export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args: any) => Promise<any> } {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession, logCtx, noteRefreshFailure } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, degradedStandingOf, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession, logCtx, noteRefreshFailure, refreshClosedPulls, getSnapshotLibrary } = deps
   // #1689：降级常驻时的两个节流时刻（毫秒），按 cwd 记。与 lastProbeAtByRepo 分开记，是因为后者
   //   的键要等取数回来才知道（owner/name），而节流必须在发出请求之前判；createProbeHandler 的实例
   //   由宿主入口 _probe() 记忆化，这份状态跨刷新拍安全。
@@ -87,7 +105,43 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
   //   **漏检所有子票变化**——面板可接/阻塞/已认领/已关闭分组（docs/archive/DESIGN.md §5.2）都是子票，
   //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
   //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
-  async function handleProbeOnce(args: any, cwdRef: { cwd: string }): Promise<any> {
+  /**
+   * 这一拍对应的库版本（#1885 评审修复，规格 I2）。身份优先用调用方已经算出来的那两格；
+   * 没有时（写事件补丁、降级节流那几档）再走同一条身份补齐链问一次，问不到就不挂版本。
+   * 这条只在探测成功、真正要交回包时调一次，不是每拍都问。
+   */
+  async function libraryVersionFor(reply: any, cwdRef: { cwd?: string, backendId?: string, repoIdentity?: string }): Promise<any> {
+    if (!reply || reply.ok !== true || typeof getSnapshotLibrary !== 'function') return reply
+    const cwd = String(cwdRef.cwd || '')
+    if (!cwd) return reply
+    let backendId = String(cwdRef.backendId || '')
+    let repoIdentity = String(cwdRef.repoIdentity || '')
+    if (!backendId) {
+      try { const sel: any = await selectEarly({ cwd }) ; backendId = String((sel && sel.backendId) || '') } catch (e) { backendId = '' }
+    }
+    if (!backendId) return reply
+    if (!repoIdentity) {
+      try {
+        const reg: any = await getTrackerRegistry()
+        const ref: any = await resolveRepoRefForCwd({
+          cwd,
+          backendId,
+          describe: (reg && typeof reg.describe === 'function') ? reg.describe : null,
+          openSession,
+        })
+        repoIdentity = String((ref && ref.refId) || '')
+      } catch (e) { repoIdentity = '' }
+    }
+    if (!repoIdentity) return reply
+    try {
+      const lib: any = await Promise.resolve(getSnapshotLibrary())
+      if (!lib || typeof lib.readLibraryVersion !== 'function') return reply
+      const version = await Promise.resolve(lib.readLibraryVersion({ workspaceRoot: cwd, backend: backendId, repoIdentity }))
+      if (typeof version === 'number' && Number.isInteger(version) && version >= 0) reply.version = version
+    } catch (e) { /* 版本读不到就不挂：不拿 0 冒充版本 */ }
+    return reply
+  }
+  async function handleProbeOnce(args: any, cwdRef: { cwd: string, backendId?: string, repoIdentity?: string }): Promise<any> {
     // #1003 空目录闸：同上。
     const _rawProbeCwd: string = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
     if (!_rawProbeCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。', errorKind: 'env' }
@@ -95,7 +149,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
     // #1835：外层包装要知道这一趟落在哪个工作区；空 cwd 在上面已经早退，走不到这里。
     const _probeCwd = String(cwd == null ? '' : cwd)
     if (_probeCwd) cwdRef.cwd = _probeCwd
-    // #1472：写事件刚补好的快照优先 —— deck_* 写工具成功之后行级增量已经补过那一行，
+    // #1472：写事件刚补好的补丁优先 —— deck_* 写工具成功之后行级增量已经补过那一行，
     // 下一次探针直接把这份交出去，一次窗口探测都不用发（真机以前要等下一次整份重建才算数）。
     // 只交一次（取走即删，语义在 src/refresh/rooms/host/write-event-fetch.ts）；没有就回 null，照旧往下走。
     // 放在后端分发之前：补丁那一侧已经按后端取过数，这份结果与「这一次该问哪个后端」无关。
@@ -103,10 +157,12 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
     // 那个函数还套着「异步取接线」的一层，那一层本身可能失败 —— 失败就按没有补丁处理，照旧走窗口探测。
     let _wp: any = null
     try { _wp = await takeWritePatch(cwd) } catch (eWP: any) { _wp = null }
-    if (_wp && _wp.snapshot) {
+    // #1891：判定标准从「补丁里带着快照」换成「有补丁」—— 快照不再随探针回包走（客户端按库版本取变化），
+    //   而 takeWritePatch 只在真的补成、没过期、还没被取走时才回值，所以它本身就是要不要走这一支的凭据。
+    if (_wp) {
       return {
         ok: true, changed: true, mode: 'patch', rows: _wp.rows || [], version: _wp.version,
-        queries: _wp.queries || 0, partial: _wp.partial === true, snapshot: _wp.snapshot,
+        queries: _wp.queries || 0, partial: _wp.partial === true,
         // since 用补丁自己记下的时刻（客户端拿它当下一拍的水印），不是此刻：此刻会越过补丁覆盖的那段窗口。
         since: (typeof _wp.at === 'number' && _wp.at > 0) ? new Date(_wp.at).toISOString() : '',
       }
@@ -131,6 +187,9 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
             if (identified) repoRef = identified
           }
           if (!repoRef) repoRef = { backend: _selProbe.backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || _selProbe.backendId, url: '' }
+          // #1885 评审修复：这一支的身份已经算出来了，回包版本直接用它，不再开会话问一遍。
+          cwdRef.backendId = String(_selProbe.backendId || '')
+          cwdRef.repoIdentity = String((repoRef && repoRef.refId) || '')
           // #1770：探针这一路只接「名单被页上限截断」这一条降级线。房间的 list 取满一页会调
           //   opCtx.logEvent('warn','read.degraded',{op:'list',reason:'list:truncated',...})；探针把它
           //   转给宿主日志口，并按仓库边沿式去重 —— 5 秒一拍每拍都记会把警告日志刷成心跳。
@@ -159,7 +218,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
           // 兼容 remember 的 repoKey 形态：用 backendId+cwd 作 key，避免与 github 的 owner/name 串
           lastIssueIndexByRepo[rk1] = idx
           lastProbeAtByRepo[rk1] = new Date().toISOString()
-          if (changed) setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
+          // #1893：内存副本已删，这一拍不再需要「标脏」——客户端按库版本取变化，探针只回「变了哪几行」。
           return { ok: true, changed: changed, repo: { owner: _selProbe.backendId, name: String(cwd).split(/[\\/]/).pop()||'' }, count: all.length, since: lastProbeAtByRepo[rk1] }
         }
       } catch (e: any) { return { ok: false, error: errText(e), errorKind: 'exception' } }
@@ -176,17 +235,19 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       // #1689 降级常驻的节流与预算：快照明确写着走 REST 兜底通道（fallback:'rest'）时，
       //   整仓探测从 5 秒放宽到 60 秒、自动校准至少隔 10 分钟，两件事都在这条现有探测拍上判。
       //   主路正常时 degraded 恒假，这一段一条请求都不多发，行为与改造前一致。
-      const _cacheNow: any = (typeof getCache === 'function') ? getCache(cwd) : null
-      const degraded: boolean = fallbackStandingOf(_cacheNow && _cacheNow.snapshot)
+      // #1893：降级事实由「采纳快照」那一步记下来的小布尔提供，不再从宿主内存里的整份快照读。
+      // 没接这一格时按「没降级」处理：探针照常 5 秒一拍，不因为接线缺席而自己放宽或收紧窗口。
+      const degraded: boolean = (typeof degradedStandingOf === 'function') ? degradedStandingOf(cwd) === true : false
       const nowMs: number = Date.now()
       if (degraded) {
+        cwdRef.backendId = String((_selProbe && _selProbe.backendId) || '')
         if (calibrationDue(nowMs, fallbackCalibrationAtByCwd[cwd], FALLBACK_FETCH_LIMITS)) {
           // 到点校准：把缓存清脏后如实告诉客户端「这一拍得整仓重取」。客户端收到 changed+mode 就走了
           //   既有的 loadSnapshot(primary,true,true) 那一支，也就是一次完整枚举（上限 16 条请求，常量在
           //   host-budget.ts）；下一次校准至少 10 分钟后才可能再来。
           fallbackCalibrationAtByCwd[cwd] = nowMs
           fallbackProbeAtByCwd[cwd] = nowMs
-          setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
+          // #1893：不再有内存副本可标脏；客户端收到 changed + mode 就走了既有的整份重取分支。
           return { ok: true, changed: true, mode: 'calibrate', reason: 'fallback-calibration-due', count: 0, since: new Date(nowMs).toISOString() }
         }
         if (!probeDue(nowMs, fallbackProbeAtByCwd[cwd], degraded, FALLBACK_FETCH_LIMITS)) {
@@ -211,15 +272,28 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       }
       if (!remote || remote.ok !== true) return { ok: false, error: errText((remote && remote.error) || 'probe 失败'), errorKind: kindOf(remote && remote.error) }
       const repo: any = remote.repo
+      // #1885 评审修复：这一支的库身份就在 remote 上（窗口扫描的同一份），回包版本读它。
+      cwdRef.backendId = String(probeOpts.backendId || '')
+      cwdRef.repoIdentity = String(remote.repoIdentity || (repo.owner + '/' + repo.name))
       const rk1: string = repo.owner + '/' + repo.name
       const changed: boolean = remote.changed === true
       // 这一拍真的探过了：降级窗口从这里重新起算（失败的探不推窗口，下一拍仍会重试）。
       if (degraded) fallbackProbeAtByCwd[cwd] = nowMs
       lastProbeAtByRepo[rk1] = new Date().toISOString()
-      const commit: any = function (): any { try { return commitIssueIndex(cwd, remote.nextWatermarkMs, remote.index) } catch (eC: any) { return null } }
+      // #1887：完整枚举（没有窗口起点）且这一趟的行真的写进库，才在采用之后把「上一次完整枚举时刻」写库。
+      // 窗口扫描、被页上限或预算截断（那几趟到不了这里）、被推迟/丢弃的都不满足，完整度保持「已知」。
+      const commit: any = async function (): Promise<any> {
+        try {
+          return await commitIssueIndex(cwd, remote.nextWatermarkMs, remote.index, {
+            fullEnumeration: remote.full === true && remote.persisted !== false,
+            backendId: String((_selProbe && _selProbe.backendId) || ''),
+            repoIdentity: String(remote.repoIdentity || ''),
+          })
+        } catch (eC: any) { return null }
+      }
       if (!changed) {
         // 没变 = 列表与远端一致，推水印（与基线）是安全的（不推就要每拍重扫同一个窗口）。
-        commit()
+        await commit()
         return { ok: true, changed: false, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
       }
       let delta: any = null
@@ -228,17 +302,17 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       const deltaOpts: any = degraded ? { fallbackBudget: roundBudget } : {}
       try { delta = (typeof deltaRefresh === 'function') ? await deltaRefresh(cwd, deltaOpts) : null } catch (eD: any) { delta = null }
       if (delta && delta.mode === 'patch' && delta.rows && delta.rows.length) {
-        // 并进列表了：水印与基线跟着走，客户端直接用这一份（不再发整池大查询）。
-        commit()
-        const cur: any = (typeof getCache === 'function') ? getCache(cwd) : null
+        // 并进列表了：水印与基线跟着走。客户端按库版本取变化，不再等这一份整份快照（#1891）：
+        //   回包只带变化的行号与版本，数据本身走 wf.snapshotChanges。
+        await commit()
         return {
           ok: true, changed: true, mode: 'patch', repo: repo, count: remote.count,
           rows: delta.rows, version: delta.version, queries: delta.queries, partial: delta.partial === true,
-          snapshot: (cur && cur.snapshot) ? cur.snapshot : null, since: lastProbeAtByRepo[rk1],
+          since: lastProbeAtByRepo[rk1],
         }
       }
       if (delta && delta.mode === 'nothing') {
-        commit()
+        await commit()
         return { ok: true, changed: false, mode: 'nothing', repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
       }
       if (delta && (delta.mode === 'deferred' || delta.mode === 'failed' || delta.mode === 'stale-dropped')) {
@@ -249,8 +323,8 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       // 该整池的那几档（冷启动 / 票号增减 / 条数过多 / 旧结构）：如实告诉客户端「这一次得整池」。
       // 这一档推水印与基线：客户端收到之后就会整池重建，那一次会把整仓重拿一遍，变化是被并进列表的
       // （不推的话每一拍都要从很旧的水印重扫，白烧额度）。
-      if (changed) setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
-      commit()
+      // #1893：不再标脏内存副本；客户端收到 changed / rebuild 后按库版本取整份或变化集。
+      await commit()
       return { ok: true, changed: true, mode: 'rebuild', reason: String((delta && delta.reason) || 'no-delta'), repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
     } catch (e: any) { return { ok: false, error: errText(e), errorKind: 'exception' } }
   }
@@ -267,8 +341,17 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
    * 写事件刚补好快照的直接交付（根本没探），都不能当成恢复。失败段继续挂着，等真的一次请求成功再清。
    */
   async function handleProbe(args: any): Promise<any> {
-    const cwdRef: { cwd: string } = { cwd: '' }
+    const cwdRef: { cwd: string, backendId?: string, repoIdentity?: string } = { cwd: '' }
     const res: any = await handleProbeOnce(args, cwdRef)
+    // #1885 评审修复（规格 I2）：探测回包也带库版本（与 wf.snapshotVersion 同一把尺子）。
+    await libraryVersionFor(res, cwdRef)
+    // #1898：这一拍探成了，顺手补一眼已关闭/已合并的拉取请求（合并之后页签要从「打开」翻成「已合并」）。
+    // 不 await：它自己带 10 分钟节拍与一页请求上限，这一拍最多多发一条请求，不该把探针的往返拉长；
+    // 补进去的行落库之后客户端按库版本就能看见。探测失败 / 到点校准那两拍不调 —— 那时网络或额度正不正常，
+    // 多花一条请求没有意义。
+    if (cwdRef.cwd && res && res.ok === true && res.mode !== 'calibrate' && typeof refreshClosedPulls === 'function') {
+      try { Promise.resolve(refreshClosedPulls(cwdRef.cwd)).catch(function (): void {}) } catch (ePR: any) {}
+    }
     if (cwdRef.cwd) {
       if (res && res.ok === false) failureNotes.fail(cwdRef.cwd, 'probe', res && res.errorKind)
       else if (res && res.ok === true && res.mode !== 'throttled' && res.mode !== 'calibrate' && res.mode !== 'patch') failureNotes.clear(cwdRef.cwd)

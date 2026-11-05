@@ -313,6 +313,54 @@ export const truthNoticeLines = function (st: any, nowMs: any) {
   //   （budgetTierViewOf 给档位，展开看原始数字）。列表这一行只说数据为什么旧。
   return lines
 }
+/**
+ * #1890：wf.snapshotVersion 回包 → 环境检查页「能力诊断」里那一格读数。
+ *
+ * 为什么单列成纯函数：诊断读数要在不挂 React 的门禁里直接验（喂回包、看文字），
+ * 而且「回的版本能不能用」这条判据只能有一处：回包缺版本、版本不是非负整数、电话失败，
+ * 一律显示「—」，绝不编一个 0 —— 0 是一个合法的库版本，冒充 0 会让读者以为库刚重建过。
+ *
+ * 返回值里 version 是数字或 null，text 是页面上直接显示的那一格；backend / workspaceKey
+ * 原样带出来只为排查（页面上已有的后端行不在这里重复画）。
+ */
+export const snapshotVersionReadoutOf = function (reply: any) {
+  const version = (reply && typeof reply.version === 'number' && isFinite(reply.version) && reply.version >= 0)
+    ? Math.floor(reply.version)
+    : null
+  const backend = (reply && typeof reply.backend === 'string') ? reply.backend : ''
+  const workspaceKey = (reply && typeof reply.workspaceKey === 'string') ? reply.workspaceKey : ''
+  return { ok: version !== null, version: version, backend: backend, workspaceKey: workspaceKey, text: version === null ? '—' : String(version) }
+}
+// ── 快照库占用读数（#1922）：不淘汰，但要看得见增长 ──
+//
+// 2026-11-05 维护者拍板：有了快照库做存储，按需细节不设上限、不淘汰；库里的数据
+// 除非源头删除，否则不会消失。所以诊断读数要把「库现在多大、里面几行」如实画出来。
+//
+// 判据只有一条，与版本读数同源：读不到就写「—」，绝不编 0 —— 0 字节 / 0 行在空库上
+// 都是合法的，冒充 0 会让读者以为库刚重建过。字节数折算成人读单位（B / KB / MB / GB），
+// 行数原样显示（票行数，不是字节）。
+export const SNAPSHOT_BYTES_UNITS: string[] = ['B', 'KB', 'MB', 'GB']
+export const snapshotByteTextOf = function (bytes: any): string {
+  if (typeof bytes !== 'number' || !isFinite(bytes) || bytes < 0) return '—'
+  let value: number = bytes
+  let unit: number = 0
+  while (value >= 1024 && unit < SNAPSHOT_BYTES_UNITS.length - 1) { value = value / 1024; unit += 1 }
+  if (unit === 0) return String(Math.floor(value)) + ' B'
+  const rounded: number = Math.round(value * 10) / 10
+  return (rounded % 1 === 0 ? String(rounded) : rounded.toFixed(1)) + ' ' + SNAPSHOT_BYTES_UNITS[unit]
+}
+/**
+ * #1922：wf.snapshotStoreStats 回包 → 环境检查页「能力诊断」里那两格读数（库文件大小 / 票行数）。
+ *
+ * 为什么单列成纯函数：与版本读数同一个理由——不挂 React 就能验。返回 ok 表示两格都读到了；
+ * 读不到时 bytesText / rowsText 都是「—」，调用方照原样画，不在页面里另算一套。
+ */
+export const snapshotStoreStatsReadoutOf = function (reply: any) {
+  const bytes = (reply && typeof reply.bytes === 'number' && isFinite(reply.bytes) && reply.bytes >= 0) ? Math.floor(reply.bytes) : null
+  const rows = (reply && typeof reply.rows === 'number' && isFinite(reply.rows) && reply.rows >= 0) ? Math.floor(reply.rows) : null
+  const ok: boolean = bytes !== null && rows !== null
+  return { ok: ok, bytes: bytes, rows: rows, bytesText: ok ? snapshotByteTextOf(bytes) : '—', rowsText: ok ? String(rows) : '—' }
+}
 // 行上那个「更新中」标记的窗口：一次写入成功之后，这一行在合并窗口内还算「正在更新」。
 // 窗口长度就是 host-budget.ts 的 PATCH_MERGE_WINDOW_MS（10 秒），这里不另写一个数字。
 export const truthWriteWindowOpen = function (atMs: any, nowMs: any) {

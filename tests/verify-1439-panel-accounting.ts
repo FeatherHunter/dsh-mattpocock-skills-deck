@@ -8,7 +8,7 @@
 //   ① 静态：面板两处电话（wf.snapshot 与 wf.refresh）把 openSession 交给快照编排器，自己不再向注册表取实例；
 //      编排器接了会话口就走会话操作，这一层用不上时回落注册表实例（门禁单测与老调用点保持原形状）；宿主把会话口交给两处；
 //      deck 补仓库身份改问会话能力；刷新运行时把 createAccountPort 接进闸。
-//   ② 行为：编排器拿到会话口时，list / counts / getDependencies 都经 opened.call 调会话操作，
+//   ② 行为：编排器拿到会话口时，list / getDependencies 都经 opened.call 调会话操作（#1887 起不再要 counts），
 //      cwd 用调用方给的、write 固定 false；会话打不开、后端对不上时回落注册表实例，两边都取不到才如实报「不可达」；
 //      不接会话口、或接了会话口但这一层开不起来时，都按注册表实例把快照组出来（老调用方不掉、面板不整份失败）。
 //   ③ 行为：面板与强制刷新的真实用量由闸交给唯一记账口（createAccountPort），按后端预算口径分桶：
@@ -81,13 +81,13 @@ console.log('面板取数与记账接线（#1439 A2 / #1454：面板经会话取
 }
 
 // ---------- ② 行为：编排器的会话门面 ----------
-// 假会话只答三件事：list 空池、counts 三个 0（票池 0 ≤ 总数 0，deck.partial 为假）、依赖边为空。
+// 假会话只答两件事：list 空池、依赖边为空。#1887 起编排层不再向后端要 counts，所以假会话根本没有这个操作；
+// 假如谁又把它加回来，取数时会当场抛错、下面那条断言也就不会绿。
 // 记下每次调用的名字，用来证明取数确实走的会话操作，而不是注册表里的房间实例。
 const REF = { backend: 'fake', refId: 'acme/demo', name: 'demo', url: '' }
 function makeFakeSession(): any {
   return {
     list: async function (): Promise<any> { return { ok: true, data: [] } },
-    counts: async function (): Promise<any> { return { ok: true, data: { open: 0, closed: 0, total: 0 } } },
     getDependencies: async function (): Promise<any> { return { ok: true, data: { blockedBy: [], blocking: [] } } },
   }
 }
@@ -98,7 +98,7 @@ function makeOpened(backendId: string, calls: string[], cwdSeen: string[], write
     backendId: backendId,
     call: async function (fn: any): Promise<any> {
       const wrapped: any = {}
-      for (const name of ['list', 'counts', 'getDependencies']) {
+      for (const name of ['list', 'getDependencies']) {
         wrapped[name] = async function (...args: any[]): Promise<any> { calls.push(name); return session[name].apply(session, args) }
       }
       return fn(wrapped, {})
@@ -118,7 +118,7 @@ async function checkComposerSessionFacade(): Promise<void> {
   })
   const composed = await composer.composeSnapshot(REF.backend, REF, { cwd: 'D:/tmp/panel-ws' }, { force: true })
   check(composed.ok === true && !!composed.snapshot, '接上会话口时快照照常组出来（ok=' + composed.ok + '）')
-  check(calls.indexOf('list') >= 0 && calls.indexOf('counts') >= 0, '取数经会话操作 list / counts（实得 ' + calls.join('、') + '）')
+  check(calls.indexOf('list') >= 0 && calls.indexOf('counts') < 0, '取数经会话操作 list；不再向会话要 counts（#1887：六个数字从快照库来；实得 ' + calls.join('、') + '）')
   check(cwdSeen[0] === 'D:/tmp/panel-ws' && writeSeen[0] === false, '开会话用调用方给的 cwd、固定只读（cwd=' + cwdSeen[0] + '，write=' + writeSeen[0] + '）')
 
   const depsCalls: string[] = []

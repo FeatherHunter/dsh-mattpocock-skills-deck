@@ -5,7 +5,7 @@
  * 依据：#1433 拍板（工作区文件是布局的唯一真源）与验收第 1–4 条；
  * #1449 再收紧：本机记忆不再有布局读写口，快照读不到文件就是「还没答过」，不回退任何记忆。
  *
- * 钉五件事：① 内存命中：文件里 single 压过缓存里的 multi；
+ * 钉五件事：① 库回放：文件里 single 压过回放里的 multi（#1893：回放来源换成快照库；原「内存命中」一档随内存副本退役）；
  *   ② 文件里没有布局时回空（不退回本机记忆，也不留缓存里上一次的旧答案）；
  *   ③ 本地快照库回放：库里那份是 multi、文件里是 single，照样回 single（#1870 起旧的磁盘回放退役，
  *     回放来源换成工作区快照库，这条判据守的东西不变）；
@@ -64,17 +64,19 @@ const mkDeps = (fsSvc: StubFs, cached: any, replay: any) => ({
   DEFAULT_CWD: '', logCtx: null, envelope: null, send: null,
 })
 
-console.log('== ① 内存命中：文件里 single 压过缓存里的 multi ==')
+console.log('== ① 库回放：文件里 single 压过回放里的 multi ==')
 {
   const ws = mkWs('single')
-  const out: any = await createSessionSnapshot(mkDeps(makeFs(), { layout: 'multi', pickedAt: 111 }, null)).handleSnapshot({ cwd: ws })
-  check(out && out.setupLayout && out.setupLayout.layout === 'single', '手改文件后快照回 single（不拿缓存里落后的值顶替）—— 实得 ' + JSON.stringify(out && out.setupLayout))
+  const replay = { ok: true, selection: { backendId: 'github', rev: 0 }, generatedMs: Date.now(), maps: [], issues: [], thinTickets: [], labels: [], setupLayout: { layout: 'multi', pickedAt: 111 } }
+  const out: any = await createSessionSnapshot(mkDeps(makeFs(), null, replay)).handleSnapshot({ cwd: ws })
+  check(out && out.setupLayout && out.setupLayout.layout === 'single', '手改文件后快照回 single（不拿库里落后的值顶替）—— 实得 ' + JSON.stringify(out && out.setupLayout))
 }
 console.log('')
-console.log('== ② 文件里没有布局时回空，不留缓存旧答案 ==')
+console.log('== ② 文件里没有布局时回空，不留库里的旧答案 ==')
 {
   const ws = mkWs(null)
-  const out: any = await createSessionSnapshot(mkDeps(makeFs(), { layout: 'multi', pickedAt: 111 }, null)).handleSnapshot({ cwd: ws })
+  const replay = { ok: true, selection: { backendId: 'github', rev: 0 }, generatedMs: Date.now(), maps: [], issues: [], thinTickets: [], labels: [], setupLayout: { layout: 'multi', pickedAt: 111 } }
+  const out: any = await createSessionSnapshot(mkDeps(makeFs(), null, replay)).handleSnapshot({ cwd: ws })
   check((out && out.setupLayout) == null, '快照里不留上一次的值（回空表示还没答过）—— 实得 ' + JSON.stringify(out && out.setupLayout))
 }
 console.log('')
@@ -103,7 +105,11 @@ console.log('== ⑤ 静态面：读函数只认工作区文件、304 无条件�
   const decoration = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/snapshot-decoration.ts'), 'utf8')
   check(decoration.includes('WORKSPACE_FILE_REL'), '读函数认工作区文件的位置（接线仍在）')
   check(!/getChoiceStore\s*\(/.test(text) && !/getLayout\s*\(/.test(text), '读函数不再查本机记忆里的布局')
-  check(text.includes('_pair.setupLayout = _layEarly'), '304 回包无条件带布局（含 null，客户端才能清空旧答案）')
+  // #1885 评审修复：304 的形状搬进 snapshot-reply-version.ts（电话体贴着 350 行上限），
+  // 判据不变：回包里无条件带布局（含 null，客户端才能清空旧答案）。
+  const replyVersion = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/snapshot-reply-version.ts'), 'utf8')
+  check(replyVersion.includes('pair.setupLayout = layout') && text.includes('notModifiedForVersion'),
+    '304 回包无条件带布局（含 null，客户端才能清空旧答案）')
   check(!text.includes('sameLayout || !_layEarly'), '旧的「没答案就留旧值」条件已删')
 }
 

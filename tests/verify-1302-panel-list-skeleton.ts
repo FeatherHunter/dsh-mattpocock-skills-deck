@@ -25,6 +25,8 @@ const check = (ok: any, msg: string) => { total += 1; console.log((ok ? '  PASS 
 // ---- 词表：只把断言要看的几个键译成中文，其余键原样返回 ----
 const trDict: Record<string, string> = {
   'list.loading': '加载中…',
+  // #1893：首屏加载遮罩改用专门的一句「正在取数」（库空时要等一趟在线重建）。
+  'list.fetching': '正在取数…',
   'list.none': '暂无',
   'list.state.open': '未关闭',
   'list.state.all': '全部',
@@ -278,8 +280,8 @@ check(!!SHAPE && !!SHAPE.line1 && !!SHAPE.line2 && !!SHAPE.ring && !!SHAPE.list,
   check(shade.indexOf('pointer-events:none') >= 0, 'A16 占位行不接鼠标（pointer-events:none），点击落到遮罩上')
   check(shade.indexOf('role="button"') < 0, 'A17 占位行不是可点控件')
 
-  // 文字：只剩「加载中…」，骨架里一个字都不写
-  check(stripTags(shade) === trDict['list.loading'], 'A18 遮罩里除了「' + trDict['list.loading'] + '」没有别的字（实际：「' + stripTags(shade) + '」）')
+  // 文字：只剩「正在取数…」，骨架里一个字都不写（#1893：首屏那句从「加载中」改成「正在取数」）
+  check(stripTags(shade) === trDict['list.fetching'], 'A18 遮罩里除了「' + trDict['list.fetching'] + '」没有别的字（实际：「' + stripTags(shade) + '」）')
   check(rows.every((r) => stripTags(r) === ''), 'A19 每条占位行里一个字都没有')
 
   // 旧写法（五根写死宽度的灰条）已经不在渲染结果与源码里

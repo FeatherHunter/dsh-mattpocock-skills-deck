@@ -153,7 +153,6 @@ globalThis.TicketCardFlow = (await import('../src/client/views/mapDetailV2/view/
 globalThis.MapProfileHeader = (await import('../src/client/views/mapDetailV2/view/profile/MapProfileHeader.js')).MapProfileHeader
 globalThis.MapDetailTop = (await import('../src/client/views/MapDetailTop.js')).MapDetailTop
 globalThis.pageActionHandlersOf = (await import('../src/client/views/mapDetailV2/wiring/pageActionHandlers.js')).pageActionHandlersOf
-globalThis.useMapTicketsFeed = (await import('../src/client/views/mapDetailV2/wiring/useMapTicketsFeed.js')).useMapTicketsFeed
 globalThis.MapDetailV2Page = (await import('../src/client/views/mapDetailV2/view/MapDetailV2Page.js')).MapDetailV2Page
 globalThis.DswsCtx = DswsCtx
 
@@ -205,6 +204,20 @@ const services: any = {
 }
 function renderPage(snapshot: any, mapKey: string, bucket: any): string {
   const fakeStore: any = { snapshot, sessionId: 'test', tab: 'list', cwd: 'D:\\ws', issuePath: { current: null, nodes: [] }, noRepoCard: { expanded: false }, mapTickets: {}, navStack: [] }
+  // #1923：取数桶不再从 st.mapTickets 进页面，而是 mapDetail 切片的一部分。这一档门禁不挂视图模型，
+  // 所以直接给页面一个切片（与生产接线给的是同一个形状）；失败/加载这两态因此仍能走到页面上。
+  const mapRow: any = mapOf(snapshot, mapKey)
+  const slice: any = {
+    map: mapRow || null,
+    tickets: mapRow && Array.isArray(mapRow.tickets) ? mapRow.tickets : [],
+    stats: (mapRow && mapRow.stats) || null,
+    bucket: bucket || null,
+    source: bucket ? 'container' : 'projection',
+    mode: bucket ? String(bucket.mode || '') : 'idle',
+    error: bucket && bucket.error ? bucket.error : null,
+    containers: snapshot.maps || [],
+  }
+  ;(globalThis as any).useDeckViewSlice = function (): any { return slice }
   const cx = createCx({
     ctx: { get: (k: string) => services[k], effect: (fn: any) => { const r = fn(); return typeof r === 'function' ? r : () => {} }, inject: (deps: any, cb: any) => { cb({ get: (k: string) => services[k] }); return { dispose: () => {} } } },
     h: React.createElement,

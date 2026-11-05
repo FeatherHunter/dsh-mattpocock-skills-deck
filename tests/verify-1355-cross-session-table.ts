@@ -638,6 +638,8 @@ const partE = async function (store: any): Promise<void> {
     const ownReads: any[] = []
     const emits: any[] = []
     const hostCalls: any[] = []
+    // #1891：探测回包里的整份快照退场之后，这一拍改由版本同步接手；这里只数它被叫了几次、交过去的是哪一组。
+    const versionTicks: any[] = []
     const scope: Record<string, any> = {
       SYNC: null,
       SYNC_FALLBACK_PROBE_MS: 60000, SYNC_FOCUS_PROBE_MIN_MS: 60000,
@@ -682,13 +684,18 @@ const partE = async function (store: any): Promise<void> {
       applySnapshotSelection: noop,
       flash: noop,
       tr: function (k: any): string { return String(k) },
+      runSnapshotVersionTickGroup: function (group: any[], reason: any): any {
+        versionTicks.push({ group: group, reason: reason })
+        return Promise.resolve('skipped')
+      },
     }
     const mod = loadSpliced('src/refresh/rooms/client/refresh-timer.js', ['probeNow', 'refreshAll'], scope)
-    return { mod: mod, loadCalls: loadCalls, ownReads: ownReads, emits: emits, hostCalls: hostCalls }
+    return { mod: mod, loadCalls: loadCalls, ownReads: ownReads, emits: emits, hostCalls: hostCalls, versionTicks: versionTicks }
   }
 
-  // E1. 探测补丁路径：宿主回包带着「请求它的那个会话」的表，同组三个 store 都收到剥了表的快照，
-  //     并各读一次本机的存档（#1436：不再为这张名单发整份重建）。
+  // E1. 探测回包里的整份快照退场（#1891）：宿主说「变了」时，客户端不再把回包里那份快照装上，
+  //     而是把这一拍交给按库版本推进的同步那一片 —— 版本没变就什么都不取，变了才取变化集。
+  //     这一条同时守住 #1355 的原有性质：别人的工作路线读数不再经探测回包流到同组会话手上。
   const shared1: any = { cwd: 'D:\\ws1355', sessionId: 'sess-A', snapshot: baseSnap() }
   const stA1: any = { cwd: 'D:\\ws1355', sessionId: 'sess-A', snapshot: baseSnap() }
   const stB1: any = { cwd: 'D:\\ws1355', sessionId: 'sess-B', snapshot: baseSnap() }
@@ -700,15 +707,14 @@ const partE = async function (store: any): Promise<void> {
   p1.mod.probeNow(false)
   await tick(); await tick()
   check(hostSnap.workRouteTable !== undefined, '宿主回包那份对象没被原地改掉（它可能还在宿主缓存里）')
-  check(shared1.snapshot.version === 'vFromHost' && shared1.snapshot.workRouteTable === undefined,
-    '主 store 装上了回包，但自己那份快照里也没有表（等自己的补拉回来再挂）')
-  check(stA1.snapshot.workRouteTable === undefined && stB1.snapshot.workRouteTable === undefined,
-    '同组另外两个会话收到的快照同样没有别人的表')
-  check(stA1.snapshot !== stB1.snapshot && stA1.snapshot !== hostSnap, '每个 store 手上是各自的对象，不是同一份共享对象')
-  check(p1.loadCalls.length === 0, '同组三个 store 都没有被触发整份快照重建（实得 ' + p1.loadCalls.length + ' 次）')
-  check(p1.ownReads.length === 3, '同组三个 store 各读一次本机工作路线存档（实得 ' + p1.ownReads.length + ' 次）')
-  const bPull: any = p1.ownReads.filter(function (c: any): boolean { return c.st === stB1 })[0]
-  check(!!bPull && bPull.st.sessionId === 'sess-B', '给 B 读存档用的是 B 自己的 store（会话号 sess-B）')
+  check(shared1.snapshot.version === 'vA', '主 store 的快照没被探测回包里那份整份换掉（探测回包退场）')
+  check(p1.versionTicks.length === 1 && p1.versionTicks[0].group.length === 3,
+    '这一拍交给版本同步一次，整组三个会话都交过去（实得 ' + JSON.stringify({ n: p1.versionTicks.length, size: p1.versionTicks[0] && p1.versionTicks[0].group.length }) + '）')
+  check(p1.versionTicks[0].reason === 'probe-changed', '交给版本同步的原因写着这一拍有变化（实得 ' + String(p1.versionTicks[0] && p1.versionTicks[0].reason) + '）')
+  check(p1.loadCalls.length === 0, '探测这一路没有发起任何整份重建（实得 ' + p1.loadCalls.length + ' 次）')
+  check(p1.ownReads.length === 0, '也没有为工作路线表补一次取数（实得 ' + p1.ownReads.length + ' 次）')
+  const probes: any[] = p1.hostCalls.filter(function (c: any): boolean { return c.method === 'wf.probe' })
+  check(probes.length === 1 && p1.hostCalls.length === 1, '客户端这一层只发了探测那一条电话（数据由版本同步那一片去取）')
 
   // E2. 手动刷新路径：主会话自己拉到一份带表的快照，扇出给同工作区另一个会话时表要剥掉，
   //     并让对方读一次自己的存档（#1436）。

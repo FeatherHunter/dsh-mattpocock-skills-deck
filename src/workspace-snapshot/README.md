@@ -12,7 +12,7 @@ contract/      对外类型与门面（唯一被上层 import 的入口）
 runtime/       生命周期：开库、身份校验、租约、事务、整库重建
     ↓
 persistence/   建表语句、SQLite 连接/损坏处理，以及三组写入的具体 SQL
-projection/    只读投影：把库里的行拼成列表要的形状
+projection/    只读投影：把库里的行拼成列表要的形状；counts.ts 一条 SQL 算面板六个数字 + 完整度
 merge/         纯合并规则（三态 + 版本门），不碰数据库
     ↓
 model/         领域值类型（票行、标签、指派人、三态）
@@ -34,6 +34,23 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
 从传入目录向上最多 64 层找 `docs/agents/workspace.yaml` 的第一个命中层；找不到就把传入目录
 自己当根（与 `src/host/workspaceKey.ts:224-267` 的 resolveWorkspaceRoot 同一口径）。
 测试可以传 `dbPath` 注入临时路径。
+
+## 存储不设上限、不淘汰（2026-11-05，#1922）
+
+有了 SQLite 做存储之后，按需细节（正文、评论、评审、子票清单）不再设条数或字节上限，
+也不做「超出上限就丢掉」的清理——不设上限、不淘汰。维护者的决定：「我们就不限制上限了，
+也不要淘汰了。数据库里面存的数据，除非源头被删除，否则不会再消失。」
+
+- **为什么不设**：淘汰是当年为「单份 JSON 快照整体读写」设计的成本模型；今天按行存、按需查，
+  那套成本模型不再成立，而容量清理会与「库是唯一真相」冲突——同一张票今天有正文、
+  明天因为最近没打开就没了，用户会当成数据丢失。
+- **不设上限不等于不看住**：`runtime/storage-stats.ts` 的 `readStorageStats()` 报库文件字节数
+  与票行数，环境检查页的能力诊断把这两个数显示出来（`wf.snapshotStoreStats`）。
+  它们只用于观察增长，不参与任何删除决定。
+- **两个口径**：字节数只算主文件与 WAL（`-shm` 是进程共享内存在盘上的映射，不是数据）；
+  行数是 `issue` 表的行数（一行 = 一张票，墓碑不删行，所以行数只随票的出现增长）。
+- **守它的门禁**：`tests/verify-1922-retire-eviction.ts`——源码里不再有淘汰规则与调用、
+  库里没有容量清理路径、诊断读数在真库上能读出字节数与行数。
 
 ## 三态与版本门（速记）
 
@@ -69,7 +86,88 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   同一张票再被写入时墓碑自动清掉（它只表达「这一版里不在」）。
 - **迁移**：结构升级走 `persistence/migrate.ts` 的加列/建表语句，不再整库重建；只有迁移失败、或库结构
   比本代码新，才回退到整库重建并落诊断。
+- **变化集**（#1890）：`readChangeSet` 按 `last_change_version` 与 `issue_tombstone.version` 回「从某个版本到现在」
+  变了哪些行、哪些行被判不存在；变化的行与墓碑各说各的，墓碑行不进变化的行。超过行数上限或客户端
+  落后超过时间上限、客户端版本比库里大、或没有基线时 `full` 为真，调用方必须整份重取——
+  这一层不交一份截断的变化集。
 - **同步簿记**：水印、世代号、待办与「整仓是否完整取过」的标记都在 `meta` 里，与数据同生共死。
+  句柄上读写的口是 `readSyncBookkeeping()` / `writeSyncBookkeeping()`；行级增量要把「变化的那几行」
+  与簿记一起提交时，用 `ingest({ startMergeVersion, writes, sync })` 一个事务写下去（#1888）。
+  `sync.expectedGeneration` 是库这一侧的世代门：库里世代号与它不等就整批丢弃（回 `stale`），
+  行与簿记一个字节都不动。只写簿记的那一趟不动 `merge_version`（版本号只由数据提交推进）。
+
+## 写回执与回执优先窗口（#1889 起）
+
+- **写回执**：写操作成功之后 tracker 交回来的那张票，按组并进库（调用方传 `ingest({ kind: 'receipt' })`）。
+  每一组在 `issue_group.receipt_ms` 上记下「上次由回执写入的时刻」；提交之后界面才该更新。
+- **回执优先窗口**：回执提交后的一个短窗口（`config/ttl.yaml` 的 `snapshotReceiptPriorityMs`，
+  经生成器进 `SNAPSHOT_RECEIPT_PRIORITY_MS`）之内，任何**读结果**都不得覆盖回执表达过的字段组。
+  它补的是版本门挡不住的那种迟到：写已经在 v10 提交，一趟读 v10 才开始、却从远端拿到写之前的状态。
+- **按组判，不是整行挡**：回执表达过的组让给回执，其余组照常更新；窗口一过读结果照常覆盖。
+  `unknown`（只盖章不动值）的读结果不受影响。全部组都被挡下时这一趟不推进库版本——什么都没写，
+  不该让客户端以为有变化。判据住 `merge/receipt-priority.ts`（纯函数），接线在 `runtime/ingest.ts`。
+
+## 写路径清单（#1889 盘点结果）
+
+| 写路径（文件:入口） | 行为 | 证据 |
+| --- | --- | --- |
+| 建票 `create`（`src/deck/tools/issue-create.ts` → 写事件 → `thin-row-fetch.ts` 的 receipt 回调） | 经库 | V1889 B11 |
+| 关票 / 重开 `close`/`reopen`（`src/deck/tools/issue-patch.ts` → `recordWriteReceipt`） | 经库 | V1889 B1 |
+| 发评论 `comment`（`issue-patch.ts` / 面板 `comment-thread-fetch.ts` 的 `storeCommentReceipt`） | 经库 | V1889 B9、verify-1866 |
+| 改标题与正文 `update`（`issue-patch.ts` → `receiptIssueWriteOf`） | 经库 | V1889 B1/B2 |
+| 改标签 `setLabels`（`issue-patch-labels.ts`） | 经库 | V1889 B3 |
+| 改指派人 `setAssignees`（`issue-patch.ts` → `issueWriteOf` 的指派组） | 经库 | V1889 B4 |
+| 父子边 `setParent`（`map-link.ts` → `parentsGroupOf`） | 经库 | V1889 B5 |
+| 阻塞边 `setBlockedBy`（`map-link.ts` → `blockedByGroupOf`） | 经库 | V1889 B6 |
+| 子票计数与合并信息（`issue-patch.ts` 的回执带 fieldStates） | 经库 | V1889 B7/B8 |
+| `deck_issue_patch` / `deck_issue_create` / `deck_map_link` / `deck_map_plan_create` | 经库 | V1889 B1-B9/B11 |
+| 面板发评论 `panel-comment`（`comment-thread-fetch.ts` 的 `storeCommentReceipt`） | 经库 | verify-1866-replay |
+| `initProject` / `setLabelColors` / `ensureLabelColorsFile`（仓库级元数据） | 不经库 | 回执无票级字段；标签颜色随 labels 组入库 |
+| `deck_issue_report`（在办表） | 不适用 | 规格 D2：在办表会话私有 |
+| `publishFlow`（发布 npm 包） | 不适用 | 写的是注册表，不是工作区数据 |
+| `handoffClaim`（会话交接） | 不适用 | 会话私有状态 |
+| `namingGuardian`（命名持久化） | 不适用 | 规格 D2：不进库 |
+| 拉取请求合并 | 不适用 | 本仓没有发起合并的写路径；合并信息走 mergeInfo 组（V1889 B8），S7 另票 |
+
+「经库」= 写回执先提交进库、成功之后才更新界面；失败一个字节不改。表里每一条在
+`tests/verify-1889-write-receipts.ts` 里都有对应的断言组。
+
+## 统计（#1887 起）
+
+面板顶上的六个数字（总数 / 开放 / 已关闭 / 可接 / 阻塞 / 已认领）由 `projection/counts.ts` 一条 SQL
+从库里的行、指派与阻塞边算出，不再向后端要计数。口径写在 `model/types.ts` 的 `SnapshotCounts`
+注释里，三条要点：
+
+- **已关闭的票参与统计**：库装的是全仓票，首屏收窄发生在投影层，统计不受影响；
+- **拉取请求与墓碑不算**：PR 有自己的页签，墓碑只表达「这张票不在集合里」；
+- **可接 / 阻塞 / 已认领只数还开着的票**，并且「可接」要求指派组完整且为空、没有未关闭（或状态未知）
+  的阻塞者 —— 不知道有没有人认领时不算可接（三态：不知道 ≠ 空）。
+
+每个数字带一份完整度：库级同步簿记里的 `meta.full_enumeration_ms` 写过（整仓完整枚举被采用）就是
+`complete`，否则是 `known`。写入点在整仓索引扫描的采用口：`issue-index-scan.ts` 的
+`commitIssueIndex` 只在调用方明确说「这一趟是完整枚举、没被截断、行也确实写进库」时才回调
+`issue-list-fetch.ts` 的 `markFullEnumeration`。窗口扫描、翻页被页上限或请求预算拦住、被推迟 /
+丢弃 / 失败、以及行没写进库的那几趟都不写 —— 否则「完整」就是假的。界面按完整度选措辞：
+完整直接说数字，没取全说「已知 N 张（未取全）」。
+
+## 拉取请求的合并状态怎么进库（#1898 起）
+
+首屏那条整份取数只问开放工作集（`composeSnapshot` 传 `state: 'open'`），索引扫描只翻
+`repository.issues` —— 已关闭 / 已合并的拉取请求两条路都进不来，页签于是永远挂着「打开」。
+补这一页的是 `issue-list-fetch.ts` 的 `refreshClosedPulls`：探针每拍探成之后顺手调一次，
+节拍与页上限都由它自己判。
+
+- **节拍**：同一工作区 10 分钟内最多跑一趟（`config/intervals.yaml` 的
+  `closedPullRefreshIntervalMs`），不跟着 5 秒一拍的探测走；失败也算跑过，下一个窗口再试，
+  不会每拍重试把额度烧在同一个失败上。
+- **请求上限**：每轮最多翻一页（`kernel/host-budget.ts` 的 `CLOSED_PULL_REFRESH_MAX_PAGES`，
+  一页 50 条、一条请求）。`OpContext.listMaxPages` 把它交给读路径，翻到这一页就停并如实记成截断。
+  按更新时间倒序取，刚合并的那几条就在第一页里；更早的历史不会被翻到。
+- **写什么**：行、合并时间（`mergeInfo` 组）、评审（`review` 组）一起进库，来源仍是
+  `refresh-list`。页签读的是库里的行（`prStateKind` 按 `mergedAt` 判「已合并」），
+  所以关掉面板重开之后仍然是已合并。
+- **已知边界**：只补最近更新的一页。很久以前合并、又不在那一页里的拉取请求不会因此翻新；
+  逐条翻历史是另一件事（会把额度吃穿，本票不做）。
 
 ## 门禁
 
@@ -91,5 +189,23 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   再更新界面；发评论失败时库不改；落库失败时不并进快照（界面保持旧值）。
 - `tests/verify-1866-write-ui.ts`：评论输入框的判据（库里评论组知道就给）、写失败不乐观更新、
   「发出去了但没存进本地库」这句文案中英各一份。
+- `tests/verify-1922-retire-eviction.ts`：按需细节的淘汰机制退役——源码里不再有淘汰规则模块、
+  调用与日志字段，界面只剩三态（没有「曾取过但被淘汰」），库里没有容量清理路径，
+  环境检查页的诊断读数在真库上读得出库文件字节数与票行数（关库重开后数据还在）。
+- `tests/verify-1890-read-channels.ts`：真 SQLite 临时库 + 假后端驱动版本查询与变化集两条读口——
+  版本查询只回三格且与库里的版本一致、变化集含变化行与墓碑且条数与库一致、行数与时间越线回整份、
+  版本回退回整份、快照与探针回包键集不变、环境检查页的诊断读数显示当前库版本。
+- `tests/verify-1887-counts-from-library.ts`：真 SQLite 临时库 + 假后端——六个数字与另一条独立 SQL
+  逐项相等（含已关闭票、墓碑、拉取请求、缺指派组、部分指派、阻塞目标不存在），完整枚举被采用之后
+  完整度变「完整」、被截断与窗口扫描之后仍是「已知」、关库重开后仍「完整」，变化集回包带同一时刻
+  六个数字，一条 SQL 与 1000 张票上的 5 毫秒预算。
+- `tests/verify-1888-changes-to-store.ts`：后台发现的变化先写进库——差分基线从库读、水印/世代号/待办
+  写进库级元信息并在关库重开后仍在、库写入失败时内存副本不改、迟到的整池结果被世代号挡住、
+  行级增量的回包键集与改造前一致。
+- `tests/verify-1898-pr-merged-refresh.ts`：已关闭 / 已合并的拉取请求被取回（只问拉取请求那条查询、
+  CLOSED + MERGED 两档）、受页上限约束地补一页进库（行 + 合并时间 + 评审）、关库重开后仍是
+  「已关闭 + 合并时间」、页签渲染出「已合并」、补取节流与探针接线。
+- `tests/verify-1889-write-receipts.ts`：写路径清单与操作百科逐条对账（经库 / 不经库 / 不适用）、
+  十类写各自先落库再显示、整批失败不留半写、回执优先窗口的字段组粒度与时间边界（真 SQLite + 假时钟）。
 
 单扇跑法：`node --import ./scripts/ts-hook.mts tests/verify-1862-snapshot-database.ts`。

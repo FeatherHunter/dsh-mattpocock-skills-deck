@@ -30,7 +30,9 @@ import { PAGINATION } from '../../../tracker/contract/pagination.js'
 // #1689：索引翻页是本票唯一「完整枚举」的真实请求路径，预算核与额度常量都从额度模块取，不另建配置。
 import { createFallbackRoundBudget } from '../../kernel/fallback-fetch-budget.js'
 import type { FallbackRoundBudget } from '../../kernel/fallback-fetch-budget.js'
-import { FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
+import { CLOSED_PULL_REFRESH_MAX_PAGES, FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
+// #1898：已关闭/已合并拉取请求的补取节拍（10 分钟一次），时间值只在 config/intervals.yaml 里有一份。
+import { CLOSED_PULL_REFRESH_INTERVAL_MS } from '../../../shared/time-config/values.js'
 
 interface RepoKey { owner: string; name: string }
 
@@ -94,7 +96,7 @@ function sortRows(rows: any[]): any[] {
 }
 
 export function createIssueList(deps: any): any {
-  const { getRepoKey, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, logCtx, noteSnapshot } = deps as any
+  const { getRepoKey, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, logCtx, noteSnapshot } = deps as any
 
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   function hash8(s: any): string { try { const t: string = String(s || ''); let h: number = 5381; for (let i: number = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e: any) { return '00000000' } }
@@ -133,14 +135,59 @@ export function createIssueList(deps: any): any {
    * #1863：这一批列表读结果交给宿主写快照库（按组、分批）；写库失败不影响取数。
    * 宿主没接钩子时整条关闭，老调用方行为一字不变。
    */
-  async function recordRows(cwd: any, ref: RepositoryRef, rows: any[]): Promise<void> {
-    if (typeof deps.onIssueRows !== 'function' || !Array.isArray(rows) || !rows.length) return
+  async function recordRows(cwd: any, ref: RepositoryRef, rows: any[]): Promise<boolean> {
+    if (typeof deps.onIssueRows !== 'function' || !Array.isArray(rows) || !rows.length) return true
     // 拉取请求也交下去（#1870 更正）：库是工作区数据的权威副本，PR 是其中一种行——面板的拉取请求
     // 页签读的就是它们（prIssuesOf）。从前这里滤掉，是因为「列表回包不收 PR」那条展示口径；
     // 展示归展示，落库归落库：哪个后端不给 PR，交给适配层按 isPullRequest 有没有表达来处理。
     const issues = rows.filter(function (x: any): boolean { return !!x && x.key != null })
-    if (!issues.length) return
-    try { await deps.onIssueRows(cwd, ref, issues) } catch (e: any) {}
+    if (!issues.length) return true
+    try {
+      const written: any = await deps.onIssueRows(cwd, ref, issues)
+      // #1887：库这一侧明说「没写进去」时如实回 false —— 整仓完整枚举的标记要求这一趟的行真的进库
+      // （写失败、租约被别人占着都算没写）；没接写口时上面的早退按 true 处理，老调用方行为不变。
+      return !(written && written.ok === false)
+    } catch (e: any) { return false }
+  }
+
+  // ── #1898：已关闭/已合并的拉取请求补一页进库（规格 #1885 S7）──
+  //
+  // 为什么需要它：整份取数只问开放工作集（composeSnapshot 传 state:'open'），索引扫描只翻
+  // repository.issues —— 已关闭/已合并的拉取请求没有任何一条路把它写进库，页签于是永远挂着「打开」。
+  //
+  // 三条纪律：
+  //   ① 节拍：按工作区记上一次跑的时刻，不足 CLOSED_PULL_REFRESH_INTERVAL_MS 这一拍一条请求都不发
+  //      （节拍住 config/intervals.yaml，这里不写数字）。
+  //   ② 请求上限：每轮最多翻一页（CLOSED_PULL_REFRESH_MAX_PAGES，住 kernel/host-budget.ts），按更新
+  //      时间倒序的第一页里就有刚合并的那几条；不往历史里翻，额度吃不穿。
+  //   ③ 时刻在发请求之前就记下：连着的两拍进来时第二拍直接按节流回掉，不会双发；失败也算跑过
+  //      （否则失败时每拍都重试，等于持续烧额度），下一个窗口再试。
+  //
+  // 写库走 recordRows（与列表同一口）：行、合并时间、评审一起写进库，界面从库回放就能看出「已合并」。
+  const closedPullRefreshAtByCwd: Record<string, number> = {}
+  const clockOf = typeof deps.now === 'function' ? deps.now : Date.now
+  async function refreshClosedPulls(cwd: any): Promise<any> {
+    const at = Number(clockOf()) || 0
+    const key = String(cwd || '')
+    const last = Number(closedPullRefreshAtByCwd[key]) || 0
+    if (last && at - last < CLOSED_PULL_REFRESH_INTERVAL_MS) return { ok: true, ran: false, reason: 'throttled' }
+    closedPullRefreshAtByCwd[key] = at
+    return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
+      // 今天只有 GitHub 有「拉取请求」这一种行（GitLab 与本地 Markdown 的读结果都不表达它）：
+      // 别的后端上去了也只会白跑一条请求、一行都写不进去，直接说这档不适用，不打这一条。
+      if (String(ref.backend || '') !== 'github') return { ok: true, ran: false, reason: 'not-applicable' }
+      const capped: any = Object.assign({}, ctx, { listMaxPages: CLOSED_PULL_REFRESH_MAX_PAGES })
+      const r: any = await session.list(ref, { state: 'closed', isPullRequest: true }, capped)
+      if (!r || r.ok !== true) {
+        const err = (r && r.error) || {}
+        return { ok: false, ran: true, fetched: 0, written: 0, reason: String(err.kind || 'network') }
+      }
+      const rows: any[] = (Array.isArray(r.data) ? r.data : []).filter(function (x: any): boolean { return !!x && x.isPullRequest === true })
+      if (!rows.length) return { ok: true, ran: true, fetched: 0, written: 0 }
+      const written: boolean = await recordRows(cwd, ref, rows)
+      if (!written) return { ok: false, ran: true, fetched: rows.length, written: 0, reason: 'write-not-committed' }
+      return { ok: true, ran: true, fetched: rows.length, written: rows.length }
+    })
   }
 
   /** 地图票：只要带 wayfinder:map 且未关闭的票（旧 gh issue list 的两条筛，原样保留）。 */
@@ -198,6 +245,7 @@ export function createIssueList(deps: any): any {
     return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
       if (typeof session.listPage !== 'function') return fail('unsupported', '该后端的会话不支持 listPage，索引无法翻页取全量')
       const index: Record<string, string> = {}
+      let persisted: boolean = true
       let cursor: string | undefined = undefined
       let pages = 0
       while (true) {
@@ -227,7 +275,7 @@ export function createIssueList(deps: any): any {
         round.correct(ticket, 1)
         const data: PageResult = page.data || { items: [], nextCursor: null, total: 0 }
         const items: Issue[] = Array.isArray(data.items) ? data.items : []
-        await recordRows(cwd, ref, items)
+        persisted = (await recordRows(cwd, ref, items)) && persisted
         for (let i = 0; i < items.length; i++) {
           const it: any = items[i]
           if (!it || it.key == null) continue
@@ -248,7 +296,20 @@ export function createIssueList(deps: any): any {
         if (next === cursor) return Object.assign(fail('parse', '索引翻页游标没有前进，拒绝死循环'), { pages: pages, budget: round.view() })
         cursor = next
       }
-      return { ok: true, repo: { owner: ref.refId.split('/')[0], name: ref.refId.slice(ref.refId.indexOf('/') + 1) }, index: index, count: Object.keys(index).length, pages: pages, budget: round.view() }
+      return {
+        ok: true,
+        repo: { owner: ref.refId.split('/')[0], name: ref.refId.slice(ref.refId.indexOf('/') + 1) },
+        // #1887：库身份真源按会话给的 refId 原样交回（GitHub 是 owner/name，GitLab 是项目路径，
+        // 本地 Markdown 是工作区目录），比从字符串里再拆一次 owner/name 稳。
+        repoIdentity: String(ref.refId || ''),
+        backendId: String(ref.backend || ''),
+        index: index,
+        count: Object.keys(index).length,
+        pages: pages,
+        // 整仓枚举真正写进库了没有：写失败时这一格为 false，完整枚举标记不写（见 issue-index-scan 的 commit）。
+        persisted: persisted,
+        budget: round.view(),
+      }
     })
   }
 
@@ -291,6 +352,33 @@ export function createIssueList(deps: any): any {
     } catch (e: any) { return null }
   }
 
+  /**
+   * #1887：整仓完整枚举真正走完、并且这一趟的行写进库之后，把「上一次完整枚举时刻」写进库级同步簿记。
+   *
+   * 调用时机只有一个：issue-index-scan 的 commitIssueIndex（水印与基线唯一的推进口），而且只在
+   * 调用方明确说「这一趟是完整枚举且没有被截断、行也确实写进库」时。取数完成不等于采用：
+   * 被推迟 / 被丢弃 / 失败的那一趟不写；窗口扫描（full=false）、被页上限或预算截断（那几趟根本
+   * 到不了 commit）也都不写。写失败按「不知道」处理，下一次完整枚举还会再写，绝不挡探测回包。
+   *
+   * 为什么写这一格：面板六个数字的完整度只看它（projection/counts.ts）。不写它，界面会永远说
+   * 「已知 N 张（未取全）」——那是诚实，但不是完整枚举之后该有的措辞。
+   */
+  async function markFullEnumeration(input: { cwd: string, backendId: string, repoIdentity: string, atMs: number }): Promise<void> {
+    if (typeof deps.getSnapshotLibrary !== 'function') return
+    const backend: string = String(input.backendId || '')
+    const repoIdentity: string = String(input.repoIdentity || '')
+    if (!backend || !repoIdentity) return
+    let lib: any = null
+    try { lib = await Promise.resolve(deps.getSnapshotLibrary()) } catch (e: any) { lib = null }
+    if (!lib || typeof lib.writeSyncState !== 'function') return
+    try {
+      await lib.writeSyncState(
+        { workspaceRoot: input.cwd, backend: backend, repoIdentity: repoIdentity },
+        { fullEnumerationMs: input.atMs },
+      )
+    } catch (e: any) {}
+  }
+
   let _idxScanP: any = null
   function _idxScan(): Promise<any> {
     if (!_idxScanP) _idxScanP = import('./issue-index-scan.js').then(function (m: any) {
@@ -298,6 +386,8 @@ export function createIssueList(deps: any): any {
         getRepoKey: getRepoKey,
         fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso, budget) },
         readLibrarySnapshot: readLibrarySnapshot,
+        // #1887：完整枚举被采用之后（commitIssueIndex）才写「上一次完整枚举时刻」。
+        onFullEnumeration: markFullEnumeration,
         now: Date.now,
       })
     })
@@ -308,8 +398,8 @@ export function createIssueList(deps: any): any {
     try { const sc: any = await _idxScan(); return await sc.fetchIssueIndexWindowed(cwd, opts) } catch (e: any) { return { ok: false, error: { kind: 'env', error: String((e && e.message) || e) } } }
   }
   /** 水印与基线唯一的推进口：只在「变化真的并进列表之后」（或探测回来说没变）调它。 */
-  async function commitIssueIndex(cwd: any, nextWatermarkMs: any, nextIndex: any): Promise<any> {
-    try { const sc: any = await _idxScan(); return await sc.commitIssueIndex(cwd, nextWatermarkMs, nextIndex) } catch (e) { return { ok: false, reason: 'threw' } }
+  async function commitIssueIndex(cwd: any, nextWatermarkMs: any, nextIndex: any, opts?: any): Promise<any> {
+    try { const sc: any = await _idxScan(); return await sc.commitIssueIndex(cwd, nextWatermarkMs, nextIndex, opts) } catch (e) { return { ok: false, reason: 'threw' } }
   }
   // ---- 原 index.js 475–488：缓存有效性判断与快照落盘收纳 ----
   const cacheSnapshotIsCurrent: any = async function (snap: any, cwd: any): Promise<any> {
@@ -328,13 +418,19 @@ export function createIssueList(deps: any): any {
       return current
     } catch (e) { return null }
   }
+  /**
+   * #1893：宿主内存里的快照工作副本已删，采纳快照不再「存进某个缓存」，只记两件事实：
+   *   ① 通知事件库（#1693）；② 远端索引记忆。
+   * 面板数据本身只住在快照库里，下一次首屏从库里回放——所以这里不许再出现任何把整份快照存起来的一步。
+   * 「这个工作区是不是降级常驻」由宿主入口在调用本函数时顺手记下（那边才有探针要的同步读数口）。
+   */
   const adoptSnapshot: any = function (snap: any, cwd: any): any {
-    setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd })
     // #1693：采纳快照是降级开始/恢复的唯一迁移点（缓存命中、304 与失败都不走这里）。没接事件库或记失败都不影响采纳结果。
     try { if (typeof noteSnapshot === 'function') Promise.resolve(noteSnapshot(snap, cwd)).catch(function () {}) } catch (eN) {}
     if (snap && snap.repo) rememberIssueIndex(snap.repo, issueIndexFromSnapshot(snap))
     return snap
   }
+
   // 旧的两个手工分页兜底与地图详情 REST 通道已删（#1444）：它们直调 gh，且房间内部已有同样的降级。
-  return { fetchMaps, fetchIssues, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, cacheSnapshotIsCurrent, adoptSnapshot }
+  return { fetchMaps, fetchIssues, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, cacheSnapshotIsCurrent, adoptSnapshot, refreshClosedPulls }
 }

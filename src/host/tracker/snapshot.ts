@@ -6,14 +6,12 @@
 //   1. snapshot 不进 OpName：它是宿主编排便利函数，不是后端操作；children 用 list 组合，deck 由 host 计算。
 //   2. 缓存只缓存数据，绝不缓存能力判定；首屏一律经 list({state:'open'}) 取开放工作集，再并上开放地图子票与已关闭地图容器行；后端快路径整条不走（它只回完整数组，表达不了「只要未关闭」）。
 //   3. 同池不分片：拉取请求与普通工单同池，身份靠池内标识区分，不互相吞；组装只做直通，不补默认值。
-//   4. 数字与全不全由这一层写进 deck：counts 问后端要，拿不到一律按拿不到处理，不猜数。
+//   4. 数字与全不全分开：六个数字由快照库一次查询算（电话层挂上），这一层只写「这份行数据全不全」。
 //   5. 相对导入一律保留 .js 后缀，运行时由 scripts/ts-hook.mts 改指同名 .ts，本文件不改说明符。
 //   6. 只写可剥离类型：类型一律经 import type 引入，不新增任何运行时边。
 
 import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
 import { deriveDeck } from '../../tracker/deck-derive.js'
-// #1698 计数诚实、#1796 改口径：数字从哪来、能不能信、清单缺没缺，口径统一收在 tracker/deck-counts.ts。
-import { openRowsOf, planDeckCounts } from '../../tracker/deck-counts.js'
 // 快照与依赖边两份缓存的缺省存活时间住中央 YAML（config/ttl.yaml 的 snapshotTtlMs 键，注释写着
 // 「快照组合器的缓存有效期：5 秒」）：这里直接读中央常量，不再造新本地名，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
@@ -30,23 +28,6 @@ import type { Issue, RepositoryRef, Snapshot } from '../../shared/tracker/shape.
 // 会直接抛错并走进下面的 catch 回退分支。按存在声明只为过编译器，不产生运行时代码，行为与原来一致。
 declare const require: (id: string) => any
 
-
-// 向后端要计数（契约的 counts op）。拿不到一律返回 null（没实现的后端由注册表补桩、回 unsupported；
-// 配额/网络/形状不对同样算拿不到）—— 调用方据此退回派生值并把 deck.partial 置真，绝不猜一个数出来。
-// 契约里写明了「unsupported 不进缓存」（G5）：这里也不缓存，每次重建照问（编排层本来就会重建）。
-async function countsFromBackend(tracker: any, ref: RepositoryRef, ctx: any): Promise<{ open: number; closed: number; total: number } | null> {
-  if (!tracker || typeof tracker.counts !== 'function') return null
-  try {
-    const r = await tracker.counts(ref, {}, ctx)
-    if (!r || r.ok !== true) return null
-    const d = r.data || {}
-    const isCount = (v: unknown): boolean => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && Math.floor(v) === v)
-    if (!isCount(d.open) || !isCount(d.closed) || !isCount(d.total)) return null
-    return { open: d.open, closed: d.closed, total: d.total }
-  } catch (e) {
-    return null
-  }
-}
 
 // 编排器依赖：tracker 注册表实例（或等价 get），缓存时长与日志上下文均可选。
 interface SnapshotComposerRegistry {
@@ -178,6 +159,10 @@ export function previousSnapshotFor(previousSnapshot: unknown, backendId: string
 
 interface ComposeOpts {
   force?: boolean
+  /**
+   * @deprecated #1885 评审修复：304 的判据已经改成库版本（电话层用 wf.snapshotVersion 的版本比对），
+   * 本编排器不再看内容散列。这一格只为老调用方的签名兼容保留，传什么都不影响 304。
+   */
   ifNoneMatch?: string
   /**
    * #1774：调用方手上那份「上一趟构建出来的快照」，来源不完整时用它补回上次已知的容器与子票。
@@ -264,7 +249,6 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
     return {
       // #1796：filter 真的下推给后端（首屏传 {state:'open'}）；老调用方不传时仍是 {}（全部状态）。
       list: (ref: any, filter: any) => opened.call((s: any, c: any) => s.list(ref, filter || {}, c)),
-      counts: (ref: any) => opened.call((s: any, c: any) => s.counts(ref, {}, c)),
       getDependencies: (ref: any, key: any, o: any) => opened.call((s: any, c: any) => s.getDependencies(ref, key, o || {}, c)),
       // 缺席时回 unsupported 而不是抛：会话实现缺这两个方法只说明这一类行补不出来，不能让整份快照失败。
       listPage: (ref: any, filter: any, pageOpts: any) => opened.call((s: any, c: any) => typeof s.listPage === 'function' ? s.listPage(ref, filter || {}, pageOpts || {}, c) : missingOp('listPage')),
@@ -288,19 +272,15 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       //   它同时供补回与计数沿用两处使用，只在这两处生效：缓存命中 / 304 / TTL 的语义一个字不动（仍然只看 snapCache）。
       const passedPrev: any = previousSnapshotFor(o && o.previousSnapshot, backendId, ref)
       const prevSnapshot: any = passedPrev || (cachedEntry && cachedEntry.snapshot) || null
-      if (!o.force && (o as any).ifNoneMatch && cachedEntry && cachedEntry.version && cachedEntry.version===(o as any).ifNoneMatch) {
-        try { if (fire && snapLogCtx.isEnabled('debug') && ((++snapHitSampleN % 100) === 0)) fire('debug', 'snapshot.cache.hit', { kind: 'snapshot-lru', ageMs: Date.now() - cachedEntry.at }) } catch (eL) {}
-        touchSnapLRU(sk, cachedEntry) // 命中刷新 LRU 顺序（只动顺序，不改 at；TTL 照原创建时间过期）
-        return { ok: true, notModified:true, status:304, version:cachedEntry.version, snapshot:cachedEntry.snapshot, cached:true };
-      }
       if (!o.force && fresh(cachedEntry, snapshotTtl)) {
         try { if (fire && snapLogCtx.isEnabled('debug') && ((++snapHitSampleN % 100) === 0)) fire('debug', 'snapshot.cache.hit', { kind: 'snapshot-lru', ageMs: Date.now() - cachedEntry.at }) } catch (eL) {}
         touchSnapLRU(sk, cachedEntry) // 命中刷新 LRU 顺序（同上；否则退化成先进先出）
-        if(o && (o as any).ifNoneMatch && cachedEntry.version===(o as any).ifNoneMatch) return { ok:true, notModified:true, status:304, version:cachedEntry.version, cached:true };
+        // #1885 评审修复（规格 §9）：304 的判据改成库版本，在电话层比对；这里只回整份与内容版号。
         return { ok: true, snapshot: cachedEntry.snapshot, version:cachedEntry.version, cached: true }
       }
       // 走到这里一定重建：原因只记枚举（版本号对不上记版本不一致，不记版本号原文）。
-      const missReason = o.force ? 'force' : (!cachedEntry ? 'empty' : (((o as any).ifNoneMatch && cachedEntry.version && cachedEntry.version !== (o as any).ifNoneMatch) ? 'version-mismatch' : 'expired'))
+      // #1885 评审修复：内容散列不再参与新鲜度判断，miss 原因只剩「强制 / 没缓存 / 缓存过期」三档。
+      const missReason = o.force ? 'force' : (!cachedEntry ? 'empty' : 'expired')
       try { if (fire) fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
 
       // #715：这一趟 list 到底走的 GraphQL 还是掉到了 REST —— 后端真的降级时才往上报（见 github/issues.js 的 REST 通道）。
@@ -371,36 +351,12 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
         nowMs: Date.now(),
       })
       const deck: any = deriveDeck(snapshot)
-      // #689 起步、#1698 收口、#1796 改口径：数字与「这份清单全不全」分开写，且每个数字都带来源与时刻。
-      //   · 数字：后端 counts 是整仓口径，拿到就用（来源「后端」）；拿不到保留上次已知并标 countsPending；
-      //     一点证据都没有时不写 deck.counts（绝不写 0/0/0 冒充「真的没有票」）。
-      //   · 全不全（partial）：只报异常缺失 —— 开放行数比后端 open 少、列表触上限、REST 降级、计数冲突或缺失、
-      //     开放容器的子票没拉全或拉不到。
-      //     「已关闭历史只装了一部分」是设计，不算缺（#1796 票面第五条）。
-      //   与行数据同一趟重建里取（快照缓存 TTL 5 秒 + 版号），所以数字与列表看到的是同一时刻的仓库。
-      const counts = await countsFromBackend(tracker, ref, ctx)
-      const openRows = openRowsOf(workingSet.rows)
-      // #1774：沿用上次已知计数时同样认调用方传入的那份快照。
-      const previousDeck: any = (prevSnapshot && prevSnapshot.deck) ? prevSnapshot.deck : null
-      const plan: any = planDeckCounts({
-        backendCounts: counts,
-        openRows,
-        listTruncated,
-        listFallback: listFallback === 'rest',
-        subIssuesFailed: workingSet.subIssuesFailed,
-        subIssuesIncomplete: workingSet.subIssuesIncomplete,
-        previousCounts: previousDeck ? previousDeck.counts : null,
-        // 上次计数的时刻：快照自己 deck.counts.atMs 最准（跨进程传进来的那份只剩它），
-        //   拿不到再回落到本实例缓存的写入时刻；两处都没有就按 0，由 planDeckCounts 用本次时刻补。
-        previousAtMs: (prevSnapshot && prevSnapshot.deck && prevSnapshot.deck.counts && typeof prevSnapshot.deck.counts.atMs === 'number') ? prevSnapshot.deck.counts.atMs : (cachedEntry && typeof cachedEntry.at === 'number' ? cachedEntry.at : 0),
-        nowMs: Date.now(),
-      })
-      if (plan.counts) deck.counts = plan.counts
-      deck.countsPending = plan.pending
-      deck.partial = plan.partial
-      // #1796：界面橙点要能说出「缺几张未关闭票」。计数与开放行数都拿到才算得出；算不出就不写，
-      //   别拿 0 冒充「一张都不缺」。
-      if (plan.counts && openRows !== null) deck.missingOpen = Math.max(0, plan.counts.open - openRows)
+      // #1887：数字不再向后端要，也不再有「待校准」——六个数字由快照库一次查询算出，
+      //   由电话层在库写到最新之后挂到 deck.counts 上（本编排器只负责取数、写库与组装）。
+      //   partial 仍只报「这份行数据有没有异常缺失」：列表触上限、REST 降级、开放容器的子票
+      //   没拉全或拉不到。计数不再参与 partial —— 数字已经从库来，不再需要拿后端 open 对账。
+      deck.partial = listTruncated || listFallback === 'rest'
+        || Number(workingSet.subIssuesFailed || 0) > 0 || Number(workingSet.subIssuesIncomplete || 0) > 0
       snapshot.deck = deck
       // #715（诚实显示）：降级标记与「推迟 / 暂停 / 这个窗口没在刷新」这四项读数，只在这里写。
       //   降级标记（'rest'）是上面那一趟 list 真实掉到 REST 通道才带回来的事实 —— 界面层永远不许写它
@@ -426,7 +382,7 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       try{ const ver=snapshotVersionOf(snapshot); snapshot.version=ver; snapshot.etag=ver; }catch(e){}
       const ent={snapshot, version:snapshot.version||'', at:Date.now()};
       touchSnapLRU(sk, ent);
-      if(!o.force && (o as any).ifNoneMatch && ent.version===(o as any).ifNoneMatch) return {ok:true, notModified:true, status:304, version:ent.version, snapshot};
+      // #1885 评审修复（规格 §9）：304 不在本层判（改由电话层按库版本比），本层只回整份与内容版号。
       return { ok: true, snapshot, version:ent.version }
     },
 

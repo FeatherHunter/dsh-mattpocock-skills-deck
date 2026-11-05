@@ -358,14 +358,11 @@ try {
   const stats: any = snapshot.deck && snapshot.deck.stats
   check(!!stats && stats.total === 1 && stats.open === 0 && stats.closed === 1, '快照派生统计按首屏行数算：补回来的这张已关闭子票计入 total 1 / closed 1 → ' + JSON.stringify({ total: stats && stats.total, open: stats && stats.open, closed: stats && stats.closed }))
   const deck1: any = snapshot.deck || {}
-  const deck1Counts: any = deck1.counts
-  check(!!deck1Counts && deck1Counts.open === 0 && deck1Counts.closed === 2 && deck1Counts.total === 2 && deck1Counts.source === 'backend', '快照数字来自后端 counts：open 0 / closed 2 / total 2（来源 backend）')
-  check(deck1.missingOpen === 0, '缺几张未关闭票记 0：后端 open 0，首屏数到 0 张未关闭票')
-  // 本地 Markdown 的 counts 只数票、不含容器行（src/tracker/rooms/markdown/counts.ts:7-8 的口径），
-  // 首屏却装着两张开放的容器行（规格 00 与地图 00）→ 行数(2) 比后端 open(0) 多，按「计数冲突」判 partial 真。
-  // 这是 Markdown / GitLab 后端 counts 与首屏行数的既有口径差（票面「范围外」），GitHub 正常仓库上 partial 为假
-  // （tests/tracker-contract/sections/snapshot.ts 与 tests/verify-counts-honesty.ts 自守）。
-  check(deck1.partial === true, '快照把「首屏行数比后端计数多」判成 partial 真（本地后端 counts 不含容器的已知口径差）')
+  // #1887：六个数字不再由编排层写，而是由电话层在库写到最新之后从快照库一次查询挂上；
+  //   编排层也不再有 countsPending / missingOpen，partial 只报「这份行数据有没有异常缺失」。
+  check(!('counts' in deck1) && !('countsPending' in deck1) && !('missingOpen' in deck1),
+    '快照编排层不写计数（数字由电话层从快照库挂上；待校准与 missingOpen 都退场）', deck1)
+  check(deck1.partial === false, '来源完整时 partial 为假（不再按「行数比后端计数多」判冲突）', deck1.partial)
   check(!fs.existsSync(path.join(tmp1, 'issues')) && !fs.existsSync(path.join(tmp1, '.scratch', 'issues')), '新布局工作区根没有旧布局 issues/ 兜底目录')
 } finally {
   fs.rmSync(tmp1, { recursive: true, force: true })
@@ -438,10 +435,10 @@ try {
   eq(legacyIssues.length, 1, '旧布局快照 issues 只有开着的那一张票')
   check(legacyIssues.length === 1 && String(legacyIssues[0].key) === '01' && String(legacyIssues[0].state) === 'open', '旧布局快照 issues 里是开着的 01，已关闭的 02 不再预装')
   const deck2: any = snapshot2.deck || {}
-  const deck2Counts: any = deck2.counts
-  check(!!deck2Counts && deck2Counts.open === 1 && deck2Counts.closed === 1 && deck2Counts.total === 2 && deck2Counts.source === 'backend', '旧布局快照数字来自后端 counts：open 1 / closed 1 / total 2')
-  check(deck2.missingOpen === 0, '旧布局缺几张未关闭票记 0：后端 open 1，首屏数到的未关闭行不比它少')
-  check(deck2.partial === true, '旧布局因「首屏行数(2) 比后端 open(1) 多」判 partial 真（本地后端 counts 不含容器的已知口径差）')
+  // #1887：编排层不写计数、也不写 countsPending / missingOpen（口径与上面同一句）。
+  check(!('counts' in deck2) && !('countsPending' in deck2) && !('missingOpen' in deck2),
+    '旧布局快照的编排层也不写计数（数字由电话层从快照库挂上）', deck2)
+  check(deck2.partial === false, '旧布局来源完整时 partial 为假（不再按「行数比后端计数多」判冲突）', deck2.partial)
 
   const degraded = ctx2.events.filter((e) => e.event === 'read.degraded').map((e) => String(e.fields && e.fields.reason))
   check(degraded.includes('list:legacy-root'), '读旧布局列表时留下兼容降级日志 list:legacy-root')

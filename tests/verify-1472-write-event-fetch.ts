@@ -5,7 +5,7 @@
 //   ① 生产形状（**不传** d.openSession）下，写事件 deck_issue_patch 触发的那一趟取数真的发生：
 //      快照里那一行变成新状态、版本号必变、世代号前进、只发 1 条薄查询；没有整份重建（setCache 没有收过空快照）。
 //   ② 取回来的补丁被交给下一次 wf.probe：探针即使取数口坏掉（fetchIssueIndexWindowed 抛错、一次都没被调），
-//      也直接回 mode=patch + snapshot，客户端据此立刻 applySnap，不必等整份快照。
+//      也直接回 mode=patch + 变化的行号（#1891 起不再带回整份快照：客户端按库版本取变化）。
 //   ③ 补丁遇到快照里没有的票（点名票号的那条路）也追加进列表，deck.partial 置真，水印不动。
 //   ④ deltaRefresh 的守卫不再要求调用方注入 d.openSession（生产本来就没有这一格）：
 //      生产形状下它真的跑行级增量（mode=patch），不再恒回 no-transport。
@@ -99,12 +99,11 @@ async function main() {
       getTrackerRegistry: async () => fakeRegistry,
       getPlatform: async () => ({ path: path.posix }),
       detectionExec: async () => ({ ok: false, kind: 'env', error: '门禁里不发真请求' }),
-      getCache: () => cacheBox,
-      setCache: (v: any) => {
-        if (!v || !v.snapshot) { nullWrites.push(v); return }
-        cacheBox.snapshot = v.snapshot
-        cacheBox.ts = v.ts
-      },
+      // #1893：宿主内存副本已删。门禁模拟「不接库的老世界」的两个显式口——生产装配不传它们。
+      readSnapshotForPatch: () => cacheBox.snapshot,
+      writeSnapshotForPatch: (_cwd: any, snap: any) => { cacheBox.snapshot = snap; cacheBox.ts = Date.now() },
+      // 旧世界里「把缓存标脏」的调用点：这一票之后它已经不发生（nullWrites 恒为空），断言保留。
+      setCache: (v: any) => { if (!v || !v.snapshot) nullWrites.push(v) },
       readDiskCache: async () => disk.snap,
       writeDiskCache: async (repo: any, snap: any) => { disk.snap = snap },
       getRepoKey: async () => ({ owner: 'o', name: 'r' }),
@@ -156,8 +155,9 @@ async function main() {
       '① 落了一行既有事件 refresh.patch（reason=write-patch，没有新造事件名）')
     const take = takeOf(w)
     const wp = take(CWD)
-    check(!!wp && wp.mode === 'patch' && !!wp.snapshot && rowIn(wp.snapshot, 101).state === 'CLOSED',
-      '① 补好的那一份被交给下一次探针（takeWritePatch 有值）')
+    // #1891：交出去的只有变化的行号与版本，整份快照不再挂着（客户端按库版本取变化）。
+    check(!!wp && wp.mode === 'patch' && !('snapshot' in wp) && Array.isArray(wp.rows) && wp.rows.map(String).indexOf('101') >= 0,
+      '① 补丁只把变化的行号交给下一次探针（takeWritePatch 有值、不带整份快照）')
     check(!!wp && take(CWD) === null, '① 这一份只交一次（第二次拿不到，避免每次探测都重放同一补丁）')
   }
 
@@ -190,7 +190,9 @@ async function main() {
     const res = await probe.handleProbe({ cwd: CWD })
     check(res && res.ok === true && res.changed === true && res.mode === 'patch', '② 探针直接回补好的那一份（' + JSON.stringify(res && { ok: res.ok, changed: res.changed, mode: res.mode, reason: res.reason }) + '）')
     check(windowedCalls === 0, '② 这一次根本没去问窗口索引（取数口坏着也不影响，实问 ' + windowedCalls + ' 次）')
-    check(!!res && !!res.snapshot && rowIn(res.snapshot, 102).state === 'CLOSED', '② 回包里那一行就是新状态（102）')
+    check(!!res && !('snapshot' in res) && Array.isArray(res.rows) && res.rows.map(String).indexOf('102') >= 0,
+      '② 回包只给变化的行号（不再带整份快照）')
+    check(rowIn(w.cacheBox.snapshot, 102).state === 'CLOSED', '② 那一行在宿主手上那份里就是新状态（102）')
   }
 
   // ---- ③ 点名票号的那条路：列表里还没有的票也追加进去 ----
@@ -226,7 +228,9 @@ async function main() {
       takeWritePatch: (cwd: any) => takeOf(w)(cwd),
     })
     const res = await probe.handleProbe({ cwd: CWD })
-    check(windowedCalls === 0 && !!res && res.mode === 'patch' && !!rowIn(res.snapshot, 105), '③ 下一次探针就把新票交给客户端（不整份重建）')
+    check(windowedCalls === 0 && !!res && res.mode === 'patch' && Array.isArray(res.rows) && res.rows.map(String).indexOf('105') >= 0,
+      '③ 下一次探针就把新票的行号交给客户端（不整份重建）')
+    check(!!rowIn(w.cacheBox.snapshot, 105), '③ 那一行也真的并进了宿主手上那份（105）')
   }
 
   // ---- ④ 生产形状下 deltaRefresh 真的跑（不再恒回 no-transport） ----
@@ -294,7 +298,8 @@ async function main() {
     check(!!rowIn(snap, 106) && snap.issues.length === 4, '⑥ 新票进了快照（列表 ' + snap.issues.length + ' 行，不用重启 DSH）')
     check(w.nullWrites.length === 0, '⑥ 没有整份重建（setCache 没收到过空快照，实收 ' + w.nullWrites.length + ' 次）')
     const wp = takeOf(w)(CWD)
-    check(!!wp && !!wp.snapshot && !!rowIn(wp.snapshot, 106), '⑥ 下一次探针把含新票的那一份交给客户端')
+    check(!!wp && !('snapshot' in wp) && Array.isArray(wp.rows) && wp.rows.map(String).indexOf('106') >= 0,
+      '⑥ 下一次探针把新票的行号交给客户端（不带整份快照）')
   }
 
   console.log('\n' + (failed ? '存在失败 — #1472 门禁未通过' : '全部通过 — 写事件真取数 + 探针短路（' + total + ' 条断言）'))

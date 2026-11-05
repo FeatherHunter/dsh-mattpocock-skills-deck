@@ -1,256 +1,129 @@
-#!/usr/bin/env node
-/**
- * 门禁：计数诚实（#1698 起步，#1796 收口「全不全」的口径）。
- *
- * 守的东西（规格 #1681 第 23 条、#1796 票面第五条）：
- * ① 数字优先后端 counts（整仓口径），来源标「后端」；拿不到时保留上次已知的数字与时刻并标「待校准」，
- *    界面不出现假 0；一点证据都没有时不写 deck.counts。
- * ② 「全不全」（deck.partial）只报异常缺失四种情形：开放工作集行数对不上后端 open、列表触到上限、
- *    REST 降级、计数冲突或缺失。#1796 之前那档「本地按行重算」已随首屏改成只装开放工作集而取消
- *    （已关闭历史不进首屏，本地数不出 closed 与 total）。
- * ③ 后端数字与开放行数冲突（行比后端还多）时数字仍用后端，冲突留痕（conflictWith），partial 置真。
- * ④ 客户端只读快照里的计数：缺数字且标了待校准就显示「未知」，绝不当 0 显示；老快照保持老行为。
- *
- * 负例（每条都有一条能红的断言）：
- * - 拿不到计数时 planDeckCounts 不许回 0/0/0，必须回 null（composeSnapshot 就不许写 deck.counts）；
- * - 把「已关闭历史只装首页」当成缺 → 禁止（那是规格 677 §6.3 的设计，会让橙点常亮）；
- * - 客户端缺数字且待校准时 kpiCountsOf 不许回 0（必须 null + unknown）。
- *
- * 运行：node --import ./scripts/ts-hook.mts tests/verify-counts-honesty.ts
- */
+// tests/verify-counts-honesty.ts —— 计数诚实（#1698 起步；#1887 改成「数字从库来」的新口径）
+//
+// 守什么（#1887 之后）：
+//   ① 六个数字只有一份形状：库的 readCounts 交上来的六个数 + 完整度；缺一格、负数、小数、
+//      认不出的完整度都整份不采信 —— 不拿剩下的拼一个数，也不补 0。
+//   ② 挂 deck 时不保留上一次的旧数字：这一趟读数坏了就把 deck.counts 清掉，界面说「未知」，
+//      而不是拿旧数字冒充新数字。
+//   ③ 客户端只认这一份：deckCountsOf 读六个数与完整度；老的三数形状、坏形状一律回 null；
+//      带筛选时回 null（全仓数字不冒充筛过的数字）。
+//   ④ KPI 三枚数字直接取库的可接/阻塞/已关闭；拿不到时退回手上这份池子的派生值，并如实标
+//      complete=false —— 那是「已知」的下界，不是全仓数字。
+//   ⑤ 旧口径退场：宿主不再向后端要 counts，源码里不再有 countsPending / planDeckCounts /
+//      openRowsOf，「待校准」文案中英两份都删掉；库没取全时列表页说「已知 N 张（未取全）」。
+//
+// 反例（写代码时最常犯的两个错）：
+//   - 拿不到库读数时返回 0/0/0 —— 界面会当成「真的没有票」；
+//   - 只认三个数、把可接/阻塞/已认领当可选 —— 同一屏上几个数字来源不同，正是本票要消灭的。
+//
+// 运行：node --import ./scripts/ts-hook.mts tests/verify-counts-honesty.ts
 // 门禁归属: src/tracker/deck-counts.ts
-// 门禁归属: src/host/tracker/snapshot.ts
 // 门禁归属: src/client/kernel/store-derived.ts
-// 门禁归属: src/client/views/ListTab.ts
-
 import { readFileSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import * as path from 'node:path'
 import { printGateResult } from './lib/gate-result.ts'
 import * as deckCounts from '../src/tracker/deck-counts.ts'
-import { createSnapshotComposer } from '../src/host/tracker/snapshot.ts'
-import { createRegistry } from '../src/tracker/registry/core.ts'
 import * as derived from '../src/client/kernel/store-derived.ts'
 
 const GATE = 'verify-counts-honesty'
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const NOW = 1700000000000
-const BACK = { open: 10, closed: 5, total: 15 }
-
+const ROOT = process.cwd()
 let total = 0
 let failed = 0
-function check (cond: any, msg: string, detail?: any): void {
+function check(ok: unknown, message: string, detail?: unknown): void {
   total += 1
-  if (cond) console.log('PASS ' + msg)
-  else { failed += 1; console.log('FAIL ' + msg + (detail === undefined ? '' : '（实得 ' + JSON.stringify(detail) + '）')) }
+  if (ok) { console.log('PASS ' + message); return }
+  failed += 1
+  console.log('FAIL ' + message + (detail === undefined ? '' : '（实得 ' + JSON.stringify(detail) + '）'))
 }
 
-// ────────────────────────────── A 纯函数：planDeckCounts / openRowsOf ──────────────────────────────
+const NOW = 1761900000000
+const GOOD = { total: 680, open: 30, closed: 650, takeable: 12, blocked: 7, claimed: 3, completeness: 'complete' }
+function stOf(counts: any): any { return { snapshot: { deck: counts ? { counts: counts } : null, issues: [] } } }
+function sourceOf(rel: string): string { return readFileSync(path.join(ROOT, rel), 'utf8') }
+function codeOnly(source: string): string {
+  return String(source)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+}
+
+// ────────────────────────────── A 形状：六个数 + 完整度，缺一格整份不采信 ──────────────────────────────
 {
-  // #1796 起「数字」与「全不全」分开算：数字优先后端 counts，partial 只报异常缺失四种情形
-  // （开放行数对不上后端 open、列表触上限、REST 降级、计数冲突或缺失）；
-  // 另加一种：开放容器的子票没拉全或拉不到（code review 指出，规格 677 §6.2 已写明）。
-
-  // A1 后端数字可信、开放行数与后端 open 一致 → 原样采用，不置 partial。
-  const p1 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, nowMs: NOW })
-  check(p1.counts && p1.counts.open === 10 && p1.counts.closed === 5 && p1.counts.total === 15, 'A1 后端计数可信时三数原样采用', p1.counts)
-  check(p1.counts && p1.counts.source === 'backend' && p1.counts.atMs === NOW && p1.pending === false, 'A2 来源标 backend、时刻记 nowMs、不标待校准', p1.counts)
-  check(p1.partial === false, 'A3 开放行数等于后端 open → 不置 partial', p1)
-
-  // A4 开放行数比后端 open 少 = 首屏真的缺未关闭票（#1796 的现场）→ partial 置真。
-  const p2 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 9, nowMs: NOW })
-  check(p2.counts && p2.counts.open === 10 && p2.partial === true, 'A4 开放行数少于后端 open → 用后端数字且 partial 置真', p2)
-
-  // A5 行比后端还多 → 两边对不上：数字仍用后端（整仓口径），冲突留痕，partial 置真。
-  const p3 = deckCounts.planDeckCounts({ backendCounts: { open: 1, closed: 0, total: 1 }, openRows: 2, nowMs: NOW })
-  check(p3.counts && p3.counts.open === 1 && p3.counts.total === 1, 'A5 行比后端多时数字仍用后端（整仓口径）', p3.counts)
-  check(p3.counts && p3.counts.conflictWith && p3.counts.conflictWith.total === 1, 'A6 冲突的后端数字留痕（conflictWith）', p3.counts && p3.counts.conflictWith)
-  check(p3.partial === true, 'A7 冲突时 partial 置真', p3)
-
-  // A8 数不到开放行数（没有行数据）→ 有后端数字也不能声称齐全。
-  const p4 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: null, nowMs: NOW })
-  check(p4.counts && p4.counts.source === 'backend' && p4.partial === true, 'A8 没有开放行数可比 → 用后端数字、partial 置真', p4)
-
-  // A9/A10 列表触上限、走了 REST 降级 → 行是兜回来的，partial 置真。
-  const p5 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, listTruncated: true, nowMs: NOW })
-  check(p5.partial === true, 'A9 列表触到后端上限 → partial 置真', p5)
-  const p6 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, listFallback: true, nowMs: NOW })
-  check(p6.partial === true, 'A10 走了 REST 降级 → partial 置真', p6)
-
-  // A11 后端数字是坏形状（负数）→ 当没有，回落上次已知（负例：坏数字不许当证据）。
-  const prev = { open: 30, closed: 650, total: 680, source: 'backend', atMs: NOW - 60000 }
-  const p7 = deckCounts.planDeckCounts({ backendCounts: { open: -1, closed: 650, total: 680 }, openRows: 9, previousCounts: prev, nowMs: NOW })
-  check(p7.counts && p7.counts.source === 'previous-known' && p7.counts.open === 30, 'A11 后端数字坏掉时当没有，回落上次已知', p7.counts)
-
-  // A12/A13 拿不到后端计数 + 有上次已知 → 保留旧值、旧时刻，标待校准；partial 一律置真。
-  const p8 = deckCounts.planDeckCounts({ backendCounts: null, openRows: 9, previousCounts: prev, nowMs: NOW })
-  check(p8.counts && p8.counts.source === 'previous-known' && p8.counts.atMs === NOW - 60000 && p8.pending === true && p8.partial === true, 'A12 拿不到计数时保留上次已知、旧时刻、标待校准并置 partial', p8)
-  check(p8.counts && p8.counts.total === 680, 'A13 上次已知的三数照原样', p8.counts)
-
-  // A14 上次已知没带时刻 → 用调用方给的上一份快照时刻（界面说「上次校准：时间」要有出处）。
-  const p9 = deckCounts.planDeckCounts({ backendCounts: null, openRows: null, previousCounts: { open: 30, closed: 650, total: 680 }, previousAtMs: NOW - 5000, nowMs: NOW })
-  check(p9.counts && p9.counts.source === 'previous-known' && p9.counts.atMs === NOW - 5000, 'A14 上次已知无时刻时用上一份快照的时刻', p9.counts)
-
-  // A15 上次已知是坏数字 → 不采用（负例：不许拿坏值当已知）。
-  const p10 = deckCounts.planDeckCounts({ backendCounts: null, openRows: null, previousCounts: { open: '30', closed: -1, total: 680 }, nowMs: NOW })
-  check(p10.counts === null && p10.pending === true && p10.partial === true, 'A15 上次已知是坏数字时不采用，回 null 并标待校准', p10)
-
-  // A16 一点证据都没有 → counts 回 null（负例：拿不到计数不许写 0/0/0 冒充完整）。
-  const p11 = deckCounts.planDeckCounts({ backendCounts: null, openRows: null, previousCounts: null, nowMs: NOW })
-  check(p11.counts === null, 'A16 一点证据都没有时 counts 回 null（不写假 0）', p11)
-  check(p11.pending === true && p11.partial === true, 'A17 无证据时标待校准并置 partial', p11)
-
-  // A21–A24 开放容器的子票没拉全（撞上限）或拉不到，也算异常缺失：从前只影响回补、橙点不亮。
-  const p12 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, subIssuesIncomplete: 1, nowMs: NOW })
-  check(p12.partial === true, 'A21 开放容器子票撞上限 → partial 置真', p12)
-  check(p12.counts && p12.counts.open === 10, 'A22 子票装不全不改后端数字本身（只报缺）', p12.counts)
-  const p13 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, subIssuesFailed: 1, nowMs: NOW })
-  check(p13.partial === true, 'A23 开放容器子票拉不到 → partial 置真', p13)
-  const p14 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, subIssuesIncomplete: 0, subIssuesFailed: 0, nowMs: NOW })
-  check(p14.partial === false, 'A24 子票都补齐（计数为 0）→ partial 仍为假（对照）', p14)
-
-  // A18 openRowsOf：只数未关闭、按 (effortId, key) 去重、PR 不算工单、没编号的行数不到。
-  const rows = [
-    { key: '1', effortId: '', title: 'A', state: 'OPEN', isPullRequest: false },
-    { key: '1', effortId: '', title: 'A 的重复行', state: 'OPEN', isPullRequest: false },
-    { key: '2', effortId: '', title: 'B', state: 'CLOSED', isPullRequest: false },
-    { key: '9', effortId: '', title: 'PR', state: 'OPEN', isPullRequest: true },
-    { key: '100', effortId: '', title: '地图容器', state: 'open' },
-    { title: '没编号的行', effortId: '', state: 'OPEN' },
-  ]
-  const openRowCount = deckCounts.openRowsOf(rows)
-  check(openRowCount === 2, 'A18 openRowsOf 只数未关闭、去重、跳过 PR 与没编号的行（实得 ' + JSON.stringify(openRowCount) + '）', openRowCount)
-  check(deckCounts.openRowsOf([]) === 0, 'A19 openRowsOf 空数组回 0（真的没有行）', deckCounts.openRowsOf([]))
-  check(deckCounts.openRowsOf(null) === null, 'A20 openRowsOf 没有行数据时回 null（不写 0）', deckCounts.openRowsOf(null))
+  const a = deckCounts.normalizeDeckCounts(GOOD)
+  check(!!a && a.total === 680 && a.open === 30 && a.closed === 650 && a.takeable === 12 && a.blocked === 7 && a.claimed === 3,
+    'A1 六个数字原样收下', a)
+  check(!!a && a.completeness === 'complete', 'A2 完整度原样收下（complete）', a && a.completeness)
+  check(!!deckCounts.normalizeDeckCounts(Object.assign({}, GOOD, { completeness: 'known' })), 'A3 known 也是合法完整度')
+  check(deckCounts.normalizeDeckCounts({ total: 1, open: 1, closed: 0, takeable: 1, blocked: 0 }) === null,
+    'A4 缺一个数字（claimed）→ 整份不采信（不拿剩下的拼一个数）')
+  check(deckCounts.normalizeDeckCounts(Object.assign({}, GOOD, { open: -1 })) === null, 'A5 负数 → 整份不采信')
+  check(deckCounts.normalizeDeckCounts(Object.assign({}, GOOD, { open: 1.5 })) === null, 'A6 小数 → 整份不采信')
+  check(deckCounts.normalizeDeckCounts(Object.assign({}, GOOD, { completeness: 'maybe' })) === null, 'A7 认不出的完整度 → 整份不采信')
+  check(deckCounts.normalizeDeckCounts(null) === null && deckCounts.normalizeDeckCounts('yes') === null, 'A8 奇形怪状 → null（不崩）')
 }
 
-// ────────────────────────────── B 集成：composeSnapshot 走真快照路径 ──────────────────────────────
-const EMPTY_CTX: any = {}
-function base (o: any): any {
-  return Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
-}
-const REF = { backend: 'fake', refId: 'r1', name: 'R1', url: '' }
-
-/**
- * 造一个只有 list / counts 的假后端：首屏 list 会收到 {state:'open'}（#1796），
- * 假后端本身不看筛选、原样回 pool —— 这里验的是编排层的判定，后端筛状态另由契约门禁盯着。
- */
-function makeComposer (id: string, pool: any[], counts: any, listTruncated: boolean): any {
-  const registry = createRegistry(EMPTY_CTX, { matchesTimeout: 50 })
-  const state = { counts: counts, listTruncated: listTruncated, countsCalls: 0, listCalls: 0, lastFilter: null }
-  registry.register({
-    id: id, label: id,
-    budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
-    create: () => ({
-      list: async (_ref: any, filter: any) => { state.listCalls += 1; state.lastFilter = filter; return state.listTruncated ? { ok: true, data: pool, truncated: true } : { ok: true, data: pool } },
-      counts: async () => { state.countsCalls += 1; return state.counts },
-    }),
-    matches: async () => true,
-  } as any)
-  return { composer: createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 }), state: state }
-}
-const POOL = [base({ key: '1', title: 'A' }), base({ key: '2', title: 'B', state: 'closed' })]
-
+// ────────────────────────────── B 挂 deck：坏读数清掉旧数字，不拿旧值冒充 ──────────────────────────────
 {
-  // B1 后端计数可信：来源 backend、不标待校准、不置 partial。
-  const c1 = makeComposer('c1', POOL, { ok: true, data: { open: 1, closed: 1, total: 2 } }, false)
-  const r1: any = await c1.composer.composeSnapshot('c1', REF, { cwd: '/w' }, { force: true })
-  const d1 = r1 && r1.ok ? r1.snapshot.deck : null
-  check(!!d1 && d1.counts && d1.counts.open === 1 && d1.counts.closed === 1 && d1.counts.total === 2, 'B1 后端计数进 deck.counts 三数', d1 && d1.counts)
-  check(!!d1 && d1.counts.source === 'backend' && d1.countsPending === false && d1.partial === false, 'B2 来源 backend、countsPending 假、partial 假', d1)
-  check(!!d1 && d1.missingOpen === 0, 'B3 开放行数与后端 open 相等 → deck.missingOpen 为 0（一张都不缺）', d1 && d1.missingOpen)
-  check(!!c1.state.lastFilter && c1.state.lastFilter.state === 'open', 'B4 首屏列表真的下推了状态筛选（list 收到 {state:open}）', c1.state.lastFilter)
-  const v1 = r1 && r1.ok ? r1.snapshot.version : ''
-  const r1b: any = await c1.composer.composeSnapshot('c1', REF, { cwd: '/w' }, { force: true })
-  check(!!v1 && r1b.ok && r1b.snapshot.version === v1, 'B5 同一份数据重建版号不变（时刻不进版号）', [v1, r1b.ok ? r1b.snapshot.version : ''])
-
-  // B6 后端计数失败 → 保留上次已知（同一份快照里已有）并标待校准；#1796 起拿不到计数也算异常缺失，partial 置真。
-  c1.state.counts = { ok: false, error: { kind: 'unsupported', message: 'counts 不可用', raw: '' } }
-  const r2: any = await c1.composer.composeSnapshot('c1', REF, { cwd: '/w' }, { force: true })
-  const d2 = r2 && r2.ok ? r2.snapshot.deck : null
-  check(!!d2 && d2.counts && d2.counts.open === 1 && d2.counts.total === 2, 'B6 计数拿不到时保留上次已知的三数（不写假 0）', d2 && d2.counts)
-  check(!!d2 && d2.counts.source === 'previous-known' && d2.countsPending === true && d2.partial === true, 'B7 来源上次已知、标待校准、partial 置真', d2)
-  check(c1.state.countsCalls === 3, 'B8 计数失败不被缓存：每次重建都重新问后端（实得 ' + c1.state.countsCalls + ' 次）')
-
-  // B9 列表截断 + 计数失败 + 有上次已知 → 数字照旧保留，partial 一定置真。
-  c1.state.listTruncated = true
-  const r3: any = await c1.composer.composeSnapshot('c1', REF, { cwd: '/w' }, { force: true })
-  const d3 = r3 && r3.ok ? r3.snapshot.deck : null
-  check(!!d3 && d3.counts && d3.counts.open === 1 && d3.partial === true, 'B9 列表截断时数字与 partial 都如实', d3)
-  check(!!d3 && typeof d3.counts.atMs === 'number' && d3.counts.atMs > 0, 'B10 上次已知带时刻（界面能说上次校准时间）', d3 && d3.counts)
-
-  // B11 毫无证据（新后端 id、计数失败、列表截断）→ deck.counts 不写（负例：不许假 0）。
-  const c2 = makeComposer('c2', POOL, { ok: false, error: { kind: 'unsupported', message: 'counts 不可用', raw: '' } }, true)
-  const r4: any = await c2.composer.composeSnapshot('c2', REF, { cwd: '/w' }, { force: true })
-  const d4 = r4 && r4.ok ? r4.snapshot.deck : null
-  check(!!d4 && !d4.counts, 'B11 毫无证据时 deck.counts 不存在（不写 0/0/0）', d4 && d4.counts)
-  check(!!d4 && d4.countsPending === true && d4.partial === true, 'B12 毫无证据时标待校准并置 partial', d4)
-  check(!!d4 && d4.missingOpen === undefined, 'B13 算不出开放行数时不写 missingOpen（不拿 0 冒充一张不缺）', d4 && d4.missingOpen)
-
-  // B14 行数比后端 open 多 → 数字仍用后端、留痕冲突、partial 置真。
-  const c3 = makeComposer('c3', [base({ key: '1', title: 'A' }), base({ key: '3', title: 'C' })], { ok: true, data: { open: 1, closed: 0, total: 1 } }, false)
-  const r5: any = await c3.composer.composeSnapshot('c3', REF, { cwd: '/w' }, { force: true })
-  const d5 = r5 && r5.ok ? r5.snapshot.deck : null
-  check(!!d5 && d5.counts && d5.counts.total === 1 && d5.counts.source === 'backend', 'B14 冲突时数字仍用后端', d5 && d5.counts)
-  check(!!d5 && d5.counts.conflictWith && d5.counts.conflictWith.total === 1 && d5.partial === true, 'B15 冲突留痕且 partial 置真', d5 && d5.counts && d5.counts.conflictWith)
-
-  // B16 开放行数比后端 open 少 → 说出缺几张（界面橙点用 deck.missingOpen 说「缺 N 张未关闭票」）。
-  const c4 = makeComposer('c4', [base({ key: '1', title: 'A' })], { ok: true, data: { open: 3, closed: 5, total: 8 } }, false)
-  const r6: any = await c4.composer.composeSnapshot('c4', REF, { cwd: '/w' }, { force: true })
-  const d6 = r6 && r6.ok ? r6.snapshot.deck : null
-  check(!!d6 && d6.partial === true && d6.missingOpen === 2, 'B16 开放行数少于后端 open → partial 置真并说出缺 2 张', d6)
+  const deck: any = { counts: { stale: true } }
+  const applied = deckCounts.applyDeckCounts(deck, GOOD)
+  check(!!applied && deck.counts === applied && deck.counts.total === 680, 'B1 好读数挂上去（同一个对象）', deck.counts)
+  const cleared = deckCounts.applyDeckCounts(deck, { total: 1 })
+  check(cleared === null && !('counts' in deck), 'B2 读数不合格 → 把旧数字清掉（不保留上一次冒充这一次）', deck)
+  check(deckCounts.applyDeckCounts(null, GOOD) !== null, 'B3 没有 deck 时也能收下这份读数（不崩）')
 }
 
-// ────────────────────────────── C 客户端：只读快照投影，缺数字显示未知 ──────────────────────────────
+// ────────────────────────────── C 客户端读口：只认六个数 + 完整度 ──────────────────────────────
 {
-  const stOf = (deck: any): any => ({ snapshot: { deck: deck } })
-  // C1 deckCountsOf 带上来源、时刻与待校准标记。
-  const c1 = derived.deckCountsOf(stOf({ counts: { open: 1, closed: 2, total: 3, source: 'backend', atMs: NOW }, countsPending: false }), false)
-  check(c1 && c1.open === 1 && c1.closed === 2 && c1.total === 3, 'C1 deckCountsOf 三数照旧', c1)
-  check(c1 && c1.source === 'backend' && c1.atMs === NOW && c1.pending === false, 'C2 deckCountsOf 带上来源、时刻与待校准标记', c1)
-  const c2 = derived.deckCountsOf(stOf({ counts: { open: 1, closed: 2, total: 3 }, countsPending: true }), false)
-  check(c2 && c2.source === '' && c2.atMs === 0 && c2.pending === true, 'C3 老快照没来源与时刻时回空值、待校准标记照读', c2)
-  check(derived.deckCountsOf(stOf({ counts: { open: -1, closed: 2, total: 3 } }), false) === null, 'C4 坏数字仍回 null（老判据不变）', derived.deckCountsOf(stOf({ counts: { open: -1, closed: 2, total: 3 } }), false))
-  check(derived.deckCountsOf(stOf({ counts: { open: 1, closed: 2, total: 3 } }), true) === null, 'C5 按 effort 筛选时不读整仓计数（老判据不变）')
-
-  // C6 有计数：可接 = 后端 open - 本地占用的数；已关闭直接用后端数。
-  const k1 = derived.kpiCountsOf(stOf({ counts: { open: 10, closed: 5, total: 15, source: 'backend', atMs: NOW } }), false, { open: 9, occupied: 4, closed: 5 })
-  check(k1 && k1.takeable === 6 && k1.closed === 5 && k1.unknown === false, 'C6 有计数时 KPI 用后端数字算可接与已关闭', k1)
-  check(k1 && k1.pending === false && k1.source === 'backend', 'C7 KPI 透传来源与待校准标记', k1)
-
-  // C8 缺计数且标了待校准（未筛选）→ 未知，不许当 0。
-  const k2 = derived.kpiCountsOf(stOf({ countsPending: true }), false, { open: 9, occupied: 4, closed: 5 })
-  check(k2 && k2.unknown === true && k2.takeable === null && k2.closed === null, 'C8 缺计数且待校准时 KPI 显示未知、数字为 null（负例：不许回 0）', k2)
-  check(k2 && k2.pending === true, 'C9 KPI 带上待校准标记（界面能说上次校准时间）', k2)
-
-  // C10 缺计数但按 effort 筛选 → 本地数出来的数字（筛选口径本来就是本地算）。
-  const k3 = derived.kpiCountsOf(stOf({ countsPending: true }), true, { open: 9, occupied: 4, closed: 5 })
-  check(k3 && k3.unknown === false && k3.takeable === 5 && k3.closed === 5, 'C10 按 effort 筛选时用本地数（老口径不变）', k3)
-
-  // C11 缺计数但没有待校准标记（老快照）→ 本地数（老行为不变）。
-  const k4 = derived.kpiCountsOf(stOf({}), false, { open: 9, occupied: 4, closed: 5 })
-  check(k4 && k4.unknown === false && k4.takeable === 5 && k4.closed === 5, 'C11 老快照缺计数时退回本地数（老行为不变）', k4)
-
-  // C12 有计数但标了待校准 → 数字照旧、只多一个待校准提示。
-  const k5 = derived.kpiCountsOf(stOf({ counts: { open: 10, closed: 5, total: 15, source: 'previous-known', atMs: NOW }, countsPending: true }), false, { open: 9, occupied: 4, closed: 5 })
-  check(k5 && k5.takeable === 6 && k5.unknown === false && k5.pending === true, 'C12 有上次已知数字时照常显示、只标待校准', k5)
-  check(typeof derived.deckCountsPendingOf === 'function' && derived.deckCountsPendingOf(null) === false, 'C13 deckCountsPendingOf 对空快照回 false', typeof derived.deckCountsPendingOf)
+  const c = derived.deckCountsOf(stOf(GOOD), false)
+  check(!!c && c.total === 680 && c.open === 30 && c.closed === 650 && c.takeable === 12 && c.blocked === 7 && c.claimed === 3,
+    'C1 客户端读出六个数字', c)
+  check(!!c && c.complete === true && c.completeness === 'complete', 'C2 完整枚举过 → complete', c && c.complete)
+  const known = derived.deckCountsOf(stOf(Object.assign({}, GOOD, { completeness: 'known' })), false)
+  check(!!known && known.complete === false && known.completeness === 'known', 'C3 没取全 → known / complete=false', known)
+  check(derived.deckCountsOf(stOf({ partial: true }), false) === null, 'C4 没有 counts（旧快照）→ null')
+  check(derived.deckCountsOf(stOf(GOOD), true) === null, 'C5 带筛选 → null（全仓数字不冒充筛过的数字）')
+  check(derived.deckCountsOf(stOf({ total: 680, open: 30, closed: 650 }), false) === null, 'C6 老的三数形状 → null（不拿旧形状充数）')
+  check(derived.deckCountsOf(stOf(Object.assign({}, GOOD, { blocked: 'x' })), false) === null, 'C7 坏数字 → null（不采信）')
+  check(derived.deckCountsOf(null, false) === null, 'C8 没有快照 → null（不崩）')
 }
 
-// ────────────────────────────── D 视图与词表接线 ──────────────────────────────
+// ────────────────────────────── D KPI 投影：库数优先，退回派生时标「已知」 ──────────────────────────────
 {
-  const listTab = readFileSync(resolve(ROOT, 'src/client/views/ListTab.ts'), 'utf8')
-  check(listTab.includes('declare function kpiCountsOf'), 'D1 ListTab 声明并使用 kpiCountsOf（数字只从快照投影算）', listTab.indexOf('kpiCountsOf') >= 0)
-  check(listTab.includes("tr('list.countsUnknown')"), 'D2 缺数字时渲染「未知」文案（不写死中文、不当 0）', listTab.indexOf("list.countsUnknown") >= 0)
-  check(listTab.includes("tr('list.countsPendingTitle'"), 'D3 待校准时把上次校准时间挂到计数区提示上', listTab.indexOf('list.countsPendingTitle') >= 0)
-  const flow = readFileSync(resolve(ROOT, 'config/copy/flow.yaml'), 'utf8')
-  const keys = ['list.countsUnknown', 'list.countsUnknownTitle', 'list.countsPendingTitle']
-  for (const k of keys) {
-    const hits = flow.split('\n').filter((line) => line.trim().indexOf(k + ':') === 0).length
-    check(hits >= 2, 'D4 词表 ' + k + ' 中英各一份（实得 ' + hits + ' 处）', hits)
-  }
+  const local = { open: 9, occupied: 4, closed: 5 }
+  const k1 = derived.kpiCountsOf(stOf(GOOD), false, local)
+  check(!!k1 && k1.takeable === 12 && k1.blocked === 7 && k1.claimed === 3 && k1.closed === 650 && k1.total === 680,
+    'D1 KPI 三枚数字直接取库的可接/阻塞/已关闭', k1)
+  check(!!k1 && k1.complete === true, 'D2 库完整时 KPI 标 complete', k1 && k1.complete)
+  const k2 = derived.kpiCountsOf(stOf(null), false, local)
+  check(!!k2 && k2.takeable === 5 && k2.blocked === 4 && k2.closed === 5 && k2.total === 14,
+    'D3 没有库读数 → 退回手上这份池子派生（9 开 5 关）', k2)
+  check(!!k2 && k2.complete === false, 'D4 派生值标 complete=false（这是「已知」的下界，不是全仓）', k2 && k2.complete)
+  const k3 = derived.kpiCountsOf(stOf(GOOD), true, local)
+  check(!!k3 && k3.complete === false && k3.takeable === 5, 'D5 带筛选时也不拿全仓数字冒充（退回派生并标「已知」）', k3)
+}
+
+// ────────────────────────────── E 旧口径退场 ──────────────────────────────
+{
+  const snapSrc = codeOnly(sourceOf('src/host/tracker/snapshot.ts'))
+  check(snapSrc.indexOf('countsFromBackend') < 0 && snapSrc.indexOf('planDeckCounts') < 0,
+    'E1 宿主编排层不再向后端要计数（countsFromBackend / planDeckCounts 已删）')
+  check(snapSrc.indexOf('.counts(') < 0, 'E2 编排层不再调用后端的 counts 操作')
+  check(!('planDeckCounts' in deckCounts) && !('openRowsOf' in deckCounts),
+    'E3 deck-counts 里旧的两来源口径（planDeckCounts / openRowsOf）已删除')
+  const files = ['src/host/tracker/snapshot.ts', 'src/tracker/deck-counts.ts', 'src/client/kernel/store-derived.ts', 'src/refresh/rooms/host/row-patch.ts']
+  check(files.every((rel) => codeOnly(sourceOf(rel)).indexOf('countsPending') < 0), 'E4 源码里不再有 countsPending 标记（待校准退场）', files.filter((rel) => codeOnly(sourceOf(rel)).indexOf('countsPending') >= 0))
+  const listTab = sourceOf('src/client/views/ListTab.ts')
+  check(listTab.indexOf("tr('list.countsKnownPartial'") >= 0 && listTab.indexOf('countsPendingTitle') < 0,
+    'E5 列表页用「已知 N 张（未取全）」、不再引用「待校准」')
+  const flow = sourceOf('config/copy/flow.yaml')
+  check(flow.indexOf("list.countsKnownPartial: 已知 {n} 张（未取全）") >= 0
+    && flow.indexOf('list.countsKnownPartial: Known {n} (not fully fetched)') >= 0
+    && flow.indexOf('list.countsPendingTitle') < 0,
+    'E6 「已知 N 张（未取全）」中英两份都在词表里，「待校准」两条都删掉')
 }
 
 console.log('')
-printGateResult(GATE, total, failed ? 1 : 0)
+console.log(failed ? 'FAIL：' + total + ' 条断言里有失败' : 'OK：' + total + ' 条断言全部通过')
+printGateResult(GATE, total, failed)
 process.exit(failed ? 1 : 0)

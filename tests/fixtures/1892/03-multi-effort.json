@@ -1,0 +1,466 @@
+{
+  "note": "本地 Markdown 形态的两个工作单元（编号各自从 00 起）；经真 SQLite 快照库写入再读回，验证按 (effortId, key) 的分组与显式排序。",
+  "repo": {
+    "backend": "github",
+    "refId": "acme/widgets",
+    "name": "acme/widgets",
+    "url": "https://github.com/acme/widgets"
+  },
+  "version": 1,
+  "rows": [
+    {
+      "effortId": "alpha",
+      "key": "02",
+      "row": {
+        "type": "issue",
+        "title": "alpha 的已关闭子票",
+        "state": "closed",
+        "url": "https://github.com/acme/widgets/issues/02",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1792454400000,
+        "closedAtMs": 1792454400000,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "00"
+      ],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-applicable",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "beta",
+      "key": "03",
+      "row": {
+        "type": "issue",
+        "title": "beta 的孤立票",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/03",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793923200000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-applicable",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "beta",
+      "key": "01",
+      "row": {
+        "type": "issue",
+        "title": "beta 的开放子票",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/01",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793836800000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "00"
+      ],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-applicable",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "beta",
+      "key": "00",
+      "row": {
+        "type": "map",
+        "title": "地图：工作单元 beta",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/00",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793750400000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-applicable",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "alpha",
+      "key": "01",
+      "row": {
+        "type": "issue",
+        "title": "alpha 的开放子票",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/01",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793664000000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "00"
+      ],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-applicable",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "alpha",
+      "key": "00",
+      "row": {
+        "type": "map",
+        "title": "地图：工作单元 alpha",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/00",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793577600000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-applicable",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    }
+  ],
+  "expected": {
+    "repository": {
+      "backend": "github",
+      "refId": "acme/widgets",
+      "name": "acme/widgets",
+      "url": "https://github.com/acme/widgets"
+    },
+    "maps": [
+      {
+        "key": "00",
+        "number": 0,
+        "effortId": "beta",
+        "type": "map",
+        "title": "地图：工作单元 beta",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/00",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-11-04T00:00:00.000Z",
+        "closedAt": null,
+        "parentKey": null,
+        "tickets": [
+          {
+            "key": "01",
+            "number": 1,
+            "effortId": "beta",
+            "type": "issue",
+            "title": "beta 的开放子票",
+            "state": "open",
+            "body": "",
+            "url": "https://github.com/acme/widgets/issues/01",
+            "createdAt": "2026-10-01T00:00:00.000Z",
+            "updatedAt": "2026-11-05T00:00:00.000Z",
+            "closedAt": null,
+            "parentKey": "00"
+          }
+        ],
+        "destination": "",
+        "notes": "",
+        "decisions": [],
+        "fog": [],
+        "outOfScope": []
+      },
+      {
+        "key": "00",
+        "number": 0,
+        "effortId": "alpha",
+        "type": "map",
+        "title": "地图：工作单元 alpha",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/00",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-11-02T00:00:00.000Z",
+        "closedAt": null,
+        "parentKey": null,
+        "tickets": [
+          {
+            "key": "02",
+            "number": 2,
+            "effortId": "alpha",
+            "type": "issue",
+            "title": "alpha 的已关闭子票",
+            "state": "closed",
+            "body": "",
+            "url": "https://github.com/acme/widgets/issues/02",
+            "createdAt": "2026-10-01T00:00:00.000Z",
+            "updatedAt": "2026-10-20T00:00:00.000Z",
+            "closedAt": "2026-10-20T00:00:00.000Z",
+            "parentKey": "00"
+          },
+          {
+            "key": "01",
+            "number": 1,
+            "effortId": "alpha",
+            "type": "issue",
+            "title": "alpha 的开放子票",
+            "state": "open",
+            "body": "",
+            "url": "https://github.com/acme/widgets/issues/01",
+            "createdAt": "2026-10-01T00:00:00.000Z",
+            "updatedAt": "2026-11-03T00:00:00.000Z",
+            "closedAt": null,
+            "parentKey": "00"
+          }
+        ],
+        "destination": "",
+        "notes": "",
+        "decisions": [],
+        "fog": [],
+        "outOfScope": []
+      }
+    ],
+    "issues": [
+      {
+        "key": "03",
+        "number": 3,
+        "effortId": "beta",
+        "type": "issue",
+        "title": "beta 的孤立票",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/03",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-11-06T00:00:00.000Z",
+        "closedAt": null,
+        "parentKey": null
+      }
+    ],
+    "thinTickets": [],
+    "deck": null
+  }
+}

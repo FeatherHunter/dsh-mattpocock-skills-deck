@@ -182,39 +182,45 @@ console.log('== C R2c：缓存里的选择随那份记忆变旧就必须重算 =
 
 // ── D R4：快照那几条路都要带权威选择 ───────────────────────────────────────────────────
 console.log('')
-console.log('== D R4：快照的短路路与 304 都要带权威 {selection, rev} ==')
+console.log('== D R4：库回放这条路也要带权威 {selection, rev} ==')
 {
+  // #1893：宿主内存副本退役后，首屏的「本地数据」来自快照库回放；回包的权威选择仍要盖成这一轮的。
   const { createSessionSnapshot } = await import(url('src/refresh/rooms/host/session-snapshot-cache.ts'))
   const cached = { ok: true, generatedMs: 1, maps: [{ number: 1, tickets: [] }], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
   const makeHost = function (sel: any) {
-    const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }
     return createSessionSnapshot({
       canonicalKey: async (c: any) => c,
       selectEarly: async () => sel,
       isComposerSelection: () => false,
-      getTrackerRegistry: async () => ({ get: () => null, modules: () => [], describe: () => null }),
+      getTrackerRegistry: async () => ({ get: () => null, modules: () => [], describe: () => ({ backend: 'github', refId: 'o/r', name: 'o/r', url: '' }) }),
       getPlatform: async () => ({ fs: {}, path: { join: () => '' }, getHome: async () => '' }),
       ctx: { get: () => undefined },
-      getCache: () => cache, setCache: (v: any) => { Object.assign(cache, v) }, CACHE_MS: 60000,
-      cacheSnapshotIsCurrent: async () => false,
+      // 库里有回放：这一趟不联网，回包就是这份回放的信封。
+      getSnapshotLibrary: async () => ({
+        readSnapshotReplay: async () => ({ snapshot: cached, lastKnownAtMs: 1 }),
+        readSnapshotDiagnostics: async () => [],
+        recordIssueRows: async () => ({ ok: true, rows: 0, mergeVersion: null }),
+      }),
       upcaseSnapStates: (s: any) => s,
       computeLevels: () => ({ byNumber: {}, byKey: {} }),
       groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
-      getRepoRoot: async () => 'D:\\ws', // #1870：缓存兜底排在「库回放」之后，要走到那一步得先认出仓库身份（否则 GitHub 分支在「连仓库都
-      // 认不出」那一档就返回空快照了）；这份假仓库只为了让兜底路可达。
+      getRepoRoot: async () => 'D:\\ws',
       getRepoKey: async () => ({ owner: 'o', name: 'r' }),
-      readDiskCache: async () => null, writeDiskCache: async () => {}, adoptSnapshot: (s: any) => s,
+      adoptSnapshot: (s: any) => s,
       detectionExec: async () => ({ stdout: '', stderr: '', code: 0 }), execProc: async () => ({ ok: false }),
+      // 回包信封要取这两个宿主状态（库回放这一趟也会走到 buildSnap）。
+      getGhPath: () => null, getGhLastError: () => null,
       errText: () => '', DEFAULT_CWD: 'D:\\ws', hash8: (s: any) => String(s).slice(0, 8), logCtx: null,
     })
   }
   const d1 = await makeHost({ backendId: 'markdown', source: 'explicit', rev: 5 }).handleSnapshot({ cwd: 'D:\\ws' })
-  check(d1 && d1.selection && d1.selection.backendId === 'markdown' && d1.rev === 5, '内存缓存短路：回包带的是这一轮的权威选择与修订号（不是缓存里那份旧的后端）—— 实得「' + (d1 && d1.selection && d1.selection.backendId) + '」rev=' + (d1 && d1.rev))
-  check(d1 && d1.maps === cached.maps, '短路时交付的还是缓存里那份数据（同一个数据数组，没有重新拼）')
+  check(d1 && d1.selection && d1.selection.backendId === 'markdown' && d1.selection.rev === 5, '库回放：回包带的是这一轮的权威选择与修订号（不是库里那份旧的后端）—— 实得「' + (d1 && d1.selection && d1.selection.backendId) + '」rev=' + (d1 && d1.selection && d1.selection.rev))
+  check(d1 && d1.selection && cached.selection.backendId === 'github', '对照：库回放里那份 selection 仍是旧后端 github（回包没拿它顶替）')
+  check(d1 && d1.maps === cached.maps, '库回放：交付的还是库里那份数据（同一个数据数组，没有重新拼）')
   const d2 = await makeHost({ backendId: 'github', source: 'auto' }).handleSnapshot({ cwd: 'D:\\ws' })
-  check(d2 === cached, '选择没变时照旧返回缓存里那**同一个对象**（缓存优先那条纪律不许因为这一步被动到）')
+  check(d2 && d2.selection && d2.selection.backendId === 'github' && d2.maps === cached.maps, '选择没变时照旧交付库里那份数据（不为这一步去联网）')
   const d3 = await makeHost({ backendId: 'github', source: 'explicit', rev: 2 }).handleSnapshot({ cwd: 'D:\\ws' })
-  check(d3 && d3.selection && d3.rev === 2, '同一个后端但修订号变了也要带上新修订号（别处又选过一次）—— 实得 rev=' + (d3 && d3.rev))
+  check(d3 && d3.selection && d3.selection.rev === 2, '同一个后端但修订号变了也要带上新修订号（别处又选过一次）—— 实得 rev=' + (d3 && d3.selection && d3.selection.rev))
 }
 
 // ── E R7c：写记忆失败要如实交代 ────────────────────────────────────────────────────────
@@ -322,84 +328,13 @@ const snapSrc = read('src/refresh/rooms/host/session-snapshot-cache.ts')
     const rTrue = await svcTrue.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 1 })
     check(rTrue.selection && rTrue.selection.backendId === 'github', '（对照）真源里带上报时仍是锚文件的 github —— 实得「' + (rTrue.selection && rTrue.selection.backendId) + '」')
   }
-  // F2 短路路不再带上权威选择 —— 跑改坏的那一份，同一份现场就会把旧后端发出去
-  // 合并 #1433 之后这一行只判 sameLayout（布局以这一轮为准：本轮没有布局就把缓存里那份旧答案抹掉，
-  // 不再像 #683 早期那样用 !_layEarly 把旧答案留下）。反证的落点跟着真源走，形状不变。
-  // #1870：兜底那段（以及它里面这一句）搬到了 snapshot-library-first-screen.ts；反证改坏的是那一份。
-  const screenRel = 'refresh/rooms/host/snapshot-library-first-screen.ts'
-  const screenSrc = fs.readFileSync(path.join(ROOT, 'src', screenRel), 'utf8')
-  const from2 = 'if (sameBackend && prevRev === nowRev && sameLayout) return s'
-  check(screenSrc.includes(from2), '反证 F2 的改法能在真源里落地（兜底路永远返回缓存里那份、不带新选择）')
-  if (screenSrc.includes(from2)) {
-    // 这一组跑的是把源文件**复制到临时目录**再改坏的一份。复制过去的那一份，它 import 的兄弟文件
-    //   也在新目录里找 —— 所以那份 import 闭包必须一起带过去，否则这一组连求值都到不了，先在解析阶段就报
-    //   ERR_MODULE_NOT_FOUND（那是夹具缺件，不是实现错）。
-    //   #723（T19）把快照电话拆了：信封组装搬到了同目录的 ./snapshotEnvelope.js，就是那一次踩到的。
-    //   #1139 又从宿主跨目录引了 ../tracker/ui-description.js：所以这里改成按真源里**所有相对 import**
-    //   （./ 与 ../ 都算）连目录结构一起镜像到夹具目录，以后谁再拆一次、再跨一次目录，都不用回来改这段。
-    const mirror = makeDir('dsh-683-broken2-')
-    // 夹具目录不在仓库里，被镜像过来的模块若 import 裸包（例如 shared 配置核 import 的 'yaml'），
-    // 从临时目录向上找不到 node_modules。给夹具接一条指向仓库 node_modules 的 junction，
-    // 让夹具与真源按同一套依赖求值；窗口下 junction 不需要管理员权限。
-    try { fs.symlinkSync(path.join(ROOT, 'node_modules'), path.join(mirror, 'node_modules'), 'junction') } catch (eLink683) {}
-    const mirrored = new Set()
-    const mirrorOne = function (relFromSrc: string) {
-      if (mirrored.has(relFromSrc)) return
-      mirrored.add(relFromSrc)
-      const fromPath = path.join(ROOT, 'src', relFromSrc)
-      if (!fs.existsSync(fromPath)) return
-      const toPath = path.join(mirror, relFromSrc)
-      fs.mkdirSync(path.dirname(toPath), { recursive: true })
-      fs.copyFileSync(fromPath, toPath)
-      const text = fs.readFileSync(fromPath, 'utf8')
-      // import 子句可能跨多行（import { 换行 若干项 换行 } from '...'）：从 import 起吃到 from，
-      // 但不越过下一条 import，免得把无关的说明符串进来。#1433 之后快照文件多引了 workspace-anchor，
-      // 它的 import 就是多行写法。
-      const re = /^[ \t]*import\s+(?!type\b)(?:(?!^[ \t]*import\s)[\s\S])*?from[ \t]*['"](\.\.?\/[^'"]+)['"]/gm
-      let im
-      while ((im = re.exec(text)) !== null) {
-        // 说明符写的是 .js，磁盘上住的常常是同名 .ts（ts-hook 的规则），两样都试一遍再镜像。
-        // 2026-10-19 第三阶段起共享层的域产物搬到了仓库根的 .build/shared/ 下，源码树里对应的真源
-        // 住在 <域>/src/ 里：夹具里那份被改坏的宿主模块 import 的仍是 <域>/<名>.js，装载钩子会把它
-        // 按「<目标目录>/src/<名>.ts」回落解析，所以镜像也要照着这条回落把真源搬到同一形状的位置。
-        const joined = path.posix.normalize(path.posix.join(path.posix.dirname(relFromSrc), im[1]))
-        const underSrc = joined.replace(/^(shared\/[^/]+\/)([^/]+)\.js$/, '$1src/$2.ts')
-        const cand = [joined.replace(/\.js$/, '.ts'), underSrc, joined]
-        mirrorOne(cand.find(function (c) { return fs.existsSync(path.join(ROOT, 'src', c)) }) || joined)
-      }
-    }
-    mirrorOne('refresh/rooms/host/session-snapshot-cache.ts')
-    // #1870：缓存兜底挪到「库回放」之后，这一份改坏了的模块不再在开头就短路返回，于是它会真的走到
-    // 在途去重那一步 —— 那一步的 import 是动态写的（import('../../../host/snapshotInflight.js')），
-    // 上面的静态 import 镜像扫不到它。把这一份也带过去，夹具才不会停在解析阶段。
-    mirrorOne('host/snapshotInflight.ts')
-    const broken2 = path.join(mirror, 'refresh', 'rooms', 'host', 'session-snapshot-cache.mjs')
-    // 快照源文件是 .ts（#1155 起带类型标注）：写进 .mjs 之前先按仓库自己的转译口径剥掉类型，否则这一份
-    //   改坏了的源码会在解析阶段就 SyntaxError，反证根本跑不到比较那一步。转译参数只写在
-    //   scripts/lib/transpile-unit.mts 那一份，这里取现成的，与生产侧同一套口径。
-    const { TRANSPILE_OPTIONS } = await import('../scripts/lib/transpile-unit.mts')
-    const broken2Src = (await import('esbuild')).transformSync(snapSrc, TRANSPILE_OPTIONS).code
-    fs.writeFileSync(broken2, broken2Src, 'utf8')
-    // 反证改坏兜底那一份（镜像里与真源同相对路径），快照模块 import 的就是它。
-    const brokenScreen = path.join(mirror, 'refresh', 'rooms', 'host', 'snapshot-library-first-screen.ts')
-    const brokenScreenSrc = (await import('esbuild')).transformSync(screenSrc, TRANSPILE_OPTIONS).code
-    fs.writeFileSync(brokenScreen, brokenScreenSrc.replace(from2, 'return s'), 'utf8')
-    const mod2 = await import(pathToFileURL(broken2).href)
-    const cached = { ok: true, generatedMs: 1, maps: [], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
-    const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }
-    const h = mod2.createSessionSnapshot({
-      canonicalKey: async (c: any) => c, selectEarly: async () => ({ backendId: 'markdown', source: 'explicit', rev: 5 }), isComposerSelection: () => false,
-      getTrackerRegistry: async () => ({ get: () => null, modules: () => [], describe: () => null }), getPlatform: async () => ({ fs: {}, path: { join: () => '' }, getHome: async () => '' }),
-      ctx: { get: () => undefined }, getCache: () => cache, setCache: (v: any) => { Object.assign(cache, v) }, CACHE_MS: 60000, cacheSnapshotIsCurrent: async () => false,
-      upcaseSnapStates: (s: any) => s, computeLevels: () => ({ byNumber: {}, byKey: {} }), groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
-      getRepoRoot: async () => 'D:\\ws', // #1870：缓存兜底排在「库回放」之后，要走到那一步得先认出仓库身份（否则 GitHub 分支在「连仓库都
-      // 认不出」那一档就返回空快照了）；这份假仓库只为了让兜底路可达。
-      getRepoKey: async () => ({ owner: 'o', name: 'r' }), readDiskCache: async () => null, writeDiskCache: async () => {}, adoptSnapshot: (s: any) => s,
-      detectionExec: async () => ({ stdout: '', stderr: '', code: 0 }), execProc: async () => ({ ok: false }), errText: () => '', DEFAULT_CWD: 'D:\\ws', hash8: (s: any) => s, logCtx: null,
-    })
-    const r = await h.handleSnapshot({ cwd: 'D:\\ws' })
-    check(r === cached && r.selection.backendId === 'github', '反证 F2 成立：短路路不带新选择时，回包里那条还是旧后端 github（面板头照旧显示旧的，正是 R4 要结束的那件事）—— 实得「' + r.selection.backendId + '」')
-  }
+  // F2（#1893 改口径）：内存副本的「库空兜底短路」已删，回包的权威选择来自这一轮的 selectEarly，
+  // 不来自库回放里那份旧的 selection。D 段已经用行为把这件事钉住（回放里是 github、这一轮是 markdown，
+  // 回包给 markdown）；这里再补一条静态反证：会话电话不读回放里的 selection 来拼信封。
+  const sessionRel = 'refresh/rooms/host/session-snapshot-cache.ts'
+  const sessionSrc = fs.readFileSync(path.join(ROOT, 'src', sessionRel), 'utf8')
+  check(!/replay\.snapshot\.selection/.test(sessionSrc) && /selection: _sel,/.test(sessionSrc),
+    '反证 F2：会话电话的头字段用这一轮的 selection，不拿库回放里那份旧选择顶替')
 }
 
 for (const d of tmpDirs) { try { fs.rmSync(d, { recursive: true, force: true }) } catch (e) {} }

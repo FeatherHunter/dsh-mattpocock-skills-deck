@@ -135,7 +135,7 @@ async function main() {
     '瘦身行只留这么几样，正文与评论不带进来（实得 ' + JSON.stringify(Object.keys(thin101).sort()) + '）')
   const poolRows = [].concat(map100.tickets || [], map300.tickets || [], snap.issues || []).filter(function (x) { return x.isPullRequest !== true })
   check(poolRows.length === 3, '首屏池子里只有三行票（独立那张、地图下开着那张、开放地图那张），瘦身行没被算法数进去（实得 ' + poolRows.length + '）')
-  check(!!snap.deck && !!snap.deck.counts && snap.deck.counts.total === 7, 'deck 计数照旧来自后端（实得 ' + JSON.stringify(snap.deck && snap.deck.counts) + '）')
+  check(!!snap.deck && !('counts' in snap.deck) && !('countsPending' in snap.deck), '编排层不写数字（#1887：数字由电话层从快照库挂上；实得 ' + JSON.stringify(snap.deck && snap.deck.counts) + '）')
 
   // ---------- 二、信封：字段清单只有一处，两条电话都不漏 ----------
   const envMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'snapshotEnvelope.ts')).href)

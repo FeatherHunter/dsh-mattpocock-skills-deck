@@ -1,0 +1,1132 @@
+{
+  "note": "手工整理的页面样本（内容参照本仓库的规格与地图票面）：两张地图（一开一关）、一张规格、阻塞边与引用态、已关闭子票、破链票与两个拉取请求；经真 SQLite 快照库写入再读回。#1893 按规格 I6 重新冻结（mergeInfo complete + null 现在写 mergedAt:null），旧基线见 pre-1893/。覆盖阻塞边、已关闭容器里的子票与瘦身行。",
+  "repo": {
+    "backend": "github",
+    "refId": "acme/widgets",
+    "name": "acme/widgets",
+    "url": "https://github.com/acme/widgets"
+  },
+  "version": 1,
+  "rows": [
+    {
+      "effortId": "",
+      "key": "201",
+      "row": {
+        "type": "issue",
+        "title": "规格里的已完成子票",
+        "state": "closed",
+        "url": "https://github.com/acme/widgets/issues/201",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793318400000,
+        "closedAtMs": 1793318400000,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "200"
+      ],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": null
+      }
+    },
+    {
+      "effortId": "",
+      "key": "302",
+      "row": {
+        "type": "issue",
+        "title": "拉取请求：已合并的改动",
+        "state": "closed",
+        "url": "https://github.com/acme/widgets/issues/302",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793232000000,
+        "closedAtMs": 1793232000000,
+        "stateReason": null,
+        "isPullRequest": true,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": 1793235600000,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "50",
+      "row": {
+        "type": "issue",
+        "title": "上游迁移",
+        "state": "closed",
+        "url": "https://github.com/acme/widgets/issues/50",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1792454400000,
+        "closedAtMs": 1792454400000,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "100"
+      ],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": null
+      }
+    },
+    {
+      "effortId": "",
+      "key": "151",
+      "row": {
+        "type": "issue",
+        "title": "收尾子票",
+        "state": "closed",
+        "url": "https://github.com/acme/widgets/issues/151",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1791676800000,
+        "closedAtMs": 1791676800000,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "150"
+      ],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": null
+      }
+    },
+    {
+      "effortId": "",
+      "key": "150",
+      "row": {
+        "type": "map",
+        "title": "地图：收尾",
+        "state": "closed",
+        "url": "https://github.com/acme/widgets/issues/150",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1791590400000,
+        "closedAtMs": 1791590400000,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": null
+      }
+    },
+    {
+      "effortId": "",
+      "key": "400",
+      "row": {
+        "type": "issue",
+        "title": "破链票：父票已经不在",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/400",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1794096000000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "999"
+      ],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": null
+      }
+    },
+    {
+      "effortId": "",
+      "key": "301",
+      "row": {
+        "type": "issue",
+        "title": "拉取请求：快照唯一化",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/301",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1794009600000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": true,
+        "commentCount": 5,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "300",
+      "row": {
+        "type": "issue",
+        "title": "未挂图的普通票",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/300",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793923200000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "bug",
+          "color": "d73a4a",
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": null
+      }
+    },
+    {
+      "effortId": "",
+      "key": "202",
+      "row": {
+        "type": "issue",
+        "title": "规格里的实施票",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/202",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793836800000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "200"
+      ],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "200",
+      "row": {
+        "type": "spec",
+        "title": "规格：快照库成为唯一真相",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/200",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793750400000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": null
+      }
+    },
+    {
+      "effortId": "",
+      "key": "101",
+      "row": {
+        "type": "issue",
+        "title": "投影纯函数",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/101",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793696400000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "ready-for-agent",
+          "color": "0e8a16",
+          "description": null
+        }
+      ],
+      "assignees": [
+        {
+          "login": "alice",
+          "kind": null,
+          "name": "Alice",
+          "avatarUrl": null
+        }
+      ],
+      "parents": [
+        "100"
+      ],
+      "blockedBy": [
+        {
+          "key": "50",
+          "title": "上游迁移",
+          "state": "closed",
+          "type": "issue"
+        }
+      ],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "100",
+      "row": {
+        "type": "map",
+        "title": "地图：快照合并服务",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/100",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793613600000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "wayfinder:map",
+          "color": "5319e7",
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": null
+      }
+    },
+    {
+      "effortId": "",
+      "key": "102",
+      "row": {
+        "type": "issue",
+        "title": "排序显式给定",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/102",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1793520000000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "100"
+      ],
+      "blockedBy": [
+        {
+          "key": "101",
+          "title": "投影纯函数",
+          "state": "open",
+          "type": "issue"
+        }
+      ],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "152",
+      "row": {
+        "type": "issue",
+        "title": "还没做完的子票",
+        "state": "open",
+        "url": "https://github.com/acme/widgets/issues/152",
+        "createdAtMs": 1790812800000,
+        "updatedAtMs": 1791763200000,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": null,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [
+        "150"
+      ],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": null,
+        "assignees": null,
+        "parents": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": null,
+        "subIssues": null,
+        "mergeInfo": null
+      }
+    }
+  ],
+  "expected": {
+    "repository": {
+      "backend": "github",
+      "refId": "acme/widgets",
+      "name": "acme/widgets",
+      "url": "https://github.com/acme/widgets"
+    },
+    "maps": [
+      {
+        "key": "150",
+        "number": 150,
+        "effortId": "",
+        "type": "map",
+        "title": "地图：收尾",
+        "state": "closed",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/150",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-10-10T00:00:00.000Z",
+        "closedAt": "2026-10-10T00:00:00.000Z",
+        "parentKey": null,
+        "tickets": [],
+        "destination": "",
+        "notes": "",
+        "decisions": [],
+        "fog": [],
+        "outOfScope": []
+      },
+      {
+        "key": "200",
+        "number": 200,
+        "effortId": "",
+        "type": "spec",
+        "title": "规格：快照库成为唯一真相",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/200",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-11-04T00:00:00.000Z",
+        "closedAt": null,
+        "parentKey": null,
+        "tickets": [
+          {
+            "key": "201",
+            "number": 201,
+            "effortId": "",
+            "type": "issue",
+            "title": "规格里的已完成子票",
+            "state": "closed",
+            "body": "",
+            "url": "https://github.com/acme/widgets/issues/201",
+            "createdAt": "2026-10-01T00:00:00.000Z",
+            "updatedAt": "2026-10-30T00:00:00.000Z",
+            "closedAt": "2026-10-30T00:00:00.000Z",
+            "parentKey": "200"
+          },
+          {
+            "key": "202",
+            "number": 202,
+            "effortId": "",
+            "type": "issue",
+            "title": "规格里的实施票",
+            "state": "open",
+            "body": "",
+            "url": "https://github.com/acme/widgets/issues/202",
+            "createdAt": "2026-10-01T00:00:00.000Z",
+            "updatedAt": "2026-11-05T00:00:00.000Z",
+            "closedAt": null,
+            "parentKey": "200",
+            "blockedBy": []
+          }
+        ],
+        "sections": {
+          "problem": "",
+          "solution": "",
+          "userStories": [],
+          "implDecisions": [],
+          "testDecisions": [],
+          "outOfScope": [],
+          "furtherNotes": []
+        }
+      },
+      {
+        "key": "100",
+        "number": 100,
+        "effortId": "",
+        "type": "map",
+        "title": "地图：快照合并服务",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/100",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-11-02T10:00:00.000Z",
+        "closedAt": null,
+        "parentKey": null,
+        "labels": [
+          {
+            "name": "wayfinder:map",
+            "color": "5319e7"
+          }
+        ],
+        "tickets": [
+          {
+            "key": "50",
+            "number": 50,
+            "effortId": "",
+            "type": "issue",
+            "title": "上游迁移",
+            "state": "closed",
+            "body": "",
+            "url": "https://github.com/acme/widgets/issues/50",
+            "createdAt": "2026-10-01T00:00:00.000Z",
+            "updatedAt": "2026-10-20T00:00:00.000Z",
+            "closedAt": "2026-10-20T00:00:00.000Z",
+            "parentKey": "100"
+          },
+          {
+            "key": "101",
+            "number": 101,
+            "effortId": "",
+            "type": "issue",
+            "title": "投影纯函数",
+            "state": "open",
+            "body": "",
+            "url": "https://github.com/acme/widgets/issues/101",
+            "createdAt": "2026-10-01T00:00:00.000Z",
+            "updatedAt": "2026-11-03T09:00:00.000Z",
+            "closedAt": null,
+            "parentKey": "100",
+            "labels": [
+              {
+                "name": "ready-for-agent",
+                "color": "0e8a16"
+              }
+            ],
+            "assignees": [
+              {
+                "login": "alice",
+                "name": "Alice"
+              }
+            ],
+            "blockedBy": [
+              {
+                "key": "50",
+                "title": "上游迁移",
+                "state": "closed",
+                "type": "issue"
+              }
+            ]
+          },
+          {
+            "key": "102",
+            "number": 102,
+            "effortId": "",
+            "type": "issue",
+            "title": "排序显式给定",
+            "state": "open",
+            "body": "",
+            "url": "https://github.com/acme/widgets/issues/102",
+            "createdAt": "2026-10-01T00:00:00.000Z",
+            "updatedAt": "2026-11-01T08:00:00.000Z",
+            "closedAt": null,
+            "parentKey": "100",
+            "blockedBy": [
+              {
+                "key": "101",
+                "title": "投影纯函数",
+                "state": "open",
+                "type": "issue"
+              }
+            ]
+          }
+        ],
+        "destination": "",
+        "notes": "",
+        "decisions": [],
+        "fog": [],
+        "outOfScope": []
+      }
+    ],
+    "issues": [
+      {
+        "key": "302",
+        "number": 302,
+        "effortId": "",
+        "type": "issue",
+        "title": "拉取请求：已合并的改动",
+        "state": "closed",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/302",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-10-29T00:00:00.000Z",
+        "closedAt": "2026-10-29T00:00:00.000Z",
+        "parentKey": null,
+        "isPullRequest": true,
+        "mergedAt": "2026-10-29T01:00:00.000Z"
+      },
+      {
+        "key": "400",
+        "number": 400,
+        "effortId": "",
+        "type": "issue",
+        "title": "破链票：父票已经不在",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/400",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-11-08T00:00:00.000Z",
+        "closedAt": null,
+        "parentKey": "999"
+      },
+      {
+        "key": "301",
+        "number": 301,
+        "effortId": "",
+        "type": "issue",
+        "title": "拉取请求：快照唯一化",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/301",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-11-07T00:00:00.000Z",
+        "closedAt": null,
+        "parentKey": null,
+        "isPullRequest": true,
+        "commentCount": 5,
+        "mergedAt": null
+      },
+      {
+        "key": "300",
+        "number": 300,
+        "effortId": "",
+        "type": "issue",
+        "title": "未挂图的普通票",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/300",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-11-06T00:00:00.000Z",
+        "closedAt": null,
+        "parentKey": null,
+        "labels": [
+          {
+            "name": "bug",
+            "color": "d73a4a"
+          }
+        ]
+      },
+      {
+        "key": "152",
+        "number": 152,
+        "effortId": "",
+        "type": "issue",
+        "title": "还没做完的子票",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/acme/widgets/issues/152",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "updatedAt": "2026-10-12T00:00:00.000Z",
+        "closedAt": null,
+        "parentKey": "150"
+      }
+    ],
+    "thinTickets": [
+      {
+        "key": "151",
+        "number": 151,
+        "effortId": "",
+        "type": "issue",
+        "state": "closed",
+        "title": "收尾子票"
+      }
+    ],
+    "deck": null
+  }
+}

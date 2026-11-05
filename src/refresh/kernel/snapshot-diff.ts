@@ -259,7 +259,7 @@ export interface DerivedPlan {
    * 增量路径**不许本地重算** —— 本地数出来的池子数是「这份行数据」的口径，
    * 跟整仓口径本来就不是一个数，硬算一个出来就是 I5 要禁止的假数字。
    */
-  countsAction: 'recompute' | 'keep-old-and-mark-pending'
+  countsAction: 'recompute' | 'keep-old'
   /** 要不要把 deck.partial 置真（增量之后这份行数据一定有没覆盖到的地方）。 */
   markPartial: boolean
   /** 一句话原因代号。 */
@@ -276,7 +276,7 @@ export function derivedAfter(mode: FetchKind): DerivedPlan {
   if (mode === 'rebuild') {
     return { progressAction: 'recompute', countsAction: 'recompute', markPartial: false, reason: 'rebuild-has-whole-repo-counts' }
   }
-  return { progressAction: 'recompute', countsAction: 'keep-old-and-mark-pending', markPartial: true, reason: 'patch-keeps-whole-repo-counts' }
+  return { progressAction: 'recompute', countsAction: 'keep-old', markPartial: true, reason: 'patch-keeps-whole-repo-counts' }
 }
 
 // ---------- 五、把取回来的那几条并进现有列表 ----------

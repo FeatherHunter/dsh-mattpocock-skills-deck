@@ -221,6 +221,8 @@ const KEYS: Array<[string, string, string]> = [
   // —— 降级取数的两个节流窗口（#1689）：降级常驻时探测放慢到 60 秒、自动校准至少 10 分钟 ——
   ['fallbackProbeIntervalMs', 'FALLBACK_PROBE_INTERVAL_MS', 'intervals'],
   ['fallbackCalibrationIntervalMs', 'FALLBACK_CALIBRATION_INTERVAL_MS', 'intervals'],
+  // #1898：已关闭/已合并拉取请求的补取节拍（合并状态变化很慢，10 分钟一次就够）。
+  ['closedPullRefreshIntervalMs', 'CLOSED_PULL_REFRESH_INTERVAL_MS', 'intervals'],
   // —— 通知事件库的两个时间参数（#1693）：瞬时事件去重窗住 intervals，历史保留期住 ttl ——
   ['notificationEventDedupeMs', 'NOTIFICATION_EVENT_DEDUPE_MS', 'intervals'],
   // —— 命名状态与日志的节拍 ——
@@ -281,11 +283,15 @@ const KEYS: Array<[string, string, string]> = [
   ['chainRideMaxAgeMs', 'CHAIN_RIDE_MAX_AGE_MS', 'ttl'],
   ['snapshotTtlMs', 'SNAPSHOT_TTL_MS', 'ttl'],
   ['statusCacheMs', 'STATUS_CACHE_MS', 'ttl'],
-  ['snapshotCacheMs', 'SNAPSHOT_CACHE_MS', 'ttl'],
-  // #1240：刚选中快照的保护窗（别用旧缓存盖掉用户刚点的选择）。
-  ['snapshotPickedGuardMs', 'SNAPSHOT_PICKED_GUARD_MS', 'ttl'],
+  // （#1893 退役）snapshotCacheMs：会话快照内存缓存随宿主内存副本一起删除，不再生成。
   // #1862：工作区快照库写者租约的有效期（心跳在 intervals 那档，这里是多久没续可以被接管）。
   ['snapshotLeaseTtlMs', 'SNAPSHOT_LEASE_TTL_MS', 'ttl'],
+  // #1889：写回执优先窗口——回执提交后这么久之内，读结果不得覆盖它表达过的字段组。
+  ['snapshotReceiptPriorityMs', 'SNAPSHOT_RECEIPT_PRIORITY_MS', 'ttl'],
+  // #1890：变化集的两个降级阈值成对使用，住同一份文件、相邻两行。行数上限不是时间，
+  // 但它与「落后多久就回整份」是同一个决定的两半（任一越线都回整份），放进同一处才不会改一个漏一个。
+  ['snapshotChangesMaxRows', 'SNAPSHOT_CHANGES_MAX_ROWS', 'ttl'],
+  ['snapshotChangesMaxAgeMs', 'SNAPSHOT_CHANGES_MAX_AGE_MS', 'ttl'],
   ['planCursorTtlMs', 'PLAN_CURSOR_TTL_MS', 'ttl'],
   ['anchorWindowMs', 'ANCHOR_WINDOW_MS', 'ttl'],
   ['idempotencyLookbackMs', 'IDEMPOTENCY_LOOKBACK_MS', 'ttl'],

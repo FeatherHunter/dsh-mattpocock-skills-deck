@@ -35,6 +35,11 @@ declare function effortOptionNamesOf(...args: any[]): any;
 declare function effortOf(...args: any[]): any;
 declare function fitAllTags(...args: any[]): any;
 declare function getCachedSnapshot(...args: any[]): any;
+// #1894：本页的筛选、排序与 KPI 读数都从视图模型取（与状态栏/胶囊同一个模型）。单文件求值的门禁里
+//   没有这一片，useDeckViewFor 会是 undefined，下面全部退回 st 上那几个字段，行为与改造前一致。
+declare function deckViewOf(...args: any[]): any;
+declare function deckViewCommand(...args: any[]): any;
+declare function useDeckViewFor(...args: any[]): any;
 declare function healthCheckCountOf(...args: any[]): any;
 declare function healthCheckVisible(...args: any[]): any;
 declare function hexA(...args: any[]): any;
@@ -115,6 +120,12 @@ export     const fitMapRows = function () {
 export     const ListTab = ({ st, narrow }: any) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
+      // #1894：这一页读同一个视图模型：筛选/排序从 filters 切片来，KPI 三数从 counts 切片来。
+      // #1894：订阅视图模型的 rows 切片（改筛选只让相关切片重画）；门禁单文件求值时没有这一片，退回 st 字段。
+      const deckView = (typeof useDeckViewFor === 'function') ? useDeckViewFor(st, ['rows']) : null
+      const filters = deckView ? deckView.slice('filters') : st
+      const deckCounts = deckView ? deckView.slice('counts') : null
+      const projectionSnapshot = deckView ? deckView.slice('projection').snapshot : st.snapshot
       // v1.3.3 UI：每次渲染后执行贪心折叠（含窗口/列宽变化后的重渲染）
       // v1.5 T10 提速：按内容指纹跳过 —— 仅快照内容/tab/过滤变化才重排（refreshing 态等无关渲染不触发布局测量）
       React.useLayoutEffect(function () {
@@ -178,7 +189,7 @@ export     const ListTab = ({ st, narrow }: any) => {
       }, [])
       // #690：历史票按需翻页。这一钩子在「看得到已关闭票」的两处生效（状态筛到「已关闭」，或底部那条
       //   折叠行被展开）：进去先把第一页备上，滚到底再顺着游标取下一页。三个触发点共用同一份页数据。
-      useClosedPageScroll(st, st.stateFilter === 'closed' || st.closedFoldOpen === true)
+      useClosedPageScroll(st, filters.stateFilter === 'closed' || st.closedFoldOpen === true)
       // effort 维度：仓库里有几个工作单元（去重排序，来自共享小件；单 effort 后端恒 []，界面不变）。
       // #1664：徽标与「要不要画这一排」仍看全部目录；这一排实际列出的选项另算——只留还有打开的票的那些
       //   （完全关闭的工作单元不再出现在选项里，见 store-derived 的 effortOptionNamesOf）。
@@ -194,7 +205,7 @@ export     const ListTab = ({ st, narrow }: any) => {
       //   isTicketRow，与 KPI、状态栏共用同一处）。池子（snapshot.issues）本身不动，仍是原样全收。
       // #690：再并上「按需翻回来的那些页」里池子没有的行（issuePageRowsOf 已按身份去掉重复的），
       //   于是已关闭那一堆里既有首屏那一百条、也有用户翻出来的更早的票；静默刷新只换池子，页数据不动。
-      const issues = ticketRowsOf((st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []).concat(issuePageRowsOf(st, 'list'))
+      const issues = ticketRowsOf((projectionSnapshot && Array.isArray(projectionSnapshot.issues)) ? projectionSnapshot.issues : []).concat(issuePageRowsOf(st, 'list'))
       // 列表排序：置顶的探索地图组与规格组各自按面板所选排序档排，组内与普通票共用下面同一套比较；
       //   组间顺序固定「探索地图 → 规格 → 普通票」，不跨组比较时间。默认排序档是「编号升序」
       //   （来自内核 store-prefs 里的初始偏好，不是「更新时间降序」）。
@@ -203,8 +214,8 @@ export     const ListTab = ({ st, narrow }: any) => {
       //   每张票的比较键（数字键 / 小写标题 / 所选维度文本 / effort）各算一次，再让比较函数只用
       //   算好的键。排序口径逐条照抄：主键不同就按方向返回，相同则先 effort 后编号升序兜底。
       const sortIssues = function (arr: any) {
-        const dir = st.sortDir === 'asc' ? 1 : -1
-        const key = st.sortKey
+        const dir = filters.sortDir === 'asc' ? 1 : -1
+        const key = filters.sortKey
         const decorated = arr.map(function (x: any) {
           return {
             x: x,
@@ -269,10 +280,10 @@ export     const ListTab = ({ st, narrow }: any) => {
       // 标签统计（含地图子票）与配色：票面最终色（工作区改色已在票面），不直读 palette
       // 两个都是「按标签名当键」的累加表：键要等遍历时才出现，所以只能标 : any，不能按 {} 字面量推断。
       const stat: any = {}, colorOf: any = {}
-      const snapLabels = (st.snapshot && Array.isArray(st.snapshot.labels)) ? st.snapshot.labels : null
+      const snapLabels = (projectionSnapshot && Array.isArray(projectionSnapshot.labels)) ? projectionSnapshot.labels : null
       if (snapLabels) snapLabels.forEach(function (l: any) { if (l && l.name && l.color) colorOf[String(l.name).trim()] = String(l.color).trim().replace(/^#/, '') })
       const allForColor = issues.slice()
-      ;(st.snapshot && Array.isArray(st.snapshot.maps) ? st.snapshot.maps : []).forEach(function(m: any){(m.tickets||[]).forEach(function(t: any){allForColor.push(t)})})
+      ;(projectionSnapshot && Array.isArray(projectionSnapshot.maps) ? projectionSnapshot.maps : []).forEach(function(m: any){(m.tickets||[]).forEach(function(t: any){allForColor.push(t)})})
       allForColor.forEach(function (x: any) {(x.labels||[]).forEach(function(l: any){const nm=l&&l.name?String(l.name).trim():'';if(!nm)return;stat[nm]=(stat[nm]||0)+1;if(l.color)colorOf[nm]=String(l.color).trim().replace(/^#/, '')})})
       const tagNames = Object.keys(stat).sort(function (a: any, b: any) { return stat[b] - stat[a] })
       // #375：全量 label（快照 labels 字段优先；旧快照无该字段降级 issue 统计）；配色按票面最终色已覆盖，缺失才用快照表
@@ -290,18 +301,18 @@ export     const ListTab = ({ st, narrow }: any) => {
       })
       // v15-26：主列表关联 map 子票阻塞信息（open 阻塞者才算阻塞；数据来自快照 maps.tickets.blockedBy，无需额外请求）
       // effort 维度：阻断表由共享函数产出（按票身份 (effort, 编号) 键入、阻塞引用只在同 effort 内解析）
-      const blockOf = mapBlockOf(st.snapshot)
+      const blockOf = mapBlockOf(projectionSnapshot)
       // #544 独立票阻塞边：快照 issues 自带 blockedBy（列表查询片段已复用，零请求），
       // 只挂自己身上（已是地图子票的行跳过，不碰地图层级与计数），逻辑见 store-derived.applyStandaloneBlocks。
       // 此处不包 try：函数缺失说明构建拼接坏了，必须 loud；单票坏数据由函数内逐票兜底，不崩整表。
       applyStandaloneBlocks(st, blockOf)
       // #374：状态过滤（全部/Open/阻塞/已关闭）与 label 过滤叠加
       // v1.3.3 T3：blocked 过滤真正实现 —— open 且存在 open 阻塞者（blockOf 命中）
-      const showOpen = st.stateFilter !== 'closed'
-      const showClosedList = st.stateFilter === 'closed'
+      const showOpen = filters.stateFilter !== 'closed'
+      const showClosedList = filters.stateFilter === 'closed'
       // v1.5：多选标签过滤（OR 语义：命中任一选中标签即显示）
       const byLabel = function (x: any) {
-        const ls = st.lblFilters || []
+        const ls = filters.lblFilters || []
         if (!ls.length) return true
         const labs = x.labels || []
         if (!labs.length) return ls.indexOf('needs-triage') >= 0
@@ -311,34 +322,29 @@ export     const ListTab = ({ st, narrow }: any) => {
       //   组间顺序固定，不跨组比较时间。
       const openRows = sortedMaps.concat(sortedSpecs).concat(sortedOpen).filter(effPass)
       const closedRows = closedSorted.filter(effPass)
-      const openFiltered = (st.lblFilters && st.lblFilters.length) ? openRows.filter(byLabel) : openRows
+      const openFiltered = (filters.lblFilters && filters.lblFilters.length) ? openRows.filter(byLabel) : openRows
       // v1.3.3 #6：阻塞 = 被占用口径（isOccupied：有 assignee 或存在 open 阻塞者）——与 KPI「占用 N」一致，
       //   用户点「阻塞」应筛出全部被占用项（此前 blockOf 只覆盖 map 子票的 blockedBy，漏掉 assignee 占用的）
-      const filteredOpen = showOpen ? (st.stateFilter === 'blocked' ? openFiltered.filter(function (x: any) { return isOccupied(st, x) })
-        : (st.stateFilter === 'frontier' ? openFiltered.filter(function (x: any) { return !isOccupied(st, x) }) : openFiltered)) : []
-      const filteredClosed = showClosedList ? ((st.lblFilters && st.lblFilters.length) ? closedRows.filter(byLabel) : closedRows) : []
+      const filteredOpen = showOpen ? (filters.stateFilter === 'blocked' ? openFiltered.filter(function (x: any) { return isOccupied(st, x) })
+        : (filters.stateFilter === 'frontier' ? openFiltered.filter(function (x: any) { return !isOccupied(st, x) }) : openFiltered)) : []
+      const filteredClosed = showClosedList ? ((filters.lblFilters && filters.lblFilters.length) ? closedRows.filter(byLabel) : closedRows) : []
       // KPI 口径：与全局一致，但跟随 effort 筛选（未选 effort 时就是全局）
-      // #689：两个数字优先读宿主给的后端计数（deck.counts）—— 「已关闭」直接是它；「可接」= 后端说的未关闭
-      //   张数减去本地数出来的阻塞（阻塞要逐票看指派人、看有没有开放阻塞者，后端计数给不了）。
-      //   拿不到计数、或界面带着筛选时退回按池子派生：deckCountsOf 那时会返回 null（全仓数字与筛过的一屏
-      //   不是一个口径），宁可退回派生值，也不拿全仓数字冒充筛过的数字。
-      // #1698 计数诚实：数字由 kpiCountsOf 统一投影（宿主说这份清单不全、整仓数字又拿不到时回 null）——
-      //   此时显示「未知」而不是 0；待校准时给数字挂一句「上次校准：时间」，老快照/带筛选时口径不变。
-      const clockTextOf = function (ms: any): any {
-        const d = new Date(ms)
-        const p = function (n: any): any { return (n < 10 ? '0' : '') + n }
-        return p(d.getHours()) + ':' + p(d.getMinutes())
-      }
-      const kpiFiltered = !!((st.effFilters || []).length)
+      // #1887：数字只有一个来源 —— 快照库的六个数字（deck.counts）。可接/阻塞/已关闭直接读它；
+      //   拿不到（旧快照）或界面带着筛选时退回按池子派生，并如实标 complete=false。
+      //   「库没取全」时不再显示「待校准」，而是明说「已知 N 张（未取全）」——那是诚实的下界。
+      const kpiFiltered = !!((filters.effFilters || []).length)
       const kpiOpenScoped = openIssuesOf(st).filter(effPass)
       const kpiOcc = kpiOpenScoped.filter(function (x: any) { return isOccupied(st, x) }).length
       const kpiLocal = { open: kpiOpenScoped.length, occupied: kpiOcc, closed: closedIssues.filter(effPass).length }
       // 渲染夹具（门禁里只挂部分小件的假世界）可能没铺 kpiCountsOf：那时退回按池子派生，行为与 #1698 之前一致。
-      const kpiState = (typeof kpiCountsOf === 'function' ? kpiCountsOf(st, kpiFiltered, kpiLocal) : null) ||
-        { takeable: kpiLocal.open - kpiLocal.occupied, closed: kpiLocal.closed, unknown: false, pending: false, atMs: 0 }
-      const kpiFrontier = kpiState.takeable
-      const kpiClosed = kpiState.closed
-      const kpiHint = kpiState.pending ? tr('list.countsPendingTitle', { time: kpiState.atMs > 0 ? clockTextOf(kpiState.atMs) : '—' }) : (kpiState.unknown ? tr('list.countsUnknownTitle') : '')
+      // #1894：不带工作单元筛选时，KPI 三数直接读视图模型的 counts（与状态栏同一份）；带上筛选时
+      //   仍走原来那条按池子派生的路，数字口径不变（视图模型的 counts 是全仓读数，不跟着筛选缩）。
+      const kpiState = (!kpiFiltered && deckCounts && deckCounts.kpi) ? deckCounts.kpi : ((typeof kpiCountsOf === 'function' ? kpiCountsOf(st, kpiFiltered, kpiLocal) : null) ||
+        { takeable: kpiLocal.open - kpiLocal.occupied, blocked: kpiOcc, claimed: 0, closed: kpiLocal.closed, total: kpiLocal.open + kpiLocal.closed, open: kpiLocal.open, complete: false, unknown: false, occupied: kpiOcc })
+      // 「阻塞」这一格：库给了确定的 blocked 就用它；老快照没有那一格时退回本地占用数（不编一个数）。
+      const kpiBlocked = (typeof kpiState.blocked === 'number') ? kpiState.blocked : kpiOcc
+      // 库没经历过完整枚举（complete=false）时明说这是「已知」的下界：数字有，但只是手上这份数据算出来的。
+      const kpiKnownPartial = kpiState.complete === false && typeof kpiState.total === 'number'
       // 折叠行那两个数：N（一共多少张）来自后端计数、x（列表里已经加载了多少张）就是手上这些行。
       //   带任何筛选时 N 退回手上的行数 —— 后端给的是全仓总数，与筛过的列表对不上会让人以为少了票。
       const foldCounts = deckCountsOf(st, !!(((st.effFilters || []).length) || ((st.lblFilters || []).length)))
@@ -359,21 +365,23 @@ export     const ListTab = ({ st, narrow }: any) => {
               nm,
               // 本次界面反馈需求：✕ 是一颗能点的小控件（去掉这一个标签的过滤），给它自己的按压态与点击日志；
               //   定位串用它在已选标签条里的序号（标签名可能是中文，进不了定位串）。
-              h('span', chipProps({ 'data-press': 'chip', 'data-log': 'list.filter.remove.' + i, onClick: function (e: any) { e.stopPropagation(); st.lblFilters = (st.lblFilters || []).filter(function (x: any) { return x !== nm }); emit(st) }, 'aria-label': tr('list.filterRemoveAria', { name: nm }), style: { cursor: 'pointer', marginLeft: 4, fontWeight: 700 } }), '✕'),
+              h('span', chipProps({ 'data-press': 'chip', 'data-log': 'list.filter.remove.' + i, onClick: function (e: any) { e.stopPropagation(); if (deckView && typeof deckViewCommand === 'function') deckViewCommand(st, 'setLabelFilters', (filters.lblFilters || []).filter(function (x: any) { return x !== nm })); else { st.lblFilters = (st.lblFilters || []).filter(function (x: any) { return x !== nm }); emit(st) } }, 'aria-label': tr('list.filterRemoveAria', { name: nm }), style: { cursor: 'pointer', marginLeft: 4, fontWeight: 700 } }), '✕'),
             ])
           }),
           // 本次界面反馈需求：「清除」药丸能点（清空已选标签），给它自己的按压态与点击日志。
-          h('span', chipProps({ key: 'f-label-clear', className: 'dsws-chip dsws-hov', 'data-press': 'chip', 'data-log': 'list.filter.clear', onClick: function (e: any) { e.stopPropagation(); st.lblFilters = []; emit(st) }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }), tr('list.filterClear')),
+          h('span', chipProps({ key: 'f-label-clear', className: 'dsws-chip dsws-hov', 'data-press': 'chip', 'data-log': 'list.filter.clear', onClick: function (e: any) { e.stopPropagation(); if (deckView && typeof deckViewCommand === 'function') deckViewCommand(st, 'setLabelFilters', []); else { st.lblFilters = []; emit(st) } }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }), tr('list.filterClear')),
         ]) : null,
         // B Timeline 定版（2026-08-28）：全屏红卡（NoRepoCard）不再挂载于列表页顶部——
         //   远端未关联/环境未就绪由检查页行内红卡表达，列表页保持 KPI + 列表（无顶部错误信息）
         // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
-        // #1698：待校准/未知的说明走 Tip 薄预设（views 目录的 title 处数有上限，别再新增 title）。
+        // #1887：计数不再有「待校准」这一档；库没取全时直接在 KPI 行里说「已知 N 张（未取全）」。
         (function () {
           const kpiRow = h('div', { 'data-list-head': 'kpi', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
-          kpi(kpiFrontier, tr('list.kpi.takeable'), 'target', '#4ade80'),
-          kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
-          kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
+          kpi(kpiState.takeable, tr('list.kpi.takeable'), 'target', '#4ade80'),
+          kpi(kpiBlocked, tr('list.kpi.blocked'), 'lock', '#f0883e'),
+          kpi(kpiState.closed, tr('list.kpi.closed'), 'check', '#52525b'),
+          // #1887：库没取全时明说「已知 N 张（未取全）」；取全了就不画这句（直接说数字）。
+          kpiKnownPartial ? h('span', { key: 'countsKnownPartial', 'data-list-counts-known': '1', style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('list.countsKnownPartial', { n: String(kpiState.total) })) : null,
           // #1699：当前取数是否走了 REST 通道，不再画成占一行的横幅（历史在通知中心），改成这一行里的一枚小标识；
           //   说哪一句仍由 truthLines 的 restFallbackView 给（超一小时改口「上次…」、只有配额才提配额），这里只负责画。
           h(FallbackMark, { key: 'fallbackMark', st: st }),
@@ -410,7 +418,7 @@ export     const ListTab = ({ st, narrow }: any) => {
           })(),
           // T2 #2：刷新按钮已上移至面板 tabs 行（页内浮窗退役后，面板只有右侧边栏这一处）
           ])
-          return kpiHint ? h(Tip, { content: kpiHint }, kpiRow) : kpiRow
+          return kpiRow
         })(),
         // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
         // md目录签（仅多 effort 仓库出现）：一次只看一个工作单元，再点同一颗回到全部；与状态/label 过滤叠加。
@@ -429,7 +437,9 @@ export     const ListTab = ({ st, narrow }: any) => {
         // #1302：遮罩里不再画五根写死宽度的灰条，改成照真实行的形状画（listSkeletonNode，形状真源在 ListTabRow.ts），
         //   从列表区顶部往下排；「加载中」那句留在最上面当一句说明，不再居中堆在骨架中间。
         (st.snapMode === 'loading' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { className: 'dsws-loading-shade', style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', gap: 8, padding: '10px 0 0', overflow: 'hidden', zIndex: 5, pointerEvents: 'auto' } }, [
-          h('span', { style: { fontSize: 12, color: '#e6edf3', textAlign: 'center', flex: 'none', padding: '0 0 6px' } }, tr('list.loading')),
+          // #1893：首屏等的是「取数」而不是本地读盘，用专门的一句「正在取数」；其余加载占位
+          // （详情、评论、已关闭翻页）仍用 list.loading，不跟着改口径。
+          h('span', { style: { fontSize: 12, color: '#e6edf3', textAlign: 'center', flex: 'none', padding: '0 0 6px' } }, tr('list.fetching')),
           listSkeletonNode(h, 8),
         ]) : null,
         (st.snapMode === 'err' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { style: { color: '#f87171', fontSize: 12, padding: '14px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 12 }), h('span', null, tr('list.errFull', { err: st.snapError }))]) : null,

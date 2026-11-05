@@ -20,7 +20,8 @@ export type RowMergeDecision =
  * 判断 row 组这一批该做什么。
  *
  * - unknown：明确不知道，保留旧行，只由调用方盖章。
- * - complete + value 为 null / undefined：确认这张票不存在，整行删除（级联清子表）。
+ * - complete + value 为 null / undefined：确认这张票不存在，写墓碑（#1885 评审修复；规格 I7：
+ *   不物理删行，行留着，列表/计数投影排除它，变化集把它当删除交出去）。
  * - complete + 有值：整组替换，没给的列写 NULL（complete 的语义就是「这一组我全知道」）。
  * - truncated + 有值：只挑非空的字段去补当前为 NULL 的列；已经有的值不动。
  * - truncated + null：什么都没拿到，保留旧行。

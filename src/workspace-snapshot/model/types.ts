@@ -180,10 +180,129 @@ export interface ListProjection {
   issues: ListIssue[]
 }
 
+/**
+ * 面板顶上的六个数字，从库里一次查询算出（#1887，规格 #1885 §7）。
+ *
+ * 口径（与 projection/counts.ts 的 SQL 一一对应，改一处必须改另一处）：
+ *  - 只数「有 row 组记录、没被墓碑标记、不是拉取请求」的票；PR 身份未知的票按工单算，
+ *    与界面 ticketRowsOf 的工单口径一致；
+ *  - total 是全部；open / closed 按状态严格比（状态未知的票进 total，不进 open / closed）；
+ *  - 可接 / 阻塞 / 已认领只数还开着的票：已关闭的票不再可接、不再算阻塞，也不算在办认领；
+ *  - 可接 = 开放、指派组完整且为空、没有未关闭（或状态未知 / 不存在）的阻塞者；
+ *  - 阻塞 = 开放、至少一个阻塞者不是已关闭（目标不存在也算阻塞，与派生统计的 NOT-FOUND 口径一致）；
+ *  - 已认领 = 开放、至少一个指派人；
+ *  - completeness 来自库级同步簿记的「整仓完整枚举时刻」：写过 = complete，没写过 = known。
+ *    「已知」是诚实的下界，不是 0，也不是「真的只有这么多」。
+ */
+export interface SnapshotCounts {
+  total: number
+  open: number
+  closed: number
+  takeable: number
+  blocked: number
+  claimed: number
+  completeness: 'complete' | 'known'
+}
+
 /** 列表查询参数。state 缺省为 open；all 表示不筛状态。limit 缺省不限制。 */
 export interface ListQuery {
   state?: 'open' | 'closed' | 'all'
   limit?: number
+}
+
+/**
+ * 按容器读一次查询（#1923）：容器身份是 (工作单元, 编号) 两段。
+ *
+ * 为什么单列而不是复用 IssueDetailQuery：详情要读正文、评论与四向边，这一条只要
+ * 「容器行 + 它的全部子票行」——两者读的列、读的表与体积都不一样，混成一个查询会让
+ * 「打开一张已关闭容器」多拉一份正文与评论。
+ */
+export interface ContainerProjectionQuery {
+  key: string
+  effortId?: string
+}
+
+/**
+ * 一次按容器读的结果。container 为 null = 库里没有这张容器的行（连引用骨架都没有）；
+ * issues 是挂在它下面的子票行（含已关闭，不含墓碑），形状与列表读完全一致。
+ *
+ * 为什么不在这里算层级与统计：那是领域规则（groupTickets / normalizeMapTickets），
+ * 住在宿主组装层；库这一层只负责把行读齐、读准（规格 D1：领域规则一处实现）。
+ */
+export interface ContainerProjection {
+  mergeVersion: number
+  generatedAtMs: number
+  container: ListIssue | null
+  issues: ListIssue[]
+}
+
+/**
+ * 变化集里一行的落点（#1885 评审修复）。由宿主变化集投影按库里的容器树一次算好，
+ * 客户端只照单落位，不再自己按 parentKey 判容器归属（规格 D1：领域规则一处实现）。
+ *
+ *  - map：这一行自己是容器（地图或规格），更新 maps 里那一项；
+ *  - child：挂到 containerEffortId + containerKey 那个容器的子票里；
+ *  - thin：容器已关闭、子票也关闭，只留一条查标题用的瘦身行；
+ *  - issue：未挂图票（根票、破链票、非容器行）。
+ */
+export interface ChangeRowPlacement {
+  place: 'map' | 'child' | 'thin' | 'issue'
+  /** child / thin 才给：所属容器的身份（与票身份同一套坐标）。 */
+  containerEffortId?: string
+  containerKey?: string
+}
+
+/** 变化集里的一次行变更：列表投影的行 + 它该落在哪里。 */
+export type ChangeSetChangedRow = ListIssue & { placement: ChangeRowPlacement }
+
+/**
+ * 变化集里的墓碑行：某张票在第几个版本被确认不存在。
+ *
+ * 只带身份与删除时刻：界面拿它把对应的行拿掉，不需要墓碑自己的行字段（行还在库里，
+ * 但按定义它不在集合里）。deleted_at_ms 进回包只为排查，不参与界面判断。
+ */
+export interface ChangeSetTombstone {
+  effortId: string
+  key: string
+  deletedAtMs: number
+}
+
+/**
+ * 变化集查询（#1890）。从 sinceVersion 到当前版本，最多回 maxRows 行、最多允许落后 maxAgeMs。
+ *
+ * sinceMs 是客户端看到 sinceVersion 的时刻，由调用方如实交来：时间只用于「落后太久就整份重取」
+ * 这一档降级，不参与显示与新旧判断（规格 I3）。没带（0）时时间档不参与判断，行数上限照旧生效。
+ *
+ * maxRows / maxAgeMs 由调用方从中央时间参数传进来：快照库这一层不读配置，也不写死数字。
+ */
+export interface ChangeSetQuery {
+  sinceVersion: number
+  sinceMs?: number
+  maxRows: number
+  maxAgeMs: number
+}
+
+/** 回整份的原因代号。写进宿主回包，取值只许加、不许改字面。 */
+export type ChangeSetFullReason =
+  | 'no-baseline' // 客户端没给版本（或给的不是非负整数）：没有可比对的起点
+  | 'version-regressed' // 客户端的版本比库里当前版本大：文件被旧拷贝覆盖或库重建过
+  | 'rows-over-limit' // 变化的行与墓碑合计超过行数上限
+  | 'age-over-limit' // 客户端手上的版本比时间上限更旧
+
+/**
+ * 一次变化集读的结果。
+ *
+ * full 为真时只有版本与原因：changes / missing 一律是空数组，表示「这一趟不给变化集」，
+ * 调用方必须整份重取。不要把它当成「没有变化」——那是 full:false + 两个空数组。
+ * 本层不拼事故意不截断：超过上限时不会交回前 maxRows 行，交回半份增量比整份更糟。
+ */
+export interface ChangeSetProjection {
+  mergeVersion: number
+  generatedAtMs: number
+  full: boolean
+  reason: ChangeSetFullReason | null
+  changes: ChangeSetChangedRow[]
+  missing: ChangeSetTombstone[]
 }
 
 /**
@@ -282,4 +401,18 @@ export interface SnapshotDiagnostic {
   message: string
   /** 补充事实：旧身份、备份路径、抢租约失败的持有者等。 */
   detail?: string
+}
+
+/**
+ * 快照库的占用读数（#1922）：库文件字节数与库里的票行数。
+ *
+ * 为什么要有它：2026-11-05 起按需细节不设上限、不按容量丢内容，库只会变大；增长要看得见，
+ * 出问题时才能回答「库现在多大、里面几行」。字节数只数数据真正落在的那两份文件
+ * （主文件加 WAL）：-shm 是进程间共享内存在盘上的映射，不是数据，数进来会随进程开合跳动。
+ */
+export interface SnapshotStorageStats {
+  /** 主文件与 WAL 的字节数之和。 */
+  bytes: number
+  /** 库里的票行数（issue 表一行 = 一张票）。 */
+  rows: number
 }

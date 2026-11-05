@@ -267,6 +267,9 @@ export default {
     // 只有一份真源（src/refresh/kernel/host-budget.ts，#1425 起从 src/shared/refresh/src/budget.ts 搬来），拼进来给界面读；
     // 判据与渲染见 views/shared/truthLines.js 与 views/ListTab.js。
     // ==== shared:refreshBudget (spliced by build) ====
+    // #1885 评审修复：库行 → 界面行的三态换算只有一份（src/shared/snapshot-row-fields.ts）：
+    // 宿主快照投影与客户端变化集合同读这一份，客户端不在闭包里再写第二套判法。
+    // ==== shared:snapshotRowFields (spliced by build) ====
     // #842 写操作：能不能暂存/提交/拉取/推送的判定只有一份真源（src/shared/version-control/src/rules.ts →
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。
@@ -328,6 +331,18 @@ export default {
     // #1355：本会话自己的工作路线读数（剥表、补拉、三处接线共用的请求决策）单独一片，理由见 kernel/work-route-own.ts 文件头。
     // ==== kernel:workRouteOwn (spliced by build) ====
     // ==== kernel:storeDerived (spliced by build) ====
+    // #1894（规格 #1885 S6）：视图模型基座 —— 一份投影 + 会话私有阅读态（筛选/草稿/当前打开的票），
+    //   对外只有状态与命令，视图按切片订阅。纯模型在前、生产接线在后：接线要调纯模型的 createDeckView。
+    // ==== kernel:deckViewModel (spliced by build) ====
+    // #1895：地图详情这一屏的视图模型切片（容器树、子票、层级、统计都从投影取）。
+    // ==== kernel:deckMapDetail (spliced by build) ====
+    // #1923：已关闭容器的容器级投影（打开时按容器取一次子票、层级与统计；首屏投影不放大）。
+    // ==== kernel:deckContainerDetail (spliced by build) ====
+    // #1896：票详情这一屏的视图模型切片（正文、评论、评审、状态；「加载更多」也在这里）。
+    // ==== kernel:deckIssueDetail (spliced by build) ====
+    // #1897：拉取请求页这一屏的视图模型切片（投影里的 PR 行、三态、次序与四个数）。
+    // ==== kernel:deckPrList (spliced by build) ====
+    // ==== kernel:deckViewBinding (spliced by build) ====
     // 行级动作全家（诊断/接手/…/执行八选一、容器三态按钮）从 store-derived 原样抽出，
     // 排在其后：它们要用 findMapByIdentity 与 isLightHex。
     // ==== kernel:rowActions (spliced by build) ====
@@ -344,6 +359,10 @@ export default {
     //   迟到快照回包的落地判据）。单独一片的原因与 #707 那次一样：probe-snapshot.js 贴着 350 行上限。
     // ==== kernel:probeSelect (spliced by build) ====
     // ==== kernel:probeSnapshotHelpers (spliced by build) ====
+    // #1891（规格 #1885 S4）：客户端只看库版本判新鲜度 —— 变化集并进手上那份（纯合并）在前，
+    //   同步引擎与生产接线在后；两片都不 import 别的模块（客户端闭包靠拼接拼在一起）。
+    // ==== kernel:snapshotChangeMerge (spliced by build) ====
+    // ==== kernel:snapshotVersionSync (spliced by build) ====
     // ==== kernel:probeAuto (spliced by build) ====
     // ==== kernel:attentionHeartbeat (spliced by build) ====
     // 打开形式（#373 用户拍板 2026-08-14；#646 改版；2026-09-21 收敛为唯一一条路）：

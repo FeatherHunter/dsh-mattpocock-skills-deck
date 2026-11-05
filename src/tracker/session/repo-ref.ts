@@ -195,6 +195,11 @@ export interface ResolveRepoRefForCwdInput {
   backendId: string
   /** 注册表视图的 describe；给得出非空 refId 就直接用（便宜、不花额度）。 */
   describe?: RegistryDescribe | null
+  /**
+   * 宿主本地 git 远程那一问（只读本地、不联网）：GitHub 通常只有它答得出 owner/name。
+   * 给了就在 describe 之后、开会话之前问它——版本轮询那条路每五秒一拍，不能每拍都去开会话。
+   */
+  getRepoKey?: ((cwd: string) => Promise<{ owner?: unknown, name?: unknown } | null> | { owner?: unknown, name?: unknown } | null) | null
   /** 宿主注入的只读会话口；它开出的会话语义与 #1583 收口后的补齐链一致，是身份的真源。 */
   openSession?: OpenReadSession | null
 }
@@ -229,14 +234,16 @@ function repoRefOfOpenedSession(opened: unknown, backendId: string): RepositoryR
 }
 
 /**
- * 给四条「自己造仓库身份」的取数电话用：先问注册表 describe，给不出 refId 再向会话要。
+ * 给「自己造仓库身份」的取数电话与行级增量口用：依次问注册表 describe、宿主本地 git 远程、
+ * 本地 Markdown 的目录身份，最后才向会话要（会话是身份真源，但可能起进程、花额度）。
  *
  * 为什么要有这一步：GitHub 的 describe 只认已带 owner/name 的 handle，GitLab 的 describe 也只认
  * handle.refId；只拿工作区目录去问，它们会回一个 refId 为空的壳。调用方如果只判「回包里有没有对象」，
  * 空壳就会被当成身份送进后端操作，最终在房间内部以「refId missing」失败（#1584 的 F1–F4）。
  *
- * 返回值约定：拿到非空 refId 才回对象；否则回 null，调用方保持自己原来的兜底/报错（不在这一层编造
- * 「refId=cwd」这种糊弄下游的身份）。本函数永不抛，开会话失败等同于「这次拿不到」。
+ * 返回值约定：拿到非空 refId 才回对象；否则回 null，调用方保持自己原来的兜底/报错。除本地 Markdown
+ * （它的仓库身份按定义就是工作区目录）之外，不在这一层编造「refId=cwd」这种糊弄下游的身份。
+ * 本函数永不抛，开会话失败等同于「这次拿不到」。
  */
 export async function resolveRepoRefForCwd(input: ResolveRepoRefForCwdInput): Promise<RepositoryRef | null> {
   // 第一步：注册表 describe。宿主与刷新手里直接就有它，且它已是「模块优先」口径；
@@ -250,7 +257,32 @@ export async function resolveRepoRefForCwd(input: ResolveRepoRefForCwdInput): Pr
       // describe 是本地读；抛错等同于「答不上」，交给下一步的会话再问一次。
     }
   }
-  // 第二步：向会话要。会话装配已按 #1581 补齐两条定位口、按 #1583 补齐远端坐标，
+  // 第二步：宿主本地 git 远程。只读本地，不联网；GitHub 的 owner/name 通常只有它答得出。
+  // 为什么排在开会话之前：版本轮询每五秒问一次身份，能不问会话就不问。
+  if (typeof input.getRepoKey === 'function') {
+    try {
+      const located = await input.getRepoKey(input.cwd)
+      const owner = located && typeof located.owner === 'string' ? located.owner : ''
+      const name = located && typeof located.name === 'string' ? located.name : ''
+      if (owner && name) {
+        const refId = owner + '/' + name
+        return { backend: input.backendId, refId: refId, name: refId, url: '' } as RepositoryRef
+      }
+    } catch {
+      // 本地 git 读失败按「答不上」处理，继续问会话。
+    }
+  }
+  // 第三步：本地 Markdown 的身份就是工作区目录本身（与 #1868 的判定同一口径）。
+  // 只有这个后端允许拿 cwd 当 refId；其余后端拿 cwd 冒充身份会开错库。
+  if (input.backendId === 'markdown') {
+    return {
+      backend: 'markdown',
+      refId: input.cwd,
+      name: String(input.cwd).split(/[\\/]/).pop() || 'markdown',
+      url: '',
+    } as RepositoryRef
+  }
+  // 第四步：向会话要。会话装配已按 #1581 补齐两条定位口、按 #1583 补齐远端坐标，
   // 这是仓库身份的真源；这里只借用它的答案，不重复实现一遍补齐链。
   if (typeof input.openSession === 'function') {
     try {
