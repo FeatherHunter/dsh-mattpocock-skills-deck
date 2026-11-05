@@ -43,8 +43,6 @@
 import * as delta from '../../kernel/snapshot-diff.js'
 import * as merger from '../../kernel/snapshot-merge.js'
 import { fetchThinRows } from './thin-row-fetch.js'
-// #1692：按需细节的淘汰规则（上限、LRU 判据、淘汰后留什么记号）只住这一处；本文件只在写回前调它。
-import { evictDetailsInSnapshot } from '../../kernel/detail-eviction.js'
 // #1888：水印、世代号、待办三样搬进快照库的库级元信息，读写与「先落库、再显示」的次序收在 ./row-patch-state.ts。
 import { createPatchState, structureStamp, withState, type DeltaState } from './row-patch-state.js'
 
@@ -129,9 +127,6 @@ export function createPatch(deps?: PatchDeps | null): any {
       // 335 契约 §2.4 的红线是「日志里不许出现工作区原始路径」，而上游错误原文经常带绝对路径：
       // 先把 Windows 盘符路径、UNC 路径与 POSIX 绝对路径整段换成 <path>，再截断 120 字符。
       if (e.err) fields.err = String(e.err).replace(/(?:[A-Za-z]:[\\/]|\\\\|\/(?:[^\s"'\u3001\uff0c\u3002\uff1b\uff09\u0029])+\/)[^\s"'\u3001\uff0c\u3002\uff1b\uff09\u0029]*/g, '<path>').slice(0, 120)
-      // #1692：本轮淘汰掉多少条内容、多少字节。只在真淘汰过时才加这两格，
-      // 成功行没有这回事时不多记两个 0（日志纪律：只收信号、不收垃圾）。
-      if (e.evicted) { fields.evicted = e.evicted; fields.evictedBytes = e.evictedBytes || 0 }
       logCtx.fire('debug', 'refresh.patch', fields)
     } catch (eL: any) { /* 日志不许把主流程带崩 */ }
   }
@@ -148,33 +143,6 @@ export function createPatch(deps?: PatchDeps | null): any {
   })
 
   async function readSnap(cwd: any): Promise<any> { return await Promise.resolve(d.readSnapshot(cwd)) }
-
-  /**
-   * 这一轮真拿到的行键。淘汰规则据此给行打「刚取到」的时间戳，没拿到的行沿用旧戳。
-   *
-   * 键口径与 kernel/detail-eviction.ts 的 rowKeyOf 保持一致（key 优先、其次 number，都字符串化，
-   * 空值不收）——这份键集合要交给同一套淘汰规则，两边写法不一致会把刚取到的行误判成旧的。
-   * 它不 trim、不拆对象包装，也不做跨后端归一，与宿主装配层、客户端卡片那两份不同；
-   * 四处暂不合并的原因见 docs/design/20261030-panel-snapshot-closeout.md 第 9 节第 7 条与 #1769。
-   */
-  function freshKeysOf(rows: any): Record<string, boolean> {
-    const out: Record<string, boolean> = {}
-    const list: any[] = Array.isArray(rows) ? rows : []
-    for (let i = 0; i < list.length; i++) {
-      const r: any = list[i]
-      const k: any = r && (r.key !== undefined && r.key !== null ? r.key : r.number)
-      if (k !== undefined && k !== null && String(k)) out[String(k)] = true
-    }
-    return out
-  }
-
-  /**
-   * 写回前跑一遍淘汰（#1692）：只淘汰按需细节的内容字段，行、父子边、依赖边、子票计数不动。
-   * 三个挂点共用它，规则本身只在 kernel/detail-eviction.ts 一处。
-   */
-  function evictForWrite(snap: any, rows: any): any {
-    return evictDetailsInSnapshot(snap, { nowMs: now(), freshKeys: freshKeysOf(rows) })
-  }
 
   // 待办、切工作区、整池结果这三样也收在 ./row-patch-state.ts（读写库级元信息）；名字保持不变，
   // 调用方（run / 探针 / 写事件）不用改签名。
@@ -307,15 +275,14 @@ export function createPatch(deps?: PatchDeps | null): any {
     //   变化集回包会带上同一时刻的 deck.counts（见 snapshot-read-channels），界面随变化行一起换掉；
     //   这一趟的快照只是内部基线，不交付给界面。
     const wv: any = delta.watermarkAfter({ previousMs: latestState.watermarkMs || watermarkMs, scanStartedMs: scanStartedMs, outcome: 'merged' })
-    // #1692：写回前按上限淘汰按需细节。本轮真拿到的行打新时间戳，其余沿用旧戳；
-    // 淘汰只删内容字段、留「曾取过」记号，行与三类边、计数一个不动（规则住 kernel/detail-eviction.ts）。
-    const ev: any = evictForWrite(merged.snapshot, got.rows)
+    // #1922：写回前不再按上限清理按需细节（2026-11-05 决定：不设上限、不按容量丢内容）。
+    // 库里已有的正文、评论、评审、子票清单原样留着，行与三类边、计数照旧不动。
     const nextState: DeltaState = {
       watermarkMs: wv.watermarkMs, generation: g.generation, pendingAt: latestState.pendingAt, pendingReason: latestState.pendingReason,
       pending: latestState.pending.filter(function (k: string): boolean { return merged.changes.updated.indexOf(k) < 0 }),
     }
     // 合并服务只把内容版本号放在回执里（快照里的 version 是信封契约版本，不归它改），由这里写回快照。
-    const next = withState(Object.assign({}, ev.snapshot, {
+    const next = withState(Object.assign({}, merged.snapshot, {
       version: merged.version, generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
     }), nextState)
     // ⑫ 先落库（变化行与簿记一个事务），成功之后才写宿主内存副本：库写失败时内存一个字节不改、
@@ -331,7 +298,7 @@ export function createPatch(deps?: PatchDeps | null): any {
       return { mode: stale ? 'stale-dropped' : 'failed', reason: reason }
     }
     stats.patched += 1
-    fire('patch', 'rows-changed', { keyHash: keyHash, changed: merged.changes.updated.length, queries: got.queries, watermark: wv.advanced ? 'advanced' : 'held', pending: nextState.pending.length, evicted: ev.stats.evicted, evictedBytes: ev.stats.evictedBytes })
+    fire('patch', 'rows-changed', { keyHash: keyHash, changed: merged.changes.updated.length, queries: got.queries, watermark: wv.advanced ? 'advanced' : 'held', pending: nextState.pending.length })
     return {
       mode: 'patch', reason: 'rows-changed', rows: merged.changes.updated, queries: got.queries,
       version: merged.version, mergeVersion: merged.merge.version, partial: deck.partial === true, counts: derived.countsAction,
@@ -432,15 +399,14 @@ export function createPatch(deps?: PatchDeps | null): any {
     if (derived.markPartial) deck.partial = true
     // #1887：与 run() 同一口径：不本地重算、不留待校准；数字随变化集回包从库来。
     const changedKeys: any[] = merged.changes.updated.concat(merged.changes.added)
-    // #1692：同 run()，写事件这条写回前也按上限淘汰按需细节；本轮写回执拿到的行算「刚取到」。
-    const ev: any = evictForWrite(merged.snapshot, got.rows)
+    // #1922：与 run() 同一口径，写事件这条写回前也不清理按需细节（不设上限、不按容量丢内容）。
     const nextState: DeltaState = {
       // 水印一个字节都不动：写事件这一条不是窗口探测，动水印会让下一次探测错过窗口。
       watermarkMs: latestState.watermarkMs, generation: g.generation, pendingAt: latestState.pendingAt, pendingReason: latestState.pendingReason,
       pending: latestState.pending.filter(function (k: string): boolean { return changedKeys.indexOf(k) < 0 }),
     }
     // 合并服务只把内容版本号放在回执里（快照里的 version 是信封契约版本，不归它改），由这里写回快照。
-    const next = withState(Object.assign({}, ev.snapshot, {
+    const next = withState(Object.assign({}, merged.snapshot, {
       version: merged.version, generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
     }), nextState)
     // 行已经由写回执先落库；这里把这一趟的世代号与待办认进库，成功之后才写内存副本。
@@ -452,7 +418,7 @@ export function createPatch(deps?: PatchDeps | null): any {
       return { mode: stale ? 'stale-dropped' : 'failed', reason: reason, pending: nextState.pending.length }
     }
     stats.patched += 1
-    fire('patch', 'write-patch', { keyHash: keyHash, changed: changedKeys.length, queries: got.queries, watermark: 'held', pending: nextState.pending.length, evicted: ev.stats.evicted, evictedBytes: ev.stats.evictedBytes })
+    fire('patch', 'write-patch', { keyHash: keyHash, changed: changedKeys.length, queries: got.queries, watermark: 'held', pending: nextState.pending.length })
     return { mode: 'patch', reason: 'write-patch', rows: changedKeys, version: merged.version, snapshot: next, queries: got.queries, partial: deck.partial === true, generation: g.generation, watermarkMs: nextState.watermarkMs }
   }
 

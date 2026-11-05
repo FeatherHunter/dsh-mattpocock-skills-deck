@@ -55,8 +55,8 @@ export {
 } from './snapshot-library-sync.js'
 export type { ChangeRowsInput, ChangeRowsResult, LibrarySyncState } from './snapshot-library-sync.js'
 // 版本查询与变化集两条新读口（#1890）：实现住在同目录的 read 模块，调用方仍只认这一个门面。
-export { readLibraryVersion, readLibraryChangeSet } from './snapshot-library-read.js'
-export type { LibraryChangeSetInput } from './snapshot-library-read.js'
+export { readLibraryVersion, readLibraryChangeSet, readLibraryStorageStats } from './snapshot-library-read.js'
+export type { LibraryChangeSetInput, LibraryStorageStats } from './snapshot-library-read.js'
 
 /** 一批写多少张票；见文件头。 */
 export const SNAPSHOT_WRITE_CHUNK = 200

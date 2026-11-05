@@ -14,6 +14,7 @@
 - 新增门禁：`tests/verify-closeout-acceptance.ts`（20 项断言，本矩阵自洽与文档真数）与 `tests/verify-closeout-log-trips.ts`（34 项断言，五类输入×五段日志），两扇都已登记完成证据并进链。
 - 四条维护者要求的联合门禁 `tests/verify-acceptance-four.ts`（27 项断言，走真实快照路径）已在链上并登记完成记录，作为本规格的总验收门禁随全链通过。
   - 2026-11-04 #1870 补记：`verify-acceptance-four` 与 `verify-detail-incremental` 已随宿主详情合并退役（详情只写本地快照库），第 14/17/18 行的判据改由 `verify-1864-snapshot-detail`、`verify-1864-snapshot-detail-replay`、`verify-1866-write-receipt-replay`、`verify-1472-write-event-fetch` 与 `verify-retire-client-caches` 承担；收口矩阵 `tests/fixtures/1700/closeout-matrix.json` 是仍在对数的那一份。
+  - 2026-11-05 #1922 补记（规格 #1885）：维护者拍板「我们就不限制上限了，也不要淘汰了。数据库里面存的数据，除非源头被删除，否则不会再消失。」第 3 行与第 11 行当初的「按需细节淘汰例外 / 上限与最近使用淘汰」判据随之废止，第 11 行改由 `verify-1922-retire-eviction` 守新口径（不设上限、不按容量丢内容、诊断读数看得见库文件字节数与票行数）；`verify-1692-disk-replay-eviction` 只保留磁盘快照退役与回放提示两段，淘汰段退役。
 - 复审修复：code-review 两轴复审（spec 轴四条、standards 轴三条硬问题与四条判断项）之后的修复合入 `6d1125fd`、`8854af93`、`05eb9e50`；合入后暴露出两条由修复引入的真红，在 `271c2949` 一并修掉。集成分支最终裁决在 `271c2949`：`npm run verify:parallel` **480/480 步、真红 0、冒烟 5/5 真红 0**（并发假红 `verify-cap-fold-browser` 复跑转绿）。逐条见第 9 节。
 
 ## 2. 30 条验收逐条结论
@@ -24,7 +25,7 @@
 |---|---|---|---|---|---|---|
 | 1 | 0 | 一次只读真机探针：列表行父票链接、依赖摘要、子票摘要三字段 | verify-github-rest-fallback | 三字段任一缺失时退路未生效（字段无的夹具必须解析成未表达，不能当成没有父票/计数为零） | pass | 阶段 0 真机探针（2026-10-31T03:04–03:07，两页 200 行）+ 收口日真实列表，见第 6 节 |
 | 2 | 0 | 操作百科补读/写标记与可用渠道，成为读操作名录唯一真源 | verify-operation-catalog | 新增读操作未登记（读操作名录与百科不一致） | pass | — |
-| 3 | 0 | 术语表新增通知中心与通知事件，按需细节补淘汰例外 | verify-glossary-terms | 词条缺失或重名 | pass | — |
+| 3 | 0 | 术语表新增通知中心与通知事件，按需细节补淘汰例外（2026-11-05 #1922 改为不设上限、不淘汰） | verify-glossary-terms | 词条缺失或重名 | pass | — |
 | 4 | 1 | 八类职责、九个物理目录落地，依赖方向与传输唯一出口由依赖门禁硬卡 | verify-room-layering | 渠道层引用上游（分层方向被破坏） | pass | — |
 | 5 | 1 | 分批迁移每批不超过 6 文件，同一提交更新导入与门禁地图基线 | verify-gate-map | 某批未更新导入或门禁地图基线 | pass | — |
 | 6 | 1 | 现有读写归一化行为不变：不新增业务字段、不改错误分类与额度记账 | 全链（FULL_CHAIN） | 现有门禁真红（全链任一步真红） | pass | — |
@@ -32,7 +33,7 @@
 | 8 | 2 | 合并协议按字段组执行，整行替换退役，写事件行补丁也走字段组掩码 | verify-panel-snapshot-merge | 整行替换抹掉已知边 | pass | — |
 | 9 | 2 | 版本门覆盖所有字段组写入含值回退，过期结果整份丢弃，快照版本号单调递增并随盘持久化 | verify-panel-snapshot-merge、verify-1640-unopened-merge | 早发结果把关闭改回打开 | pass | — |
 | 10 | 2 | 磁盘回放带 schema 版本与来源，旧格式缺来源按未知，回放完整度降为上次已知 | verify-1692-disk-replay-eviction、verify-1286-snapshot | 旧盘缺来源仍标完整 | pass | 重启演练：真实快照 JSON 落盘再按磁盘回放路径读回，见第 6 节 |
-| 11 | 2 | 按需细节上限与最近使用淘汰，行、父子边、依赖边、子票计数永不淘汰 | verify-1692-disk-replay-eviction | 淘汰后行/边/计数变少 | pass | — |
+| 11 | 2 | 按需细节不设上限、不按容量丢内容，库里的数据只在源头删除时消失（2026-11-05 #1922 改；原「上限与最近使用淘汰」判据废止） | verify-1922-retire-eviction | 源码里还有淘汰规则/调用、库里还有容量清理路径、界面还有「曾取过但被淘汰」一档 | pass | — |
 | 12 | 2 | 通知事件库宿主落盘、按工作区共享，事件身份与恢复配对只认未闭合最晚 | verify-notification-events | 重启后降级恢复配错对 | pass | — |
 | 13 | 3 | 列表、地图、详情读同一份快照投影，旧详情缓存与地图整桶缓存退役为投影 | verify-single-read-source、verify-retire-client-caches | 视图另写业务缓存（第二份业务数据） | pass | — |
 | 14 | 3 | 降级不缩数据：完整结果后接降级或部分失败，行与关系与已取细节一条不减少（读写两条路径） | verify-rest-fallback-completion、verify-rest-detail-completion、verify-panel-snapshot-merge、verify-acceptance-four | 完整结果后接降级结果丢边 | pass | 降级演练：真实仓库完整读之后注入降级读结果，对比关系与已取细节条数，见第 6 节 |
@@ -149,6 +150,6 @@
   4. **时间阶梯重复（判断）**：通知中心模型自己写 60000/3600000/86400000 与 `notice.time.*`，而 `truthLines.ts` 已有一套「多久以前」阶梯。修复：`truthLines.ts` 新增 `truthAgoViewOf` 作唯一阶梯，模型与列表共用，删掉模型里重复常量与旧词条。`81dcc7cc`。
   5. **宿主入口用「两句合一行」顶四百行上限（判断）**：按 `src/host/settingsPhones.ts` 先例把通知接线拆成 `src/host/notifications.ts`（入口回到 398 行）。真做时再进一步：房间实现只许宿主入口深引，所以「怎么加载事件库」由入口当钩子传进叶子（`loadStore`），叶子自己不深引刷新房；入口→接线叶子这条装配扇入按既有先例登记进同层存量清单（存量 83→82 条，同票删掉两条已失效旧条目）。`829890a5`、`271c2949`。
   6. **死字段 `summary`（判断）**：新事件不再写；类型里保留可选字段只为读回旧文件，模型不再读它。`2ab016fc`。
-  7. **行身份归一化至少四处、语义不同（判断，记录理由不重构）**：`src/host/tracker/snapshotAssemble.ts:181-215`、`src/refresh/kernel/detail-eviction.ts:107-111`、`src/client/views/mapDetailV2/model/tickets/ticketCardFacts.ts:73-79` 与 `:106-126`、`src/refresh/rooms/host/row-patch.ts:170-179` 各写了一份「行身份 / 票号归一化」。它们不是同一份的复制：宿主装配层会 trim 字符串、认 `{key}` / `{number}` 对象包装并递归，`rowKeyOf` 先 key 后 number；刷新内核 `detail-eviction` 的 `rowKeyOf` 只做 `String(key)` / `String(number)`，不 trim、不拆对象，空值回空串；客户端地图卡片的 `ticketNumberOf` 先按数字、再解析 key，`numberKeyOf` 会 trim 并去掉前导零（`'01'` 折成 `'1'`），认不出的写法原样保留；宿主 `row-patch` 的 `freshKeysOf` 与刷新内核那条近乎逐字相同（key→number→字符串化，空串不收），因为它把键集合交给同一套淘汰规则，两边口径必须一致。真正的原因不是「抽公共叶子破坏分层」：`verify-room-layering` 只守 `src/tracker/rooms/github` 九目录内部，`.dependency-cruiser.ts` 本来就允许 host / refresh / client 引 `src/shared` 与 `src/tracker/kernel`（树上已有宿主引 `src/tracker/kernel/identity-keys.js` 的先例）。要先定的是跨后端票号口径：GitHub 是数字键，Markdown 与本地后端是补零字符串键，`identity-keys.ts` 的 `refKeyOf` 与刷新内核 `rowKeyOf` 在「空串 key 要不要回落到 number」上也不一致。合早了，公共叶子会在一处折零、另一处不折，把矛盾藏进共享代码。本规格只记录不重构，留作后续票；若另开票，最小安全范围是先收编刷新内核与 `row-patch` 那一对（见 #1769）。
+  7. **行身份归一化至少四处、语义不同（判断，记录理由不重构）**：`src/host/tracker/snapshotAssemble.ts:181-215`、`src/refresh/kernel/detail-eviction.ts:107-111`、`src/client/views/mapDetailV2/model/tickets/ticketCardFacts.ts:73-79` 与 `:106-126`、`src/refresh/rooms/host/row-patch.ts:170-179` 各写了一份「行身份 / 票号归一化」。它们不是同一份的复制：宿主装配层会 trim 字符串、认 `{key}` / `{number}` 对象包装并递归，`rowKeyOf` 先 key 后 number；刷新内核 `detail-eviction` 的 `rowKeyOf` 只做 `String(key)` / `String(number)`，不 trim、不拆对象，空值回空串；客户端地图卡片的 `ticketNumberOf` 先按数字、再解析 key，`numberKeyOf` 会 trim 并去掉前导零（`'01'` 折成 `'1'`），认不出的写法原样保留；宿主 `row-patch` 的 `freshKeysOf` 与刷新内核那条近乎逐字相同（key→number→字符串化，空串不收），因为它把键集合交给同一套淘汰规则，两边口径必须一致。真正的原因不是「抽公共叶子破坏分层」：`verify-room-layering` 只守 `src/tracker/rooms/github` 九目录内部，`.dependency-cruiser.ts` 本来就允许 host / refresh / client 引 `src/shared` 与 `src/tracker/kernel`（树上已有宿主引 `src/tracker/kernel/identity-keys.js` 的先例）。要先定的是跨后端票号口径：GitHub 是数字键，Markdown 与本地后端是补零字符串键，`identity-keys.ts` 的 `refKeyOf` 与刷新内核 `rowKeyOf` 在「空串 key 要不要回落到 number」上也不一致。合早了，公共叶子会在一处折零、另一处不折，把矛盾藏进共享代码。本规格只记录不重构，留作后续票；若另开票，最小安全范围是先收编刷新内核与 `row-patch` 那一对（见 #1769）。**2026-11-05 #1922 补记**：刷新内核 `detail-eviction.ts` 与 `row-patch` 的 `freshKeysOf` 已随淘汰机制一起删除，四处只剩宿主装配层与客户端地图卡片两处（见 `snapshotAssemble.ts` 的注释）。
 - **修复后的最终裁决**：两笔修复先后合入集成分支（`6d1125fd`、`8854af93`、`05eb9e50`），合入后全链暴露出两条由修复引入的真红——`verify-dependency-rules` 的房间方向违规与 `verify-ui-feedback` 的按压形状缺失；Lead 在 `271c2949` 一并修掉（入口注入加载钩子 + 登记装配扇入 + 补 `data-press` + 两扇通知门禁断言改成「只查 import 形式」）。最终在 `271c2949` 跑 `npm run verify:parallel`：480/480 步、真红 0、冒烟 5/5 真红 0，并发假红 `verify-cap-fold-browser` 复跑转绿。
 

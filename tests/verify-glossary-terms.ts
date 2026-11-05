@@ -1,20 +1,21 @@
 /**
- * tests/verify-glossary-terms.ts —— 通知中心/通知事件与按需细节淘汰例外门禁（#1683）
+ * tests/verify-glossary-terms.ts —— 通知中心/通知事件与按需细节「不设上限、不淘汰」门禁（#1683 立，#1922 改）
  *
  * 门禁归属: GLOSSARY.md
  *
  * 这个门禁回答三个问题：
- *   一、「面板共享语义词条」这一节的标题写着本轮日期（2026-10-31）与票号（#1683）；
+ *   一、「面板共享语义词条」这一节的标题写着两轮修订的日期与票号：2026-10-31 / #1683（通知中心与通知事件）
+ *      与 2026-11-05 / #1922（按需细节改成不设上限、不淘汰）；
  *   二、节里有「通知中心」「通知事件」两个词条，各恰好一条，而且不是只有名字（正文至少 60 字）；
- *   三、「按需细节」词条里写着淘汰例外：超出上限按最近使用淘汰、界面显示「未取」、
- *       行与边永不因容量淘汰。
+ *   三、「按需细节」词条写的是新决定：2026-11-05 起不设上限、不淘汰，数据只在源头删除时消失，
+ *      增长在诊断读数里看得见（字节数）；旧口径的「按最近使用淘汰」与「曾取过」记号不许再出现。
  *
- * 为什么要有它：术语表是本仓的领域词典，新词条落在哪一节、有没有写日期、旧词条有没有补例外，
- * 全靠人记得。这一条把 #1683 要求的三处改动变成判据。词条正文只判「写没写清楚」，
- * 不逐字比对措辞——措辞可以改，只要三件事还在。
+ * 为什么改这道门禁（#1922）：它原来守的是旧规则（按上限淘汰、界面显示「未取（曾在某时）」）。
+ * 维护者 2026-11-05 拍板「我们就不限制上限了，也不要淘汰了。数据库里面存的数据，除非源头被删除，
+ * 否则不会再消失。」——门禁不能跟着规则一起删掉，必须改成守新决定，否则术语表写错也没人拦。
  *
- * 负例是判据的证据：从内存文本里删掉一条词条、复制出一条重名词条、把「淘汰」二字拿掉，
- * 检查函数都必须当场报红。
+ * 负例是判据的证据：从内存文本里删掉一条词条、复制出一条重名词条、把「不设上限」拿掉、
+ * 把旧口径「按最近使用淘汰」塞回去，检查函数都必须当场报红。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-glossary-terms.ts
  */
@@ -27,9 +28,13 @@ const GLOSSARY = path.join(ROOT, 'GLOSSARY.md')
 const SECTION_MARK = '面板共享语义词条'
 const SECTION_DATE = '2026-10-31'
 const SECTION_TICKET = '#1683'
+const REVISION_DATE = '2026-11-05'
+const REVISION_TICKET = '#1922'
 const TERMS = ['通知中心', '通知事件']
-/** 「按需细节」的淘汰例外里必须出现的四件事：上限、按最近使用淘汰、未取标记、行与边永不淘汰。 */
-const EVICTION_MARKERS = ['上限', '最近使用', '淘汰', '未取', '永不']
+/** 「按需细节」的新决定里必须出现的五件事：变更日期、不设上限、不淘汰、只在源头删除时消失、诊断里的字节数。 */
+const DECISION_MARKERS = [REVISION_DATE, '不设上限', '不淘汰', '源头', '字节数']
+/** 旧口径的词：一个都不许再留在按需细节词条里。 */
+const RETIRED_MARKERS = ['按最近使用淘汰', '曾取过']
 
 let failed = false
 const check = (ok: boolean, msg: string): void => {
@@ -59,8 +64,10 @@ function glossaryProblems(text: string): string[] {
   const problems: string[] = []
   const section = findSection(text.split(/\r?\n/))
   if (!section) return ['找不到「' + SECTION_MARK + '」这一节']
-  if (!section.heading.includes(SECTION_DATE)) problems.push('「' + SECTION_MARK + '」节标题没写本轮日期 ' + SECTION_DATE)
+  if (!section.heading.includes(SECTION_DATE)) problems.push('「' + SECTION_MARK + '」节标题没写第一轮修订日期 ' + SECTION_DATE)
   if (!section.heading.includes(SECTION_TICKET)) problems.push('「' + SECTION_MARK + '」节标题没写票号 ' + SECTION_TICKET)
+  if (!section.heading.includes(REVISION_DATE)) problems.push('「' + SECTION_MARK + '」节标题没写按需细节改口径的日期 ' + REVISION_DATE)
+  if (!section.heading.includes(REVISION_TICKET)) problems.push('「' + SECTION_MARK + '」节标题没写按需细节改口径的票号 ' + REVISION_TICKET)
   for (const term of TERMS) {
     const hits = section.body.filter((line) => line.startsWith('- **' + term + '（'))
     if (hits.length === 0) problems.push('节里缺词条「' + term + '」')
@@ -69,10 +76,13 @@ function glossaryProblems(text: string): string[] {
   }
   const detail = section.body.find((line) => line.startsWith('- **按需细节（'))
   if (!detail) {
-    problems.push('节里缺「按需细节」词条，淘汰例外没有落点')
+    problems.push('节里缺「按需细节」词条，不设上限与不淘汰的决定没有落点')
   } else {
-    for (const marker of EVICTION_MARKERS) {
-      if (!detail.includes(marker)) problems.push('「按需细节」的淘汰例外没写到「' + marker + '」')
+    for (const marker of DECISION_MARKERS) {
+      if (!detail.includes(marker)) problems.push('「按需细节」的新决定没写到「' + marker + '」')
+    }
+    for (const marker of RETIRED_MARKERS) {
+      if (detail.includes(marker)) problems.push('「按需细节」里还留着旧口径「' + marker + '」')
     }
   }
   return problems
@@ -94,7 +104,7 @@ function report(label: string, problems: readonly string[]): void {
 const text = fs.readFileSync(GLOSSARY, 'utf8')
 const section = findSection(text.split(/\r?\n/))
 check(section !== null, 'GLOSSARY.md 里有「' + SECTION_MARK + '」这一节')
-report('术语表里通知中心、通知事件两条齐全，按需细节补了淘汰例外', glossaryProblems(text))
+report('术语表里通知中心、通知事件两条齐全，按需细节写的是不设上限、不淘汰', glossaryProblems(text))
 
 // ---- 负例：判据真能咬住 ----
 const withoutFirst = text.split(/\r?\n/).filter((line) => !line.startsWith('- **' + TERMS[0] + '（')).join('\n')
@@ -106,9 +116,13 @@ const duplicated = mapLine(text, '- **' + TERMS[1] + '（', (line) => line + '\n
 const duplicateProblems = glossaryProblems(duplicated)
 check(duplicateProblems.some((p) => p.includes('重复')), '负例：复制出第二条「' + TERMS[1] + '」，检查函数当场判红（' + (duplicateProblems[0] || '没报') + '）')
 
-const noEviction = mapLine(text, '- **按需细节（', (line) => line.replace(/淘汰/g, ''))
-const noEvictionProblems = glossaryProblems(noEviction)
-check(noEvictionProblems.some((p) => p.includes('按需细节')), '负例：把「按需细节」里的「淘汰」拿掉，检查函数当场判红（' + (noEvictionProblems[0] || '没报') + '）')
+const noDecision = mapLine(text, '- **按需细节（', (line) => line.replace(/不设上限/g, ''))
+const noDecisionProblems = glossaryProblems(noDecision)
+check(noDecisionProblems.some((p) => p.includes('按需细节')), '负例：把「按需细节」里的「不设上限」拿掉，检查函数当场判红（' + (noDecisionProblems[0] || '没报') + '）')
+
+const oldRuleBack = mapLine(text, '- **按需细节（', (line) => line + '旧口径：超出时按最近使用淘汰。')
+const oldRuleProblems = glossaryProblems(oldRuleBack)
+check(oldRuleProblems.some((p) => p.includes('旧口径')), '负例：把旧口径「按最近使用淘汰」塞回去，检查函数当场判红（' + (oldRuleProblems[0] || '没报') + '）')
 
 console.log(failed ? '\n存在失败 — 术语表词条门禁没通过' : '\n全部通过 — 术语表词条门禁生效')
 process.exit(failed ? 1 : 0)
