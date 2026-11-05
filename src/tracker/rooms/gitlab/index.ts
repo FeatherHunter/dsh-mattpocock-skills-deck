@@ -33,13 +33,14 @@ import { remoteUrlsOfGitConfig } from '../../kernel/git-remote.js'
 import { normalizeTrackerText, parseIssueTracker } from '../../kernel/issue-tracker-declaration.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } from './issues.js'
 import { addComment } from './comments/write.js'
-import { setLabels } from './labels.js'
+import { setLabels } from './labels/assign.js'
 import { getDependencies, setBlockedBy } from './graph-blocking.js'
 import { setParent, setAssignees } from './graph-membership.js'
 import { getRepoKey, gitlabOriginOf } from './repo.js'
 import { counts } from './counts.js'
 import { listPage } from './pages.js'
-import { listLabels, setLabelColors } from './labels-ops.js'
+import { listLabels } from './labels/list.js'
+import { setLabelColors } from './labels/colors.js'
 import { getCurrentUser, getRepoPermissions } from './identity-ops.js'
 import { listSubIssues } from './sub-issues.js'
 import { initProject } from './init-project.js'
@@ -247,7 +248,7 @@ const openRepository = 'url'
  * 理由见 `./capability-register.ts` 那一行的注释与 `docs/tracker/capability-gitlab.md`。
  *
  * 地图 10（`#1062`）本轮补的九条在这里各占一行，实现在房内各自的文件：
- * 计数 `./counts.ts`、分页 `./pages.ts`、列标签与批量改色 `./labels-ops.ts`、
+ * 计数 `./counts.ts`、分页 `./pages.ts`、列标签 `./labels/list.ts` 与批量改色 `./labels/colors.ts`、
  * 当前登录人与仓库写权限 `./identity-ops.ts`、子票 `./sub-issues.ts`、开仓发布 `./init-project.ts`、
  * 仓库坐标 `./repo.ts`。接手的人先读 `./README.md`（这一房与另外两房不一样的地方）。
  */

@@ -37,7 +37,7 @@
  * `listPage:repo-ref` / `listPage:cursor` / `listPage:transport` / `listPage:json` / `listPage:shape` /
  * `listPage:total`。日志只从 `./read-log.ts` 那个出口走，本文件不直接 `ctx.logEvent`。
  * 某一行归一不成一张票时**整页失败**（理由 `listPage:shape`，原文给那一行）：本房的口径是
- * 「取不全就整体失败，不返回残缺清单」（`./labels-ops.ts` 的 listLabels 同一条）；丢掉那一行接着回，
+ * 「取不全就整体失败，不返回残缺清单」（`./labels/list.ts` 的 listLabels 同一条）；丢掉那一行接着回，
  * 人看到的是「历史少了中间几张」，既不报错也无处查。
  */
 
@@ -63,7 +63,7 @@ import { PAGINATION } from '../../contract/pagination.js'
 // 契约的分页口径：缺省一页 50 张、要多了按 200 封顶（`contract/results.ts` 的「分页契约」，与 GitHub 房同一套）。
 const DEFAULT_LIMIT = PAGINATION.gitlab.limitDefault
 const MAX_LIMIT = PAGINATION.gitlab.limitMax
-// GitLab REST 的 per_page 上限（官方文档：默认 20、上限 100；本房 `labels-ops.ts` 顶上同一个常数、同一个出处）。
+// GitLab REST 的 per_page 上限（官方文档：默认 20、上限 100；本房 `labels/list.ts` 顶上同一个常数、同一个出处）。
 // 为什么不能照 200 去问：远端会把 200 自己截到 100，而我们还以为这一页的大小是 200 —— 一页 100 行就成了
 // 「比 per_page 少」，于是把「还有下一页」误判成到底，历史从这儿少一段，而且没有任何报错。
 // 代价照实说：调用方要 200 行时这一趟只回 100 行 + 一个游标，接着翻就是（要多了按上限给，不是报错）。
@@ -208,7 +208,7 @@ export async function listPage(
       } catch (e) {
         // 一行归一不成票 = 这一页没读全，整页失败（理由 listPage:shape，原文给那一行本身）。
         // 为什么不丢掉那一行接着回：本房的口径是「取不全就整体失败，不返回残缺清单」
-        // （见 ./labels-ops.ts 的 listLabels）；丢一行接着回，人看到的是历史少了中间几张，既不报错也无处查。
+        // （见 ./labels/list.ts 的 listLabels）；丢一行接着回，人看到的是历史少了中间几张，既不报错也无处查。
         emitReadDegraded(ctx, 'listPage', 'listPage:shape', Date.now() - t0)
         return fail(ERROR_KIND.PARSE, `listPage: 有一行归一不成一张票 ${msgOf(e).slice(0, 200)}`, raw)
       }
