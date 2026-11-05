@@ -5,8 +5,8 @@
  * graph/ 里。根目录 graph-membership.ts 只剩纯转发（它在 #1907 的 9 个旧路径名单里，留给房外
  * 读者）；入口 index.ts 已改从本文件取 setParent / setAssignees，房内不再绕转发文件。
  *
- * 请求的形状只在根目录 requests.ts 一处（#1920）：挂父与指派都是整篇 PUT，走 requestIssuePatch；
- * 登录名换用户编号走 requestUserByName。本文件只决定每次请求的时限，以及拿到原始进程结果之后的
+ * 请求的形状只在根目录 requests.ts 一处（#1920）：挂父走 requestIssueSetBody，指派走
+ * requestIssueSetAssignees，登录名换用户编号走 requestUserByName。本文件只决定每次请求的时限，以及拿到原始进程结果之后的
  * 事：解析回包、归一、写后读回核对、按失败档位挑话术。
  *
  * 共享的原始票读取（fetchRawIssue）从票读文件 issues/read.ts 单向导入；仓库标识从
@@ -27,7 +27,7 @@ import { fetchRawIssue } from '../issues/read.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
 import { repoRefId } from '../model/repo-identity.js'
 // 请求的形状只在房间根目录 requests.ts 一处（#1920）：本文件只收原始进程结果，再按旧口径判档与核对。
-import { requestIssuePatch, requestUserByName } from '../requests.js'
+import { requestIssueSetBody, requestIssueSetAssignees, requestUserByName } from '../requests.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml；每次请求用哪一档由本文件按操作选。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 
@@ -106,7 +106,7 @@ export async function setParent(
         const issue = normalizeIssue(curRaw)
         return { ok: true, data: issue }
       }
-      const res = await requestIssuePatch(effective, id, k, { description: newBody }, GITLAB_READ_TIMEOUT_MS)
+      const res = await requestIssueSetBody(effective, id, k, newBody, GITLAB_READ_TIMEOUT_MS)
       if (res.code !== 0) {
         // 原文 = 拆归属行那一次 PUT 的进程结果。
         return failGlab(res, res.stderr || res.stdout || 'setParent failed', res, effective)
@@ -120,7 +120,7 @@ export async function setParent(
       const newBody = rewriteDescriptionWithHiddenParent(oldBody, pk)
       if (newBody !== oldBody) {
         // PUT 整篇 description（换行原样发，不转义：读回来的归一靠真实换行认行）。
-        const res = await requestIssuePatch(effective, id, k, { description: newBody }, GITLAB_READ_TIMEOUT_MS)
+        const res = await requestIssueSetBody(effective, id, k, newBody, GITLAB_READ_TIMEOUT_MS)
         if (res.code !== 0) {
           // 原文 = 写归属行那一次 PUT 的进程结果。
           return failGlab(res, res.stderr || res.stdout || 'setParent failed', res, effective)
@@ -209,7 +209,7 @@ export async function setAssignees(
         '',
       )
     }
-    const res = await requestIssuePatch(effective, id, k, { assignee_ids: assigneeIds.join(',') }, GITLAB_READ_TIMEOUT_MS)
+    const res = await requestIssueSetAssignees(effective, id, k, assigneeIds.join(','), GITLAB_READ_TIMEOUT_MS)
     if (res.code !== 0) {
       // 原文 = 写指派那一次 PUT 的进程结果。
       return failGlab(res, res.stderr || res.stdout || 'setAssignees failed', res, effective)

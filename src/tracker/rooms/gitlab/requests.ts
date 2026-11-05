@@ -8,14 +8,18 @@
  *      不接收已经拼好的路径字符串 —— 路径必须由本文件用 queries.ts 的拼路径函数从 refId 与票号拼出来。
  *      房外的端点采样门禁只扫房间根目录的直接子文件、不递归子目录；请求形状写在这里它才看得见，
  *      交给调用方拼它就看不见了。
+ *      查询串（query）同样是领域值：规格第 1 条把它列进参数，列票、分页、地图与子票的筛选各不
+ *      相同，所以 requestIssueList 继续收查询串，不为此硬造一个大而全的查询类型；路径与 method
+ *      才由本文件唯一决定。
  *   2. 超时是调用方的领域值，不写死在请求边界里：每个函数的最后一个参数是 timeoutMs，原样交给客户端。
  *      同一个端点形状在不同操作里可能用不同超时（例如票列表用 GITLAB_SLOW_READ_TIMEOUT_MS、子票翻页用
  *      GITLAB_READ_TIMEOUT_MS），写死会让下一族为了换超时再造一个重复的请求函数；由调用方传，端点仍然只有一个出处。
  *   3. 返回值就是客户端那三件套 {stdout, stderr, code}，原样交回。本文件不解析 JSON、不判错误档位、
  *      不写失败话术、不记日志：每个调用点的容错与说法都不一样，这些留在调用方。
  *
- * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）、评论写入、票的写端点（建票、改票、
- * 按名字读里程碑）、标签的三条请求（整集赋值、列一页清单、改一条颜色）、仓库身份的两条单点读
+ * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）、评论写入、票的写端点（建票、
+ * 关票、重开、改正文、改认领人、改领域字段、按名字读里程碑）、标签的三条请求（整集赋值、列一页清单、
+ * 改一条颜色）、仓库身份的两条单点读
  * （当前登录人、仓库写权限）、项目本体的一条读（#1918），以及关系（阻塞边）的写端点与按登录名查用户
  * （#1920：加一条原生阻塞边、删一条原生阻塞边、环检用的整页票快照、用户名换用户编号）；其余写端点
  * 与操作族按票逐步搬进来，命名与返回约定照本文件：request 加领域动作，返回原始进程结果。
@@ -191,32 +195,138 @@ export function requestIssueCreate(
 }
 
 /**
- * 改一张票：PUT projects/{仓库}/issues/{票号}。
+ * 关一张票：PUT projects/{仓库}/issues/{票号}，表单字段固定为 state_event=close。
  *
- * 表单字段由调用方按领域值给（例如 state_event、title、description、milestone_id），这里只负责
- * 把它们逐项翻成 -f：null 与 undefined 跳过（「没有这一项」不写成空字符串），数组按逗号连接
- * （GitLab 的多值字段认这个形状），其余按字符串写。参数的遍历顺序就是调用方对象的插入顺序，
- * 与搬家前 apiPut 的拼法逐字一致——远端收到的表单内容不变，变的只是这段拼装搬进了请求边界。
+ * 关票、重开、改正文、改认领人与改领域字段打的是同一个端点；每个动作的字段形状各自固定，所以按
+ * 领域动作各给一个函数，不把任意表单袋交回调用方。method 固定 PUT、路径固定走 issuePath，
+ * 超时仍由调用方按操作选档。
  *
  * @param opCtx 调用上下文（平台与执行器从这里取）
  * @param refId 仓库标识
  * @param iid 票号
- * @param fields 这次要写的字段（调用方已经决定要写哪些、值是什么）
  * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
  */
-export function requestIssuePatch(
+export function requestIssueClose(
   opCtx: MaybeCtx,
   refId: string,
   iid: string | number,
-  fields: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(
+    ['api', issuePath(refId, iid), '--method', 'PUT', '-f', 'state_event=close'],
+    { timeout: timeoutMs },
+  )
+}
+
+/**
+ * 重开一张票：PUT projects/{仓库}/issues/{票号}，表单字段固定为 state_event=reopen。
+ *
+ * 与关票同一个端点、同一个方法，只有状态值不同；分成两个具名函数，是为了让调用方只说
+ * 「重开这一张」，不需要知道远端把状态写在哪个表单字段里。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param iid 票号
+ * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
+ */
+export function requestIssueReopen(
+  opCtx: MaybeCtx,
+  refId: string,
+  iid: string | number,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(
+    ['api', issuePath(refId, iid), '--method', 'PUT', '-f', 'state_event=reopen'],
+    { timeout: timeoutMs },
+  )
+}
+
+/**
+ * 改一张票的正文：PUT projects/{仓库}/issues/{票号}，表单字段固定为 description。
+ *
+ * 阻塞关系回退到正文成对两行、亲缘挂载改文件头隐藏标记，两处都要整篇重写正文。调用方传已经拼好的
+ * 正文原文；换行原样发，不转义（远端存什么读回就是什么，读回的解析才对得上）。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param iid 票号
+ * @param description 这次要写回的整篇正文
+ * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
+ */
+export function requestIssueSetBody(
+  opCtx: MaybeCtx,
+  refId: string,
+  iid: string | number,
+  description: string,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(
+    ['api', issuePath(refId, iid), '--method', 'PUT', '-f', `description=${description}`],
+    { timeout: timeoutMs },
+  )
+}
+
+/**
+ * 换一张票的认领人整集：PUT projects/{仓库}/issues/{票号}，表单字段固定为 assignee_ids。
+ *
+ * GitLab 的 assignee_ids 收的是逗号分隔的用户编号整集，不是登录名；调用方已经先把每个登录名换成
+ * 编号并拼好这一串。这里原样发出，不再拆开或重新排序 —— 它是整集替换，少一个编号就会把那个人的
+ * 认领删掉。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param iid 票号
+ * @param assigneeIds 逗号分隔的用户编号整集（调用方已拼好）
+ * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
+ */
+export function requestIssueSetAssignees(
+  opCtx: MaybeCtx,
+  refId: string,
+  iid: string | number,
+  assigneeIds: string,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(
+    ['api', issuePath(refId, iid), '--method', 'PUT', '-f', `assignee_ids=${assigneeIds}`],
+    { timeout: timeoutMs },
+  )
+}
+
+/** 改票这条写路径能带的三个领域字段；别的键不读，也不会被写出去。 */
+export interface IssueUpdateFields {
+  /** 新标题；没给（undefined 或 null）就不发这一项。 */
+  title?: string | null
+  /** 新正文；没给（undefined 或 null）就不发这一项。 */
+  description?: string | null
+  /** 新里程碑编号；0 表示清除，没给（undefined 或 null）就不发这一项。 */
+  milestoneId?: string | number | null
+}
+
+/**
+ * 改一张票的领域字段：标题、正文、里程碑，一次 PUT 全都写出去。
+ *
+ * 只收三个领域字段，字段名与表单名的对应固定在这里：title → title、description → description、
+ * milestoneId → milestone_id。拼装顺序固定为 title / description / milestone_id，与搬家前调用方
+ * 对象里的插入顺序一致（网关、脱敏与日志按 argv 顺序核对）。null 与 undefined 跳过，不写成空串；
+ * milestoneId 为 0 表示清除里程碑，0 不是空值，要如实发出去。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param iid 票号
+ * @param fields 这次要写的领域字段（只认这三个，别的键不读）
+ * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
+ */
+export function requestIssueUpdate(
+  opCtx: MaybeCtx,
+  refId: string,
+  iid: string | number,
+  fields: IssueUpdateFields,
   timeoutMs: number,
 ): Promise<GlabRunResult> {
   const args = ['api', issuePath(refId, iid), '--method', 'PUT']
-  for (const [k, v] of Object.entries(fields || {})) {
-    if (v === null || v === undefined) continue
-    if (Array.isArray(v)) args.push('-f', `${k}=${(v as unknown[]).join(',')}`)
-    else args.push('-f', `${k}=${String(v)}`)
-  }
+  if (fields.title !== null && fields.title !== undefined) args.push('-f', `title=${String(fields.title)}`)
+  if (fields.description !== null && fields.description !== undefined) args.push('-f', `description=${String(fields.description)}`)
+  if (fields.milestoneId !== null && fields.milestoneId !== undefined) args.push('-f', `milestone_id=${String(fields.milestoneId)}`)
   return clientOf(opCtx).run(args, { timeout: timeoutMs })
 }
 

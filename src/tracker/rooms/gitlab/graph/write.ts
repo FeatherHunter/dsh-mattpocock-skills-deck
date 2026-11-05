@@ -9,7 +9,7 @@
  * （可见 `Blocked by:` 行 + 隐藏机器表）。环检是两条路共用的一道门；读不到的节点当叶子。
  *
  * 请求形状只在根目录 requests.ts 一处（#1920）：环检快照走 requestIssueListCapped，原生边加/删走
- * requestLinkCreate / requestLinkDelete，正文成对回退与读链接走 requestIssuePatch / requestIssueLinks。
+ * requestLinkCreate / requestLinkDelete，正文成对回退走 requestIssueSetBody，读链接走 requestIssueLinks。
  * 本文件只决定每次请求的时限，不再自己拼 glab 的 method、路径与表单字段。
  *
  * 读半边（getDependencies、原生阻塞能力探测 tryNativeBlockedBy、对端状态落实 resolveBlockerStates）
@@ -37,7 +37,7 @@ import {
   requestIssueListCapped,
   requestLinkCreate,
   requestLinkDelete,
-  requestIssuePatch,
+  requestIssueSetBody,
 } from '../requests.js'
 // 原生探测与对端状态落实住在关系读 module（#1917）：两条写路径都从那里取，不复制。
 import { tryNativeBlockedBy, resolveBlockerStates } from './read.js'
@@ -306,7 +306,7 @@ export async function setBlockedBy(
 
     // 换行按真换行发：远端存什么读回就是什么，读回的解析才对得上。旧代码在这里把换行转成字面 `\n`，
     // 多行正文走这条路会被破坏（读回整段变成一行，正文丢格式），2026-10-15 查实并修。
-    const putRes = await requestIssuePatch(effective, id, k, { description: newBody }, GITLAB_READ_TIMEOUT_MS)
+    const putRes = await requestIssueSetBody(effective, id, k, newBody, GITLAB_READ_TIMEOUT_MS)
     if (putRes.code !== 0) {
       // 失败前再读一次票面，让现场多一份远端此刻的正文；这次读的结果不参与结论，只留给日志与
       // 排障的人看（搬迁前就有这一读，保留它是为了请求次数与失败路径逐字不变）。
