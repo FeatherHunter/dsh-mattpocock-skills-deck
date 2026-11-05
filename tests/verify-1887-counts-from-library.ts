@@ -43,6 +43,7 @@ import { createSessionSnapshot } from '../src/refresh/rooms/host/session-snapsho
 import * as snapshotLibrary from '../src/refresh/rooms/host/snapshot-library.js'
 import { deckCountsOf, kpiCountsOf } from '../src/client/kernel/store-derived.ts'
 import { applySnapshotChangeSet } from '../src/refresh/rooms/client/snapshot-change-merge.ts'
+import { snapshotRowFieldsOf } from '../src/shared/snapshot-row-fields.ts'
 import { createSnapshotReadChannels } from '../src/refresh/rooms/host/snapshot-read-channels.ts'
 import { createIssueList } from '../src/refresh/rooms/host/issue-list-fetch.ts'
 import type { IssueWrite } from '../src/workspace-snapshot/contract/types.js'
@@ -447,6 +448,7 @@ async function main(): Promise<void> {
     const merged: any = applySnapshotChangeSet(before, [{ key: '1', effortId: '', row: { title: '票 1', state: 'closed' }, groups: { row: {} } }], [], {
       idOf: (row: any) => String((row && row.effortId) || '') + '#' + String((row && row.key) || ''),
       counts: { total: 1, open: 0, closed: 1, takeable: 0, blocked: 0, claimed: 0, completeness: 'known' },
+      rowFieldsOf: snapshotRowFieldsOf,
     })
     check(!!merged && merged.snapshot.issues[0].state === 'CLOSED', 'E3 变化集把那一行换成新状态', merged && merged.snapshot.issues)
     check(!!merged && merged.snapshot.deck.counts.open === 0 && merged.snapshot.deck.counts.closed === 1,

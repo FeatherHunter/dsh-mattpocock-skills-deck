@@ -27,6 +27,8 @@ declare const snapshotWithoutWorkRoute: any;
 declare const loadOwnWorkRoute: any;
 declare const _snapInstallBody: any;
 declare const applySnapshotChangeSet: any;
+// #1885 评审修复：变化集的行换算由闭包里的共享片提供（src/shared/snapshot-row-fields.ts）。
+declare function snapshotRowFieldsOf(item: any): any;
 declare const log: any;
 
 /**
@@ -380,7 +382,8 @@ function syncPortsOf(ctx: any): SnapshotVersionPorts {
     merge: function (input: any): any {
       const applyChanges = ctx.scope.applyChanges
       if (typeof applyChanges !== 'function') return null
-      const merged = applyChanges(ctx.st && ctx.st.snapshot, input.reply.changed, input.reply.missing, { idOf: ctx.scope.idOf, counts: input.reply.counts })
+      const rowFieldsOf = (typeof snapshotRowFieldsOf === 'function') ? snapshotRowFieldsOf : null
+      const merged = applyChanges(ctx.st && ctx.st.snapshot, input.reply.changed, input.reply.missing, { idOf: ctx.scope.idOf, counts: input.reply.counts, rowFieldsOf })
       if (!merged) return null
       syncInstallMerged(ctx, merged)
       return { version: syncVersionNumber(input.reply.version) }

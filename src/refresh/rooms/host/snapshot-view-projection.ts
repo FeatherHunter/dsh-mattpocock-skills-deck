@@ -13,10 +13,12 @@
  *     「读出来碰巧是什么顺序」当成投影的输入。改这里之前先确认：库列表读与这份比较器是同一口径。
  *  3. 行 → 票的换算是直通：库列表行没有正文（正文属于详情），所以这里给的 body 一律是空串，
  *     地图/规格的区块会解析成空——不要用「看着不像空」去补一份正文，那会让列表看起来取过详情。
- *     三态照实写（#1893 按规格 I6 收紧）：组记录缺席、或组是 unknown，整个字段都不写——不补空数组
- *     冒充「确认没有」；complete + 空才是确认没有（写空数组或 null）；truncated + 空表示一条都没取到，
- *     同样不写。今天写出字段的组是 parents / labels / assignees / blockedBy / mergeInfo 五组；
- *     subIssues、comments、review 与正文属于详情，列表行本来就没有，这一层不补。
+ *     三态照实写（#1893 按规格 I6 收紧， #1885 评审修复起与客户端共用一份换算）：组记录缺席、
+ *     或组是 unknown，整个字段都不写——不补空数组冒充「确认没有」；complete + 空才是确认没有
+ *     （写空数组或 null）；truncated + 空表示一条都没取到，同样不写。行的状态与类型也不再兜底成
+ *     open / issue：不知道时整个字段不写，下游按「没看到 = 不知道」处理。
+ *     三态与行的换算只剩一份：src/shared/snapshot-row-fields.ts（客户端变化集合同一份文本拼进闭包），
+ *     本文件只决定「宿主侧的 Issue 形状把哪些已知字段装出来」。
  *     行里的边数组（blockedBy）也不在这里重排：库列表投影已经按边表的目标票次序给出，
  *     它是「这一行带着的数据」而不是「行的先后」；本票要消掉的是后者，不是把每一格内容也洗一遍。
  *  4. 版本只进信封，不进内容：投影结果与版本无关（版本是新鲜度信号，不是排序或筛选依据）。
@@ -29,8 +31,10 @@
  */
 
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
-import type { ListIssue, ListIssueRef } from '../../../workspace-snapshot/contract/types.js'
+import type { ListIssue } from '../../../workspace-snapshot/contract/types.js'
 import { assembleSnapshot } from '../../../host/tracker/snapshotAssemble.js'
+// #1885 评审修复：行的三态与字段换算只有这一份，客户端变化集合同一份文本（构建时拼进闭包）。
+import { snapshotRowFieldsOf } from '../../../shared/snapshot-row-fields.js'
 
 /** 一次投影的输入：仓库身份、库列表投影里的行、这批行对应的库版本。 */
 export interface SnapshotViewInput {
@@ -55,72 +59,41 @@ export function isoOf(value: unknown): string | null {
 }
 
 /**
- * 一组字段「知道」的判据：组记录存在、且完整度不是 unknown。
- *
- * 为什么单独写这一条（#1893，规格 I6）：三态里 unknown 是「不知道」，它和「组记录缺席」一样
- * 不该在快照里写出字段；写空数组等于替后端断言「确认没有」。truncated 是「只知道一部分」：
- * 有值照写，空的时候不写（一条都没取到，不能说成一张都没有）。
- */
-function groupKnown(group: ListIssue['groups'][keyof ListIssue['groups']] | null | undefined): boolean {
-  return !!group && group.completeness !== 'unknown'
-}
-
-/** 这一组「知道且确实有值」；确认没有（complete + 空）由调用方按 groupKnown 写空值。 */
-function groupHasValues(state: ListIssue['groups'][keyof ListIssue['groups']] | null | undefined, count: number): boolean {
-  if (!groupKnown(state)) return false
-  if (count > 0) return true
-  return !!state && state.completeness === 'complete'
-}
-
-/** 边上的目标票 → 界面状态胶囊认的引用；状态缺省表示不知道，不写 'open'。 */
-function refOf(item: ListIssueRef): any {
-  const ref: any = { key: String(item.key), title: String(item.title || '') }
-  if (item.state === 'open' || item.state === 'closed') ref.state = item.state
-  if (item.type) ref.type = item.type
-  return ref
-}
-
-/**
  * 一行库记录 → tracker 契约里的 Issue 形状。
  *
- * body 这里一律给空串：正文属于详情（#1864），列表的容器树与状态胶囊不需要它；
- * 有了空 body，组装层解析地图/规格正文只会得到空区块，不会报错。
- * 关系字段组按三态写：组缺席或 unknown 时字段不出现（不知道），complete + 空才写空数组/null
- * （确认没有），truncated + 空同样不写（一条都没取到）。
+ * 换算里「知道哪些字段」全部来自 src/shared/snapshot-row-fields.ts（与客户端变化集合共用同一份），
+ * 本函数只负责宿主侧的输出形状：列表行没有正文，body 一律空串；标题/地址/时间这些 required 格子
+ * 在不知道时仍写空串/0（这是列表行既有契约，界面按空串显示），但组字段与状态、类型不兜底——
+ * 组不知道就不写；状态/类型不知道也不写（#1885 评审 D：不替后端下结论）。
  * #1870：数字编号一并补上（键是纯数字时），增量索引只认 number。
  */
 export function issueOfRow(item: ListIssue): any {
-  const row = item.row
-  const effortId = String(item.effortId || '')
+  const f = snapshotRowFieldsOf(item)
   const issue: any = {
-    key: String(item.key),
-    ...(/^\d+$/.test(String(item.key)) ? { number: Number(item.key) } : null),
-    effortId,
-    type: (row.type === 'map' || row.type === 'spec') ? row.type : 'issue',
-    title: String(row.title || ''),
-    state: row.state === 'closed' ? 'closed' : 'open',
+    key: f.key,
+    ...(f.number !== null ? { number: f.number } : null),
+    effortId: f.effortId,
+    ...(f.type.known ? { type: f.type.value } : null),
+    title: f.title.known ? f.title.value : '',
+    ...(f.state.known ? { state: f.state.value } : null),
     body: '',
-    url: String(row.url || ''),
-    createdAt: isoOf(row.createdAtMs) || '',
-    updatedAt: isoOf(row.updatedAtMs) || '',
-    closedAt: isoOf(row.closedAtMs),
+    url: f.url.known ? f.url.value : '',
+    createdAt: f.createdAtMs.known ? isoOf(f.createdAtMs.value) : '',
+    updatedAt: f.updatedAtMs.known ? isoOf(f.updatedAtMs.value) : '',
+    closedAt: f.closedAtMs.known ? isoOf(f.closedAtMs.value) : null,
   }
-  // --- 关系字段组按三态写（#1893 的 I6 修复；逐组口径见文件头第 3 条）---
-  // 父票：知道才写。complete + 空 = 确认没有父票，写 null；unknown / 组缺席 / truncated + 空不写。
-  if (groupHasValues(item.groups.parents, item.parents.length)) issue.parentKey = item.parents.length ? String(item.parents[0]) : null
-  // 标签与指派：知道才写。complete + 空 = 确认没有，写空数组；truncated + 空 = 一条都没取到，不写。
-  if (groupHasValues(item.groups.labels, item.labels.length)) issue.labels = item.labels.map((l) => ({ name: l.name, color: l.color || '', ...(l.description ? { description: l.description } : {}) }))
-  if (groupHasValues(item.groups.assignees, item.assignees.length)) issue.assignees = item.assignees.map((a) => ({ login: a.login, ...(a.name ? { name: a.name } : {}), ...(a.avatarUrl ? { avatarUrl: a.avatarUrl } : {}) }))
-  // 阻塞边：知道才写。complete + 空 = 确认没有被挡；unknown 不写（写空数组会被读成「可接」）。
-  if (groupHasValues(item.groups.blockedBy, item.blockedBy.length)) issue.blockedBy = item.blockedBy.map((ref) => refOf(ref))
-  if (typeof row.isPullRequest === 'boolean') issue.isPullRequest = row.isPullRequest
-  if (typeof row.commentCount === 'number') issue.commentCount = row.commentCount
-  if (row.stateReason) issue.reason = row.stateReason
-  // 合并信息：知道才写。complete + null = 确认还没合并，写 null；unknown 不写。
-  if (groupKnown(item.groups.mergeInfo)) issue.mergedAt = isoOf(item.mergedAtMs)
-  if (row.status) issue.status = row.status
-  if (row.statusVisible) issue.statusVisible = row.statusVisible
-  if (row.statusSource === 'visible' || row.statusSource === 'hidden' || row.statusSource === 'default') issue.statusSource = row.statusSource
+  // --- 组字段按三态写：known 才写，known + 空 = 确认没有（见共享换算的文件头）---
+  if (f.parentKey.known) issue.parentKey = f.parentKey.value
+  if (f.labels.known) issue.labels = f.labels.value
+  if (f.assignees.known) issue.assignees = f.assignees.value
+  if (f.blockedBy.known) issue.blockedBy = f.blockedBy.value
+  if (f.isPullRequest.known) issue.isPullRequest = f.isPullRequest.value
+  if (f.commentCount.known) issue.commentCount = f.commentCount.value
+  if (f.reason.known) issue.reason = f.reason.value
+  if (f.mergedAtMs.known) issue.mergedAt = isoOf(f.mergedAtMs.value)
+  if (f.status.known) issue.status = f.status.value
+  if (f.statusVisible.known) issue.statusVisible = f.statusVisible.value
+  if (f.statusSource.known) issue.statusSource = f.statusSource.value
   return issue
 }
 

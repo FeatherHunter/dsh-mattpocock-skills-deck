@@ -23,6 +23,8 @@ import type {
 } from '../model/types.js'
 
 export type {
+  ChangeRowPlacement,
+  ChangeSetChangedRow,
   ChangeSetFullReason,
   ChangeSetProjection,
   ChangeSetQuery,

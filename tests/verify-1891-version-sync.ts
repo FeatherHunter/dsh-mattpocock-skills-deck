@@ -29,12 +29,17 @@ import { printGateResult } from './lib/gate-result.ts'
 import { sourceText } from './lib/source-text.ts'
 import { idOf } from '../src/tracker/kernel/identity-keys.ts'
 import { applySnapshotChangeSet, isNewerSnapshotVersion } from '../src/refresh/rooms/client/snapshot-change-merge.ts'
+// #1885 评审修复：行换算与宿主共用一份（src/shared/snapshot-row-fields.ts）；直接 import 客户端片时显式递进去。
+import { snapshotRowFieldsOf } from '../src/shared/snapshot-row-fields.ts'
 import {
   createPollingVersionSource,
   createSnapshotVersionSync,
   rememberSnapshotVersion,
   runSnapshotVersionTick,
 } from '../src/refresh/rooms/client/snapshot-version-sync.ts'
+
+// 生产闭包里这份换算由构建拼进来；门禁单独求值各片时按仓里惯例挂到 globalThis 上。
+;(globalThis as any).snapshotRowFieldsOf = snapshotRowFieldsOf
 
 const GATE = 'verify-1891-version-sync'
 
@@ -141,7 +146,7 @@ function makeRun(initial: { snapshot: any, version: number | null }): any {
       return { version: reply.version }
     },
     merge: function (input: any): any {
-      const out = applySnapshotChangeSet(store.snapshot, input.reply.changed, input.reply.missing, { idOf: idOf })
+      const out = applySnapshotChangeSet(store.snapshot, input.reply.changed, input.reply.missing, { idOf: idOf, rowFieldsOf: snapshotRowFieldsOf })
       if (!out) return null
       store.snapshot = out.snapshot
       store.redrawn = out.redrawn

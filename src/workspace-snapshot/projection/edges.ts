@@ -64,6 +64,46 @@ export function readIssueEdges(
 }
 
 /**
+ * 读一批票的「第一个父票」信息（变化集的落点判定用， #1885 评审修复）。
+ *
+ * 为什么只要第一个：列表投影与组装层按 parentKey（parents[0]）挂容器，落点判定必须与它同一口径，
+ * 多出来的父边不参与「这一行该放哪里」。读法与 readIssueEdges 一样是一次 IN 查询，不按票逐条问库。
+ */
+export interface FirstParentInfo {
+  effortId: string
+  key: string
+  type: string | null
+  state: string | null
+}
+
+export function readFirstParents(
+  db: DatabaseSync,
+  issueIds: readonly number[],
+): Map<number, FirstParentInfo> {
+  const out = new Map<number, FirstParentInfo>()
+  if (issueIds.length === 0) return out
+  const placeholders = issueIds.map(() => '?').join(', ')
+  const rows = db.prepare(
+    `SELECT e.subject_id AS subject_id, i.effort_id AS effort_id, i.key AS key, i.type AS type, i.state AS state
+       FROM issue_edge e
+       JOIN issue i ON i.issue_id = e.object_id
+      WHERE e.subject_id IN (${placeholders}) AND e.kind = ?
+      ORDER BY e.subject_id, e.object_id`).all(...issueIds, KIND_PARENT) as Array<{
+        subject_id: number
+        effort_id: string
+        key: string
+        type: string | null
+        state: string | null
+      }>
+  for (const row of rows) {
+    const subjectId = Number(row.subject_id)
+    if (out.has(subjectId)) continue
+    out.set(subjectId, { effortId: row.effort_id, key: row.key, type: row.type, state: row.state })
+  }
+  return out
+}
+
+/**
  * 读一张票的四个方向。
  *
  * 正向两个方向（父票、谁阻塞我）就是这张票自己写的边；反向两个方向（子票、我阻塞了谁）

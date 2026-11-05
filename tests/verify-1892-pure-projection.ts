@@ -242,9 +242,12 @@ for (const { file, data } of fixtures) {
   check(!/\bfetch\s*\(|\bwriteFile\s*\(|\bwriteFileSync\s*\(/.test(source), 'D8 投影模块源码里没有网络或文件写入调用')
   check(!/node:(fs|sqlite|http|https)|snapshotLibrary|\.prepare\s*\(/.test(source), 'D9 投影模块源码里没有数据库、文件系统或快照库门面的引用')
   const imports = withoutComments(readFileSync(MODULE_FILE, 'utf8')).split(/\r?\n/).filter((line) => /^\s*import\s/.test(line))
-  check(imports.length === 3, 'D10 投影模块只有三条 import（两条类型、一条组装器）', imports)
+  // #1885 评审修复：行换算抽成共享纯函数（src/shared/snapshot-row-fields.ts），投影多一条纯函数的运行时依赖；
+  // 它零时钟、零 IO、零库访问，纯投影的性质不变（A–F 的逐字等价与「时钟一读就炸」仍然照跑）。
+  check(imports.length === 4, 'D10 投影模块只有四条 import（两条类型、一条组装器、一条共享行换算）', imports)
   const runtimeImports = imports.filter((line) => !/^\s*import\s+type\s/.test(line))
-  check(runtimeImports.length === 1 && /from\s+'[^']*snapshotAssemble\.js'/.test(runtimeImports[0] || ''), 'D11 唯一的运行时依赖是快照组装器（不碰库、不碰缓存）', runtimeImports)
+  const allowedRuntime = runtimeImports.every((line) => /from\s+'[^']*(snapshotAssemble|snapshot-row-fields)\.js'/.test(line))
+  check(runtimeImports.length === 2 && allowedRuntime, 'D11 运行时依赖只有快照组装器与共享行换算（都不碰库、不碰缓存）', runtimeImports)
 }
 
 // ---------------------------------------------------------------------------
