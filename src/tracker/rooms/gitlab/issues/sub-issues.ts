@@ -46,10 +46,10 @@ import type { Issue, RepositoryRef } from '../../../contract/entities.js'
 import type { OpResult, SubIssueList } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
 import { classifyGlabError, failGlab } from '../errors.js'
-import { normalizeIssue } from '../normalize.js'
+import { normalizeIssue } from '../model/normalize.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
 import { repoRefId } from '../model/repo-identity.js'
-import { emitReadDegraded } from '../read-log.js'
+import { emitReadDegraded } from '../support/read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 // 请求形状住在房间根目录的 requests.ts（#1914）：本文件只收原始进程结果，再按旧口径归位。

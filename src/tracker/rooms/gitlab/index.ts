@@ -25,19 +25,20 @@ import type { BackendId } from '../../contract/identity.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { BackendContext, OpContext, RepoHandle } from '../../contract/contexts.js'
 import { glabPreflight } from './preflight.js'
-import { emitReadDegraded } from './read-log.js'
+import { emitReadDegraded } from './support/read-log.js'
 // #1533：认领只看 `.git/config` 里的远端地址，不扫整份文本（分支名带 gitlab 不再误认领）。
 import { remoteUrlsOfGitConfig } from '../../kernel/git-remote.js'
 // #1555：声明文件用判定层同一套解析器，只认「声明」不认「正文里提了一句」。
 // 旧的整篇 /gitlab/i 扫描会把 GitHub / Local Markdown 的工作区也拉进多命中，详情与评论因此读不到。
 import { normalizeTrackerText, parseIssueTracker } from '../../kernel/issue-tracker-declaration.js'
-import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } from './issues.js'
+import { listIssues, getIssue } from './issues/read.js'
+import { createIssue, closeIssue, reopenIssue, updateIssue } from './issues/write.js'
 import { addComment } from './comments/write.js'
 import { setLabels } from './labels/assign.js'
 import { getDependencies } from './graph/read.js'
 import { setBlockedBy } from './graph/write.js'
-import { setParent, setAssignees } from './graph-membership.js'
-import { getRepoKey, gitlabOriginOf } from './repo.js'
+import { setParent, setAssignees } from './graph/membership.js'
+import { getRepoKey, gitlabOriginOf } from './repo/identity.js'
 import { counts } from './issues/counts.js'
 import { listPage } from './issues/pages.js'
 import { listLabels } from './labels/list.js'
@@ -49,14 +50,14 @@ import { listSubIssues } from './issues/sub-issues.js'
 // 开仓发布搬进 project/ 子树（#1919）：它不在 9 个旧路径转发名单里，入口直接按新路径取。
 import { initProject } from './project/init-project.js'
 // #1605：地图薄查真实现（此前 planned，注册表补桩；今天起走真实现）。
-// #1914 起真实现在 issues/maps.ts；入口仍按旧路径从根目录 maps.ts 取，那份文件只做纯转发。
-import { listMaps } from './maps.js'
+// #1914 起真实现在 issues/maps.ts；入口直接按新路径取，根目录 maps.ts 只留给房外读者做纯转发。
+import { listMaps } from './issues/maps.js'
 // #1446：读额度读数与「每次 glab 调用记一条请求」的用量信封。
 import { readGitlabBudget } from './budget.js'
 import { attachGlabOpUsage } from './client.js'
 import type { PartiallyProvidedCapability, ProvidedCapability } from '../../contract/capability-answer.js'
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/room/backend.ts）。
-import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
+import type { GITLAB_CAPABILITY_REGISTER } from './support/capability-register.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_FALLBACK_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 // 链接与地址、修复指引搬进 room/；提示文案留在入口（房外门禁按本文件原文扫描 prompts 块）。
@@ -250,7 +251,7 @@ const openRepository = 'url'
  * 本后端今天的边界是「23 条操作 + describe / issueAddress / getRepoKey 三条定位口」——
  * 唯一没实现的是 `ensureLabelColorsFile`，而且它**不是欠账**：这一条在本后端上形态不成立
  * （颜色真源在远端仓库标签，工作区里那份文件没有读者，改了不算数），登记为「明确不支持」，
- * 理由见 `./capability-register.ts` 那一行的注释与 `docs/tracker/capability-gitlab.md`。
+ * 理由见 `./support/capability-register.ts` 那一行的注释与 `docs/tracker/capability-gitlab.md`。
  *
  * 地图 10（`#1062`）本轮补的九条在这里各占一行，实现在房内各自的文件：
  * 计数与分页 `./issues/counts.ts`、`./issues/pages.ts`、列标签 `./labels/list.ts` 与批量改色 `./labels/colors.ts`、

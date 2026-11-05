@@ -23,7 +23,7 @@ import type { Issue, Label, RepositoryRef } from '../../../contract/entities.js'
 import type { LabelInput, SetOpts } from '../../../contract/inputs.js'
 import { TRACKER_ERROR_STAGE, type OpResult } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
-import { normalizeIssue } from '../normalize.js'
+import { normalizeIssue } from '../model/normalize.js'
 import { failGlab } from '../errors.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
 import { repoRefId } from '../model/repo-identity.js'

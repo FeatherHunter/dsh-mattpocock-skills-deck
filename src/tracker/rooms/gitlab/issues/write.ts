@@ -19,7 +19,7 @@ import type { OpResult } from '../../../contract/results.js'
 import { TRACKER_ERROR_STAGE } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
 import type { GlabRunResult } from '../client.js'
-import { normalizeIssue } from '../normalize.js'
+import { normalizeIssue } from '../model/normalize.js'
 // 正文标记的规则只在 model/description-markers.ts 一处，本文件直接用那个出处。
 import { rewriteDescriptionWithHiddenParent } from '../model/description-markers.js'
 import { failGlab } from '../errors.js'

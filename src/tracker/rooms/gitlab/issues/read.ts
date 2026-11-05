@@ -2,8 +2,8 @@
  * src/tracker/rooms/gitlab/issues/read.ts —— 票的读路径：列票、读单票，以及单票详情里的评论与链接富化。
  *
  * 为什么搬进 issues/ 子树（#1912）：票是一个概念，读与写的落点都应该在这个概念目录里。根目录
- * issues.ts 暂时只留写半边，并把这里交出的 listIssues / getIssue 原样再导出，房外按旧路径 import
- * 的名字因此不用改。等写路径也搬进来（#1913），根目录那份文件就只剩转发。
+ * issues.ts 只剩纯转发（#1913 把写路径也搬进来之后），房外按旧路径 import 的名字因此不用改；
+ * 入口 index.ts 已直接从本文件取 listIssues / getIssue，从 issues/write.ts 取四个写操作。
  *
  * 请求的形状不在这里：每条请求都调根目录 requests.ts 的具名函数，那里才是 method 与路径的唯一出处；
  * 每次给多长的超时由本文件按操作选好，再作为领域值传进去。本文件只做拿到原始进程结果之后的事：
@@ -21,9 +21,9 @@ import { LIST_TRUNCATED_REASON, TRACKER_ERROR_STAGE } from '../../../contract/re
 import { PAGINATION } from '../../../contract/pagination.js'
 import { fail } from '../../../kernel/preflight.js'
 import type { GlabRunResult } from '../client.js'
-import { normalizeIssue } from '../normalize.js'
+import { normalizeIssue } from '../model/normalize.js'
 import { failGlab } from '../errors.js'
-import { emitReadDegraded } from '../read-log.js'
+import { emitReadDegraded } from '../support/read-log.js'
 import { issuePath, notesPath, linksPath } from '../queries.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml；请求函数收领域值 timeoutMs，档位由这里按操作选。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'

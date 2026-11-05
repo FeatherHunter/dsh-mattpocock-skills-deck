@@ -42,7 +42,7 @@
 
 import type { OpContext } from '../../../contract/contexts.js'
 import { glabClient } from '../client.js'
-import { emitRepoTier } from '../read-log.js'
+import { emitRepoTier } from '../support/read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_REPO_GIT_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 

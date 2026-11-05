@@ -23,7 +23,7 @@ import type { ErrorKind } from '../../../contract/identity.js'
 import type { SetOpts } from '../../../contract/inputs.js'
 import { TRACKER_ERROR_STAGE, type OpResult } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
-import { normalizeIssue } from '../normalize.js'
+import { normalizeIssue } from '../model/normalize.js'
 // 正文阻塞的回退写与环检快照只在 model/description-markers.ts 一处，本文件直接用那个出处。
 import { parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from '../model/description-markers.js'
 import { failGlab } from '../errors.js'

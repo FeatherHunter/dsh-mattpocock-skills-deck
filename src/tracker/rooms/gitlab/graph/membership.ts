@@ -2,8 +2,8 @@
  * src/tracker/rooms/gitlab/graph/membership.ts —— 亲缘挂载与指派：隐藏标记挂载、assignee_ids 解析。
  *
  * 为什么搬进 graph/ 子树（#1920）：亲缘挂载与指派和阻塞边同属关系这一概念，读与写的落点都在
- * graph/ 里。根目录 graph-membership.ts 只剩纯转发（它在 #1907 的 9 个旧路径名单里），入口
- * index.ts 仍按旧路径取 setParent / setAssignees，房外测试也仍按旧路径 import。
+ * graph/ 里。根目录 graph-membership.ts 只剩纯转发（它在 #1907 的 9 个旧路径名单里，留给房外
+ * 读者）；入口 index.ts 已改从本文件取 setParent / setAssignees，房内不再绕转发文件。
  *
  * 请求的形状只在根目录 requests.ts 一处（#1920）：挂父与指派都是整篇 PUT，走 requestIssuePatch；
  * 登录名换用户编号走 requestUserByName。本文件只决定每次请求的时限，以及拿到原始进程结果之后的
@@ -19,7 +19,7 @@ import type { Issue, RepositoryRef } from '../../../contract/entities.js'
 import type { AssigneeInput, SetOpts } from '../../../contract/inputs.js'
 import { TRACKER_ERROR_STAGE, type OpResult } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
-import { normalizeIssue } from '../normalize.js'
+import { normalizeIssue } from '../model/normalize.js'
 // 正文标记的规则只在 model/description-markers.ts 一处，本文件直接用那个出处。
 import { rewriteDescriptionWithHiddenParent } from '../model/description-markers.js'
 import { failGlab } from '../errors.js'

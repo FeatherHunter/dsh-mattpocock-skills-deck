@@ -50,7 +50,7 @@ import { type OpResult, type TrackerError, type LabelColorBatchResult } from '..
 import { normalizeColor } from '../../../../shared/label-color/src/colors.js'
 import { fail } from '../../../kernel/preflight.js'
 import { classifyGlabError, failGlab } from '../errors.js'
-import { emitReadDegraded } from '../read-log.js'
+import { emitReadDegraded } from '../support/read-log.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
 import { repoRefOf } from '../model/repo-identity.js'
 // 请求的形状住在房间根目录的 requests.ts（#1916）：改一个标签颜色的端点在那里收口。
