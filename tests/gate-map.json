@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T09:32:16.609Z",
+  "generatedAt": "2026-11-05T10:09:21.806Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 573,
   "gateCount": 573,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 116,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 932,
+  "graphFileCount": 934,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -15808,9 +15808,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 955,
+    "fileCount": 957,
     "dirCount": 101,
-    "coveredFileCount": 955,
+    "coveredFileCount": 957,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 73,
@@ -16645,9 +16645,11 @@
       "src/tracker/rooms/gitlab/issues/counts.ts",
       "src/tracker/rooms/gitlab/issues/create-write.ts",
       "src/tracker/rooms/gitlab/issues/idempotency.ts",
+      "src/tracker/rooms/gitlab/issues/index.ts",
       "src/tracker/rooms/gitlab/issues/maps.ts",
       "src/tracker/rooms/gitlab/issues/pages.ts",
       "src/tracker/rooms/gitlab/issues/read.ts",
+      "src/tracker/rooms/gitlab/issues/shared.ts",
       "src/tracker/rooms/gitlab/issues/sub-issues.ts",
       "src/tracker/rooms/gitlab/issues/write.ts",
       "src/tracker/rooms/gitlab/labels/assign.ts",
@@ -17024,7 +17026,7 @@
       },
       {
         "path": "src/tracker/rooms/gitlab/issues",
-        "fileCount": 8
+        "fileCount": 10
       },
       {
         "path": "src/tracker/rooms/gitlab/labels",
