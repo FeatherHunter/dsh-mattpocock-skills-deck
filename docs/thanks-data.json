@@ -272,12 +272,16 @@
         {
           "n": 1612,
           "at": "2026-10-28T11:53:02Z"
+        },
+        {
+          "n": 1879,
+          "at": "2026-11-04T14:19:56Z"
         }
       ],
       "prs": [],
       "discussions": [],
       "comments": [],
-      "lastActive": "2026-10-28T11:53:02Z"
+      "lastActive": "2026-11-04T14:19:56Z"
     },
     "SKADI0718": {
       "comments": [],
@@ -465,17 +469,33 @@
         }
       ]
     },
-    "f2406293319-star": {
+    "ericheroster": {
       "issues": [
         {
-          "n": 1859,
-          "at": "2026-11-03T14:34:15Z"
+          "n": 1906,
+          "at": "2026-11-05T01:24:00Z"
         }
       ],
       "prs": [],
       "discussions": [],
       "comments": [],
-      "lastActive": "2026-11-03T14:34:15Z"
+      "lastActive": "2026-11-05T01:24:00Z"
+    },
+    "f2406293319-star": {
+      "issues": [
+        {
+          "n": 1859,
+          "at": "2026-11-03T14:34:15Z"
+        },
+        {
+          "n": 1880,
+          "at": "2026-11-04T14:43:38Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-04T14:43:38Z"
     },
     "firewfly": {
       "issues": [
@@ -844,6 +864,6 @@
   },
   "cursors": {
     "discussions": 1781,
-    "issues": 1877
+    "issues": 1923
   }
 }
