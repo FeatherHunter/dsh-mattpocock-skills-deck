@@ -30,7 +30,9 @@ import { PAGINATION } from '../../../tracker/contract/pagination.js'
 // #1689：索引翻页是本票唯一「完整枚举」的真实请求路径，预算核与额度常量都从额度模块取，不另建配置。
 import { createFallbackRoundBudget } from '../../kernel/fallback-fetch-budget.js'
 import type { FallbackRoundBudget } from '../../kernel/fallback-fetch-budget.js'
-import { FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
+import { CLOSED_PULL_REFRESH_MAX_PAGES, FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
+// #1898：已关闭/已合并拉取请求的补取节拍（10 分钟一次），时间值只在 config/intervals.yaml 里有一份。
+import { CLOSED_PULL_REFRESH_INTERVAL_MS } from '../../../shared/time-config/values.js'
 
 interface RepoKey { owner: string; name: string }
 
@@ -146,6 +148,46 @@ export function createIssueList(deps: any): any {
       // （写失败、租约被别人占着都算没写）；没接写口时上面的早退按 true 处理，老调用方行为不变。
       return !(written && written.ok === false)
     } catch (e: any) { return false }
+  }
+
+  // ── #1898：已关闭/已合并的拉取请求补一页进库（规格 #1885 S7）──
+  //
+  // 为什么需要它：整份取数只问开放工作集（composeSnapshot 传 state:'open'），索引扫描只翻
+  // repository.issues —— 已关闭/已合并的拉取请求没有任何一条路把它写进库，页签于是永远挂着「打开」。
+  //
+  // 三条纪律：
+  //   ① 节拍：按工作区记上一次跑的时刻，不足 CLOSED_PULL_REFRESH_INTERVAL_MS 这一拍一条请求都不发
+  //      （节拍住 config/intervals.yaml，这里不写数字）。
+  //   ② 请求上限：每轮最多翻一页（CLOSED_PULL_REFRESH_MAX_PAGES，住 kernel/host-budget.ts），按更新
+  //      时间倒序的第一页里就有刚合并的那几条；不往历史里翻，额度吃不穿。
+  //   ③ 时刻在发请求之前就记下：连着的两拍进来时第二拍直接按节流回掉，不会双发；失败也算跑过
+  //      （否则失败时每拍都重试，等于持续烧额度），下一个窗口再试。
+  //
+  // 写库走 recordRows（与列表同一口）：行、合并时间、评审一起写进库，界面从库回放就能看出「已合并」。
+  const closedPullRefreshAtByCwd: Record<string, number> = {}
+  const clockOf = typeof deps.now === 'function' ? deps.now : Date.now
+  async function refreshClosedPulls(cwd: any): Promise<any> {
+    const at = Number(clockOf()) || 0
+    const key = String(cwd || '')
+    const last = Number(closedPullRefreshAtByCwd[key]) || 0
+    if (last && at - last < CLOSED_PULL_REFRESH_INTERVAL_MS) return { ok: true, ran: false, reason: 'throttled' }
+    closedPullRefreshAtByCwd[key] = at
+    return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
+      // 今天只有 GitHub 有「拉取请求」这一种行（GitLab 与本地 Markdown 的读结果都不表达它）：
+      // 别的后端上去了也只会白跑一条请求、一行都写不进去，直接说这档不适用，不打这一条。
+      if (String(ref.backend || '') !== 'github') return { ok: true, ran: false, reason: 'not-applicable' }
+      const capped: any = Object.assign({}, ctx, { listMaxPages: CLOSED_PULL_REFRESH_MAX_PAGES })
+      const r: any = await session.list(ref, { state: 'closed', isPullRequest: true }, capped)
+      if (!r || r.ok !== true) {
+        const err = (r && r.error) || {}
+        return { ok: false, ran: true, fetched: 0, written: 0, reason: String(err.kind || 'network') }
+      }
+      const rows: any[] = (Array.isArray(r.data) ? r.data : []).filter(function (x: any): boolean { return !!x && x.isPullRequest === true })
+      if (!rows.length) return { ok: true, ran: true, fetched: 0, written: 0 }
+      const written: boolean = await recordRows(cwd, ref, rows)
+      if (!written) return { ok: false, ran: true, fetched: rows.length, written: 0, reason: 'write-not-committed' }
+      return { ok: true, ran: true, fetched: rows.length, written: rows.length }
+    })
   }
 
   /** 地图票：只要带 wayfinder:map 且未关闭的票（旧 gh issue list 的两条筛，原样保留）。 */
@@ -390,5 +432,5 @@ export function createIssueList(deps: any): any {
   }
 
   // 旧的两个手工分页兜底与地图详情 REST 通道已删（#1444）：它们直调 gh，且房间内部已有同样的降级。
-  return { fetchMaps, fetchIssues, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, cacheSnapshotIsCurrent, adoptSnapshot }
+  return { fetchMaps, fetchIssues, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, cacheSnapshotIsCurrent, adoptSnapshot, refreshClosedPulls }
 }

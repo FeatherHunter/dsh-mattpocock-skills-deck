@@ -221,6 +221,8 @@ const KEYS: Array<[string, string, string]> = [
   // —— 降级取数的两个节流窗口（#1689）：降级常驻时探测放慢到 60 秒、自动校准至少 10 分钟 ——
   ['fallbackProbeIntervalMs', 'FALLBACK_PROBE_INTERVAL_MS', 'intervals'],
   ['fallbackCalibrationIntervalMs', 'FALLBACK_CALIBRATION_INTERVAL_MS', 'intervals'],
+  // #1898：已关闭/已合并拉取请求的补取节拍（合并状态变化很慢，10 分钟一次就够）。
+  ['closedPullRefreshIntervalMs', 'CLOSED_PULL_REFRESH_INTERVAL_MS', 'intervals'],
   // —— 通知事件库的两个时间参数（#1693）：瞬时事件去重窗住 intervals，历史保留期住 ttl ——
   ['notificationEventDedupeMs', 'NOTIFICATION_EVENT_DEDUPE_MS', 'intervals'],
   // —— 命名状态与日志的节拍 ——

@@ -62,12 +62,15 @@ interface RestListFetch {
   paging: RestListPagingFacts
 }
 
-export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, state: string = 'all', labels: string[] = []): Promise<OpResult<RestListFetch>> {
+export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, state: string = 'all', labels: string[] = [], maxPages: number = 0): Promise<OpResult<RestListFetch>> {
   const c = ghClient(ctx)
   // 为什么标成未知数组：回包是 GitHub 的原始行，本函数只负责翻页搬运、不解读形状，解读是调用方的事。
   const out: unknown[] = []
   const MAX_PAGES = PAGINATION.github.restMaxPages
   const PAGE = PAGINATION.github.restPageSize
+  // #1898：这一轮最多翻几页（0 = 没给上限，翻到 REST 自己的 10 页上限为止）。
+  // 不在这里补一个默认数字：上限的正主是调用方交下来的那一格。
+  const pageLimit = (typeof maxPages === 'number' && isFinite(maxPages) && maxPages > 0) ? Math.min(Math.floor(maxPages), MAX_PAGES) : MAX_PAGES
   // 标签参数在整趟翻页里原样重复（数据页与探测页都带），只算一次。
   const labelQuery = labelsQueryOf(labels)
   // 翻页事实（#1685）：完整度判定要「翻到空页没有、尾页满没满、触没触 10 页上限」，
@@ -82,7 +85,7 @@ export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, sta
   let probeFailed = false
   // 本函数的起点：下面每一行降级日志带的是「这一笔从本函数入口到这里花掉的毫秒数」。
   const startsAt = Date.now()
-  for (let p = 1; p <= MAX_PAGES; p++) {
+  for (let p = 1; p <= pageLimit; p++) {
     // 这是 GraphQL 主路失败之后的 REST 降级翻页：标签与主路分开，事后一眼看出走的是哪条路。
     // #1796：state 由调用方按筛选档给（open / closed / all，缺省 all 与改造前一致）；
     //   sort=updated&direction=desc 与 GraphQL 主路的 orderBy 同一口径，10 页窗口里放的是同一批优先票。
@@ -124,7 +127,7 @@ export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, sta
   // 恰好每页都满：REST 没有 hasNextPage，只有「再打一页、看它是不是空页」才能证明到底。
   // 这一页只用来探测：空页 = 到底（complete）；还有行 = 说明被十页上限截住了（truncated）；
   // 请求或解析失败 = 截断，但不算「双路皆挂」——前面十页是真拿到的，照旧按已得数据回成功。
-  if (!sawEmptyPage && !pageFailure && pagesFetched >= MAX_PAGES && lastPageRows >= PAGE) {
+  if (!sawEmptyPage && !pageFailure && pagesFetched >= MAX_PAGES && pageLimit >= MAX_PAGES && lastPageRows >= PAGE) {
     probeAttempted = true
     const probe = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=${state}&sort=updated&direction=desc&per_page=${PAGE}&page=${MAX_PAGES + 1}${labelQuery}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
     let probeRows: unknown = null
@@ -144,7 +147,8 @@ export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, sta
   }
   // 翻满十页且探测回来还有行：按「翻到十页为止」的上报口径处理（不是故障），完整度上按截断记（#1685）。
   // 探测失败时 hitPageCap 为假，完整度由 probeFailed 单独判截断——两件事别混成一个。
-  const hitPageCap = !sawEmptyPage && !pageFailure && !probeFailed && pagesFetched >= MAX_PAGES && lastPageRows >= PAGE
+  // #1898：被调用方给的那一页上限截住也算截断（此时不再发第 N+1 条探测请求，探测本身就是超发）。
+  const hitPageCap = !sawEmptyPage && !pageFailure && !probeFailed && pagesFetched >= pageLimit && lastPageRows >= PAGE
   return {
     ok: true,
     data: {

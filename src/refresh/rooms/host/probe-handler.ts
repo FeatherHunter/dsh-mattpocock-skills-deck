@@ -68,11 +68,16 @@ export interface ProbeHandlerDeps {
   //   没有历史，事后查不到「哪个环节、什么时候、为什么」。这里只在「这一段失败」的第一次失败记
   //   一条；恢复（真的探成功一次）后清标记，下一段再失败才又记。缺席时探针照旧工作，只是没有历史。
   noteRefreshFailure?: any
+  /**
+   * #1898：已关闭/已合并拉取请求的补取（实现住 issue-list-fetch.ts，自带 10 分钟节拍与一页上限）。
+   * 探针这一拍探成之后顺手调它一次；缺席时探针照旧工作，只是不补这一页（老装配与门禁不受影响）。
+   */
+  refreshClosedPulls?: any
 }
 
 /** 造出探针电话：目前只有一个 handleProbe（wf.probe 的处理体）。 */
 export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args: any) => Promise<any> } {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, degradedStandingOf, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession, logCtx, noteRefreshFailure } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, degradedStandingOf, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession, logCtx, noteRefreshFailure, refreshClosedPulls } = deps
   // #1689：降级常驻时的两个节流时刻（毫秒），按 cwd 记。与 lastProbeAtByRepo 分开记，是因为后者
   //   的键要等取数回来才知道（owner/name），而节流必须在发出请求之前判；createProbeHandler 的实例
   //   由宿主入口 _probe() 记忆化，这份状态跨刷新拍安全。
@@ -290,6 +295,13 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
   async function handleProbe(args: any): Promise<any> {
     const cwdRef: { cwd: string } = { cwd: '' }
     const res: any = await handleProbeOnce(args, cwdRef)
+    // #1898：这一拍探成了，顺手补一眼已关闭/已合并的拉取请求（合并之后页签要从「打开」翻成「已合并」）。
+    // 不 await：它自己带 10 分钟节拍与一页请求上限，这一拍最多多发一条请求，不该把探针的往返拉长；
+    // 补进去的行落库之后客户端按库版本就能看见。探测失败 / 到点校准那两拍不调 —— 那时网络或额度正不正常，
+    // 多花一条请求没有意义。
+    if (cwdRef.cwd && res && res.ok === true && res.mode !== 'calibrate' && typeof refreshClosedPulls === 'function') {
+      try { Promise.resolve(refreshClosedPulls(cwdRef.cwd)).catch(function (): void {}) } catch (ePR: any) {}
+    }
     if (cwdRef.cwd) {
       if (res && res.ok === false) failureNotes.fail(cwdRef.cwd, 'probe', res && res.errorKind)
       else if (res && res.ok === true && res.mode !== 'throttled' && res.mode !== 'calibrate' && res.mode !== 'patch') failureNotes.clear(cwdRef.cwd)

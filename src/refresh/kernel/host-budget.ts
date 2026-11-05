@@ -417,6 +417,18 @@ export const FALLBACK_ENUMERATE_MAX_REQUESTS = 16
 /** 单次详情补取最多几类请求：5 类（同类补几张只占一格）。 */
 export const FALLBACK_DETAIL_MAX_CLASSES = 5
 
+/**
+ * 已关闭/已合并拉取请求的补取一轮最多翻几页：1 页（一页 50 条）。
+ *
+ * 为什么是 1 页、而且放在这里：这条补取要回答的是「刚合并的那个变了没有」，
+ * 按更新时间倒序的第一页里就有它；往后翻历史不会让今天该显示的那几行更对，
+ * 只会把额度吃穿（拉取请求列表最多能翻 20 页）。请求上限与本文件别的额度常量
+ * 同源，不写第二份数字：调用方把它交给读路径，读路径翻到这一页就停。
+ * 节拍（多久跑一次）住在 config/intervals.yaml 的 closedPullRefreshIntervalMs，
+ * 两个数各回答一个问题，改一个不要顺手改另一个。
+ */
+export const CLOSED_PULL_REFRESH_MAX_PAGES = 1
+
 /** 降级取数同一时刻最多几条请求在飞：8 条，超出的排队。 */
 export const FALLBACK_MAX_CONCURRENCY = 8
 
