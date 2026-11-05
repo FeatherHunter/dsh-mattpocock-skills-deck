@@ -54,13 +54,16 @@ export function vcCommitOptionsNode(h: any, t: any, o: any): any {
       onClick: click('closeMenu'),
     }, '×'),
   ]))
-  // 四组都按「左边一行术语、右边控件与一句后果」排。group 只做骨架，note 缺省时不占一行。
+  // 四组都按「左边一行术语、右边控件与一句后果」排。后果句必须跟在控件下面（原型把 note 放进 opt-body），
+  // 不能和 body 平级：.opt-line 是两列网格，平级的 note 会掉进 52 像素宽的术语列里被挤成三行，
+  // 整块浮层因此变高、在多档宽下多出滚动条（#1877 真机并排比对时抓到的）。
   const group = function (id: any, key: any, body: any[], note: any): any {
-    const cells: any[] = [h('div', { key: 'body', className: 'opt-body' }, body)]
-    if (note !== '') cells.push(h('p', { key: 'note', className: 'opt-note', 'data-vc-commit-note': id }, note))
+    const bodyKids: any[] = body.slice()
+    if (note !== '') bodyKids.push(h('p', { key: 'note', className: 'opt-note', 'data-vc-commit-note': id }, note))
     return h('div', { key: id, className: 'opt-line', 'data-vc-commit-group': id }, [
       h('span', { key: 'key', className: 'opt-key' }, key),
-    ].concat(cells))
+      h('div', { key: 'body', className: 'opt-body' }, bodyKids),
+    ])
   }
   // 1) 提交形态：四颗分段按钮。修订与吸收提交要有上一条提交可改，没有时禁用并把理由挂在按钮上。
   const seg: any[] = (panel.forms || []).map(function (m: any) {

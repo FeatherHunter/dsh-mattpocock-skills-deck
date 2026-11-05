@@ -416,8 +416,12 @@ function buildFixture(): FixtureResult {
   gitRun(FIXTURE_REPO, ['config', 'commit.gpgsign', 'false'])
   gitRun(FIXTURE_REPO, ['config', 'tag.gpgsign', 'false'])
   gitRun(FIXTURE_REPO, ['config', 'gc.auto', '0'])
+  // #1877：提交选项里的「提交说明」一组按仓库配置的模板起名（套用 <文件名>）。原型截图上写的是
+  //   「套用 .gitmessage」，夹具配上同一份模板，并排比对时这一行才是同一个词。
+  gitRun(FIXTURE_REPO, ['config', 'commit.template', '.gitmessage'])
 
   writeFixtureFile(path.join(FIXTURE_REPO, 'README.md'), '# 1860 真机验证夹具仓库' + NEWLINE + NEWLINE + '这个仓库只用来给版本管理首屏提供真实数据，不是产品代码。' + NEWLINE + NEWLINE + STASH_BRANCH_NOTE + NEWLINE)
+  writeFixtureFile(path.join(FIXTURE_REPO, '.gitmessage'), '【摘要】' + NEWLINE + NEWLINE + '- 改了什么：' + NEWLINE + '- 为什么改：' + NEWLINE + '- 怎么验证：' + NEWLINE)
   writeFixtureFile(path.join(FIXTURE_REPO, 'docs', 'notes.md'), '# 迭代笔记' + NEWLINE + NEWLINE + '这份文件每次提交追加一行，储藏也拿它当素材。' + NEWLINE)
   writeFixtureFile(path.join(FIXTURE_REPO, 'src', 'client', 'views', 'shared', 'workRouteTable.ts'), workRouteTableSource(false))
   writeFixtureFile(path.join(FIXTURE_REPO, 'src', 'refresh', 'rooms', 'host', 'outbound-admission.ts'), outboundAdmissionSource(false))
@@ -548,6 +552,9 @@ let fixtureSummary: FixtureResult | null = null
 /** 每次启动先核对夹具；不对就整棵重建。重建只发生在系统临时目录里带标记的那一份。 */
 function ensureFixtureRepo(): FixtureResult {
   if (fixtureSummary !== null) return fixtureSummary
+  // 每次实例启动前把索引清空：上一轮的交互会点「暂存」把文件搬进已暂存区，
+  //   不重置的话下一轮首屏检查会看到「已暂存 1」，把夹具状态当成产品问题（#1877 收尾时真撞到过）。
+  if (fs.existsSync(path.join(FIXTURE_REPO, '.git'))) gitRun(FIXTURE_REPO, ['reset', '-q'])
   const first = validateFixture()
   if (first.ok) {
     fixtureSummary = first

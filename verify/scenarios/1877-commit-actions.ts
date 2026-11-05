@@ -182,6 +182,26 @@ function hookLineCount(): number {
 function headSubject(): string { return gitRun(FIXTURE_REPO, ['log', '-1', '--format=%s']).text.trim() }
 function headOid(): string { return gitRun(FIXTURE_REPO, ['rev-parse', 'HEAD']).text.trim() }
 function commitCount(): number { return Number(gitRun(FIXTURE_REPO, ['rev-list', '--count', 'HEAD']).text.trim()) }
+/** 找 Git 自带的 ssh-keygen：Windows 上它通常不在 PATH，但在 Git 安装目录的 usr/bin 里。 */
+function sshKeygenPath(): string {
+  const exec = String(spawnSync('git', ['--exec-path'], { encoding: 'utf8' }).stdout || '').trim()
+  if (exec === '') return ''
+  const gitRoot = path.dirname(path.dirname(path.dirname(exec)))
+  const candidate = path.join(gitRoot, 'usr', 'bin', 'ssh-keygen.exe')
+  return fs.existsSync(candidate) ? candidate : ''
+}
+
+/** 夹具的签名私钥：生成一次就复用。没有它，2.6 的「签名提交」在真机上只能验到禁用原因。 */
+function ensureSigningKey(): { ok: boolean; keyPath: string; detail: string } {
+  const keyPath = path.join(FIXTURE_ROOT, 'signing-key-1877')
+  if (fs.existsSync(keyPath)) return { ok: true, keyPath: keyPath, detail: '已有签名私钥' }
+  const keygen = sshKeygenPath()
+  if (keygen === '') return { ok: false, keyPath: '', detail: '本机找不到 ssh-keygen（Git 的 usr/bin 里也没有）' }
+  const made = spawnSync(keygen, ['-t', 'ed25519', '-N', '', '-f', keyPath, '-q'], { encoding: 'utf8', timeout: 30000 })
+  if (made.status !== 0) return { ok: false, keyPath: '', detail: 'ssh-keygen 失败：' + snippet(String(made.stderr || made.stdout || ''), 200) }
+  return { ok: true, keyPath: keyPath, detail: '生成了 ed25519 签名私钥' }
+}
+
 /** 让夹具回到「一个已暂存改动」的状态：每一步开始前都重新造一次，场景可以重复跑。 */
 function stageOneChange(tag: string): GitOutcome {
   appendFixtureLine(path.join(FIXTURE_REPO, 'README.md'), '- 第 ' + tag + ' 次改动：这一行只用来让暂存区有东西')
@@ -211,6 +231,12 @@ function buildFixture(): FixtureResult {
   gitRun(FIXTURE_REPO, ['config', 'core.autocrlf', 'false'])
   gitRun(FIXTURE_REPO, ['config', 'commit.gpgsign', 'false'])
   gitRun(FIXTURE_REPO, ['config', 'gc.auto', '0'])
+  // 2.6 的签名提交要有密钥才真的签得出来：签名配置写进夹具仓库，宿主读表单时才不会把这一项判成不可用。
+  const signing = ensureSigningKey()
+  if (signing.ok) {
+    gitRun(FIXTURE_REPO, ['config', 'gpg.format', 'ssh'])
+    gitRun(FIXTURE_REPO, ['config', 'user.signingkey', signing.keyPath])
+  }
   writeFixtureFile(path.join(FIXTURE_REPO, 'README.md'), '# 1877 真机验证夹具仓库' + NEWLINE + NEWLINE + '这个仓库只用来给提交区提供真实数据，不是产品代码。' + NEWLINE)
   writeFixtureFile(path.join(FIXTURE_REPO, 'docs', 'notes.md'), '# 迭代笔记' + NEWLINE + NEWLINE + '这份文件每次改动追加一行。' + NEWLINE)
   const first = commitAll(FIXTURE_REPO, '基线提交')
@@ -228,17 +254,19 @@ function buildFixture(): FixtureResult {
   if (!first.ok) problems.push('第 1 次提交失败：' + snippet(first.text))
   if (!second.ok) problems.push('第 2 次提交失败：' + snippet(second.text))
   if (gitRun(FIXTURE_REPO, ['diff', '--cached', '--name-only']).text.trim() !== 'README.md') problems.push('暂存区里不是 README.md')
-  return { ok: problems.length === 0, detail: problems.length === 0 ? '夹具仓库搭好了' : problems.join('；'), facts: { repo: FIXTURE_REPO, commits: commitCount(), head: headSubject() } }
+  return { ok: problems.length === 0, detail: problems.length === 0 ? '夹具仓库搭好了' : problems.join('；'), facts: { repo: FIXTURE_REPO, commits: commitCount(), head: headSubject(), signing: signing.detail } }
 }
 
 function ensureFixtureRepo(): FixtureResult {
   if (!fs.existsSync(path.join(FIXTURE_REPO, '.git'))) return buildFixture()
   const staged = gitRun(FIXTURE_REPO, ['diff', '--cached', '--name-only'])
   const template = gitRun(FIXTURE_REPO, ['config', '--get', 'commit.template'])
+  const signingKey = gitRun(FIXTURE_REPO, ['config', '--get', 'user.signingkey'])
   // 暂存区必须正好是 README.md：跑过一轮的场景会把暂存内容提交掉，下一轮不重建就会「staged=0」，
   //   提交按钮一直禁用，看起来像产品坏了。这里按内容核对，不只按命令有没有成功。
-  const ok = staged.ok && staged.text.trim() === 'README.md' && template.text.trim() === '.gitmessage' && commitCount() >= 2
-  if (ok) return { ok: true, detail: '夹具仓库核对通过', facts: { repo: FIXTURE_REPO, commits: commitCount(), head: headSubject() } }
+  const ok = staged.ok && staged.text.trim() === 'README.md' && template.text.trim() === '.gitmessage' &&
+    signingKey.text.trim() !== '' && commitCount() >= 2
+  if (ok) return { ok: true, detail: '夹具仓库核对通过', facts: { repo: FIXTURE_REPO, commits: commitCount(), head: headSubject(), signing: '已配置签名密钥' } }
   return buildFixture()
 }
 
@@ -663,7 +691,46 @@ async function runActions(context: ScenarioContext): Promise<ScenarioObservation
     },
   }))
 
-  // 5) 2.4 fixup：说明自动写成 fixup! <上一条提交>，确认后历史最前面多一条 fixup 提交。
+  // 5) 2.6 签名提交 + 追加签名行：两件真事落到 git 里——提交对象带 gpgsig、说明末尾多一行 Signed-off-by。
+  observations.push(await runAction(context, page, raw, {
+    id: 'sign-and-signoff', title: '2.6 签名提交 + 追加签名行：提交对象带签名、说明末尾多一行', expected: '提交对象里有 gpgsig，且说明末尾有 Signed-off-by 行',
+    evidence: [],
+    run: async () => {
+      const signingKey = gitRun(FIXTURE_REPO, ['config', '--get', 'user.signingkey']).text.trim()
+      const signingFormat = gitRun(FIXTURE_REPO, ['config', '--get', 'gpg.format']).text.trim()
+      if (signingKey === '' || signingFormat !== 'ssh') return { ok: false, detail: '夹具没有配置 SSH 签名（user.signingkey=' + snippet(signingKey, 80) + '，gpg.format=' + signingFormat + '）' }
+      const stagedCount = await stageAndRefresh(page, raw, 'sign')
+      if (stagedCount === 0) return { ok: false, detail: '在页面之外暂存之后刷新，已暂存数仍是 0' }
+      if (!(await openMenu(page, raw))) return { ok: false, detail: '浮层没打开' }
+      await clickPage(page, raw, '[data-vc-commit-opt="sign"]')
+      await clickPage(page, raw, '[data-vc-commit-opt="signoff"]')
+      const opened = await readUi(page)
+      const signSwitch = await evaluateThrough<string>(page, '(function () { var el = document.querySelector(' + JSON.stringify('[data-vc-commit-opt="sign"]') + '); return el ? String(el.getAttribute(' + JSON.stringify('aria-checked') + ')) : null })()')
+      const signoffSwitch = await evaluateThrough<string>(page, '(function () { var el = document.querySelector(' + JSON.stringify('[data-vc-commit-opt="signoff"]') + '); return el ? String(el.getAttribute(' + JSON.stringify('aria-checked') + ')) : null })()')
+      if (signSwitch.ok && signSwitch.value !== 'true') return { ok: false, detail: '签名提交开关没有打开（aria-checked=' + String(signSwitch.value) + '；可能是本机密钥读取失败）' }
+      if (signoffSwitch.ok && signoffSwitch.value !== 'true') return { ok: false, detail: '追加签名行开关没有打开（aria-checked=' + String(signoffSwitch.value) + '）' }
+      const flags = opened === null ? 0 : opened.flags
+      await clickPage(page, raw, '[data-vc-commit-options-close]')
+      const closed = await readUi(page)
+      const typed = await typeMessage(page, '真机签名与签名行')
+      if (!typed) return { ok: false, detail: '找不到说明输入框' }
+      const submitted = await submitAndWait(page, raw, 30000)
+      if (!submitted.ok) return { ok: false, detail: submitted.stage + ' 阶段失败：' + submitted.detail }
+      const rawCommit = gitRun(FIXTURE_REPO, ['cat-file', '-p', 'HEAD']).text
+      const body = gitRun(FIXTURE_REPO, ['log', '-1', '--format=%B']).text
+      const signed = rawCommit.indexOf('gpgsig') >= 0
+      const signoff = body.indexOf('Signed-off-by: verify-1877 <verify-1877@example.invalid>') >= 0
+      const subjectOk = headSubject() === '真机签名与签名行'
+      const flagsOk = closed !== null && closed.flags === 2
+      return {
+        ok: signed && signoff && subjectOk && flagsOk,
+        detail: 'HEAD「' + headSubject() + '」；gpgsig ' + String(signed) + '；Signed-off-by ' + String(signoff) +
+          '；收起后标签 ' + String(closed === null ? '读不到' : closed.flags) + ' 枚（菜单里 ' + String(flags) + ' 项开着）',
+      }
+    },
+  }))
+
+  // 6) 2.4 fixup：说明自动写成 fixup! <上一条提交>，确认后历史最前面多一条 fixup 提交。
   observations.push(await runAction(context, page, raw, {
     id: 'fixup', title: '2.4 fixup：自动说明 fixup! 上一条提交，确认后真的多一条吸收提交', expected: '只读说明是 fixup! <上一条>，点确认后 HEAD 主题以 fixup! 开头',
     evidence: [],
@@ -683,7 +750,7 @@ async function runActions(context: ScenarioContext): Promise<ScenarioObservation
     },
   }))
 
-  // 6) 2.4 squash：同样的自动说明与确认路径。
+  // 7) 2.4 squash：同样的自动说明与确认路径。
   observations.push(await runAction(context, page, raw, {
     id: 'squash', title: '2.4 squash：自动说明 squash! 上一条提交，确认后真的多一条 squash 提交', expected: '只读说明是 squash! <上一条>，点确认后 HEAD 主题以 squash! 开头',
     evidence: [],
@@ -703,7 +770,7 @@ async function runActions(context: ScenarioContext): Promise<ScenarioObservation
     },
   }))
 
-  // 7) 三条关闭路径与焦点回位：Esc、点外面、换页签。
+  // 8) 三条关闭路径与焦点回位：Esc、点外面、换页签。
   observations.push(await runAction(context, page, raw, {
     id: 'close-paths', title: '关闭路径：Esc / 点外面 / 换页签都收起，焦点回到箭头', expected: '三条路径之后浮层都是 closed，Esc 之后焦点在箭头上',
     evidence: [],

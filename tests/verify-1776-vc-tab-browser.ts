@@ -214,7 +214,16 @@ const FIXTURES = {
   rebaseState: { ok: true, state: null, branch: 'main', headOid: 'abcdef1', updateRefs: false, readAtMs: NOW },
   rebaseWindow: { ok: true, base: 'main', commits: [], commitCount: 0, readAtMs: NOW },
   byPhone: {
-    'wf.gitCommitForm': { ok: true, form: { branch: 'main', stagedCount: 0, hooks: [], amend: { available: true, message: '上一条提交的说明' } } },
+    // #1877：提交表单的读回包与真实电话同形（身份 / 签名 / 模板 / 上一条提交都摊在顶层）。
+    //   模板配上之后，提交说明那一组的常驻说明才有内容，「四组说明句都跟在控件下面」的版式判据才量得到四行。
+    'wf.gitCommitForm': {
+      ok: true,
+      identity: { name: '某甲', email: 'a@b.c' },
+      signing: { key: 'KEY123', format: 'openpgp', gpgsign: false },
+      template: { configured: true, path: '.gitmessage', text: '模板第一行\n- 模板第二行', problem: '', truncated: false },
+      trailer: 'Signed-off-by: 某甲 <a@b.c>',
+      amend: { available: true, oid: 'aaaa1111222233334444', short: 'aaaa111', subject: '上一条提交', message: '上一条提交' },
+    },
     'wf.gitStash': { ok: true, op: 'list', atMs: NOW, entries: [STASH_ENTRY], recent: [], stderr: '' },
     'wf.gitChangesCheck': { ok: true, decision: { verdict: 'allow', reasons: ['ok'] }, plan: {}, confirmRequired: false, ticket: { id: 'ch-ticket', checkedAtMs: NOW, expiresAtMs: NOW }, readAtMs: NOW },
     'wf.gitWorktreeCheck': { ok: true, decision: { verdict: 'allow', reasons: ['ok'] }, plan: { cmd: 'git worktree prune' }, ticket: { id: 'wt-ticket', checkedAtMs: NOW, expiresAtMs: NOW } },
@@ -575,6 +584,64 @@ async function groupReach(page: any, pageErrors: string[]) {
   }
 }
 
+// ---------------- C3 组：#1877 提交选项浮层的版式 ----------------
+// 这一组守的是「说明句跟在控件下面」这件事：.opt-line 是两列网格（术语列 + 控件列），
+//   说明句一旦和控件列平级，就会掉进 52 像素宽的术语列里被挤成多行，整块浮层变高、多出滚动条。
+//   #1877 收尾做并排比对时真机抓到的就是这个；只断字符串的门禁看不见它，所以在这里真浏览器里量。
+async function groupCommitOptions(page: any) {
+  console.log('\n== C3 组：提交选项浮层的版式（说明句在控件列里、浮层不出界） ==')
+  const measureNotes = () => page.evaluate(() => Array.from(document.querySelectorAll('[data-vc-commit-group]')).map((row: any) => {
+    const rectOf = (el: any) => { if (!el) return null; const r = el.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width, t: r.top, b: r.bottom } }
+    return {
+      id: String(row.getAttribute('data-vc-commit-group')),
+      key: rectOf(row.querySelector('.opt-key')),
+      body: rectOf(row.querySelector('.opt-body')),
+      note: rectOf(row.querySelector('.opt-note')),
+    }
+  }))
+  const notesOkOf = (rows: any[]) => rows.length === 4 && rows.every((row: any) => row.note !== null && row.body !== null &&
+    Math.abs(row.note.l - row.body.l) <= 2 && row.note.w >= row.body.w - 2 && row.note.t >= row.body.t - 1)
+  for (const width of [300, 380, 460]) {
+    await page.setViewportSize({ width: width, height: 1400 }); await setSkin(page, 'dark'); await mount(page)
+    await click(page, '[data-vc-commit-options]')
+    await page.waitForSelector('[data-vc-commit-menu="open"]', { timeout: 5000 })
+    const rows = await measureNotes()
+    check(rows.map((row: any) => row.id).join(',') === 'form,content,message,record',
+      width + ' 档提交选项四组都在（实得 ' + rows.map((row: any) => row.id).join(',') + '）')
+    check(notesOkOf(rows), width + ' 档每组的说明句都跟在控件下面：左沿与控件列对齐、宽度撑满控件列（实得 ' +
+      rows.map((row: any) => row.id + ' body.l=' + String(row.body && Math.round(row.body.l)) + ' note.l=' + String(row.note && Math.round(row.note.l)) + ' note.w=' + String(row.note && Math.round(row.note.w))).join('；') + '）')
+    if (width >= 380) {
+      check(rows.every((row: any) => row.body !== null && row.key !== null && row.body.l > row.key.r + 2),
+        width + ' 档四组都是「术语列 + 控件列」两列，控件列在术语列右边（不是单列堆叠）')
+    }
+    const panelFacts = await page.evaluate(() => {
+      const panel = document.querySelector('[data-vc-commit-options-panel]')
+      const composer = document.querySelector('[data-vc-commit-panel]')
+      if (!panel || !composer) return null
+      const a = panel.getBoundingClientRect(); const b = composer.getBoundingClientRect()
+      return { inside: a.left >= b.left - 1 && a.right <= b.right + 1, scrolls: panel.scrollHeight > panel.clientHeight + 2, h: Math.round(a.height) }
+    })
+    check(!!panelFacts && panelFacts.inside, width + ' 档浮层左右不出提交区')
+    if (width >= 380) {
+      check(!!panelFacts && panelFacts.scrolls !== true, width + ' 档四组内容整块放得下、区内不出滚动条（实得高度 ' + (panelFacts && panelFacts.h) + '、滚动 ' + (panelFacts && panelFacts.scrolls) + '）')
+    }
+    await shoot(page, 'commit-options-' + width + '-dark')
+  }
+  // 反证：把说明句挪回 .opt-line 这一层（当年的错法），同一条判据必须当场红。
+  await page.setViewportSize({ width: 460, height: 1400 }); await setSkin(page, 'dark'); await mount(page)
+  await click(page, '[data-vc-commit-options]')
+  await page.waitForSelector('[data-vc-commit-menu="open"]', { timeout: 5000 })
+  await page.evaluate(() => {
+    document.querySelectorAll('[data-vc-commit-group]').forEach((row: any) => {
+      const note = row.querySelector('.opt-note')
+      if (note) row.appendChild(note)
+    })
+  })
+  await page.waitForTimeout(180)
+  const brokenRows = await measureNotes()
+  check(!notesOkOf(brokenRows), 'C3 反证：把说明句挪回术语列之后，同一条版式判据当场红')
+}
+
 // ---------------- D 组：反证 ----------------
 async function groupReverse(page: any) {
   await page.setViewportSize({ width: 300, height: 1400 }); await setSkin(page, 'dark'); await mount(page)
@@ -635,6 +702,7 @@ async function groupEmpty(page: any) {
       await groupFill(env.page)
       await groupNav(env.page)
       await groupReach(env.page, env.pageErrors)
+      await groupCommitOptions(env.page)
       await groupReverse(env.page)
       await groupEmpty(env.page)
     } finally { await env.close() }
