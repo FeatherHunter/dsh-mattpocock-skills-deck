@@ -14,8 +14,8 @@
  *   3. 返回值就是客户端那三件套 {stdout, stderr, code}，原样交回。本文件不解析 JSON、不判错误档位、
  *      不写失败话术、不记日志：每个调用点的容错与说法都不一样，这些留在调用方。
  *
- * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）、评论写入，以及票的写端点（建票、
- * 改票、按名字读里程碑）；其余写端点与操作族按票逐步搬进来，
+ * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）、评论写入、票的写端点（建票、改票、
+ * 按名字读里程碑），以及标签的三条请求（整集赋值、列一页清单、改一条颜色）；其余写端点与操作族按票逐步搬进来，
  * 命名与返回约定照本文件：request 加领域动作，返回原始进程结果。
  */
 
@@ -257,4 +257,83 @@ export function requestIssueStatistics(
   return clientOf(opCtx).run(['api', `${projectPath(refId)}/issues_statistics?${query}`], {
     timeout: timeoutMs,
   })
+}
+
+/**
+ * 给一张票整体换标签：PUT projects/{仓库}/issues/{票号}，表单字段 labels。
+ *
+ * 这是整集替换：表单值由调用方拼成一串逗号分隔的标签名，空串表示清空这一张票的标签。
+ * 方法、路径与字段从前由房间根目录的 labels.ts 自己拼（#1916 之后由 labels/assign.ts 调用本函数）。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param iid 票号（远端认字符串或数字，拼路径前统一转成字符串）
+ * @param labelsCsv 逗号分隔的标签名整集（空串表示清空）
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestLabelAssign(
+  opCtx: MaybeCtx,
+  refId: string,
+  iid: string | number,
+  labelsCsv: string,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(
+    ['api', issuePath(refId, iid), '--method', 'PUT', '-f', `labels=${labelsCsv}`],
+    { timeout: timeoutMs },
+  )
+}
+
+/**
+ * 列一页仓库标签：GET projects/{仓库}/labels?per_page={每页条数}&page={页码}&include_ancestor_groups=false。
+ *
+ * 路径与查询串逐字保持房间根目录 labels-ops.ts 的原有写法（#1916 搬进 labels/list.ts 时未改）：
+ * 三个查询参数一个都不能少。include_ancestor_groups=false 为什么必须显式带上——GitLab 不写它
+ * 默认会带上层分组的标签，而分组标签在改色接口上改不了（远端回 404）；列出来就是一份
+ * 「界面上能看见、一按保存就失败」的假标签。翻页循环与「短页就是最后一页」的判据留在调用方
+ * （labels/list.ts），这里只发一页。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识（拼路径时统一编码）
+ * @param perPage 这一页请求几条（调用方按远端每页上限选好）
+ * @param page 页码，从 1 开始
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestLabelList(
+  opCtx: MaybeCtx,
+  refId: string,
+  perPage: number,
+  page: number,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(
+    ['api', projectPath(refId) + '/labels?per_page=' + String(perPage) + '&page=' + String(page) + '&include_ancestor_groups=false'],
+    { timeout: timeoutMs },
+  )
+}
+
+/**
+ * 改一个标签的颜色：PUT projects/{仓库}/labels/{标签名}，表单字段 color=#rrggbb。
+ *
+ * 标签名按路径参数整体做一次 URL 编码：名字里的冒号、空格都算标签名的一部分，不编码会被当成
+ * 路径分隔符或查询串起点，请求会打到别的端点上去。颜色由调用方归一成不带井号的六位小写后
+ * 补上井号再传进来——GitLab 官方文档要求带前导井号，不带会被远端拒绝。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param labelName 标签名原文（本函数负责编码，不收已经编码好的路径片段）
+ * @param colorWithHash 带前导井号的六位十六进制颜色（例如 #9d7cd8）
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestLabelColor(
+  opCtx: MaybeCtx,
+  refId: string,
+  labelName: string,
+  colorWithHash: string,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(
+    ['api', projectPath(refId) + '/labels/' + encodeURIComponent(labelName), '--method', 'PUT', '-f', 'color=' + colorWithHash],
+    { timeout: timeoutMs },
+  )
 }
