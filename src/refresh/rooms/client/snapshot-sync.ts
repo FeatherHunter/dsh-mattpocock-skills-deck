@@ -42,6 +42,11 @@ declare const askSelectionOnce: any;
 declare const _flushDeferredChain: any;
 declare const adoptWorkRouteTableIfNewer: any;
 declare const touchProbeAt: any;
+// #1891：按库版本取变化的那一套（实现在 refresh/rooms/client/snapshot-version-sync.ts）。
+//   本文件只留三处接线：整份取数的起点版本、304 之后把结论交给版本同步。
+declare const captureSnapshotVersion: any;
+declare const rememberSnapshotVersion: any;
+declare const runSnapshotVersionTick: any;
 declare const mergeSelection: any;
 declare const getCwdSync: any;
 declare const tr: any;
@@ -196,6 +201,10 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
     let _ctrl: any = null; try { _ctrl = typeof AbortController !== 'undefined' ? new AbortController() : { signal: { aborted: false }, abort(): void {} }; } catch (e) { _ctrl = { signal: { aborted: false }, abort(): void {} }; }
     let _timer: any = null;
     const callT0: number = Date.now();
+    // #1891：整份取数的起点版本。发请求之前先问一次库版本，成功装上之后把它记成手上那份的起点 ——
+    //   起点只会比数据旧（这期间的变化下一拍重放一次），绝不会比数据新（那样会漏掉变化）。
+    let _verAtRequestP: any = null;
+    try { if (typeof captureSnapshotVersion === 'function') _verAtRequestP = captureSnapshotVersion(st); } catch (eVer) { _verAtRequestP = null; }
     const callMethod: string = force ? 'wf.refresh' : 'wf.snapshot';
     // #653 日志纪律：发起这条跨边界调用前先记一行，与收到回包时那一行配成一对（按需级，先判开关）
     try { if (isEnabled('debug')) log('debug', 'host.call', { method: callMethod, kind: force ? 'refresh' : 'snapshot', ok: true, latencyMs: 0, reason: why ? String(why) : undefined }); } catch (eL) {}
@@ -256,6 +265,9 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
         // #683（F1 · R6）/#1449：304 也把布局合并进会话手上那份快照（版本号没变不代表布局没变）。
         //   宿主现在无条件带 setupLayout（含 null），这里照收；快照是共享缓存，合并时浅拷贝，不原地改。
         try { if (snap.setupLayout !== undefined) { st.snapshot = Object.assign({}, st.snapshot || {}, { setupLayout: snap.setupLayout }); } } catch (eSL) {}
+        // #1891：304 只说明「内容散列没变」，新鲜度只按库版本判 —— 把结论交给版本同步：
+        //   版本比手上那份新就取变化集，版本一样就什么都不取（判据只在那一个地方，这里不另写一份）。
+        try { if (typeof runSnapshotVersionTick === 'function') void runSnapshotVersionTick(st, 'if-none-match-304'); } catch (eVer304) {}
         // still touch LRU ts via setCachedSnapshot? keep old
         emit(st); // minimal tick for probe freshness but no data change
         return;
@@ -264,6 +276,8 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
         // #1009：装快照那一整段搬去 refresh/rooms/client/probe-scope-selection.js 的 _snapInstallBody —— 正常那一路与迟到那一路
         //   共用同一处，免得两处各写一遍、判据（缓存优先落表、补标签颜色、回填布局）迟早长岔。
         _snapInstallBody(st, snap);
+        // #1891：这份整份数据对应「发请求之前」那一版；记下来，下一次拍就从它往上取变化。
+        if (_verAtRequestP) _verAtRequestP.then(function (v: any): void { try { if (typeof v === 'number' && typeof rememberSnapshotVersion === 'function') rememberSnapshotVersion(st.cwd, v); } catch (eVer2) {} });
       } else {
         st.snapMode = 'err';
         st.snapError = (snap && snap.error) ? String(snap.error).slice(0, 160) : tr('err.snapshotEmpty');

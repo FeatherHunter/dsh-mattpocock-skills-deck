@@ -7,7 +7,8 @@
  *   C 行数上限：变化行与墓碑加起来超过上限时回「整份」（full 为真，不给截断的变化集）；
  *   D 时间上限：客户端手上的版本太旧时回「整份」；
  *   E 版本回退：客户端传来的版本比库里当前版本大时回「整份」；
- *   F 旧路径不变：wf.snapshot 回放出来的快照仍只有原来那些顶层字段，wf.probe 的补丁回包键集逐字不变；
+ *   F 旧路径不变：wf.snapshot 回放出来的快照仍只有原来那些顶层字段；wf.probe 的补丁回包不再带整份快照
+ *     （#1891：其余字段逐字不变，回包序列化后远低于整份快照量级）；
  *   G 界面上看得到当前库版本：环境检查页的诊断读数调 wf.snapshotVersion，把回的版本显示出来，
  *     并与快照库里的版本一致。
  *
@@ -308,13 +309,18 @@ async function main(): Promise<void> {
       'F4 快照回包的顶层键集与改造前逐字相同', snapKeys)
     const probe = createProbeHandler({
       canonicalKey: async (c: unknown) => String(c),
-      takeWritePatch: async () => ({ snapshot: { marker: 'patch' }, rows: ['105'], version: 'v-patch', at: NOW0, queries: 1, partial: false }),
+      takeWritePatch: async () => ({ rows: ['105'], version: 'v-patch', at: NOW0, queries: 1, partial: false }),
       noteRefreshFailure: null,
     } as any)
     const probeReply: any = await probe.handleProbe({ cwd: 'D:/ws-1890' })
     const probeKeys = Object.keys(probeReply || {}).sort().join(',')
-    check(probeKeys === 'changed,mode,ok,partial,queries,rows,since,snapshot,version',
-      'F5 探针的补丁回包键集与改造前逐字相同', probeKeys)
+    check(probeKeys === 'changed,mode,ok,partial,queries,rows,since,version',
+      'F5 探针的补丁回包键集：整份快照退场，其余字段与改造前逐字相同', probeKeys)
+    // #1891：整份快照不再随探针回包走。1000 张票的整份约 411 KB，而这条回包只该有几十字节到几 KB；
+    //   9 行票的快照就已经越过这个上限，所以「没有 snapshot 字段 + 回包体积」两条一起钉，缺一不可。
+    const probeBytes = Buffer.byteLength(JSON.stringify(probeReply))
+    check(!('snapshot' in (probeReply || {})) && probeBytes < 4096,
+      'F6 探针回包里没有整份快照，序列化后远低于整份量级（< 4 KB，实得 ' + probeBytes + ' 字节）')
 
     // ============================================================
     // 七、界面上看得到当前库版本：诊断读数与快照库的版本一致

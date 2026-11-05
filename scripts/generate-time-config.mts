@@ -282,8 +282,6 @@ const KEYS: Array<[string, string, string]> = [
   ['snapshotTtlMs', 'SNAPSHOT_TTL_MS', 'ttl'],
   ['statusCacheMs', 'STATUS_CACHE_MS', 'ttl'],
   ['snapshotCacheMs', 'SNAPSHOT_CACHE_MS', 'ttl'],
-  // #1240：刚选中快照的保护窗（别用旧缓存盖掉用户刚点的选择）。
-  ['snapshotPickedGuardMs', 'SNAPSHOT_PICKED_GUARD_MS', 'ttl'],
   // #1862：工作区快照库写者租约的有效期（心跳在 intervals 那档，这里是多久没续可以被接管）。
   ['snapshotLeaseTtlMs', 'SNAPSHOT_LEASE_TTL_MS', 'ttl'],
   // #1890：变化集的两个降级阈值成对使用，住同一份文件、相邻两行。行数上限不是时间，

@@ -55,6 +55,8 @@ async function run() {
     issues: [row(101, 'OPEN', FIX_AT), row(102, 'OPEN', FIX_AT), row(103, 'OPEN', FIX_AT)],
     labels: [], deck: { counts: { open: 3, closed: 0, total: 3 }, partial: false, levels: [] },
     delta: { structureVersion: delta.DELTA_STRUCTURE_VERSION, watermarkMs: WM0, generation: 3, pending: [], pendingAt: 0, pendingReason: '' },
+    // #1891：一段填充，让「宿主手上那份」的序列化体积远大于探针回包，体积上限那条断言才有意义。
+    filler: 'x'.repeat(8000),
   }
   const cacheBox = { ts: NOW0 - 60000, snapshot: seeded, error: null, cwd: CWD }
   const disk = { snap: seeded }
@@ -193,10 +195,17 @@ async function run() {
   check(r1 && r1.mode === 'patch', '变了就先把变的那几条补进列表（mode=' + (r1 && r1.mode) + '）')
   check(thinBefore() === 1, '①取数路径：这一次只发出 1 条会话 get（变的那一张票一条薄查询），实发 ' + thinBefore() + ' 条')
   check(calls.length === 0, '①取数路径：一次 gh 都没发（runGh 实发 ' + calls.length + ' 条）')
-  check(r1 && r1.snapshot && r1.snapshot.ok === true && Array.isArray(r1.snapshot.issues), '②客户端要的那一格里有补好的快照（交给界面直接落列表）')
-  const row101 = (r1 && r1.snapshot && r1.snapshot.issues || []).filter((x) => Number(x.number) === 101)[0]
-  check(!!row101 && row101.state === 'CLOSED', '补进去的那一行就是薄查询回来的新值（101 → ' + (row101 && row101.state) + '）')
-  check(r1 && r1.snapshot && r1.snapshot.delta && r1.snapshot.delta.watermarkMs > seeded.delta.watermarkMs, '③水印在变化并进列表之后推进了（' + seeded.delta.watermarkMs + ' → ' + (r1 && r1.snapshot && r1.snapshot.delta && r1.snapshot.delta.watermarkMs) + '）')
+  // #1891：探针回包不再带整份快照 —— 客户端按库版本经 wf.snapshotChanges 取数据，回包只回答「变了哪几行」。
+  //   这里同时钉「没有这个字段」与「回包远小于宿主手上那份快照」，免得以后有人顺手把整份塞回来。
+  check(!('snapshot' in (r1 || {})), '②探针回包里不再带整份快照（客户端按库版本取变化）')
+  // 宿主手上那份快照故意塞了一段填充（seeded.filler）：整份量级远超回包，这样体积上限才不是空话。
+  const r1Bytes = Buffer.byteLength(JSON.stringify(r1 || {}))
+  const heldBytes = JSON.stringify(cacheBox.snapshot || {}).length
+  check(r1Bytes < 4096 && heldBytes > r1Bytes * 10, '②回包序列化后远低于整份快照量级（回包 ' + r1Bytes + ' 字节，宿主手上那份 ' + heldBytes + ' 字节）')
+  const row101 = (cacheBox.snapshot.issues || []).filter((x) => Number(x.number) === 101)[0]
+  check(!!row101 && row101.state === 'CLOSED', '②补进去的那一行在宿主手上那份里就是新值（101 → ' + (row101 && row101.state) + '）')
+  check(Array.isArray(r1 && r1.rows) && r1.rows.map(String).indexOf('101') >= 0, '②回包只给变化的行号（rows 里有 101，实得 ' + JSON.stringify(r1 && r1.rows) + '）')
+  check(!!cacheBox.snapshot.delta && cacheBox.snapshot.delta.watermarkMs > seeded.delta.watermarkMs, '③水印在变化并进列表之后推进了（' + seeded.delta.watermarkMs + ' → ' + (cacheBox.snapshot.delta && cacheBox.snapshot.delta.watermarkMs) + '）')
   check(logLines.some((l) => l.name === 'refresh.patch' && l.fields.mode === 'patch'), '补行这一步落了一行既有事件 refresh.patch（没有新造事件名）')
   const st1 = ledgerGate.stats()
   check(st1.accounted.requests === 0, '①读路径不花额度：闸一笔都没记（accounted=' + st1.accounted.requests + '）')
@@ -244,14 +253,12 @@ async function run() {
   // 读 .ts 真源（sourcePath 在同名 .js/.ts 并存时优先 .ts）：判据里的单引号与分支顺序都是源码形态。
   const clientSrc = fs.readFileSync(path.join(ROOT, sourcePath('src/refresh/rooms/client/refresh-timer.js')), 'utf8')
   check(/res\.mode === 'deferred'/.test(clientSrc) && /res\.mode === 'stale-dropped'/.test(clientSrc), "④客户端认得出宿主那句「这一次没并进去」（deferred / stale-dropped），那一拍一个请求都不发")
-  // #1355 起 applySnap 多带一个参数（这份表是不是本会话自己请求回来的）；判据只认「增量那一支确实把它交出去了」，
-  //   不钉参数个数以外的写法。
-  check(/res\.mode === 'patch'/.test(clientSrc) && /applySnap\(res\.snapshot(?:\s*,\s*[^)]*)?\)/.test(clientSrc), '④客户端吃宿主补好的那一份（res.mode === patch → applySnap(res.snapshot, …)）')
+  // #1891 起客户端不再吃探测回包里的整份快照：探测只负责让宿主把变化先写进库（产生变化的唯一入口），
+  //   这一拍取不取数据交给按库版本推进的同步那一片（版本没变什么都不取，变了才取变化集）。
+  check(!/res\.mode === 'patch'/.test(clientSrc) && !/applySnap\(res\.snapshot/.test(clientSrc), '④客户端不再吃探测回包里的整份快照（数据只从按库版本取的变化集来）')
+  check(/runSnapshotVersionTickGroup\(group, res\.changed \? 'probe-changed' : 'probe-clean'\)/.test(clientSrc), '④这一拍交给版本同步，并把「有没有变化」如实交过去（runSnapshotVersionTickGroup）')
   const clientCode = stripComments(clientSrc)
-  const patchBranch = clientCode.indexOf("res.mode === 'patch'")
-  const poolBranch = clientCode.indexOf('return loadSnapshot(primary, true, true)')
-  check(patchBranch > 0 && poolBranch > patchBranch, '④增量那一支排在整池那一支前面（遇到了就先吃增量，不再先整池）')
-  check((clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length === 1, '④整池那一条只剩一处（宿主说该整池时才走），实得 ' + (clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length + ' 处')
+  check((clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length === 0, '④探测路不再自己发整份重建（实得 ' + (clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length + ' 处）')
 
   // ---- 反证夹具：把「探测一回来就推水印」放回去，判据必须逮住 ----
   // 收口后的代码分住两处：调用方 issueList.ts + 规则与状态 src/refresh/rooms/host/issue-index-scan.js，两份一起扫。

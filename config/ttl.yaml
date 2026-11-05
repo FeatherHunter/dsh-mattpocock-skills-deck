@@ -56,10 +56,8 @@ ttl:
   statusCacheMs: 30000
   # 会话快照内存缓存的有效期：60 秒。命中即用，不重算。
   snapshotCacheMs: 60000
-  # 刚选中某份快照后的保护窗：60 秒。旧缓存里另一个后端在这段时间内不许把用户刚点的选择盖回去
-  # （水合守卫，#1003 接替 userPicked；见 src/refresh/rooms/client/snapshot-cache-store.ts）。
-  # 它管的是“别用旧快照盖掉刚点的东西”，不是缓存寿命——别和上面的 snapshotCacheMs 混用。
-  snapshotPickedGuardMs: 60000
+  # （#1891 退役）刚选中快照的时间保护窗 snapshotPickedGuardMs 已删：水合守卫改成按库版本判
+  # （点选那一刻的库版本 vs 缓存那份的库版本），时间不再参与「谁的结论更新」这件事。
   # 工作区快照库写者租约的有效期：15 秒。超过这么久没收到心跳，别的会话就可以接管；
   # 三倍于 config/intervals.yaml 的 snapshotLeaseHeartbeatMs（5 秒），给两拍续约留出容错。
   snapshotLeaseTtlMs: 15000

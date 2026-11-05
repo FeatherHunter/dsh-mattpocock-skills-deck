@@ -12,6 +12,11 @@
  *    否则那条变化会被挤出下一次的扫描窗口，此后再也发现不了（原来文件头第 3 条）。
  * 2. since 语义：窗口索引返回 changed=true 才视为变化；GitHub 与 composer 两条路各走各的取数，
  *    配额仍走 REST 池，不烧穿。
+ * 3. #1891（规格 #1885 S4）：wf.probe 回包不再带整份快照 —— 读契约把它定成「版本 + 是否变化 + 变化的
+ *    行号（或该整份了）」，数据由客户端按库版本经 wf.snapshotChanges 取走。1000 张票的整份快照约 411 KB，
+ *    每五秒跨进程传一次正是这一期要消掉的东西；本文件两处 patch 返回点因此都不再拼 snapshot 字段，
+ *    其余字段（ok / changed / mode / rows / version / queries / partial / since / reason / pending / count）
+ *    与改造前逐字相同。
  */
 import { idOfParts } from '../../../tracker/kernel/identity-keys.js'
 // #1584 F4：探针的 composer 分支原来也用注册表 describe 自己造身份，空 refId 会被当成「答出来了」；
@@ -95,7 +100,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
     // #1835：外层包装要知道这一趟落在哪个工作区；空 cwd 在上面已经早退，走不到这里。
     const _probeCwd = String(cwd == null ? '' : cwd)
     if (_probeCwd) cwdRef.cwd = _probeCwd
-    // #1472：写事件刚补好的快照优先 —— deck_* 写工具成功之后行级增量已经补过那一行，
+    // #1472：写事件刚补好的补丁优先 —— deck_* 写工具成功之后行级增量已经补过那一行，
     // 下一次探针直接把这份交出去，一次窗口探测都不用发（真机以前要等下一次整份重建才算数）。
     // 只交一次（取走即删，语义在 src/refresh/rooms/host/write-event-fetch.ts）；没有就回 null，照旧往下走。
     // 放在后端分发之前：补丁那一侧已经按后端取过数，这份结果与「这一次该问哪个后端」无关。
@@ -103,10 +108,12 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
     // 那个函数还套着「异步取接线」的一层，那一层本身可能失败 —— 失败就按没有补丁处理，照旧走窗口探测。
     let _wp: any = null
     try { _wp = await takeWritePatch(cwd) } catch (eWP: any) { _wp = null }
-    if (_wp && _wp.snapshot) {
+    // #1891：判定标准从「补丁里带着快照」换成「有补丁」—— 快照不再随探针回包走（客户端按库版本取变化），
+    //   而 takeWritePatch 只在真的补成、没过期、还没被取走时才回值，所以它本身就是要不要走这一支的凭据。
+    if (_wp) {
       return {
         ok: true, changed: true, mode: 'patch', rows: _wp.rows || [], version: _wp.version,
-        queries: _wp.queries || 0, partial: _wp.partial === true, snapshot: _wp.snapshot,
+        queries: _wp.queries || 0, partial: _wp.partial === true,
         // since 用补丁自己记下的时刻（客户端拿它当下一拍的水印），不是此刻：此刻会越过补丁覆盖的那段窗口。
         since: (typeof _wp.at === 'number' && _wp.at > 0) ? new Date(_wp.at).toISOString() : '',
       }
@@ -228,13 +235,13 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       const deltaOpts: any = degraded ? { fallbackBudget: roundBudget } : {}
       try { delta = (typeof deltaRefresh === 'function') ? await deltaRefresh(cwd, deltaOpts) : null } catch (eD: any) { delta = null }
       if (delta && delta.mode === 'patch' && delta.rows && delta.rows.length) {
-        // 并进列表了：水印与基线跟着走，客户端直接用这一份（不再发整池大查询）。
+        // 并进列表了：水印与基线跟着走。客户端按库版本取变化，不再等这一份整份快照（#1891）：
+        //   回包只带变化的行号与版本，数据本身走 wf.snapshotChanges。
         commit()
-        const cur: any = (typeof getCache === 'function') ? getCache(cwd) : null
         return {
           ok: true, changed: true, mode: 'patch', repo: repo, count: remote.count,
           rows: delta.rows, version: delta.version, queries: delta.queries, partial: delta.partial === true,
-          snapshot: (cur && cur.snapshot) ? cur.snapshot : null, since: lastProbeAtByRepo[rk1],
+          since: lastProbeAtByRepo[rk1],
         }
       }
       if (delta && delta.mode === 'nothing') {
