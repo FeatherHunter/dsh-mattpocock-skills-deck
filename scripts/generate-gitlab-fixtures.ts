@@ -32,7 +32,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { GITLAB_ENDPOINTS } from '../tests/tracker-contract/gitlab-endpoints.ts'
-import { normalizeIssue } from '../src/tracker/rooms/gitlab/normalize.ts'
+import { normalizeIssue } from '../src/tracker/rooms/gitlab/model/normalize.ts'
 
 const repoDefault = 'FeatherHunter/dsh-gitlab-sandbox'
 const outDefault = 'tests/tracker-contract/fixtures/gitlab-real'
@@ -199,7 +199,7 @@ async function main(): Promise<void> {
   const label = ensureLabel(SAMPLE_PREFIX)
 
   // 关系那一组的前置：链接不在这里建 —— 它就该由下面 link-create 那一条自己建起来，那正是本房挂关系时
-  // 发出去的请求（src/tracker/rooms/gitlab/graph-membership.ts 的 setParent：地址那一格用编码过的项目
+  // 发出去的请求（src/tracker/rooms/gitlab/graph/membership.ts 的 setParent：地址那一格用编码过的项目
   // 路径，表单参数 target_project_id 用项目引用原样）。两种写法写反了远端会回 404 Project Not Found ——
   // 那是采样脚本自己的错，不是本房的错（#1181）。
   // 这里只做一件打扫：上一次采样若留下了同一条链接，先删掉，好让 link-create 采到的是一次真的新建，

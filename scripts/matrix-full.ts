@@ -212,7 +212,7 @@ async function main(): Promise<void> {
           check(results.every((r: any)=>r.ok), `${os} × gitlab 双路径夹具 harness PASS`)
           // 额外显式：free 2条 / premium 1条优先 + milestone 分流
           try {
-            const { normalizeIssue }: any = await import('file://' + path.resolve('src/tracker/rooms/gitlab/normalize.ts').replace(/\\/g,'/'))
+            const { normalizeIssue }: any = await import('file://' + path.resolve('src/tracker/rooms/gitlab/model/normalize.ts').replace(/\\/g,'/'))
             const freeIssue: any = normalizeIssue(gitlabFreeFixture.withData)
             const premIssue: any = normalizeIssue(gitlabPremiumFixture.withData)
             check(Array.isArray(freeIssue.blockedBy) && freeIssue.blockedBy.length===2 && freeIssue.blockedBy[0].key==='1', `${os} × gitlab free 回退 2条（#1,#2）`)

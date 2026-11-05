@@ -90,7 +90,7 @@ async function main() {
   check(viaBackend && viaBackend.ok === true && viaBackend.data && viaBackend.data.known === true, '经工厂读预算能直达房间实现')
   check(viaBackend && viaBackend.usage && viaBackend.usage.requests === 1 && viaBackend.usage.points === 0, '成功信封带用量：一次 glab 调用记一条请求、点数恒 0')
   let register = null
-  try { register = await imp('src/tracker/rooms/gitlab/capability-register.ts') } catch (e) { check(false, 'GitLab 登记可加载：' + String((e && e.message) || e)) }
+  try { register = await imp('src/tracker/rooms/gitlab/support/capability-register.ts') } catch (e) { check(false, 'GitLab 登记可加载：' + String((e && e.message) || e)) }
   check(register && register.GITLAB_CAPABILITY_REGISTER.readBudget.tier === 'provided', '登记里 readBudget 已是明确提供功能（欠账清掉）')
   const fs = await import('node:fs')
   const mdRow = fs.readFileSync(path.join(ROOT, 'docs/tracker/capability-gitlab.md'), 'utf8').split(/\r?\n/).filter(function (l) { return l.indexOf('readBudget') >= 0 })

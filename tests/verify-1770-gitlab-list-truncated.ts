@@ -68,7 +68,7 @@ function makeRoomCtx(rows: any[]): any {
 
 async function partRoom(): Promise<void> {
   console.log('— 一、房层：取满 100 条要置 truncated 并记一行，99 条不置不记')
-  const mod: any = await imp('src/tracker/rooms/gitlab/issues.ts')
+  const mod: any = await imp('src/tracker/rooms/gitlab/issues/read.ts')
   const pag: any = await imp('src/tracker/contract/pagination.ts')
   const REPO: any = { backend: 'gitlab', refId: 'group/project', name: 'project', url: '' }
 

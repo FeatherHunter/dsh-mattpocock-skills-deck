@@ -24,7 +24,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gitlabBackend } from '../src/tracker/rooms/gitlab/index.ts'
-import { READ_DEGRADED_OPS, READ_DEGRADED_REASONS } from '../src/tracker/rooms/gitlab/read-log.ts'
+import { READ_DEGRADED_OPS, READ_DEGRADED_REASONS } from '../src/tracker/rooms/gitlab/support/read-log.ts'
 import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

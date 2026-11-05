@@ -15,15 +15,15 @@
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { normalizeIssue } from '../src/tracker/rooms/gitlab/model/normalize.ts'
 import {
-  normalizeIssue,
   parseHiddenParent,
   parseLegacyPartOf,
   parseHiddenBlockedBy,
   parseBlockedByFallback,
   rewriteDescriptionWithHiddenParent,
   rewriteDescriptionWithBlockedPair,
-} from '../src/tracker/rooms/gitlab/normalize.ts'
+} from '../src/tracker/rooms/gitlab/model/description-markers.ts'
 import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

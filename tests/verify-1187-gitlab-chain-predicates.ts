@@ -23,7 +23,7 @@
 // 门禁归属: src/shared/tracker/check-catalog-dirs.ts
 // 门禁归属: src/tracker/rooms/gitlab/index.ts
 // 门禁归属: src/tracker/rooms/gitlab/preflight.ts
-// 门禁归属: src/tracker/rooms/gitlab/repo.ts
+// 门禁归属: src/tracker/rooms/gitlab/repo/identity.ts
 const nodePath = require('path')
 const fs = require('fs')
 const { pathToFileURL } = require('url')

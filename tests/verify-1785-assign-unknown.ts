@@ -25,7 +25,7 @@
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { setAssignees } from '../src/tracker/rooms/gitlab/graph-membership.ts'
+import { setAssignees } from '../src/tracker/rooms/gitlab/graph/membership.ts'
 import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

@@ -1,10 +1,10 @@
 /**
  * #1605 GitLab 房 listMaps（地图薄查）门禁：真实现的三条验收。
- * 做法是 TDD：本文件先行（RED），实现住 src/tracker/rooms/gitlab/maps.ts。
+ * 做法是 TDD：本文件先行（RED），实现住 src/tracker/rooms/gitlab/issues/maps.ts。
  * 桩把 glab api 按页喂给实现：第一页 100 行才翻页、不足 100 即停、
  * 最多翻 10 页（PAGINATION.gitlab.mapListMaxPages，与 GitHub 房同数，见契约注释）。
  */
-import { listMaps } from '../src/tracker/rooms/gitlab/maps.ts'
+import { listMaps } from '../src/tracker/rooms/gitlab/issues/maps.ts'
 
 let failures = 0
 function check(cond: unknown, msg: string) {

@@ -1,8 +1,8 @@
 # ADR：GitLab 房把 REST 请求收进根目录的请求 module，并按领域竖切目录（#1907）
 
-> 日期：2026-11-05 定版（#1907 规格的结论落点；实施票 #1909–#1921 同批落地）
-> 地位：本文件是 GitLab 房「请求 module 住在哪、目录按什么轴切、9 个旧路径转发文件留到什么时候、请求收口还有哪个门禁盲点」的唯一依据。凡与本文冲突的旧写法以本文为准；未来若改这四条决定，以未来版本为准。
-> 关联：#1907（规格，结论落点）· #1912（请求 module 与票读路径的模式票）· #1909、#1910、#1911、#1913、#1914、#1915、#1916、#1917、#1918、#1919、#1920（实施票）· #1921（README 树、旧路径对照与全链收口）· 房间交接说明 `src/tracker/rooms/gitlab/README.md` · 端点采样门禁 `tests/verify-1179-gitlab-endpoint-coverage.ts` 与登记表 `tests/tracker-contract/gitlab-endpoints.ts` · 相邻决定 `docs/adr/20261014-tracker-room-boundary.md`、`docs/adr/20261021-config-ownership.md`、`docs/adr/20261030-github-room-channel-layering.md`。
+> 日期：2026-11-05 定版（#1907 规格的结论落点；实施票 #1909–#1921 同批落地；#1925 收尾删除 9 个旧路径转发文件）
+> 地位：本文件是 GitLab 房「请求 module 住在哪、目录按什么轴切、9 个旧路径转发文件为什么已经删除、请求收口还有哪个门禁盲点」的唯一依据。凡与本文冲突的旧写法以本文为准；未来若改这四条决定，以未来版本为准。
+> 关联：#1907（规格，结论落点）· #1912（请求 module 与票读路径的模式票）· #1909、#1910、#1911、#1913、#1914、#1915、#1916、#1917、#1918、#1919、#1920（实施票）· #1921（README 树、旧路径对照与全链收口）· #1925（删除 9 个转发文件、房外 import 改到新路径）· 房间交接说明 `src/tracker/rooms/gitlab/README.md` · 端点采样门禁 `tests/verify-1179-gitlab-endpoint-coverage.ts` 与登记表 `tests/tracker-contract/gitlab-endpoints.ts` · 相邻决定 `docs/adr/20261014-tracker-room-boundary.md`、`docs/adr/20261021-config-ownership.md`、`docs/adr/20261030-github-room-channel-layering.md`。
 
 ---
 
@@ -38,7 +38,7 @@ GitLab 房（`src/tracker/rooms/gitlab/`）在这次改造前有 27 个手写 Ty
 - **维持现状：每个操作 module 自己拼请求。** 这正是这次要解决的毛病：请求形状没有单一出处，改一个端点要在多处核对 method、路径与表单字段。
 - **给请求 module 一个通用入口 `request(method, path, fields)`。** 否掉的理由与规格第 2 条实施决定相同：通用入口把 method、路径、字段、编码这些实现知识推回调用方，门禁也无法解析变量路径；具名函数才能让调用方只说领域动作。
 
-**代价**：房间根目录因此不是纯粹的「接口层」——它同时住着入口、出网边界、兼容转发和请求 module。根目录的文件数会比「只留 7 个真实文件」的理想多；请求 module 会随着端点收口逐渐变长，将来若想把它再拆细，必须先解决「门禁只扫根目录」这个前提，也就是先改房外代码。
+**代价**：根目录因此不是纯粹的「接口层」——它同时住着入口、出网边界与请求 module。请求 module 会随着端点收口逐渐变长，将来若想把它再拆细，必须先解决「门禁只扫根目录」这个前提，也就是先改房外代码。（#1925 删掉了 9 个兼容转发文件之后，根目录已经是「7 个真实文件 + 两份说明」；这条代价里原来提到的文件数偏多，随转发文件一起消失。）
 
 ### 2.2 决定二：按领域竖切目录，读写是文件属性而不是位置
 
@@ -54,43 +54,44 @@ GitLab 房（`src/tracker/rooms/gitlab/`）在这次改造前有 27 个手写 Ty
 - **保持平铺，只给文件名加前缀（例如 `issues-read.ts`、`labels-write.ts`）。** 否掉的理由是目录树本身没有表达出层级，27 个文件仍在同一层；前缀只是把概念写进文件名，找文件仍要扫全目录。
 - **按契约动作分目录（`list/`、`get/`、`create/` 等）。** 否掉的理由是同一概念的代码会再次被拆散，而且动作名与后端能力的对应关系不如概念名稳定。
 
-**代价**：目录变多，跨目录引用与相对路径变长；跨领域共享件必须显式放进 `model/`、`support/`、`room/`，不能再靠「反正都在根目录」随手引用；房外的旧 import 需要转发文件兜住（见决定三）；以后把一个文件从概念目录搬到另一个概念目录，会被看成一次结构改动，而不是简单的文件移动。
+**代价**：目录变多，跨目录引用与相对路径变长；跨领域共享件必须显式放进 `model/`、`support/`、`room/`，不能再靠「反正都在根目录」随手引用；房外的旧 import 在改造期间需要转发文件兜住（见决定三，那批文件已由 #1925 删除）；以后把一个文件从概念目录搬到另一个概念目录，会被看成一次结构改动，而不是简单的文件移动。
 
-### 2.3 决定三：9 个旧路径转发文件只做纯转发，删不删是房外的事
+### 2.3 决定三：9 个旧路径转发文件是过渡物，已由 #1925 删除
 
-**决定**：只为房外确有读者的 9 个旧名字保留根目录文件，文件内容只有 `export ... from '新位置'`，不加任何逻辑、包装或副作用。转发文件不新造默认值；新位置本身已有默认导出时，允许用 `export { default } from '新位置'` 把它原样转出（`issues.ts` 与 `idempotency.ts` 现在就是这样，文件里仍然只有导出语句）：
+**决定**：改造期间只为房外确有读者的 9 个旧名字保留过根目录文件，文件内容只有 `export ... from '新位置'`，不加任何逻辑、包装或副作用；转发文件不新造默认值，新位置本身已有默认导出时，允许用 `export { default } from '新位置'` 把它原样转出（`issues.ts` 与 `idempotency.ts` 当时就是这样，文件里仍然只有导出语句）。**#1925 已把这 9 个文件全部删除，房外读者的 import 已改到新位置；根目录现在没有、以后也不要再有转发文件。**
 
-| 旧路径（房间根目录） | 概念 | 新位置（目录） |
+删除的是这 9 个，表里右列是现在唯一该从那里取的位置：
+
+| 旧路径（房间根目录） | 概念 | 现在的位置 |
 | --- | --- | --- |
-| `normalize.ts` | 回包归一 | `model/` |
-| `issues.ts` | 票操作 | `issues/` |
-| `maps.ts` | 地图清单 | `issues/` |
-| `repo.ts` | 仓库身份 | `repo/` |
-| `graph-membership.ts` | 亲缘挂载与指派 | `graph/` |
-| `idempotency.ts` | 建票幂等锚 | `issues/` |
-| `capability-register.ts` | 能力登记数据 | `support/` |
-| `read-log.ts` | 读路径日志 | `support/` |
-| `read-sources.ts` | 读来源数据 | `support/` |
-
-（精确的新文件名以实现为准；`README.md` 的旧路径对照表会逐项列出，删除时按那张表核对。）
+| `normalize.ts` | 回包归一 | `model/normalize.ts`；正文标记的六个函数在 `model/description-markers.ts` |
+| `issues.ts` | 票操作 | `issues/read.ts`（listIssues / getIssue）与 `issues/write.ts`（create / close / reopen / update）；默认导出在 `issues/index.ts` |
+| `maps.ts` | 地图清单 | `issues/maps.ts` |
+| `repo.ts` | 仓库身份 | `repo/identity.ts` |
+| `graph-membership.ts` | 亲缘挂载与指派 | `graph/membership.ts` |
+| `idempotency.ts` | 建票幂等锚 | `issues/idempotency.ts` |
+| `capability-register.ts` | 能力登记数据 | `support/capability-register.ts` |
+| `read-log.ts` | 读路径日志 | `support/read-log.ts` |
+| `read-sources.ts` | 读来源数据 | `support/read-sources.ts` |
 
 政策要点：
 
-1. 只有这 9 个。其余旧名字直接删除，不为「也许有人用」保留转发文件。
-2. 转发文件只许 re-export。`normalize.ts` 的转发要保留现有正文标记函数的 re-export，因为房外有测试从这条旧路径取它们。
-3. 转发文件不承载逻辑。将来删它时，删掉的只是几行 export，不需要把逻辑搬回去。
-4. 删除的前提是房外读者先改完。这次约束不允许改房外测试与脚本，所以 9 个文件留到下一次房外票再机械删除；谁想提前删，先把房外引用改掉，而不是直接删文件。
-5. 新位置本身是唯一实现。旧路径与新路径不能各留一份逻辑，否则就是第二份会漂的拷贝。
+1. 根目录不留转发文件。房外读者要取这些模块，直接写新位置；不要为迁就旧写法在根目录重建一层壳。
+2. 转发文件只许 re-export 这条规矩随文件一起退役；将来若真有人提「再留一层」，按本节的原则否掉。
+3. 新位置是唯一实现。不要另起一份拷贝，也不要用转发文件给同一个模块再留第二个名字。
+4. 这次改的只有房外 import 路径与随之过期的注释：取值不变、断言的形状不变、测试语义不变。门禁与测试跟着源码搬家，是「读的人跟着源码走」，不是源码为门禁让路。
+5. 改完重生成 `tests/gate-map.json`：有三扇门禁的文件头写着 `// 门禁归属: <旧路径>`，它们和 import 一起改到了新路径；这张表是生成物，没有改任何门禁判据或阈值。
 
-**为什么**：房外有 5 道门禁按确切路径读这个目录，9 个测试或脚本按旧路径 import；这次改造禁止改房外代码。纯转发让这些读者一行不改继续工作，同时让新目录成为唯一实现。转发文件越薄，将来删除越机械，也越不容易变成永久兼容层。
+**为什么删（而不是继续留着）**：维护者对这类问题的原则是「源码禁止向门禁让步，除非门禁有百分之一万的理由比我们源码需要的效果更加优秀」。只为旧 import 路径存在的转发文件不属于源码需要的东西——它让同一个模块长期有两条 import 路径，也让「根目录只剩真实文件」的结构目标永远达不到。改造期不改房外代码，所以那批文件临时存在；#1925 把房外 import 改完，前提消失，转发层随即删除。
 
 **否掉的替代方案**：
 
-- **这次就把房外 import 全改掉、删掉旧路径。** 规格明确把「删除 9 个转发文件」列在 Out of Scope，因为要改房外测试与脚本；这次改动只许碰房间内代码。
+- **永久保留转发层。** 否掉的理由就是上面的原则：它不服务任何门禁或测试需要的行为，只是历史路径的兼容壳。
 - **旧文件继续当真实实现，新文件反过来 re-export 旧文件。** 否掉的理由是新的竖切目录会变成一层空壳，真正的源码仍住在平铺的旧文件里；改造没有发生，只是多了一层名字。
-- **转发文件里加兼容逻辑或回退。** 否掉的理由是它会变成第二份实现，读者会继续依赖旧路径的行为，删除时还要先拆逻辑，违背「将来机械删除」的目标。
+- **转发文件里加兼容逻辑或回退。** 否掉的理由是它会变成第二份实现，读者会继续依赖旧路径的行为。
+- **#1925 里顺手改门禁的判据或阈值。** 否掉的理由与这次改造的约束相同：只搬 import 路径。删文件后重生成的 `tests/gate-map.json` 是生成物，不是判据；其它门禁脚本一条没动。
 
-**代价**：根目录多出 9 个文件，同一个模块在一段时间内有两条 import 路径；有人可能顺手往转发文件里加逻辑，或者在新旧路径各改一处。缓解办法是 README 写明根目录语法与旧路径对照表，#1921 收口时逐项核对 9 个文件都只有 re-export；代码评审也要把「往转发文件加逻辑」当作错误。
+**代价**：房外有十几处 import 与三处 `门禁归属` 注释要跟着改，改错一处就是门禁跑到一半报「找不到模块」。这次一次性改完，代价只落在 #1925 这一趟；继续留着转发文件，代价则是每次改这一房都要在两条路径之间核对，而且永远不会消失。
 
 ### 2.4 决定四：请求收口没有门禁，只有约定与人工核对
 
@@ -118,8 +119,8 @@ GitLab 房（`src/tracker/rooms/gitlab/`）在这次改造前有 27 个手写 Ty
 
 ## 3. 代价与风险
 
-1. **根目录不再是「只有接口」的理想形态。** 它同时住着入口、出网边界、请求 module 与 9 个转发文件；「7 个真实文件」是目标结构，不是今天就能达到的形态。
-2. **9 个转发文件是临时债。** 它们让房外读者继续工作，也让同一个模块暂时有两条 import 路径。删除需要一次房外改动；在删除之前，转发文件必须保持纯 re-export。
+1. **根目录已经不是「只有接口」的理想形态，但接近了。** 它同时住着入口、出网边界、请求 module 与两条探针；#1925 删掉转发文件之后，它就是「7 个真实文件 + 两份说明」，`requests.ts` 会随端点收口变长，那是这份结构的自然代价。
+2. **9 个转发文件这笔临时债已经还清。** 它们在改造期间让房外读者继续工作，也让同一个模块暂时有两条 import 路径；#1925 把房外 import 改完、文件删掉之后，同一个模块只剩一条路径。以后有人再想在根目录补一层壳，按决定三的原则否掉。
 3. **请求收口靠约定，不靠门禁。** 这是本文明确写下的已知盲点，不是遗漏。补门禁需要改房间外代码，应另开票。
 4. **结构改造本身不改变行为。** 入口导出、返回形状、错误档位、提示话术、请求的 method、路径、表单字段与超时都逐字不变；任何行为变化都是回归，不是这次改造的成果。
 5. **目录轴只有一条。** 关系与仓库身份也按领域竖切，不再另立一条「读与写」顶层轴；将来新增概念时，先问它属于哪个领域，再问读写落在哪个文件。
@@ -130,6 +131,7 @@ GitLab 房（`src/tracker/rooms/gitlab/`）在这次改造前有 27 个手写 Ty
 - 模式票：[#1912 请求 module 与票读路径](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1912)（请求函数的命名与返回约定从这里开始，后续操作族照它重复）
 - 实施票：[#1909](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1909)、[#1910](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1910)、[#1911](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1911)、[#1913](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1913)、[#1914](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1914)、[#1915](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1915)、[#1916](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1916)、[#1917](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1917)、[#1918](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1918)、[#1919](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1919)、[#1920](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1920)
 - 收口票：[#1921 README 树、旧路径对照与全链验证](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1921)
+- 删除转发文件的跟进票：[#1925 删掉 GitLab 房 9 个旧路径转发文件，房外读者改到新路径](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1925)
 - 房间交接说明：`src/tracker/rooms/gitlab/README.md`（根目录语法、树状导航与旧路径对照表在 #1921 落盘）
 - 端点采样门禁：`tests/verify-1179-gitlab-endpoint-coverage.ts`；采样登记表：`tests/tracker-contract/gitlab-endpoints.ts`
 - 房间边界与跨房引用：`docs/adr/20261014-tracker-room-boundary.md`
@@ -145,3 +147,5 @@ GitLab 房（`src/tracker/rooms/gitlab/`）在这次改造前有 27 个手写 Ty
 3. **`tests/gate-map.json` 重新生成。** #1921 收口时房间树与旧路径文件都变了，门禁归属表按当前源码重新生成（提交 126c91dc）。它是生成物，不是人手维护的判据，也没有改门禁逻辑；由 #1921 收口票重生成。
 
 除这三处外，本次改造没有改房间外的实现代码；上面三处也都没有改门禁逻辑、阈值或断言。
+
+**#1925 的房外改动不属于上表的例外，它是有意为之。** 这次改造的约束是「不改房外代码」，所以 9 个转发文件临时存在；#1925 做的正是那条被推迟的房外改动：把 `tests/` 与 `scripts/` 里所有指向这 9 条旧路径的 import、动态加载路径、注释与 `门禁归属` 改到新位置，然后删文件。被改的读者取值不变、断言的形状不变、测试语义不变；`tests/gate-map.json` 重生成，它是生成物，不是判据。

@@ -3,7 +3,7 @@
  * #1784 门禁：GitLab 评论只取第一页 20 条，加载更多看不到剩下的评论，页面也没有「已显示 x / 共 N」。
  *
  * 为什么单独立这扇门：评论分页在三个地方各有一半责任 ——
- *   房间（src/tracker/rooms/gitlab/issues.ts 的 getIssue）要认 GetOpts.comments.first 并按 per_page 真翻页；
+ *   房间（src/tracker/rooms/gitlab/issues/read.ts 的 getIssue）要认 GetOpts.comments.first 并按 per_page 真翻页；
  *   房间的 Issue 要给出 commentCount（总数），调用方不能拿「这一页取到几条」当总数；
  *   宿主（src/refresh/rooms/host/comment-thread-fetch.ts）要把总数带进 pageInfo 与回包，
  *   而不是按「取满 50 条」这个固定常数去猜还有没有下一页。
@@ -18,8 +18,8 @@
  *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1784-comment-pagination.ts
  */
-// 门禁归属: src/tracker/rooms/gitlab/issues.ts
-// 门禁归属: src/tracker/rooms/gitlab/normalize.ts
+// 门禁归属: src/tracker/rooms/gitlab/issues/read.ts
+// 门禁归属: src/tracker/rooms/gitlab/model/normalize.ts
 // 门禁归属: src/refresh/rooms/host/comment-thread-fetch.ts
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -81,7 +81,7 @@ function makeCtx (requests: string[]): any {
   }
 }
 
-const { getIssue } = await imp('src/tracker/rooms/gitlab/issues.ts')
+const { getIssue } = await imp('src/tracker/rooms/gitlab/issues/read.ts')
 const REPO = { backend: 'gitlab', refId: 'group/proj' }
 async function readIssue (opts?: any): Promise<any> {
   const requests: string[] = []

@@ -59,7 +59,7 @@ function check(cond: unknown, message: string, detail?: unknown): void {
   console.log('FAIL ' + message + (detail === undefined ? '' : '（实得 ' + JSON.stringify(detail) + '）'))
 }
 
-/** GitLab 契约形状（与 src/tracker/rooms/gitlab/normalize.ts 的 normalizeIssue 同形）：没有 fieldStates。 */
+/** GitLab 契约形状（与 src/tracker/rooms/gitlab/model/normalize.ts 的 normalizeIssue 同形）：没有 fieldStates。 */
 function gitlabIssue(input: Partial<Issue> & { key: string; title: string; urlHost?: string }): Issue {
   const base: Issue = {
     key: input.key,

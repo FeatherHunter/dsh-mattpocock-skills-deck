@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T12:15:42.745Z",
+  "generatedAt": "2026-11-05T13:25:14.020Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 592,
   "gateCount": 592,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 136,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 958,
+  "graphFileCount": 949,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1516,12 +1516,13 @@
         "docs/agents/issue-tracker.md",
         "scripts/lib/discover-gates.ts",
         "src/tracker/rooms/gitlab/index.ts",
-        "src/tracker/rooms/gitlab/read-log.ts"
+        "src/tracker/rooms/gitlab/support/read-log.ts"
       ],
       "dirs": [
         "docs/agents",
         "scripts/lib",
-        "src/tracker/rooms/gitlab"
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/gitlab/support"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -1766,12 +1767,13 @@
         "src/shared/tracker/check-catalog-dirs.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/gitlab/preflight.ts",
-        "src/tracker/rooms/gitlab/repo.ts"
+        "src/tracker/rooms/gitlab/repo/identity.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
         "src/shared/tracker",
-        "src/tracker/rooms/gitlab"
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/gitlab/repo"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2155,13 +2157,13 @@
         "src/host/tracker/snapshotAssemble.ts",
         "src/tracker/body-parse.ts",
         "src/tracker/rooms/github/model/normalize.ts",
-        "src/tracker/rooms/gitlab/normalize.ts"
+        "src/tracker/rooms/gitlab/model/normalize.ts"
       ],
       "dirs": [
         "src/host/tracker",
         "src/tracker",
         "src/tracker/rooms/github/model",
-        "src/tracker/rooms/gitlab"
+        "src/tracker/rooms/gitlab/model"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3012,13 +3014,14 @@
         "docs/tracker/capability-gitlab.md",
         "src/refresh/kernel/budget-admission.ts",
         "src/tracker/rooms/gitlab/budget.ts",
-        "src/tracker/rooms/gitlab/capability-register.ts",
-        "src/tracker/rooms/gitlab/index.ts"
+        "src/tracker/rooms/gitlab/index.ts",
+        "src/tracker/rooms/gitlab/support/capability-register.ts"
       ],
       "dirs": [
         "docs/tracker",
         "src/refresh/kernel",
-        "src/tracker/rooms/gitlab"
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/gitlab/support"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4752,17 +4755,18 @@
       "file": "tests/verify-1599-gitlab-hidden-markers.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
-        "src/tracker/rooms/gitlab/normalize.ts"
+        "src/tracker/rooms/gitlab/model/description-markers.ts",
+        "src/tracker/rooms/gitlab/model/normalize.ts"
       ],
       "dirs": [
         "scripts/lib",
-        "src/tracker/rooms/gitlab"
+        "src/tracker/rooms/gitlab/model"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条"
+      "reason": "归属来自：静态 import 说明符 3 条"
     },
     {
       "step": "node tests/verify-1603-map-thin-list.ts",
@@ -4798,10 +4802,10 @@
       "step": "node tests/verify-1605-gitlab-map-list.ts",
       "file": "tests/verify-1605-gitlab-map-list.ts",
       "guards": [
-        "src/tracker/rooms/gitlab/maps.ts"
+        "src/tracker/rooms/gitlab/issues/maps.ts"
       ],
       "dirs": [
-        "src/tracker/rooms/gitlab"
+        "src/tracker/rooms/gitlab/issues"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4816,9 +4820,9 @@
         "src/deck/tools/issue-list.ts",
         "src/tracker/rooms/github/read/maps.ts",
         "src/tracker/rooms/github/support/capability-register.ts",
-        "src/tracker/rooms/gitlab/capability-register.ts",
         "src/tracker/rooms/gitlab/index.ts",
-        "src/tracker/rooms/gitlab/maps.ts",
+        "src/tracker/rooms/gitlab/issues/maps.ts",
+        "src/tracker/rooms/gitlab/support/capability-register.ts",
         "src/tracker/rooms/markdown/capability-register.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/maps.ts"
@@ -4828,6 +4832,8 @@
         "src/tracker/rooms/github/read",
         "src/tracker/rooms/github/support",
         "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/gitlab/issues",
+        "src/tracker/rooms/gitlab/support",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
@@ -5744,12 +5750,13 @@
       "file": "tests/verify-1784-comment-pagination.ts",
       "guards": [
         "src/refresh/rooms/host/comment-thread-fetch.ts",
-        "src/tracker/rooms/gitlab/issues.ts",
-        "src/tracker/rooms/gitlab/normalize.ts"
+        "src/tracker/rooms/gitlab/issues/read.ts",
+        "src/tracker/rooms/gitlab/model/normalize.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/gitlab"
+        "src/tracker/rooms/gitlab/issues",
+        "src/tracker/rooms/gitlab/model"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -6051,13 +6058,13 @@
         "scripts/lib/discover-gates.ts",
         "src/refresh/contract/idempotency-keys.ts",
         "src/tracker/rooms/github/routing/idempotency.ts",
-        "src/tracker/rooms/gitlab/idempotency.ts"
+        "src/tracker/rooms/gitlab/issues/idempotency.ts"
       ],
       "dirs": [
         "scripts/lib",
         "src/refresh/contract",
         "src/tracker/rooms/github/routing",
-        "src/tracker/rooms/gitlab"
+        "src/tracker/rooms/gitlab/issues"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -9898,14 +9905,14 @@
         "docs/tracker",
         "src/tracker/contract/capability-answer.ts",
         "src/tracker/rooms/github/support/capability-register.ts",
-        "src/tracker/rooms/gitlab/capability-register.ts",
+        "src/tracker/rooms/gitlab/support/capability-register.ts",
         "src/tracker/rooms/markdown/capability-register.ts"
       ],
       "dirs": [
         "docs/tracker",
         "src/tracker/contract",
         "src/tracker/rooms/github/support",
-        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/gitlab/support",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
@@ -10500,14 +10507,14 @@
       "guards": [
         "src/tracker/contract/entities.ts",
         "src/tracker/rooms/github/model/normalize.ts",
-        "src/tracker/rooms/gitlab/normalize.ts",
+        "src/tracker/rooms/gitlab/model/normalize.ts",
         "src/tracker/rooms/markdown/normalize.ts",
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
         "src/tracker/contract",
         "src/tracker/rooms/github/model",
-        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/gitlab/model",
         "src/tracker/rooms/markdown",
         "tests/lib"
       ],
@@ -11929,14 +11936,14 @@
         "src/refresh/kernel/budget-admission.ts",
         "src/tracker/contract/operations-encyclopedia.ts",
         "src/tracker/rooms/github/read/read-sources.ts",
-        "src/tracker/rooms/gitlab/read-sources.ts",
+        "src/tracker/rooms/gitlab/support/read-sources.ts",
         "src/tracker/rooms/markdown/read-sources.ts"
       ],
       "dirs": [
         "src/refresh/kernel",
         "src/tracker/contract",
         "src/tracker/rooms/github/read",
-        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/gitlab/support",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
@@ -13235,7 +13242,7 @@
         "examples/demo-mini/matches.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/model/normalize.ts",
-        "src/tracker/rooms/gitlab/normalize.ts",
+        "src/tracker/rooms/gitlab/model/normalize.ts",
         "tests/tracker-contract/fixtures/compliant.ts",
         "tests/tracker-contract/fixtures/demo.ts",
         "tests/tracker-contract/fixtures/gitlab.ts",
@@ -13261,7 +13268,7 @@
         "examples/demo-mini/fixtures/demo-real",
         "src/tracker/registry",
         "src/tracker/rooms/github/model",
-        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/gitlab/model",
         "tests/tracker-contract",
         "tests/tracker-contract/fixtures",
         "tests/tracker-contract/runner",
@@ -15862,35 +15869,49 @@
       "node tests/verify-1130-gitlab-marker-read.ts",
       "node tests/verify-1179-gitlab-endpoint-coverage.ts",
       "node tests/verify-1187-gitlab-chain-predicates.ts",
-      "node tests/verify-1286-snapshot.ts",
       "node tests/verify-1446-gitlab-budget.ts",
       "node tests/verify-1446-static-gate.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-1555-gitlab-claim-declaration.ts",
-      "node tests/verify-1599-gitlab-hidden-markers.ts",
-      "node tests/verify-1605-gitlab-map-list.ts",
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1770-gitlab-list-truncated.ts",
-      "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-1785-assign-unknown.ts",
-      "node tests/verify-1827-double-anchor.ts",
-      "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-field-tri-state.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-gitlab-single-write.ts",
-      "node tests/verify-operation-catalog.ts",
       "node tests/verify-time-config.ts",
-      "node tests/verify-tracker-contract.ts",
       "node tests/verify-tracker-session.ts",
       "node tests/verify-ui-description-single-source.ts"
+    ],
+    "src/tracker/rooms/gitlab/issues": [
+      "node tests/verify-1605-gitlab-map-list.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-1784-comment-pagination.ts",
+      "node tests/verify-1827-double-anchor.ts"
+    ],
+    "src/tracker/rooms/gitlab/model": [
+      "node tests/verify-1286-snapshot.ts",
+      "node tests/verify-1599-gitlab-hidden-markers.ts",
+      "node tests/verify-1784-comment-pagination.ts",
+      "node tests/verify-field-tri-state.ts",
+      "node tests/verify-tracker-contract.ts"
+    ],
+    "src/tracker/rooms/gitlab/repo": [
+      "node tests/verify-1187-gitlab-chain-predicates.ts"
     ],
     "src/tracker/rooms/gitlab/room": [
       "node tests/verify-686-accept.ts",
       "node tests/verify-prompts.ts"
+    ],
+    "src/tracker/rooms/gitlab/support": [
+      "node tests/verify-1130-gitlab-marker-read.ts",
+      "node tests/verify-1446-gitlab-budget.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-capability-register.ts",
+      "node tests/verify-operation-catalog.ts"
     ],
     "src/tracker/rooms/markdown": [
       "node tests/verify-deck-tools-matrix.ts",
@@ -16340,12 +16361,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 981,
+    "fileCount": 972,
     "dirCount": 101,
-    "coveredFileCount": 981,
+    "coveredFileCount": 972,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 76,
+    "dedicatedDirCount": 80,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -17181,17 +17202,13 @@
       "src/tracker/rooms/gitlab/README.md",
       "src/tracker/rooms/gitlab/SETUP-PROMPT.md",
       "src/tracker/rooms/gitlab/budget.ts",
-      "src/tracker/rooms/gitlab/capability-register.ts",
       "src/tracker/rooms/gitlab/client.ts",
       "src/tracker/rooms/gitlab/comments/write.ts",
       "src/tracker/rooms/gitlab/errors.ts",
-      "src/tracker/rooms/gitlab/graph-membership.ts",
       "src/tracker/rooms/gitlab/graph/membership.ts",
       "src/tracker/rooms/gitlab/graph/read.ts",
       "src/tracker/rooms/gitlab/graph/write.ts",
-      "src/tracker/rooms/gitlab/idempotency.ts",
       "src/tracker/rooms/gitlab/index.ts",
-      "src/tracker/rooms/gitlab/issues.ts",
       "src/tracker/rooms/gitlab/issues/counts.ts",
       "src/tracker/rooms/gitlab/issues/create-write.ts",
       "src/tracker/rooms/gitlab/issues/idempotency.ts",
@@ -17206,17 +17223,12 @@
       "src/tracker/rooms/gitlab/labels/colors.ts",
       "src/tracker/rooms/gitlab/labels/list.ts",
       "src/tracker/rooms/gitlab/labels/shared.ts",
-      "src/tracker/rooms/gitlab/maps.ts",
       "src/tracker/rooms/gitlab/model/description-markers.ts",
       "src/tracker/rooms/gitlab/model/normalize.ts",
       "src/tracker/rooms/gitlab/model/repo-identity.ts",
-      "src/tracker/rooms/gitlab/normalize.ts",
       "src/tracker/rooms/gitlab/preflight.ts",
       "src/tracker/rooms/gitlab/project/init-project.ts",
       "src/tracker/rooms/gitlab/queries.ts",
-      "src/tracker/rooms/gitlab/read-log.ts",
-      "src/tracker/rooms/gitlab/read-sources.ts",
-      "src/tracker/rooms/gitlab/repo.ts",
       "src/tracker/rooms/gitlab/repo/current-user.ts",
       "src/tracker/rooms/gitlab/repo/identity.ts",
       "src/tracker/rooms/gitlab/repo/permissions.ts",
@@ -17498,7 +17510,11 @@
       "src/tracker/rooms/github/transport",
       "src/tracker/rooms/github/write",
       "src/tracker/rooms/gitlab",
+      "src/tracker/rooms/gitlab/issues",
+      "src/tracker/rooms/gitlab/model",
+      "src/tracker/rooms/gitlab/repo",
       "src/tracker/rooms/gitlab/room",
+      "src/tracker/rooms/gitlab/support",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
       "src/tracker/session",
@@ -17584,28 +17600,12 @@
         "fileCount": 3
       },
       {
-        "path": "src/tracker/rooms/gitlab/issues",
-        "fileCount": 10
-      },
-      {
         "path": "src/tracker/rooms/gitlab/labels",
         "fileCount": 4
       },
       {
-        "path": "src/tracker/rooms/gitlab/model",
-        "fileCount": 3
-      },
-      {
         "path": "src/tracker/rooms/gitlab/project",
         "fileCount": 1
-      },
-      {
-        "path": "src/tracker/rooms/gitlab/repo",
-        "fileCount": 3
-      },
-      {
-        "path": "src/tracker/rooms/gitlab/support",
-        "fileCount": 3
       },
       {
         "path": "src/workspace-snapshot/sources",

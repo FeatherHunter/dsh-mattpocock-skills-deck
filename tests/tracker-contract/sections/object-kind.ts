@@ -12,7 +12,7 @@
  * 分散到各房自己的门禁里，两个房间各改一半、各绿各的，谁都发现不了结论已经不一致。
  */
 import { normalizeIssue as normalizeGithub } from '../../../src/tracker/rooms/github/model/normalize.ts'
-import { normalizeIssue as normalizeGitlab } from '../../../src/tracker/rooms/gitlab/normalize.ts'
+import { normalizeIssue as normalizeGitlab } from '../../../src/tracker/rooms/gitlab/model/normalize.ts'
 import { parseMd } from '../../../src/tracker/rooms/markdown/parse.ts'
 
 /** 单条断言的结果：ok 为判定，detail 留现场。 */
