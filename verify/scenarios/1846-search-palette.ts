@@ -7,8 +7,15 @@
 //   4) 分支浮层列出首屏读到的本地分支（当前分支带标记且不可点），点一条按 4.3 的既有通路真的切过去
 //      （预检 → 工作区有未提交改动时停确认卡 → 凭票执行 → 结果贴回浮层），其余四个动作仍各自指路。
 //
-// 四档宽与深浅两皮肤由源码闭包的并排对照图覆盖（assets/acceptance/2026-11-05-1846）；这一份真机场景
-// 验的是接线与真实宿主行为，窗口按当前实宽记录在读数里，不伪造四档。
+// 宽度与皮肤早先只由源码闭包的并排对照图覆盖（assets/acceptance/2026-11-05-1846）。2026-11-05 任务二起
+// 这一份真机场景补上有头能力：一种皮肤起一个实例（启动前把偏好写进隔离 home），宽度在同一次会话里
+// 拖右栏把手标定——面板宽是宿主的布局偏好，只有真鼠标拖 div[data-side="rightbar"] 才会变。
+// 维护者当天把待验范围收窄到 380 与 520 两档，也就是 380/520 × 深/浅共四组；用 DSH_1846_WIDTHS
+// 与 DSH_1846_SKIN 指定，不设时默认就是这两档宽、皮肤由实例自己带（锁定前会如实记一条 fail）。
+// 跑法（仓库根，DSH_HOME 指向批次 home；两轮各一个新实例）：
+//   $env:DSH_1846_SKIN='dark';  $env:DSH_1846_WIDTHS='380,520'
+//   node --import ./scripts/ts-hook.mts node_modules/dsh-featherhunter-plugin-base/dist/real-machine-verification/cli/main.js run verify/scenarios/1846-search-palette.ts --profile web --declaration verify/profile-1833-headed.ts --work-root <工作根> --json
+//   $env:DSH_1846_SKIN='light'; 再跑一次同样的命令。
 //
 // 进入会话视图的路径与 verify/scenarios/1843-vc-pages.ts 同源：欢迎屏的工作区选择器优先，
 // 失败再点侧栏「新建会话」。夹具仓库在 prepareHome 里现建，不碰 ~/.dsh 与仓库本身。
@@ -20,12 +27,35 @@ import { defineScenario } from 'dsh-featherhunter-plugin-base/real-machine-verif
 import type { PageHandle, ScenarioContext, ScenarioHooks, ScenarioLaunchHookInfo, ScenarioObservation } from 'dsh-featherhunter-plugin-base/real-machine-verification'
 import { seedWorkspaceRegistry } from '../../scripts/real-machine/lib/workspace-seed.mts'
 
+// ---- #1846 任务二：四组（380 / 520 宽 × 深 / 浅两皮肤）的宽度与皮肤标定 ----
+// 皮肤只能在宿主启动前锁进隔离 home（运行中重载会回退），所以一次实例只验一种皮肤：
+// DSH_1846_SKIN=dark 跑一轮（380 与 520 两档），再以 light 跑一轮。
+// 宽度不靠窗口反解：面板档位由右栏那把把手决定，必须用真鼠标拖。
+const NEWLINE = String.fromCharCode(10)
+type Skin = 'dark' | 'light'
+const LOCKED_SKIN: Skin | '' = process.env.DSH_1846_SKIN === 'dark' || process.env.DSH_1846_SKIN === 'light'
+  ? (process.env.DSH_1846_SKIN as Skin)
+  : ''
+const WIDTHS: number[] = (() => {
+  const parsed = String(process.env.DSH_1846_WIDTHS || '380,520')
+    .split(',')
+    .map((raw) => Number(raw.trim()))
+    .filter((value) => Number.isFinite(value) && value >= 300 && value <= 520)
+  // 写错了就不静默跳过：回落到维护者定下的两档，结论里照样会写出实际去的是哪两档。
+  return parsed.length > 0 ? parsed : [380, 520]
+})()
+const WINDOW_HEIGHT = Number(process.env.DSH_1846_WINDOW_HEIGHT || '900')
+
 type Result<T> = { ok: true; value: T } | { ok: false; error: { code: string; message: string } }
 
 interface RawBrowserPage {
   goto?: (url: string) => Promise<unknown>
   click?: (selector: string) => Promise<Result<unknown>>
   press?: (key: string) => Promise<Result<unknown>>
+  /** 有头适配器把原始 Playwright 页面挂在 page 上：拖右栏把手要真指针事件，el.click() 拖不动。 */
+  page?: unknown
+  /** 有头适配器按外框尺寸改窗口（走 CDP）；无头适配器没有这个方法。 */
+  resize?: (width: number, height: number) => Promise<Result<unknown>>
 }
 
 const SEL = {
@@ -45,6 +75,8 @@ const SEL = {
   branchResult: '[data-vc-branch-overlay] [data-vc-result]',
   branchConfirmGo: '[data-vc-branch-overlay] .vcs-confirm-go',
   branchClose: '[data-vc-branch-close]',
+  tabChanges: '[data-vc-tab="changes"]',
+  back: '[data-vc-back]',
 }
 
 /** 分支浮层四个指路动作的落点：与 vcRealShell.ts 的 VC_REAL_BRANCH_LANDING 一一对应。 */
@@ -55,6 +87,7 @@ const LANDINGS: ReadonlyArray<{ action: string; page: string; selector: string }
   { action: 'rebase', page: 'rebase', selector: '[data-vc-rebase-op="rebase-onto"]' },
 ]
 
+const BODY_DARK_SCRIPT = 'document.body.hasAttribute("data-ds-dark-theme")'
 const SEL_CLOSE = 'button[aria-label="关闭"]'
 const SEL_WORKSPACE = 'button[aria-label="选择工作区"]'
 const SEL_SIDEBAR = 'button[aria-label="打开右侧边栏"]'
@@ -163,13 +196,16 @@ const STATE_SCRIPT = [
   '    return { page: g.getAttribute("data-vc-search-group"), rows: Array.prototype.map.call(g.querySelectorAll("[data-vc-search-row]"), function (r) { return r.getAttribute("data-vc-search-row") }) };',
   '  });',
   '  var overlay = document.querySelector("' + SEL.branchOverlay + '");',
+  '  var pointer = overlay ? overlay.querySelector(".vcs-branch-pointer") : null;',
+  '  function textOf(el) { return el ? String(el.textContent || "").replace(/\\s+/g, " ").trim() : null; }',
+  '  function overflowOf(el) { return el ? el.scrollWidth - el.clientWidth : null; }',
   '  var active = document.activeElement;',
   '  return {',
   '    url: location.href, title: document.title,',
   '    viewport: { w: window.innerWidth, h: window.innerHeight },',
   '    root: root ? { page: attr(root, "data-vc-live-page"), depth: attr(root, "data-vc-live-depth") } : null,',
   '    shell: shell ? { page: attr(shell, "data-vc-page"), width: attr(shell, "data-vc-width"), skin: attr(shell, "data-vc-skin"), overflowX: shell.scrollWidth - shell.clientWidth } : null,',
-  '    palette: { backdrop: !!document.querySelector("' + SEL.paletteBackdrop + '"), input: !!document.querySelector("' + SEL.paletteInput + '"), rows: ids("[data-vc-palette-row]", "data-vc-palette-row") },',
+  '    palette: { backdrop: !!document.querySelector("' + SEL.paletteBackdrop + '"), input: !!document.querySelector("' + SEL.paletteInput + '"), rows: ids("[data-vc-palette-row]", "data-vc-palette-row"), overflowX: overflowOf(document.querySelector("[data-vc-palette]")) },',
   '    search: {',
   '      present: !!search,',
   '      inputs: document.querySelectorAll("' + SEL.searchInput + '").length,',
@@ -179,8 +215,9 @@ const STATE_SCRIPT = [
   '      rows: ids("[data-vc-search-row]", "data-vc-search-row"),',
   '      groups: groups,',
   '      more: !!document.querySelector("[data-vc-search-more]"),',
+  '      overflowX: overflowOf(search),',
   '    },',
-  '    branch: { overlay: !!overlay, actions: ids("' + SEL.branchOverlay + ' [data-vc-branch-action]", "data-vc-branch-action"), rows: ids("' + SEL.branchOverlay + ' [data-vc-branch-pick]", "data-vc-branch-pick"), current: attr(document.querySelector("' + SEL.branchCurrent + '"), "data-vc-branch-pick"), confirm: !!document.querySelector("' + SEL.branchConfirm + '"), result: attr(document.querySelector("' + SEL.branchResult + '"), "data-vc-result"), close: !!document.querySelector("' + SEL.branchClose + '") },',
+  '    branch: { overlay: !!overlay, actions: ids("' + SEL.branchOverlay + ' [data-vc-branch-action]", "data-vc-branch-action"), rows: ids("' + SEL.branchOverlay + ' [data-vc-branch-pick]", "data-vc-branch-pick"), current: attr(document.querySelector("' + SEL.branchCurrent + '"), "data-vc-branch-pick"), confirm: !!document.querySelector("' + SEL.branchConfirm + '"), result: attr(document.querySelector("' + SEL.branchResult + '"), "data-vc-result"), close: !!document.querySelector("' + SEL.branchClose + '"), pointer: textOf(pointer), overflowX: overflowOf(overlay) },',
   '    focus: { tag: active ? active.tagName : null, searchEntry: active === document.querySelector("' + SEL.searchEntry + '"), paletteInput: active === document.querySelector("' + SEL.paletteInput + '"), text: active ? String(active.innerText || active.value || "").replace(/\\s+/g, " ").trim().slice(0, 40) : null },',
   '  };',
   '})()',
@@ -213,6 +250,9 @@ function makeGitFixture(dir: string): string {
 
 const hooks: ScenarioHooks<ScenarioContext> = {
   prepareHome(_context: ScenarioContext, info: ScenarioLaunchHookInfo) {
+    // 皮肤必须在宿主起来之前写进隔离 home：运行中重载会回退（#1858 记录过）。
+    // 没锁皮肤时什么都不写，由实例自己的主题决定；上面那条 width/skin 检查会如实说明。
+    if (LOCKED_SKIN !== '') console.log('[1846] ' + setHomeThemePreference(info.home, LOCKED_SKIN))
     const repo = makeGitFixture(info.dir)
     const previous = process.env.DSH_VERIFY_WORK_ROOT
     process.env.DSH_VERIFY_WORK_ROOT = info.dir
@@ -260,14 +300,337 @@ async function realPress(raw: RawBrowserPage, key: string): Promise<void> {
   if (raw.press !== undefined) await raw.press(key)
 }
 
+// ---- 进主视图：先经页面自己的 RPC 建好工作区与会话，再点宿主的「新建会话」 ----
+// 2026-11-05 的有头实例上，欢迎屏只在左栏列出了已种的工作区，中间还停在「选择一个工作区开始」；
+// 原场景只点欢迎屏的工作区菜单，那个菜单没有出现，后面的右侧栏与页签也就都没得点。
+// 改用页面自己调的那组接口（与 1858 场景同源）把工作区与会话建出来，再点宿主给的入口；
+// 原来那套菜单路径保留作兜底。
+interface RpcProbe {
+  status: number
+  body: unknown
+  text: string
+}
+
+function rpcScript(method: string, argsExpression: string): string {
+  return [
+    '(async function () {',
+    '  var rpcId = globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : String(Date.now());',
+    '  var body = { type: "client-request", rpcId: rpcId, method: ' + JSON.stringify(method) + ', payload: { args: ' + argsExpression + ' } };',
+    '  var response = await fetch("/api/" + ' + JSON.stringify(method) + ', {',
+    '    method: "POST",',
+    '    headers: { "content-type": "application/json" },',
+    '    body: JSON.stringify(body),',
+    '  });',
+    '  var text = await response.text();',
+    '  var parsed = null;',
+    '  try { parsed = JSON.parse(text); } catch (error) { parsed = null; }',
+    '  return { status: response.status, body: parsed, text: text.slice(0, 1500) };',
+    '})()',
+  ].join(NEWLINE)
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function rpcValueOf(probe: RpcProbe): Record<string, unknown> | null {
+  const result = asRecord(asRecord(probe.body)?.result)
+  return asRecord(result?.value)
+}
+
+function findIdIn(value: Record<string, unknown> | null, keys: readonly string[]): string | null {
+  if (value === null) return null
+  for (const key of keys) {
+    const candidate = value[key]
+    if (typeof candidate === 'string' && candidate.length > 0) return candidate
+  }
+  for (const nestedKey of ['workspace', 'session', 'request']) {
+    const found = findIdIn(asRecord(value[nestedKey]), keys)
+    if (found !== null) return found
+  }
+  return null
+}
+
+function sessionRowClickScript(): string {
+  return [
+    '(function () {',
+    '  var rows = Array.prototype.slice.call(document.querySelectorAll("[data-row-key]"));',
+    '  for (var i = 0; i < rows.length; i += 1) {',
+    '    var key = String(rows[i].getAttribute("data-row-key") || "");',
+    '    if (key.indexOf("session:") === 0) { rows[i].scrollIntoView({ block: "center" }); rows[i].click(); return { ok: true, key: key }; }',
+    '  }',
+    '  return { ok: false, count: rows.length };',
+    '})()',
+  ].join(NEWLINE)
+}
+
+interface MainViewResult {
+  readonly ok: boolean
+  readonly strategy: string
+  readonly detail: string
+  readonly facts: Record<string, unknown>
+}
+
+async function openMainView(page: PageHandle, raw: RawBrowserPage, tokenUrl: string, repoPath: string): Promise<MainViewResult> {
+  const facts: Record<string, unknown> = {}
+  if (await exists(page, SEL_SIDEBAR)) return { ok: true, strategy: 'already-main', detail: '页面已经在主视图（右侧边栏按钮存在）', facts: facts }
+  const repoUrlPath = repoPath.split(String.fromCharCode(92)).join('/')
+  const workspaceProbe = await evaluateValue<RpcProbe>(page, rpcScript('workspace/create', '{ request: { path: ' + JSON.stringify(repoUrlPath) + ' } }'))
+  const workspaceId = workspaceProbe === null ? null : findIdIn(rpcValueOf(workspaceProbe), ['workspaceId'])
+  facts.workspaceCreate = { status: workspaceProbe === null ? null : workspaceProbe.status, workspaceId: workspaceId, text: workspaceProbe === null ? null : workspaceProbe.text }
+  let sessionId: string | null = null
+  if (workspaceId !== null) {
+    const sessionProbe = await evaluateValue<RpcProbe>(page, rpcScript('session/create', '{ request: { workspaceId: ' + JSON.stringify(workspaceId) + ' } }'))
+    sessionId = sessionProbe === null ? null : findIdIn(rpcValueOf(sessionProbe), ['sessionId'])
+    facts.sessionCreate = { status: sessionProbe === null ? null : sessionProbe.status, sessionId: sessionId, text: sessionProbe === null ? null : sessionProbe.text }
+  }
+  await sleep(1200)
+  if (await exists(page, 'button[aria-label="新建会话"]')) {
+    await realClick(page, raw, 'button[aria-label="新建会话"]')
+    await sleep(3500)
+  }
+  if (await exists(page, SEL_SIDEBAR)) return { ok: true, strategy: 'rpc-then-new-session', detail: '经页面接口建好工作区与会话后点「新建会话」进入主视图', facts: facts }
+  // 兜底一：欢迎屏的工作区菜单（11-03 那一版走的是这条）。
+  if (await exists(page, SEL_WORKSPACE)) {
+    await realClick(page, raw, SEL_WORKSPACE)
+    await sleep(900)
+    if (await waitFor(page, boolScript('[role=menuitem]'), 20, 200)) {
+      await realClick(page, raw, '[role=menuitem]')
+      await sleep(3500)
+    }
+  }
+  if (await exists(page, SEL_SIDEBAR)) return { ok: true, strategy: 'hero-menu', detail: '从欢迎屏工作区菜单进入主视图', facts: facts }
+  // 兜底二：刷新后用左栏的会话行进入。
+  if (raw.goto !== undefined) await raw.goto(tokenUrl)
+  await sleep(4500)
+  if (await exists(page, 'button[aria-label="打开侧边栏"]')) {
+    await realClick(page, raw, 'button[aria-label="打开侧边栏"]')
+    await sleep(900)
+  }
+  facts.sessionRow = await evaluateValue<{ ok?: boolean; key?: string }>(page, sessionRowClickScript())
+  await sleep(3000)
+  if (await exists(page, SEL_SIDEBAR)) return { ok: true, strategy: 'reload-session-row', detail: '刷新后从左栏会话行进入主视图', facts: facts }
+  return { ok: false, strategy: 'none', detail: '三条入口都没能进主视图（右侧边栏按钮始终不存在）', facts: facts }
+}
+
+interface SkinSwitchResult {
+  readonly ok: boolean
+  readonly via: string
+  readonly detail: string
+  readonly facts: Record<string, unknown>
+}
+
+/** 只改页面表现的主题属性：设置接口没生效时兜底。插件壳根的皮肤跟着这个属性走（#1860 D15 实测过）。 */
+function bodySkinScriptOf(skin: Skin): string {
+  return [
+    '(function () {',
+    '  var b = document.body;',
+    '  if (!b) return null;',
+    skin === 'dark' ? '  b.setAttribute("data-ds-dark-theme", "");' : '  b.removeAttribute("data-ds-dark-theme");',
+    '  return ' + JSON.stringify(skin) + ';',
+    '})()',
+  ].join(NEWLINE)
+}
+
+/** 把宿主皮肤切到本轮要验的那一种。
+ *  先试隔离 home 里的偏好（prepareHome 写的那一条）——宿主今天启动时会把它按设置存储改回来，
+ *  所以还要走宿主自己的设置接口；接口也没切成时才退回只改 body 属性，并在结论里如实写明走了哪条路。 */
+async function ensureSkin(page: PageHandle, skin: Skin): Promise<SkinSwitchResult> {
+  const facts: Record<string, unknown> = {}
+  const wantDark = skin === 'dark'
+  const darkNow = async (): Promise<boolean | null> => {
+    const value = await evaluateValue<boolean>(page, BODY_DARK_SCRIPT)
+    return typeof value === 'boolean' ? value : null
+  }
+  const before = await darkNow()
+  facts.bodyDarkBefore = before
+  if (before === wantDark) {
+    return { ok: true, via: 'locked-home', detail: '宿主启动时已经采用隔离 home 里的 ' + skin + ' 偏好', facts: facts }
+  }
+  // settings/mutate 的 args 必须恰好是一个普通对象 { ns, ops }；传数组会被网关拒（#1843 记录过）。
+  const args = JSON.stringify({ ns: 'ui-theme', ops: [{ op: 'set', path: ['preference'], value: skin }] })
+  const probe = await evaluateValue<RpcProbe>(page, rpcScript('settings/mutate', args))
+  facts.settingsMutate = probe === null ? null : { status: probe.status, text: probe.text }
+  let flipped = false
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if ((await darkNow()) === wantDark) {
+      flipped = true
+      break
+    }
+    await sleep(400)
+  }
+  facts.bodyDarkFlipped = flipped
+  let via = 'settings'
+  if (!flipped) {
+    // 兜底只改页面表现，不动设置；结论里 via 会写成 body-attribute，读证据的人一眼能分出差别。
+    const attribute = await evaluateValue<string>(page, bodySkinScriptOf(skin))
+    facts.bodyAttribute = attribute
+    via = 'body-attribute'
+  }
+  // 宿主回执写 applies=live：偏好在当前页面就地生效，不需要、也不能重开页面——实测重开一次
+  // 页面会退回启动时的深色（2026-11-05 浅色那一轮，body 的深色属性 true → false → true 就是这么来的）。
+  await sleep(800)
+  const after = await darkNow()
+  return {
+    ok: after === wantDark,
+    via: via,
+    detail: '皮肤 ' + skin + ' 经 ' + via + ' 生效；body[data-ds-dark-theme] ' + String(before) + ' → ' + String(after),
+    facts: facts,
+  }
+}
+
 async function readState(page: PageHandle): Promise<Record<string, any> | null> {
   return evaluateValue<Record<string, any>>(page, STATE_SCRIPT)
+}
+
+// ---- 皮肤的锁：启动前改隔离 home 里 ui-theme 的偏好 ----
+// 这个文件是宿主每次启动都会读的补丁层；只改这个插件段的 preference，别的东西一个字不动。
+// 找不到 ui-theme 段就如实返回一句话，让场景把「没锁上」写进结论，而不是假装锁上了。
+function setHomeThemePreference(homeDir: string, skin: Skin): string {
+  const patchPath = path.join(homeDir, 'profiles', 'web', 'cordis.patch.yml')
+  if (!fs.existsSync(patchPath)) return '没有找到主题设置文件 ' + patchPath
+  const raw = fs.readFileSync(patchPath, 'utf8')
+  const lines = raw.split(NEWLINE)
+  const nameIndex = lines.findIndex((line) => line.indexOf('@deepseek-ai/dsh-client-ui-theme') >= 0)
+  if (nameIndex < 0) return '主题设置文件里没有 ui-theme 段，保持默认皮肤'
+  let end = nameIndex + 1
+  while (end < lines.length && lines[end].indexOf('- ') !== 0) end += 1
+  let target = -1
+  for (let index = nameIndex + 1; index < end; index += 1) {
+    if (lines[index].trim().indexOf('preference:') === 0) {
+      target = index
+      break
+    }
+  }
+  if (target >= 0) {
+    const existing = lines[target]
+    lines[target] = existing.slice(0, existing.indexOf('preference:')) + 'preference: ' + skin
+  } else {
+    lines.splice(end, 0, '    preference: ' + skin)
+  }
+  fs.writeFileSync(patchPath, lines.join(NEWLINE), 'utf8')
+  return '已把 ' + patchPath + ' 的 ui-theme.preference 改成 ' + skin
+}
+
+// ---- 右栏把手拖拽：把面板档位拖到目标宽 ----
+// 面板宽是宿主的右栏布局偏好，只有真鼠标按住 div[data-side="rightbar"] 横向拖才会变；
+// 拖完读壳根的 data-vc-width 判定（插件按最近档归档，不要求像素级）。
+interface MouseLike {
+  move: (x: number, y: number, options?: { steps?: number }) => Promise<void>
+  down: () => Promise<void>
+  up: () => Promise<void>
+}
+
+interface PlaywrightPageLike {
+  mouse: MouseLike
+}
+
+/** 有头适配器把原始 Playwright 页面挂在句柄的 page 字段上；无头适配器没有，拖不动。 */
+function playwrightPageOf(raw: RawBrowserPage): PlaywrightPageLike | null {
+  const candidate = raw.page
+  if (candidate === null || candidate === undefined || typeof candidate !== 'object') return null
+  const mouse = (candidate as { mouse?: unknown }).mouse
+  if (mouse === null || mouse === undefined || typeof mouse !== 'object') return null
+  return candidate as PlaywrightPageLike
+}
+
+interface HandleRect {
+  ok: boolean
+  reason?: string
+  x: number
+  y: number
+  innerW: number
+}
+
+function handleRectScript(): string {
+  return [
+    '(function () {',
+    '  var el = document.querySelector(\'[data-side="rightbar"]\');',
+    '  if (!el) return { ok: false, reason: "no-rightbar-handle" };',
+    '  var rect = el.getBoundingClientRect();',
+    '  return { ok: true, x: rect.left + rect.width / 2, y: Math.max(80, Math.min(window.innerHeight - 80, rect.top + rect.height / 2)), innerW: window.innerWidth };',
+    '})()',
+  ].join(NEWLINE)
+}
+
+interface WidthCalibration {
+  readonly ok: boolean
+  readonly detail: string
+  readonly reached: string | null
+  readonly rounds: number
+  readonly trace: readonly string[]
+}
+
+/** 先把窗口拉够宽（右栏可拖范围是 [300, 视口×0.7]，宽屏才放得下两档目标宽）。 */
+async function ensureWideWindow(page: PageHandle, raw: RawBrowserPage): Promise<{ ok: boolean; detail: string; facts: Record<string, unknown> }> {
+  const facts: Record<string, unknown> = {}
+  if (typeof raw.resize !== 'function') {
+    facts.resize = 'missing'
+    return { ok: false, detail: '浏览器适配器没有 resize()：保留当前窗口宽，宽度标定可能拖不到目标档', facts }
+  }
+  const inner = await page.innerSize()
+  const outer = await page.outerSize()
+  const innerW = inner.ok ? inner.value.width : 0
+  const outerW = outer.ok ? outer.value.width : 0
+  const chrome = Math.max(0, outerW - innerW)
+  facts.before = { innerW: innerW, outerW: outerW, chrome: chrome }
+  const resized = await raw.resize(Math.max(1400, innerW) + chrome, WINDOW_HEIGHT)
+  facts.resize = resized.ok ? 'ok' : resized.error.message
+  await sleep(900)
+  const after = await page.innerSize()
+  const afterW = after.ok ? after.value.width : 0
+  facts.after = after.ok ? after.value : null
+  return { ok: afterW >= 1300, detail: '窗口内宽从 ' + String(innerW) + ' 拉到 ' + String(afterW), facts: facts }
+}
+
+/** 真拖把手，最多 10 轮；每轮按「当前档位 - 目标档位」的差值拖一次，差得大多分几步。 */
+async function calibrateToWidth(page: PageHandle, raw: RawBrowserPage, target: number): Promise<WidthCalibration> {
+  const playwrightPage = playwrightPageOf(raw)
+  const trace: string[] = []
+  if (playwrightPage === null) {
+    return { ok: false, detail: '浏览器句柄没有原始 Playwright 页面：无头实例拖不了右栏把手', reached: null, rounds: 0, trace: trace }
+  }
+  let lastWidth: string | null = null
+  for (let round = 1; round <= 10; round += 1) {
+    const state = await readState(page)
+    lastWidth = state === null ? null : String(state.shell?.width ?? '')
+    trace.push('第 ' + String(round) + ' 轮 data-vc-width=' + String(lastWidth))
+    if (lastWidth === String(target)) {
+      return { ok: true, detail: '拖到 ' + String(target) + ' 档（第 ' + String(round) + ' 轮命中）', reached: lastWidth, rounds: round, trace: trace }
+    }
+    const handle = await evaluateValue<HandleRect>(page, handleRectScript())
+    if (handle === null || handle.ok !== true) {
+      trace.push('第 ' + String(round) + ' 轮找不到右栏把手：' + JSON.stringify(handle))
+      break
+    }
+    const current = Number(lastWidth)
+    if (!Number.isFinite(current)) {
+      trace.push('第 ' + String(round) + ' 轮读不到整数档位，停止')
+      break
+    }
+    let delta = current - target
+    const maxStep = Math.max(40, Math.round(handle.innerW / 2))
+    if (Math.abs(delta) > maxStep) delta = delta > 0 ? maxStep : -maxStep
+    if (delta === 0) {
+      trace.push('读数与目标差 0 但字符串对不上，停止')
+      break
+    }
+    const startX = handle.x
+    const targetX = Math.max(8, Math.min(handle.innerW - 8, startX + delta))
+    await playwrightPage.mouse.move(startX, handle.y)
+    await playwrightPage.mouse.down()
+    await playwrightPage.mouse.move(targetX, handle.y, { steps: 14 })
+    await playwrightPage.mouse.up()
+    await sleep(450)
+  }
+  return { ok: false, detail: '拖了 10 轮仍未到 ' + String(target) + ' 档，最后 data-vc-width=' + String(lastWidth), reached: lastWidth, rounds: 10, trace: trace }
 }
 
 export default defineScenario<ScenarioContext>({
   id: 'vc-1846-search-palette',
   title: '搜索页、命令面板遮罩与分支浮层的就地切换（#1846）',
-  description: '在隔离 web 实例里进入版本管理页签，验命令面板遮罩的 Esc/点遮罩关闭与焦点回归、搜索页独立版式与三种状态、选中结果只跳入口，以及分支浮层列出本地分支、当前分支不可点、点一条按 4.3 的既有通路真的切过去（干净工作区直接执行，脏工作区先停确认卡），四个指路动作各自落到对应入口并拿到焦点。四档宽与深浅皮肤由源码闭包的并排对照图覆盖，这里验真机窗口下的交互接线与真实宿主行为。',
+  description: '在隔离 web 实例里进入版本管理页签，验命令面板遮罩的 Esc/点遮罩关闭与焦点回归、搜索页独立版式与三种状态、选中结果只跳入口，以及分支浮层列出本地分支、当前分支不可点、点一条按 4.3 的既有通路真的切过去（干净工作区直接执行，脏工作区先停确认卡），四个指路动作各自落到对应入口并拿到焦点。2026-11-05 起补上有头能力：一种皮肤一个实例、同一次会话里真拖右栏把手，把面板标定到 380 与 520 两档，逐档验三块结构、无横向溢出、切换 smoke 并截图（维护者把范围收窄到这两档，共四组）。',
   hooks,
   steps: [
     { id: 'launch', kind: 'launch', title: '起一个装好候选包的隔离 web 实例' },
@@ -275,7 +638,7 @@ export default defineScenario<ScenarioContext>({
       id: 'verify',
       kind: 'custom',
       timeoutMs: 900000,
-      title: '进版本管理页签 → 验命令面板遮罩 → 搜索页三种状态 → 分支浮层清单与两次切换 → 四个指路落点',
+      title: '进版本管理页签 → 标定第一档宽 → 验命令面板遮罩 → 搜索页三种状态 → 分支浮层清单与两次切换 → 四个指路落点 → 逐档结构/溢出/切换 smoke',
       run: async (context) => {
         const results: ScenarioObservation[] = []
         const evidence: string[] = []
@@ -332,32 +695,48 @@ export default defineScenario<ScenarioContext>({
         const raw = page.page as unknown as RawBrowserPage
 
         // ---- 进入版本管理页签 ----
+        // 遮罩可能随手弹（登录提示、首开提示）；只在真的有遮罩时按 Esc，免得把已经开着的面板关掉。
+        const dismissMasks = async (): Promise<void> => {
+          for (let attempt = 0; attempt < 80; attempt += 1) {
+            const masks = await evaluateValue<number>(page, 'document.querySelectorAll(' + JSON.stringify('[class*="_mask_"]') + ').length')
+            if ((masks ?? 0) > 0) {
+              await realPress(raw, 'Escape')
+              await realClick(page, raw, SEL_CLOSE)
+              await sleep(300)
+              continue
+            }
+            if (await exists(page, SEL_WORKSPACE)) return
+            if (await exists(page, SEL_SIDEBAR)) return
+            await sleep(250)
+          }
+        }
         if (raw.goto !== undefined) await raw.goto(instance.record.tokenUrl)
         await sleep(2500)
-        for (let attempt = 0; attempt < 80; attempt += 1) {
-          const masks = await evaluateValue<number>(page, 'document.querySelectorAll(' + JSON.stringify('[class*="_mask_"]') + ').length')
-          if ((masks ?? 0) > 0) {
-            await realPress(raw, 'Escape')
-            await realClick(page, raw, SEL_CLOSE)
-            await sleep(300)
-            continue
-          }
-          if (await exists(page, SEL_WORKSPACE)) break
-          await sleep(250)
+        await dismissMasks()
+        // 皮肤：隔离 home 里的偏好在今天的宿主上会被启动流程改回设置存储里的值，
+        // 所以这里再走一次宿主自己的设置接口（接口没切成才退回只改 body 属性，见 ensureSkin）。
+        if (LOCKED_SKIN !== '') {
+          const skinSwitched = await ensureSkin(page, LOCKED_SKIN)
+          facts['0a-skin'] = skinSwitched
+          results.push(observe({
+            checkId: 'skin-switch',
+            title: '把宿主皮肤切到本轮要验的 ' + LOCKED_SKIN,
+            ok: skinSwitched.ok,
+            detail: skinSwitched.detail,
+            expected: '页面 body 的主题属性与本轮皮肤一致',
+            actual: JSON.stringify(skinSwitched.facts),
+            hint: skinSwitched.ok ? undefined : '设置接口与 body 属性两条都没切成；先看 facts.settingsMutate 的回执。',
+          }))
+          await dismissMasks()
         }
-        if (await exists(page, SEL_WORKSPACE)) {
-          await realClick(page, raw, SEL_WORKSPACE)
-          await sleep(900)
-          if (await waitFor(page, boolScript('[role=menuitem]'), 20, 200)) {
-            await realClick(page, raw, '[role=menuitem]')
-            await sleep(4000)
-          }
-        }
-        // 先建一个会话再开右侧栏。2026-11-03 真机实测：只选工作区、不建会话时，右侧栏的
-        // 「版本管理」页签点开也不挂载 #vc-real-root（等 15 秒也不会出现）；建完会话立刻就好。
-        if (await exists(page, 'button[aria-label="新建会话"]')) {
-          await realClick(page, raw, 'button[aria-label="新建会话"]')
-          await sleep(4000)
+        // 进主视图：经页面接口建工作区与会话，再点「新建会话」；三条入口都没成时把读数一并留证。
+        // 2026-11-05 有头实例上原来那条「欢迎屏工作区菜单」没有出现（中间停在「选择一个工作区开始」），
+        // 所以换了入口；菜单路径保留在 openMainView 里作兜底。
+        const mainView = await openMainView(page, raw, instance.record.tokenUrl, fixtureRepo)
+        facts['0-main-view'] = mainView
+        if (!mainView.ok) {
+          await shot(page, '1846-main-view-failed.png')
+          await save('1846-main-view-failed.json', { mainView, pageErrors: page.pageErrors() }, '进不去主视图时的页面现状与三条入口的读数')
         }
         await realClick(page, raw, SEL_SIDEBAR)
         await sleep(1500)
@@ -393,6 +772,51 @@ export default defineScenario<ScenarioContext>({
           ok: true,
           detail: '版本管理根节点出现；当前页 ' + String(base?.root?.page) + '；壳宽 ' + String(base?.shell?.width) + '；皮肤 ' + String(base?.shell?.skin) + '；窗口 ' + JSON.stringify(base?.viewport),
           evidence,
+        }))
+
+        // ---- 任务二：先锁皮肤、再把面板标定到第一档宽 ----
+        // 皮肤锁在隔离 home 里，壳根的 data-vc-skin 是它到底生效没有的唯一凭据；
+        // 宽度只能靠真拖右栏把手（面板档位是宿主的右栏布局偏好），先把窗口拉宽再拖。
+        const wide = await ensureWideWindow(page, raw)
+        facts['1b-wide-window'] = wide
+        results.push(observe({
+          checkId: 'wide-window',
+          title: '先把窗口拉到够宽（右栏才有拖到 520 的余量）',
+          ok: wide.ok,
+          detail: wide.detail,
+          hint: wide.ok ? undefined : '无头适配器没有 resize()：带 --declaration verify/profile-1833-headed.ts 跑，宽度才标得动。',
+        }))
+        const skinNow = String(base?.shell?.skin || '')
+        if (LOCKED_SKIN === '') {
+          results.push(observe({
+            checkId: 'skin-locked',
+            title: '本轮没有锁皮肤（DSH_1846_SKIN 未设置）',
+            ok: false,
+            status: 'blocked',
+            detail: '四组验收要求一个实例只跑一种皮肤；这一轮只作接线检查，不能算进四组结论。',
+            hint: '按「一皮肤一实例」跑两轮：DSH_1846_SKIN=dark 与 DSH_1846_SKIN=light，各带 DSH_1846_WIDTHS=380,520。',
+          }))
+        } else {
+          results.push(observe({
+            checkId: 'skin-locked',
+            title: '隔离实例按启动前锁定的皮肤跑（' + LOCKED_SKIN + '）',
+            ok: skinNow === LOCKED_SKIN,
+            detail: '壳根 data-vc-skin=' + skinNow + '；锁定的皮肤 ' + LOCKED_SKIN,
+            expected: 'data-vc-skin 等于锁定值 ' + LOCKED_SKIN,
+            actual: skinNow,
+          }))
+        }
+        const firstWidth = WIDTHS[0]
+        const firstCal = await calibrateToWidth(page, raw, firstWidth)
+        const firstState = await readState(page)
+        facts['1c-calibrate-' + firstWidth] = { calibration: firstCal, state: firstState }
+        results.push(observe({
+          checkId: 'width-' + firstWidth + '-ready',
+          title: '把面板拖到 ' + firstWidth + ' 档再开始验交互',
+          ok: firstCal.ok && String(firstState?.shell?.width ?? '') === String(firstWidth),
+          detail: firstCal.detail + '；壳根 data-vc-width=' + String(firstState?.shell?.width ?? '') + '；窗口 ' + JSON.stringify(firstState?.viewport ?? null),
+          expected: '拖完 data-vc-width=' + firstWidth,
+          actual: JSON.stringify({ reached: firstCal.reached, trace: firstCal.trace }),
         }))
 
         // ---- 1. 命令面板遮罩：打开、焦点进输入框、Esc 关闭且焦点回入口 ----
@@ -639,14 +1063,153 @@ export default defineScenario<ScenarioContext>({
           }))
         }
 
+
+        // ---- 任务二：逐档过一遍三块结构 + 横向溢出 + 切换 smoke ----
+        // 交互不随宽度变、版式才随宽度变：每档都量结构与溢出、各留一张截图；
+        // 切换 smoke 只证明「这一档下浮层里的分支按钮仍然点得动」，不重复完整的两次切换流程。
+        const overflowBad = (state: Record<string, any> | null): string[] => {
+          const problems: string[] = []
+          const fields: ReadonlyArray<{ label: string; value: unknown }> = [
+            { label: '壳根', value: state?.shell?.overflowX },
+            { label: '命令面板', value: state?.palette?.overflowX },
+            { label: '搜索页', value: state?.search?.overflowX },
+            { label: '分支浮层', value: state?.branch?.overflowX },
+          ]
+          for (const field of fields) {
+            const value = Number(field.value)
+            if (Number.isFinite(value) && value > 0) problems.push(field.label + '横向溢出 ' + String(value) + 'px')
+          }
+          return problems
+        }
+        // 回到「改动」页：命令面板只在非搜索页绘制（搜索页有自己的输入框，点图标不开面板），
+        // 而二级页与搜索页的页头是「返回」不是四页签。有页签就点页签，没有就点返回，最多五次。
+        const goChanges = async (): Promise<boolean> => {
+          for (let attempt = 0; attempt < 5; attempt += 1) {
+            const now = await readState(page)
+            if (String(now?.shell?.page || '') === 'changes') return true
+            if (await exists(page, SEL.tabChanges)) await realClick(page, raw, SEL.tabChanges)
+            else if (await exists(page, SEL.back)) await realClick(page, raw, SEL.back)
+            else break
+            await sleep(600)
+          }
+          const last = await readState(page)
+          return String(last?.shell?.page || '') === 'changes'
+        }
+        for (const width of WIDTHS) {
+          const skinLabel = LOCKED_SKIN === '' ? 'skin-unlocked' : LOCKED_SKIN
+          const group = skinLabel + '-' + width
+          const cal = await calibrateToWidth(page, raw, width)
+          const calState = await readState(page)
+          facts['2-calibrate-' + group] = { calibration: cal, state: calState }
+          results.push(observe({
+            checkId: 'w' + width + '-calibrate',
+            title: width + ' 宽 · ' + skinLabel + '：面板真的拖到这一档',
+            ok: cal.ok && String(calState?.shell?.width ?? '') === String(width) && (LOCKED_SKIN === '' || String(calState?.shell?.skin ?? '') === LOCKED_SKIN),
+            detail: cal.detail + '；data-vc-width=' + String(calState?.shell?.width ?? '') + '；data-vc-skin=' + String(calState?.shell?.skin ?? ''),
+            expected: 'data-vc-width=' + width + '，data-vc-skin=' + (LOCKED_SKIN === '' ? '（任意）' : LOCKED_SKIN),
+            actual: JSON.stringify({ reached: cal.reached, trace: cal.trace }),
+          }))
+
+          // 命令面板：遮罩 + 输入框 + 至少一行结果。开面板前先回「改动」页：
+          // 上一组结束在搜索页，而搜索页上点那颗图标不开面板（见 goChanges 的注释）。
+          const backOnChanges = await goChanges()
+          facts['4-go-changes-' + group] = backOnChanges
+          await realClick(page, raw, SEL.searchEntry)
+          const paletteReady = await waitFor(page, boolScript(SEL.paletteInput), 30, 200)
+          // 空查询时面板只给一行「打开全库搜索」，截图看不出列表长什么样；搜一个常见的词，
+          // 让这一档的取证图是真列表，同时顺手验了这一档下输入与过滤仍然工作。
+          await evaluateValue(page, typeScript(SEL.paletteInput, 'git'))
+          await waitFor(page, 'document.querySelectorAll("[data-vc-palette-row]").length >= 2', 30, 200)
+          const paletteState = await readState(page)
+          const paletteShot = await panelShot(page, raw, '1846-w' + width + '-' + skinLabel + '-palette.png')
+          const paletteProblems = overflowBad(paletteState)
+          results.push(observe({
+            checkId: 'w' + width + '-palette',
+            title: width + ' 宽：命令面板按遮罩打开，面板里不横向溢出',
+            ok: paletteReady && paletteState?.palette?.backdrop === true && paletteState?.palette?.input === true && (paletteState?.palette?.rows?.length ?? 0) >= 2 && paletteProblems.length === 0,
+            detail: '遮罩 ' + String(paletteState?.palette?.backdrop) + '；输入框 ' + String(paletteState?.palette?.input) + '；行 ' + String(paletteState?.palette?.rows?.length ?? 0) + '；溢出 ' + (paletteProblems.length ? paletteProblems.join('；') : '无'),
+            expected: '遮罩与输入框都在、至少一行结果、无横向溢出',
+            actual: JSON.stringify({ palette: paletteState?.palette ?? null, shell: paletteState?.shell ?? null }),
+            evidence: paletteShot === null ? [] : [paletteShot],
+          }))
+          await realPress(raw, 'Escape')
+          await waitFor(page, '!' + boolScript(SEL.paletteBackdrop), 20, 150)
+
+          // 搜索页：从命令面板选中 13.3 进去（与交互那一段同一条路），再搜一次看分组
+          await realClick(page, raw, SEL.searchEntry)
+          await waitFor(page, boolScript(SEL.paletteInput), 30, 200)
+          await evaluateValue(page, typeScript(SEL.paletteInput, '13.3'))
+          await waitFor(page, boolScript(SEL.paletteRow('13.3')), 30, 200)
+          await realClick(page, raw, SEL.paletteRow('13.3'))
+          const onSearch = await waitFor(page, '(document.querySelector(' + JSON.stringify(SEL.vcRoot) + ') || { getAttribute: function () { return "" } }).getAttribute("data-vc-live-page") === "search"', 40, 250)
+          await evaluateValue(page, typeScript(SEL.searchInput, 'git'))
+          await waitFor(page, 'document.querySelectorAll("[data-vc-search-group]").length >= 2', 30, 250)
+          const groupSearchState = await readState(page)
+          const groupSearchShot = await panelShot(page, raw, '1846-w' + width + '-' + skinLabel + '-search.png')
+          const searchProblems = overflowBad(groupSearchState)
+          results.push(observe({
+            checkId: 'w' + width + '-search',
+            title: width + ' 宽：搜索页只有一个输入框、结果分组照常，页面不横向溢出',
+            ok: onSearch && groupSearchState?.search?.inputs === 1 && (groupSearchState?.search?.groups?.length ?? 0) >= 2 && searchProblems.length === 0,
+            detail: '到搜索页 ' + String(onSearch) + '；输入框 ' + String(groupSearchState?.search?.inputs) + '；分组 ' + String(groupSearchState?.search?.groups?.length ?? 0) + '；溢出 ' + (searchProblems.length ? searchProblems.join('；') : '无'),
+            expected: '输入框 1 个、至少两组结果、无横向溢出',
+            actual: JSON.stringify(groupSearchState?.search ?? null),
+            evidence: groupSearchShot === null ? [] : [groupSearchShot],
+          }))
+
+          // 分支浮层：清单、当前分支、指路文案点名真实两页
+          await realClick(page, raw, SEL.branchBtn)
+          const overlayReady = await waitFor(page, boolScript(SEL.branchOverlay), 30, 200)
+          const groupOverlayState = await readState(page)
+          const groupOverlayShot = await panelShot(page, raw, '1846-w' + width + '-' + skinLabel + '-branch.png')
+          const overlayProblems = overflowBad(groupOverlayState)
+          const pointerText = String(groupOverlayState?.branch?.pointer || '')
+          const copyOk = pointerText.indexOf('冲突向导') >= 0 && pointerText.indexOf('变基待办') >= 0
+          const rowsNow: string[] = groupOverlayState?.branch?.rows ?? []
+          results.push(observe({
+            checkId: 'w' + width + '-branch',
+            title: width + ' 宽：分支浮层列出本地分支，指路文案点名真实两页，浮层不横向溢出',
+            ok: overlayReady && rowsNow.length >= 2 && String(groupOverlayState?.branch?.current || '').length > 0 && copyOk && overlayProblems.length === 0,
+            detail: '浮层 ' + String(overlayReady) + '；分支 ' + JSON.stringify(rowsNow) + '；当前 ' + String(groupOverlayState?.branch?.current) + '；指路文案「' + pointerText + '」；溢出 ' + (overlayProblems.length ? overlayProblems.join('；') : '无'),
+            expected: '至少两条分支、当前分支有标记、指路文案含「冲突向导」与「变基待办」、无横向溢出',
+            actual: JSON.stringify(groupOverlayState?.branch ?? null),
+            evidence: groupOverlayShot === null ? [] : [groupOverlayShot],
+          }))
+
+          // 切换 smoke：切到另一条再切回来，证明这一档下按钮仍然点得动
+          const original = String(groupOverlayState?.branch?.current || '')
+          const smokeTarget = rowsNow.find((name) => name !== original) ?? ''
+          const currentScript = (name: string): string => '(document.querySelector(' + JSON.stringify(SEL.branchCurrent) + ') || { getAttribute: function () { return "" } }).getAttribute("data-vc-branch-pick") === ' + JSON.stringify(name)
+          let switched = false
+          let restored = false
+          if (smokeTarget !== '' && original !== '') {
+            await realClick(page, raw, SEL.branchPick(smokeTarget))
+            switched = await waitFor(page, currentScript(smokeTarget), 80, 250)
+            await realClick(page, raw, SEL.branchPick(original))
+            restored = await waitFor(page, currentScript(original), 80, 250)
+          }
+          const smokeState = await readState(page)
+          facts['3-switch-' + group] = smokeState
+          results.push(observe({
+            checkId: 'w' + width + '-switch',
+            title: width + ' 宽：点一条分支真的切过去，再切回原分支',
+            ok: switched && restored && smokeState?.branch?.result === 'ok',
+            detail: '切到 ' + (smokeTarget === '' ? '（没有别的分支可切）' : smokeTarget) + ' ' + String(switched) + '；切回 ' + original + ' ' + String(restored) + '；结果块 ' + String(smokeState?.branch?.result),
+            expected: '两次都切成功、结果块 ok',
+            actual: JSON.stringify(smokeState?.branch ?? null),
+          }))
+          if (await exists(page, SEL.branchOverlay)) await realClick(page, raw, SEL.branchClose)
+          await waitFor(page, '!' + boolScript(SEL.branchOverlay), 20, 150)
+        }
+
         await shot(page, '1846-final.png')
-        await save('1846-facts.json', { facts, pageErrors: page.pageErrors() }, '真机验证全过程读数：进入路径、命令面板、搜索页三态、分支浮层的清单与两次切换、四个指路落点')
+        await save('1846-facts.json', { facts, skin: LOCKED_SKIN, widths: WIDTHS, pageErrors: page.pageErrors() }, '真机验证全过程读数：进入路径、皮肤与逐档宽度标定、命令面板、搜索页三态、分支浮层的清单与两次切换、四个指路落点、逐档结构与切换 smoke')
         const failed = results.filter((r) => !r.ok).length
         results.push(observe({
           checkId: 'summary',
           title: '#1846 真机验证汇总',
           ok: failed === 0,
-          detail: '共 ' + String(results.length) + ' 条检查，失败 ' + String(failed) + ' 条；证据 ' + String(evidence.length) + ' 份；页面错误 ' + String(page.pageErrors().length) + ' 条',
+          detail: '共 ' + String(results.length) + ' 条检查，失败 ' + String(failed) + ' 条；皮肤 ' + (LOCKED_SKIN === '' ? '未锁' : LOCKED_SKIN) + '；宽度档 ' + WIDTHS.join(' / ') + '；证据 ' + String(evidence.length) + ' 份；页面错误 ' + String(page.pageErrors().length) + ' 条',
           evidence,
         }))
         return results
