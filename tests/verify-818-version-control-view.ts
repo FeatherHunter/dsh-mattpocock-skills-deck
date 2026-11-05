@@ -2480,6 +2480,37 @@ async function main() {
     'Z8 范围行同时有「只看合并」、已加载条数与「比较两个引用」三个入口')
   check(VIEW.vcHistoryFilterOf(zqCommits, '', true, 'message').length === 0, 'Z8b 只看合并时只剩合并提交（这两条都不是合并）')
 
+  // Z9 窄档也要把「命中哪份文件 / 有没有备注」标出来：小字行折掉时这两枚标记单独占一行。
+  const z9Code = hcHtmlOf({ reads: zqReads(), width: 300, ui: { historyScope: 'code', historyQuery: 'IssueDetail' } })
+  check(attrValuesOf(z9Code, 'data-vc-history-hit').join(',') === 'src/client/views/IssueDetail.ts',
+    'Z9a 300 档下命中行同样标出命中的文件（小字行折掉时标记单独占一行，实际 ' + attrValuesOf(z9Code, 'data-vc-history-hit').join(',') + '）')
+  check(z9Code.indexOf('data-vc-history-marks-row="1"') >= 0, 'Z9b 窄档的标记行带自己的属性，样式与宽档那份分开管')
+  const z9Plain = zqCommits.map(function (c) { return Object.assign({}, c, { hasNote: false }) })
+  const z9Note = hcHtmlOf({ reads: hcReadsOf({ commits: z9Plain }), width: 380, ui: { historyNotes: { [zqCommits[0].oid]: true } } })
+  check(attrValuesOf(z9Note, 'data-vc-history-note-tag').length === 1, 'Z9c 380 档下写过备注的那一行同样带「备注」标记')
+
+  // Z10 只有「整份历史」才画「加载更早的提交」：只看某个文件、正在比较时那颗按钮按了不会有变化。
+  const z10More = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, hasMore: true }), width: 460, ui: {} })
+  check(attrValuesOf(z10More, 'data-vc-load-more').length === 1, 'Z10a 整份历史还有下一批时画「加载更早的提交」')
+  const z10File = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, hasMore: true, reads: { queries: { 'file-history': { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'file-history', path: 'src/client/views/IssueDetail.ts', commits: [zqCommits[0]], count: 1, reason: 'ok' } } } } }), width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts' } })
+  check(attrValuesOf(z10File, 'data-vc-load-more').length === 0, 'Z10b 只看某个文件时不画「加载更早的提交」（续读回来的不是这份读数）')
+  const z10Compare = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, hasMore: true, reads: { queries: { compare: { state: 'ok', seq: 1, error: null, data: z5Data } } } }), width: 460, ui: { historyCompare: { left: 'HEAD~1', right: 'HEAD' } } })
+  check(attrValuesOf(z10Compare, 'data-vc-load-more').length === 0, 'Z10c 比较结果在列表位置时不画「加载更早的提交」')
+
+  // Z11 单文件历史读满上限时明说「只列了最近 N 条」，不让人把那 200 条当成全部。
+  const z11Capped = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, reads: { queries: { 'file-history': { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'file-history', path: 'src/client/views/IssueDetail.ts', commits: [zqCommits[0]], count: 200, reason: 'ok' } } } } }), width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts' } })
+  check(attrValuesOf(z11Capped, 'data-vc-history-file-capped').length === 1 && z11Capped.indexOf(fill(tZh('vc.shell.history.fileOnlyCapped'), { n: '200' })) >= 0,
+    'Z11 单文件历史读满 200 条时写明「只列了最近 200 条」')
+  const z11Few = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, reads: { queries: { 'file-history': { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'file-history', path: 'src/client/views/IssueDetail.ts', commits: [zqCommits[0]], count: 3, reason: 'ok' } } } } }), width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts' } })
+  check(attrValuesOf(z11Few, 'data-vc-history-file-capped').length === 0, 'Z11b 没读满时不画这句（没到顶就不是截断）')
+
+  // Z12 四条能力在账本里仍各只有一个主入口（命令面板与管理索引按账本渲染，不在页面正文里再挂一次）。
+  const z12Ids = ['3.4', '3.7', '3.8', '3.12']
+  const z12Lists = z12Ids.map(function (id) { return VIEW.CAPABILITIES.filter(function (c) { return c.id === id }) })
+  check(z12Lists.every(function (list) { return list.length === 1 && list[0].primaryEntry === '提交历史页' && list[0].page === 'commits' }),
+    'Z12a 四条能力在账本里各恰好一条，主入口都还是「提交历史页」（实际 ' + JSON.stringify(z12Lists.map(function (l) { return l.length + ':' + (l[0] && l[0].primaryEntry) })) + '）')
+  check(z1Html.indexOf('data-cap-primary') < 0, 'Z12b 历史页正文里不另挂主入口标记：入口在面板里只算一处，不在页面上再算一处')
+
   // ---- R 组：远端与同步页（#1754 T18，域 8 的 8.1–8.4）----
   // 三种读数分开验：本地读数（git remote -v + 本地跟踪分支，不联网）、用户点「联网查看」后才走的
   //   git ls-remote（结果标来源与读取时刻）、四条写动作（登记 / 改名 / 删除 / 改地址）的三段式。
@@ -3276,7 +3307,7 @@ async function main() {
     // #1738/#1860：命令面板行的主入口标记换个属性名 —— 面板少一条 data-cap-primary，Z1d 必须当场红。
     { name: '命令面板行主入口标记改成另一个属性名', patch: (s) => s.replace("'data-cap-primary': row.id,", "'data-cap-entry': row.id,"), test: primaryMarkerJudgmentOf, what: 'Z1d' },
     // #1744：历史页的「加载更多」不再画（有更多也装成到顶）—— Y2a 必须当场红。
-    { name: '历史页不再画「加载更多」', patch: (s) => s.replace('  if (hasMore === true) {', '  if (false) {'), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y1Reads })); return html.indexOf('data-vc-load-more') >= 0 }, what: 'Y2a' },
+    { name: '历史页不再画「加载更多」', patch: (s) => s.replace('  if (hasMore === true && paging) {', '  if (false) {'), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y1Reads })); return html.indexOf('data-vc-load-more') >= 0 }, what: 'Y2a' },
     // #1744：图形化视图丢掉父提交连线（合并提交画成一条线）—— Y6b 必须当场红。
     { name: '图形化视图丢掉父提交连线', patch: (s) => s.replace('      parents: parentList.slice()', '      parents: []'), test: (v) => { const g = v.vcHistoryGraphOf(hcRows4); return g.rows[1].parents.length === 2 && g.rows[3].parents.length === 0 }, what: 'Y6b' },
     // #1744：点开提交不再画详情（整页替换那一层没了）—— Y4a 必须当场红。

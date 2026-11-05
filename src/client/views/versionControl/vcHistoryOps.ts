@@ -137,7 +137,8 @@ export const vcHistoryOpsOf = function (deps: any): any {
       setUi({ historyFileOnly: want, historyFileMenu: '', openCommit: '', openFile: '', historyCompare: null, historyCompareOpen: false, historyNote: vcNewNoteWrite() })
       const cur: any = vcHistoryDataOf(readsNow(), 'file-history')
       if (cur && String(cur.path || '') === want) return Promise.resolve(cur)
-      return readInto('file-history', { path: want })
+      // 一次要满上限：单文件历史没有第二页，能给多少就给多少（200 是共享层 HISTORY_QUERY_COUNT_MAX）。
+      return readInto('file-history', { path: want, count: 200 })
     },
     /** 点掉「只看 …」那枚标签：回到全部历史，读数留着（下次再看同一个文件不必重读）。 */
     fileOnlyClear: function (): void { setUi({ historyFileOnly: '', historyFileMenu: '' }) },

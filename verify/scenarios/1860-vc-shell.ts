@@ -69,6 +69,8 @@ const VIEW_TITLES: Record<ViewName, string> = {
 const QUICK = process.env.DSH_1860_QUICK === '1'
 /** 只跑 #1903 那一段：四页签的逐档取证跳过，用来把四条历史能力的取证反复跑到稳。 */
 const ONLY_HISTORY = process.env.DSH_1860_ONLY_HISTORY === '1'
+/** 「预填 HEAD~1 / HEAD」只在整轮第一次打开比较表单时判一次：之后几轮表单里是上一轮留下的输入。 */
+let prefillSeenOnce = false
 const WIDTHS = String(process.env.DSH_1860_WIDTHS || '300,380,460,520')
   .split(',')
   .map((piece) => Number(piece.trim()))
@@ -2060,6 +2062,7 @@ const HISTORY_FILE_ONLY_CLEAR = '[data-vc-history-file-only-clear]'
 const HISTORY_COMPARE_OPEN = '[data-vc-history-compare-open]'
 const HISTORY_COMPARE_APPLY = '[data-vc-history-compare-apply]'
 const HISTORY_COMPARE_END = '[data-vc-history-compare-end]'
+const HISTORY_COMPARE_CANCEL = '[data-vc-history-compare-cancel]'
 const HISTORY_NOTE_INPUT = '[data-vc-history-note-input]'
 const HISTORY_NOTE_SAVE = '[data-vc-history-note-save]'
 const NOTE_TEXT = '这一版为了兼容旧数据（真机验证 1903）'
@@ -2283,18 +2286,21 @@ async function captureHistoryEntries(
   // 等到「这份读数已经有提交行，或者给了一句空态」为止：两种都算读完了，不能只等行。
   let fileListed = false
   for (let i = 0; i < 50; i += 1) {
-    const probe = await evaluateThrough<{ rows: number; empty: boolean }>(page, scriptOf([
+    const probe = await evaluateThrough<{ rows: number; empty: boolean; error: string }>(page, scriptOf([
       '(function () {',
+      '  var err = document.querySelector(' + JSON.stringify('[data-vc-history-file-error]') + ');',
       '  return {',
       '    rows: document.querySelectorAll(' + JSON.stringify(HISTORY_ROWS) + ').length,',
       '    empty: document.querySelector(' + JSON.stringify('[data-vc-history-filter-empty]') + ') !== null,',
+      '    error: err === null ? ' + JSON.stringify('') + ' : String(err.innerText || err.textContent || ' + JSON.stringify('') + '),',
       '  };',
       '})()',
     ]))
     if (probe.ok && (probe.value.rows > 0 || probe.value.empty)) { fileListed = true; break }
+    if (probe.ok && probe.value.error !== '') { fail('单文件历史读失败：' + snippet(probe.value.error, 120)); break }
     await sleep(400)
   }
-  if (!fileListed) fail('点了之后列表一直没有画出提交行')
+  if (!fileListed && failures.length === 0) fail('点了之后列表一直没有画出提交行')
   await sleep(400)
   const fileFacts = await readHistoryFacts(page)
   facts.fileOnly = fileFacts
@@ -2318,8 +2324,18 @@ async function captureHistoryEntries(
   ]))
   facts.comparePrefill = prefilled.ok ? prefilled.value : null
   if (!prefilled.ok || prefilled.value.from === null || prefilled.value.to === null) fail('读不到比较表单的两个输入框')
+  // 「预填 HEAD~1 与 HEAD」验的是第一次打开时的样子：同一实例里后面几轮沿用上一轮留下的输入，
+  //   那时不能再拿它当预填判据（上一轮为了验「认不出的引用」故意写成 nope）。
+  if (!prefillSeenOnce) {
+    if (prefilled.ok && (prefilled.value.from !== 'HEAD~1' || prefilled.value.to !== 'HEAD')) fail('第一次打开比较表单时没有预填 HEAD~1 与 HEAD（读到 ' + JSON.stringify(prefilled.ok ? prefilled.value : null) + '）')
+    prefillSeenOnce = true
+  }
   const shotForm = await captureScreenshot(context, page, subdir, 'history-compare-form', '比较两个引用的表单（' + String(width) + ' 档 / ' + skin + '）')
   evidence.push(...shotForm.paths)
+  // 接下来这一枪要确定的比较：把两端写回默认值，不继承上一轮留下的 nope。
+  await setValue(page, '[data-vc-history-compare-field="from"]', 'HEAD~1')
+  await setValue(page, '[data-vc-history-compare-field="to"]', 'HEAD')
+  await sleep(200)
   if (!(await clickPage(page, raw, HISTORY_COMPARE_APPLY)).ok) fail('点不动「比较」')
   if (!(await waitFor(page, '[data-vc-history-compare-head]', 20000))) fail('比较之后没有出现结果头')
   await sleep(400)
@@ -2334,6 +2350,23 @@ async function captureHistoryEntries(
   const shotCompare = await captureScreenshot(context, page, subdir, 'history-compare-result', '比较两个引用的结果（' + String(width) + ' 档 / ' + skin + '）')
   evidence.push(...shotCompare.paths)
   await clickPage(page, raw, HISTORY_COMPARE_END)
+
+  // ④b 认不出的引用：原样说回来，不悄悄当成 HEAD。
+  await clickPage(page, raw, HISTORY_COMPARE_OPEN)
+  await sleep(400)
+  await setValue(page, '[data-vc-history-compare-field="from"]', 'nope')
+  await sleep(200)
+  await clickPage(page, raw, HISTORY_COMPARE_APPLY)
+  const unknownShown = await waitFor(page, '[data-vc-history-compare-error]', 20000)
+  const unknownText = unknownShown ? await page.text('[data-vc-history-compare-error]') : null
+  const unknownWords = unknownText !== null && unknownText.ok ? String(unknownText.value || '') : ''
+  facts.unknownRev = unknownWords
+  if (!unknownShown || unknownWords.indexOf('nope') < 0) fail('认不出的引用没有原样说回来（读到「' + snippet(unknownWords, 80) + '」）')
+  const shotUnknown = await captureScreenshot(context, page, subdir, 'history-compare-unknown', '认不出的引用（' + String(width) + ' 档 / ' + skin + '）')
+  evidence.push(...shotUnknown.paths)
+  // 收尾把两端写回默认值：这一轮把 from 改成了 nope，留着会串到下一档。
+  await setValue(page, '[data-vc-history-compare-field="from"]', 'HEAD~1')
+  await clickPage(page, raw, HISTORY_COMPARE_CANCEL)
 
   // ⑤ 提交备注：写一句、点保存、看结论；再用 git 自己回答「这条备注真的落进仓库了没有」。
   // 每一轮都从「这条提交还没有备注」开始：先把它删掉，再让界面去写，判据才是「这次真的写进去了」。
@@ -2359,9 +2392,31 @@ async function captureHistoryEntries(
   if (!reopen.ok || reopen.value.ok !== true) fail('打不开 HEAD 那条提交的详情')
   if (!(await waitFor(page, '[data-vc-history-note]', 10000))) fail('详情底部没有「提交备注」这一段')
   await sleep(400)
-  if (!(await setValue(page, HISTORY_NOTE_INPUT, NOTE_TEXT, true))) fail('备注输入框写不进字')
+  // 写进去之后要读回来确认：换皮肤重挂页面时，输入框可能刚好在重画，字会被吃掉。
+  //   写不进去就补写一次；两次都写不进去才算失败（这时点保存只会得到「备注是空的」）。
+  let noteTyped = false
+  for (let i = 0; i < 3 && !noteTyped; i += 1) {
+    await setValue(page, HISTORY_NOTE_INPUT, NOTE_TEXT, true)
+    await sleep(250)
+    const typed = await evaluateThrough<string>(page, scriptOf([
+      '(function () {',
+      '  var el = document.querySelector(' + JSON.stringify(HISTORY_NOTE_INPUT) + ');',
+      '  return el === null ? ' + JSON.stringify('') + ' : String(el.value);',
+      '})()',
+    ]))
+    noteTyped = typed.ok && typed.value === NOTE_TEXT
+  }
+  if (!noteTyped) fail('备注输入框写不进字')
   if (!(await clickPage(page, raw, HISTORY_NOTE_SAVE)).ok) fail('点不动「保存备注」')
+  // 不能只等「已有备注」那枚标记：同一条提交在前一轮已经写过备注时，那枚标记本来就在，
+  //   等它会立刻返回，然后在真正写盘之前就去数 git —— 会误判成「界面说保存了、仓库里却没有」。
+  //   判据改成直接问 git：它什么时候多出这一条，才算这一轮保存成功。
   const savedShown = await waitFor(page, '[data-vc-history-note-saved]', 20000)
+  let noteLanded = false
+  for (let i = 0; i < 40; i += 1) {
+    if (noteOidsInFixture().indexOf(headForNote) >= 0) { noteLanded = true; break }
+    await sleep(500)
+  }
   await sleep(400)
   const noteFacts = await readHistoryFacts(page)
   facts.note = noteFacts
@@ -2370,11 +2425,16 @@ async function captureHistoryEntries(
   facts.noteOidsAfter = notesAfter
   if (!savedShown) fail('保存之后没有出现「已有备注」')
   if (noteFacts === null || String(noteFacts.noteResult || '').indexOf('已保存') < 0) fail('结论行没有说「已保存」')
-  if (notesAfter.indexOf(headForNote) < 0) fail('夹具仓库的 notes 引用里没有 HEAD 这一条（界面说保存了，git 里却没有）')
+  if (!noteLanded) fail('夹具仓库的 notes 引用里没有 HEAD 这一条（界面说保存了，git 里却没有）')
   await closeOverlayIfAny(page, raw)
   const shotNote = await captureScreenshot(context, page, subdir, 'history-note', '提交备注保存之后（' + String(width) + ' 档 / ' + skin + '）')
   evidence.push(...shotNote.paths)
   await clickPage(page, raw, '[data-vc-history-back]')
+  // ⑤b 回到列表：写过备注的那一条要带「备注」标记（这是用户确认「刚才写进去了」的第一眼）。
+  await sleep(600)
+  const backFacts = await readHistoryFacts(page)
+  facts.noteTagInList = backFacts === null ? -1 : backFacts.noteTags
+  if (backFacts === null || backFacts.noteTags < 1) fail('回到列表之后，写过备注的那一条没有「备注」标记')
 
   const recorded = await recordBoth(context, subdir, 'history-entries.json', Object.assign({ width: width, skin: skin, failures: failures, calibration: calibration }, facts), '四条历史能力 @ ' + String(width) + ' / ' + skin + ' 的取数与判据')
   evidence.push(...recorded)
