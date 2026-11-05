@@ -204,7 +204,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   const head = Object.assign({}, vcPageHeadNode(h, t, {
     page: page, back: opts.back === true, backLog: opts.backLog,
     hideCount: opts.hideCount === true || page === 'branch-tags' || page === 'submodules' || page === 'maintenance' || page === 'migrate' || page === 'diagnostics' || page === 'platform',
-    danger: page === 'maintenance' || page === 'migrate',
+    // #1845：原型 48 / 49 的 pageShell 也带 danger: true（变基改写历史、冲突合并会改工作区），
+    // 页头因此给这两页同一枚「含不可逆动作」红 chip；任务页不动仓库，不给。
+    danger: page === 'maintenance' || page === 'migrate' || page === 'rebase' || page === 'conflicts',
   }), { key: 'meta' })
   if (!isTabPage) children.push.apply(children, vcPageNotesOf(h, t, page))
   // #1840 管理索引屏：页头之后整屏都是索引（说明句、九张卡、两条跨区入口、覆盖口径），

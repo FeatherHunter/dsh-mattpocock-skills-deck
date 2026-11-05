@@ -21,7 +21,6 @@ async function main() {
   // 它只承担测试替身的角色，判断的是 vcDiffOps 传进来的 onView 是否被按原子切换执行。
   const vcPickViewStateOf = (ui, v) => ({ ...ui, view: v, openCommit: '' })
   check(typeof vcDiffOpsOf === 'function', '真源可加载：vcDiffOpsOf 存在')
-  check(typeof vcPickViewStateOf === 'function', '视图切换替身可用：vcPickViewStateOf 是本地实现（旧壳已删，见上方注释）')
   // 手动点页签仍清空：这是要保留的老约定，修完也不能丢。
   const cleared = vcPickViewStateOf({ view: 'commits', openCommit: 'abc', openDiff: '' }, 'changes')
   check(cleared.openCommit === '' && cleared.view === 'changes', '手动切页签仍离开详情（openCommit 被清空）')

@@ -7,7 +7,7 @@ zh:
   vc.diag.section.facts.note: 这些数字全部来自本仓库此刻的 git 读数。读不到时界面写「读不到」，不写 0。
   vc.diag.section.shapes.title: 只读对象查看
   vc.diag.section.shapes.count: 6 条能力
-  vc.diag.section.shapes.note: 底层排查只展示读到的形状，不提供可操作按钮。需要执行时交给终端或诊断工具。
+  vc.diag.section.shapes.note: 底层排查只展示读到的形状；每一行可以就地发起一次只读查询，结果贴在行内，不改仓库。需要写操作时交给终端或诊断工具。
   vc.diag.section.checks.title: 检查与定位
   vc.diag.section.checks.count: 4 条能力
   vc.diag.section.checks.note: 完整性检查、可回收对象、二分查找与引用日志：都能在面板里发起并看到结果，但都不写提交。
@@ -107,7 +107,7 @@ en:
   vc.diag.section.facts.note: 'Every number here comes from a git reading of this repository at this moment. When a value cannot be read, the interface says "not readable" instead of showing 0.'
   vc.diag.section.shapes.title: 'Read-only object inspection'
   vc.diag.section.shapes.count: '6 capabilities'
-  vc.diag.section.shapes.note: 'Troubleshooting only shows the shapes that were read and offers no action buttons. To run something, use a terminal or the diagnostics tools.'
+  vc.diag.section.shapes.note: 'Troubleshooting only shows the shapes that were read; each row can run one read-only query in place, and the result stays in the row without touching the repository. For anything that writes, use a terminal or the diagnostics tools.'
   vc.diag.section.checks.title: 'Checks and pinpointing'
   vc.diag.section.checks.count: '4 capabilities'
   vc.diag.section.checks.note: 'Integrity checks, recoverable objects, bisection, and the reflog: all of them can be started here with their results shown, but none of them writes a commit.'
