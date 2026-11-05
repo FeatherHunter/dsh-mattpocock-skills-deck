@@ -132,29 +132,33 @@ function deckPageRowsOf(scope: DeckViewScope, st: any): any[] {
   try { return (scope.issuePageRowsOf && st) ? (scope.issuePageRowsOf(st, 'list') || []) : [] } catch (e) { return [] }
 }
 
-/** 全局读数：总数/开放/已关闭/可接/占用/BUG/诊断。全部走既有派生函数，这一层不另算一份。 */
+/** 全局读数：总数/开放/已关闭/可接/阻塞/已认领 + BUG/诊断。六个数字优先取库的那一份（#1887）。 */
 function deckCountsFor(scope: DeckViewScope, projection: any): any {
   const stLike: any = { snapshot: projection || {} }
   const rows = deckRowsOf(scope, projection)
-  let open = 0
-  let closed = 0
+  let open = 0, closed = 0
   for (let i = 0; i < rows.length; i++) { if (rows[i] && rows[i].state === 'CLOSED') closed++; else open++ }
   const occupied = scope.occCount ? scope.occCount(stLike) : rows.filter(function (r: any): boolean { return !!(r && Array.isArray(r.assignees) && r.assignees.length) }).length
-  const backend = scope.deckCountsOf ? scope.deckCountsOf(stLike, false) : null
+  // #1887：六个数字从库来（deck.counts）；拿不到（旧快照）才退回按手上这份派生，并如实标 complete=false。
+  const lib = scope.deckCountsOf ? scope.deckCountsOf(stLike, false) : null
   const bug = scope.bugCount ? scope.bugCount(stLike) : 0
   const triage = scope.triageCount ? scope.triageCount(stLike) : 0
-  const takeable = backend ? Math.max(0, backend.open - occupied) : (open - occupied)
   const local = { open: open, occupied: occupied, closed: closed }
-  const kpi = scope.kpiCountsOf ? scope.kpiCountsOf(stLike, false, local) : { takeable: takeable, closed: closed, unknown: false, pending: false, atMs: 0, source: 'local-enumeration' }
+  const kpi = scope.kpiCountsOf
+    ? scope.kpiCountsOf(stLike, false, local)
+    : { takeable: Math.max(0, open - occupied), blocked: occupied, claimed: 0, closed: closed, total: open + closed, open: open, complete: false, unknown: false, occupied: occupied }
   return {
-    total: backend ? backend.total : rows.length,
-    open: backend ? backend.open : open,
-    closed: backend ? backend.closed : closed,
-    takeable: takeable,
+    total: lib ? lib.total : rows.length,
+    open: lib ? lib.open : open,
+    closed: lib ? lib.closed : closed,
+    takeable: lib ? lib.takeable : Math.max(0, open - occupied),
+    blocked: lib ? lib.blocked : occupied,
+    claimed: lib ? lib.claimed : 0,
+    complete: !!(lib && lib.complete),
     occupied: occupied,
     bug: bug,
     triage: triage,
-    backend: backend,
+    counts: lib,
     kpi: kpi,
   }
 }

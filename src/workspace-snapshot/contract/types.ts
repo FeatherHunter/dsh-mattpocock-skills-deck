@@ -14,6 +14,7 @@ import type {
   SnapshotActor,
   SnapshotBackend,
   SnapshotComment,
+  SnapshotCounts,
   SnapshotDiagnostic,
   SnapshotLabel,
   SnapshotMode,
@@ -40,6 +41,7 @@ export type {
   SnapshotActor,
   SnapshotBackend,
   SnapshotComment,
+  SnapshotCounts,
   SnapshotDiagnostic,
   SnapshotDiagnosticCode,
   SnapshotLabel,
@@ -290,6 +292,14 @@ export interface WorkspaceSnapshotHandle {
    * 给了 expectedGeneration 而库里世代号对不上时回 committed:false / stale，一个字节不改。
    */
   writeSyncBookkeeping(write: SyncBookkeepingWrite): SyncBookkeepingResult
+  /**
+   * 面板顶上的六个数字（#1887）：只读、一次查询，按库里的行与边算。
+   *
+   * 为什么放在句柄上而不是让上层自己拼 SQL：完整度要看库级同步簿记，而簿记与数据同生共死；
+   * 上层拿到的必须是一个自洽的答案（六个数字 + 这份答案够不够全），不能自己拿一个数字去猜另一个。
+   * 只读句柄也能读：它不改任何库内容。
+   */
+  readCounts(): SnapshotCounts
   readList(query?: ListQuery): ListProjection
   /**
    * 读一张票的详情：行、正文、标签、指派、父子、阻塞、被阻塞、子票、合并信息与各组三态。

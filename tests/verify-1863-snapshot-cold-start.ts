@@ -205,7 +205,8 @@ async function main(): Promise<void> {
     check(!!findContainer(snap, '100') && findContainer(snap, '100').number === 100, 'B13 容器补出了旧视图要的数字编号')
     check(net.cacheIsCurrent === 0 && net.diskRead === 0 && net.diskWrite === 0, 'B14 没有在线探测、没有读磁盘缓存、没有写磁盘缓存', net)
     check(net.currentUser === 0 && net.openSession === 0 && net.exec === 0, 'B15 没有问当前用户、没有开会话、没有执行命令', net)
-    check(snap && snap.deck === null, 'B16 deck 不冒充后端计数（留给在线刷新）')
+    // #1887：库回放的 deck 现在带六个数字 + 完整度（不再是 null）；它来自库的一次查询，不冒充后端计数。
+  check(!!snap && !!snap.deck && !!snap.deck.counts && !('countsPending' in snap.deck), 'B16 库回放带库算的六个数字（不冒充后端计数、也不留待校准）', snap && snap.deck)
 
     // ── C. 增量：再取一批只覆盖提到的票，首屏立刻看到新值，没提到的仍在 ─────────────────────────
     const child5b = Object.assign({}, child5, { title: '子票五（改过）' })

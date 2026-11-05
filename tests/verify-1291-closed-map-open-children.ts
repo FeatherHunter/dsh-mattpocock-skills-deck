@@ -121,8 +121,8 @@ console.log('#1291 一、纯组装：已关闭地图里还开着的子票回到 
   check(keysOf(snap.thinTickets).indexOf('16') < 0, '回到首屏的那张票不再重复出现在瘦身行里（实得 ' + JSON.stringify(keysOf(snap.thinTickets)) + '）')
 }
 
-// ── 二、编排：真编排器跑一遍，形状不变、计数照旧读后端 ────────────────────────────
-console.log('#1291 二、编排：composeSnapshot 之后形状不变，deck.counts 照旧来自后端')
+// ── 二、编排：真编排器跑一遍，形状不变、计数不在编排层写（#1887）────────────────────
+console.log('#1291 二、编排：composeSnapshot 之后形状不变，数字由电话层从快照库挂上')
 const resA: any = await snapshotOf('fake-a', mkRows({}), { open: 1, closed: 14, total: 15 })
 {
   check(resA.ok === true, '编排器照常给出一份快照（实得 ' + JSON.stringify(resA.ok ? 'ok' : resA.error) + '）')
@@ -130,12 +130,12 @@ const resA: any = await snapshotOf('fake-a', mkRows({}), { open: 1, closed: 14, 
   check(keysOf((snap.issues || []).filter(function (x: any): boolean { return String(x.key) === '16' })) === '16', '还开着的子票在编排后的快照里也在 issues（实得 ' + keysOf(snap.issues) + '）')
   const closedMap = (snap.maps || []).filter(function (m: any): boolean { return String(m.key) === '2' })[0] || {}
   check(Array.isArray(closedMap.tickets) && closedMap.tickets.length === 0, '编排后的地图容器仍然不带子票')
-  check(!!snap.deck && !!snap.deck.counts && snap.deck.counts.open === 1 && snap.deck.counts.total === 15, 'deck.counts 照旧来自后端读数（实得 ' + JSON.stringify(snap.deck && snap.deck.counts) + '）')
+  check(!!snap.deck && !('counts' in snap.deck) && !('countsPending' in snap.deck), '编排层不写计数（#1887：数字由电话层从快照库一次查询挂上；实得 ' + JSON.stringify(snap.deck && snap.deck.counts) + '）')
 }
 
 // ── 三、客户端复算：可接列表行数 == 可接数字（#1291 的验收断言）───────────────────
 // 口径真源：列表「可接」筛的是 openIssuesOf 里未被 isOccupied 的行（views/ListTab.ts 的 frontier 过滤），
-//   状态栏与 KPI 的「可接」读 counts ? max(0, counts.open - occCount) : frontierCount
+//   状态栏与 KPI 的「可接」在没有库计数时读 frontierCount（池子未关闭行数减占用）
 //   （src/client/statusbar/checksums.ts:36-38；ListTab.ts:316-321 同一条式子）。
 // 先按宿主真口径把快照拼成客户端看到的那一份：容器行 + 各容器子票 + 未挂图的票合成一份扁平 issues
 //   （src/refresh/rooms/host/session-snapshot-cache.ts:168-204 的 allForList；#589 去重在这里不会遇到重复，组装层已保证三段互斥）。

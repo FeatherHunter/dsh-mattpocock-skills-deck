@@ -20,6 +20,7 @@ import type {
   IssueDetailProjection,
   IssueWrite,
   ListProjection,
+  SnapshotCounts,
   SnapshotDiagnostic,
   WorkspaceSnapshotHandle,
 } from '../../../workspace-snapshot/contract/types.js'
@@ -181,6 +182,11 @@ export interface SnapshotReplay {
   /** 回放的行数，便于日志与门禁断言。 */
   rows: number
   /**
+   * 面板六个数字 + 完整度（#1887）。库里的行与边算出来的一次查询结果，和这一份回放同一时刻。
+   * null = 这一趟读不到（库坏、查询失败）；调用方按「不知道」处理，不补 0。
+   */
+  counts: SnapshotCounts | null
+  /**
    * 这一趟库投影花了多少毫秒（从 readList 进到出）。日志里的投影时长取它，不拿整趟回包的耗时冒充：
    * 序列化与组装装饰各占一块，混在一起就分不清「库慢」还是「回包大」。
    */
@@ -215,6 +221,22 @@ export async function readSnapshotLibraryHealth(input: SnapshotLibraryKey): Prom
   return handle ? 'open' : 'unavailable'
 }
 
+/**
+ * 库这一刻的六个数字 + 完整度（#1887）。库开不出来或读失败回 null —— 调用方按「不知道」处理。
+ *
+ * 与 readSnapshotReplay 里的 counts 是同一个查询：回放那条路把它随快照一起交回去，
+ * 在线重建那条路在把这一趟取回的行写进库之后再单读一次（写之前读到的会是上一轮的数字）。
+ */
+export async function readSnapshotCounts(input: SnapshotLibraryKey): Promise<SnapshotCounts | null> {
+  const handle = await handleOf(input)
+  if (!handle) return null
+  try {
+    return handle.readCounts()
+  } catch (e) {
+    return null
+  }
+}
+
 /** 库为空（或者开不出来）回 null；有行就回放成与在线组装同形的快照主体。 */
 export async function readSnapshotReplay(input: SnapshotReplayInput): Promise<SnapshotReplay | null> {
   const handle = await handleOf(input)
@@ -228,13 +250,19 @@ export async function readSnapshotReplay(input: SnapshotReplayInput): Promise<Sn
   }
   const projectionMs = Date.now() - projectionStartedAt
   if (!projection || !projection.issues.length) return null
+  const snapshot = snapshotOfProjection(input.repo, projection)
+  // #1887：六个数字与回放同一时刻算出，随回包一起交给界面；读不出来就不挂 counts（不知道，不补 0）。
+  let counts: SnapshotCounts | null = null
+  try { counts = handle.readCounts() } catch (e) { counts = null }
+  if (counts) snapshot.deck = { counts }
   return {
-    snapshot: snapshotOfProjection(input.repo, projection),
+    snapshot: snapshot,
     mergeVersion: projection.mergeVersion,
     lastKnownAtMs: lastKnownAtMsOf(projection),
     oldestRowAtMs: oldestRowAtMsOf(projection),
     rows: projection.issues.length,
     projectionMs: projectionMs,
+    counts: counts,
   }
 }
 
@@ -451,4 +479,3 @@ export async function recordCommentReceipt(input: CommentReceiptInput): Promise<
   const applied = Array.isArray(result.commentPositions) && result.commentPositions.length ? result.commentPositions[0] : planned.fallbackPosition
   return { ok: true, mergeVersion: result.mergeVersion, position: applied }
 }
-

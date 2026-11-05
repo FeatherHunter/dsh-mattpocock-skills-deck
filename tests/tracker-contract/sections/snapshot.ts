@@ -3,8 +3,8 @@
 // 守的东西（#132 Q2=B）：composeSnapshot 非 op（纯 list 组合 + deck 派生）；快照缓存
 // （TTL 可配）+ 依赖边 LRU 只缓存边数据；unsupported 不缓存；#1796 起首屏一律经
 // list({state:'open'}) 取开放工作集（后端可选快路径整条不走），再并上开放地图子票与
-// 已关闭地图容器行；map 正文五区块解析；拉取请求同池（#505 落 #294 形状 A）；数字走
-// 后端 counts（deck.counts / deck.partial / deck.missingOpen）。
+// 已关闭地图容器行；map 正文五区块解析；拉取请求同池（#505 落 #294 形状 A）。#1887 起六个数字
+// 不再由编排层写（由快照库一次查询算、电话层挂上），编排层只写 deck.partial（这份行数据全不全）。
 //
 // 类型说明：
 // - 拼装器来自没类型的旧文件（allowJs 只保证引入得到，不做类型检查），
@@ -34,8 +34,8 @@ export interface SnapshotSectionResult {
 /**
  * 拼装成功包：拼装器的 JSDoc 只写了 {ok, snapshot, version, cached}，
  * 运行时带版号对上时的 304 那条还多带 notModified（见 snapshot.js:299），这里一并写上。
- * deck 在运行时带 counts/partial/missingOpen（数字走后端 counts；「缺几张未关闭票」按 #1796 的新口径），
- * 共享形状的 DeckProjection 没跟上，这里按运行时补——不改源形状，本分区自用。
+ * deck 在运行时带 partial（#1887 起编排层不再写 counts / countsPending / missingOpen；
+ * 六个数字由电话层从快照库挂上），共享形状的 DeckProjection 没跟上，这里按运行时补——不改源形状，本分区自用。
  * 本分区每个用例都先断言成功再读数，读版/读缓存/读 304 标记/读数字都走这个形状，一处一断言。
  */
 interface ComposeSuccess {
@@ -577,124 +577,62 @@ export async function run() {
     await assert('✗ probe: 关调试开关 → 按需命中零记录，常驻未命中照记', hitsOff.length === 0 && missOff.length === 1 && missOff[0].fields.reason === 'empty', `hits=${hitsOff.length} miss=${JSON.stringify(missOff)}`)
   }
 
-  // ── #689 起步、#1796 改口径：数字走后端计数，partial 只报异常缺失 ──
-  //   这一段守的是「面板上的数字从哪来、缺没缺」：数字是后端 counts 给的真值（不是数池子数出来的）；
-  //   partial 只看开放工作集行数对不对得上后端 open、列表有没有触上限 / 降级、计数是否缺失或冲突；
-  //   「已关闭历史只装首页」是规格 677 §6.3 的设计、不算缺。数字与 partial 都要算进版号，否则变了会被 304 糊过去。
+  // ── #1887：六个数字由快照库一次查询算，编排层不再向后端要计数 ──
+  //   这一段守的是「编排层不造数字」：后端即使实现了 counts，这里也一次都不许调用；
+  //   deck.counts 由电话层在库写到最新之后挂上（本分区没有库，所以这一格不该出现）。
+  //   partial 只报「这份行数据有没有异常缺失」：列表触上限、REST 降级、开放容器的子票没拉全 / 拉不到。
+  //   数字与清单的完整度是两件事：数字走了库那一条路，partial 不再拿后端 open 对账。
   {
     const POOL = [base({ key: '1', title: 'A' }), base({ key: '2', title: 'B', state: 'closed' })]
     let countsCalls = 0
-    // countsImpl 故意收宽：四个用例里有三个返回坏形状（unsupported 桩、配额错、缺数字），
-    // 本来就是要验证“拿不到计数时不写 deck.counts”的反例，类型上不可能是合规的 Counts。
-    const mkReg = (countsImpl: () => unknown, rows: any[]) => {
+    const mkReg = (listResult: () => any) => {
       const reg = createRegistry(emptyCtx, { matchesTimeout: 50 })
-      // 这个桩只用来复现后端计数进快照，不断言额度，所以按离网口径声明。
+      // counts 故意实现并记一笔：编排层若还问它，下面那条断言当场抓住。
       reg.register({
         id: 'counted', label: 'counted',
         budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
         create: () => ({
-          list: async () => ({ ok: true, data: rows }),
-          counts: async () => { countsCalls++; return countsImpl() },
+          list: async () => listResult(),
+          counts: async () => { countsCalls += 1; return { ok: true, data: { open: 999, closed: 999, total: 999 } } },
         }),
         matches: async () => true,
       } as unknown as BackendModule)
       return reg
     }
 
-    // ① 后端能计数、开放行数对得上：三个数进 deck，partial 为假、missingOpen 为 0，同数据版号可复现
+    // ① 来源完整：后端计数一次都不问，deck 上也没有计数相关的格子
     {
-      const live = { open: 1, closed: 1, total: 2 }
-      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: Object.assign({}, live) }), POOL), { snapshotTtl: 60000, depsTtl: 60000 })
+      countsCalls = 0
+      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: POOL })), { snapshotTtl: 60000, depsTtl: 60000 })
       const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
-      await assert('后端计数的三个数写进 deck.counts（面板不再自己数池子）',
-        r.ok === true && r.snapshot.deck.counts && r.snapshot.deck.counts.open === 1 && r.snapshot.deck.counts.closed === 1 && r.snapshot.deck.counts.total === 2,
-        JSON.stringify(r.snapshot.deck.counts))
-      await assert('#1796 开放行数与后端 open 对得上 → partial 为假', r.snapshot.deck.partial === false, 'partial=' + JSON.stringify(r.snapshot.deck.partial))
-      await assert('#1796 一张都不缺时 deck.missingOpen 为 0', r.snapshot.deck.missingOpen === 0, 'missingOpen=' + JSON.stringify(r.snapshot.deck.missingOpen))
+      const deck: any = r.snapshot.deck
+      await assert('编排层一次都不向后端要计数（后端实现了 counts 也不调用）', r.ok === true && countsCalls === 0, 'countsCalls=' + countsCalls)
+      await assert('编排层不往 deck 写 counts（数字由电话层从库挂上）', !!deck && !deck.counts, JSON.stringify(deck && deck.counts))
+      await assert('编排层不写 countsPending（「待校准」这一档已退场）', !!deck && !('countsPending' in deck), JSON.stringify(deck && deck.countsPending))
+      await assert('编排层不再写 missingOpen（后端计数不参与 partial）', !!deck && !('missingOpen' in deck), JSON.stringify(deck && deck.missingOpen))
+      await assert('来源完整时 partial 为假', !!deck && deck.partial === false, JSON.stringify(deck && deck.partial))
       const v1 = r.version
+      countsCalls = 0
       const again = await composer.composeSnapshot('counted', ref, {}, { force: true }) as ComposeSuccess
-      await assert('同数据重建 → 版号不变（可复现）', again.version === v1, `v1=${v1} again=${again.version}`)
-      // 数字变了必须换版号：否则带着旧版号问一次就能被 304 糊过去（规格第 12 节点名的风险）
-      live.total = 3
-      live.closed = 2
-      const rChanged = await composer.composeSnapshot('counted', ref, {}, { force: true, ifNoneMatch: v1 }) as ComposeSuccess
-      await assert('✗ probe: 后端数字变了 → 版号变化且不回 304（数字变了不许被 304 糊过去）',
-        rChanged.version !== v1 && rChanged.notModified !== true && rChanged.snapshot.deck.counts!.closed === 2,
-        `v1=${v1} changed=${rChanged.version} notModified=${JSON.stringify(rChanged.notModified)}`)
-    }
-    // ② 列表触到上限（后端自己说截断了）→ 数字仍用后端，partial 置真
-    {
-      const reg2 = createRegistry(emptyCtx, { matchesTimeout: 50 })
-      reg2.register({
-        id: 'counted', label: 'counted',
-        budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
-        create: () => ({
-          list: async () => ({ ok: true, data: POOL, truncated: true }),
-          counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 649 } }),
-        }),
-        matches: async () => true,
-      } as unknown as BackendModule)
-      const c2 = createSnapshotComposer(reg2, { snapshotTtl: 60000, depsTtl: 60000 })
-      const rTrunc = await c2.composeSnapshot('counted', ref, {}) as ComposeSuccess
-      await assert('✗ probe: 列表触到上限 → partial 置真（数字仍用后端）',
-        rTrunc.snapshot.deck.partial === true && rTrunc.snapshot.deck.counts!.total === 649,
-        `partial=${JSON.stringify(rTrunc.snapshot.deck.partial)} counts=${JSON.stringify(rTrunc.snapshot.deck.counts)}`)
+      await assert('同数据重建 → 版号不变，且仍然不问计数', again.version === v1 && countsCalls === 0, 'v1=' + v1 + ' again=' + again.version + ' countsCalls=' + countsCalls)
     }
 
-    // ④ 拿不到计数（后端没实现 / 配额耗尽 / 形状不对）：不写 counts、countsPending 与 partial 都置真
+    // ② 列表触到上限 → partial 真（不靠后端计数判断）
     {
-      // label 与 impl 成对：断言名里直接用 label，impl 是上面 mkReg 要的宽形状。
-      const cases: Array<[string, () => unknown]> = [
-        ['后端没实现（注册表补的 unsupported 桩）', () => ({ ok: false, error: { kind: 'unsupported', message: 'counted does not implement op counts' } })],
-        ['配额耗尽', () => ({ ok: false, error: { kind: 'rate-limit', message: 'quota exhausted' } })],
-        ['回了个坏形状（数字缺失 / 不是整数）', () => ({ ok: true, data: { open: 1, closed: null, total: 2 } })],
-      ]
-      for (const [label, impl] of cases) {
-        countsCalls = 0
-        const composer = createSnapshotComposer(mkReg(impl, POOL), { snapshotTtl: 60000, depsTtl: 60000 })
-        const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
-        // #1796：首屏只装开放工作集之后，本地再也数不出「已关闭多少、总共多少」——拿不到后端计数就无从
-        //   判断缺没缺，按规格 677 §6.5 把 partial 置真、countsPending 留作待定；绝不拿行数冒充后端数字。
-        const d = r.snapshot.deck
-        await assert('拿不到计数（' + label + '）→ 不写 counts、countsPending 与 partial 都置真',
-          !d.counts && d.countsPending === true && d.partial === true && d.missingOpen === undefined,
-          JSON.stringify({ counts: d.counts, pending: d.countsPending, partial: d.partial, missingOpen: d.missingOpen }))
-        await composer.composeSnapshot('counted', ref, {}, { force: true })
-        await assert('✗ probe: 计数失败不被缓存（' + label + '：每次重建都再问一次）', countsCalls === 2, 'countsCalls=' + countsCalls)
-      }
-    }
-
-    // ⑤ 数到的未关闭行比后端说的还多 = 这组数字不可能对 → 留痕冲突并置 partial（编排层那道判据）
-    {
-      // 池里两行都是未关闭、键不同（同键会被身份去重成一票），后端却只说有 1 张开放票。
-      const twoOpen = [base({ key: '1', title: 'A' }), base({ key: '3', title: 'C' })]
-      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: { open: 1, closed: 0, total: 1 } }), twoOpen), { snapshotTtl: 60000, depsTtl: 60000 })
+      countsCalls = 0
+      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: POOL, truncated: true })), { snapshotTtl: 60000, depsTtl: 60000 })
       const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
-      // #1796：冲突时数字仍用后端（counts.open 仍是 1），把后端当时给的那组数字留在 conflictWith 里；
-      //   missingOpen 截 0，不报负数。
-      await assert('✗ probe: 未关闭行（2）比后端 open 计数（1）还多 → 留痕冲突、partial 置真',
-        r.snapshot.deck.partial === true && r.snapshot.deck.counts!.open === 1
-          && !!r.snapshot.deck.counts!.conflictWith && r.snapshot.deck.counts!.conflictWith.total === 1
-          && r.snapshot.deck.missingOpen === 0,
-        JSON.stringify({ counts: r.snapshot.deck.counts, partial: r.snapshot.deck.partial, missingOpen: r.snapshot.deck.missingOpen }))
+      await assert('列表触到上限 → partial 置真（与后端计数无关）', r.snapshot.deck.partial === true && countsCalls === 0,
+        JSON.stringify({ partial: r.snapshot.deck.partial, countsCalls }))
     }
 
-    // ⑥ 池子里的拉取请求不算工单：partial 的判据只数工单（与界面口径同一句话）
+    // ③ 这一趟走了 REST 降级 → partial 真
     {
-      const reg6 = createRegistry(emptyCtx, { matchesTimeout: 50 })
-      reg6.register({
-        id: 'counted', label: 'counted',
-        budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
-        create: () => ({
-          list: async () => ({ ok: true, data: POOL.concat([base({ key: '9', title: 'PR9', isPullRequest: true, mergedAt: null, reviews: [] })]) }),
-          counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 2 } }),
-        }),
-        matches: async () => true,
-      } as unknown as BackendModule)
-      const c6 = createSnapshotComposer(reg6, { snapshotTtl: 60000, depsTtl: 60000 })
-      const r6 = await c6.composeSnapshot('counted', ref, {}) as ComposeSuccess
-      await assert('拉取请求不计入「缺几张未关闭票」的判据（工单口径：1 张开放工单 == 后端 open 1 → partial 为假）',
-        r6.snapshot.deck.partial === false && r6.snapshot.issues.length === 3, JSON.stringify({ partial: r6.snapshot.deck.partial, rows: r6.snapshot.issues.length }))
+      countsCalls = 0
+      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: POOL, fallback: 'rest' })), { snapshotTtl: 60000, depsTtl: 60000 })
+      const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
+      await assert('这一趟走了 REST 降级 → partial 置真', r.snapshot.deck.partial === true && countsCalls === 0,
+        JSON.stringify({ partial: r.snapshot.deck.partial, countsCalls }))
     }
 
     // ── #1796 首屏工作集：开放池 + 开放容器子票 + 已关闭地图容器行 ──
@@ -713,8 +651,6 @@ export async function run() {
         id: 'work', label: 'work',
         budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
         create: () => ({
-          // 后端计数与首屏开放行数对齐（3 张开放容器/票）：partial 的基线才有意义。
-          counts: async () => ({ ok: true, data: { open: 3, closed: 2, total: 5 } }),
           list: async (_ref: any, filter: any) => { calls.listFilters.push(filter); return { ok: true, data: [OPEN_MAP, OPEN_TICKET, OPEN_SPEC] } },
           listSubIssues: async (_ref: any, key: any) => {
             calls.subIssueKeys.push(key)
@@ -749,9 +685,9 @@ export async function run() {
       await assert('#1796 开放规格容器也拉子票（已关闭实施票 203 挂回规格 302，做完的规格不再显示一张子票都没有）',
         !!openSpec && openSpec.type === 'spec' && openSpec.tickets.some((t) => String(t.key) === '203'),
         JSON.stringify(openSpec && { tickets: openSpec.tickets.map((t) => String(t.key)) }))
-      await assert('#1796 后端计数与开放行数对得上时 partial 为假、missingOpen 为 0（子票补齐不虚增开放行数）',
-        r.snapshot.deck.partial === false && r.snapshot.deck.missingOpen === 0 && !!r.snapshot.deck.counts && r.snapshot.deck.counts.open === 3,
-        JSON.stringify({ partial: r.snapshot.deck.partial, missingOpen: r.snapshot.deck.missingOpen, counts: r.snapshot.deck.counts }))
+      await assert('#1796 来源完整时 partial 为假（子票补齐不虚增开放行数；数字不在这里写）',
+        r.snapshot.deck.partial === false && !('counts' in r.snapshot.deck),
+        JSON.stringify({ partial: r.snapshot.deck.partial, counts: r.snapshot.deck.counts }))
       const closedContainer: any = maps.filter((m) => String(m.key) === '200')[0]
       await assert('#1796 冷启动补一页已关闭地图容器行（type=map、state=CLOSED、编号 200 在场）',
         !!closedContainer && closedContainer.type === 'map' && String(closedContainer.state).toUpperCase() === 'CLOSED' && closedContainer.number === 200,
@@ -773,6 +709,12 @@ export async function run() {
       const r3 = await wc.composeSnapshot('work', ref, {}, { force: true }) as ComposeSuccess
       await assert('#1796 子票撞到上限时 partial 置真（开放工作集没缺，但子票不全）',
         r3.snapshot.deck.partial === true, JSON.stringify({ partial: r3.snapshot.deck.partial }))
+      // #1887：子票拉取硬失败同样是「这份行数据不全」，partial 置真（与计数无关）。
+      calls.capped = false
+      calls.failKey = '300'
+      const r4 = await wc.composeSnapshot('work', ref, {}, { force: true }) as ComposeSuccess
+      await assert('#1887 子票拉取失败时 partial 置真（行数据不全，不靠后端计数）',
+        r4.snapshot.deck.partial === true, JSON.stringify({ partial: r4.snapshot.deck.partial }))
     }
   }
 

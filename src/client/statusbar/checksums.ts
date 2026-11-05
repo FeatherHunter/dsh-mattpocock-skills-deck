@@ -40,9 +40,9 @@ export const checksumsOf = function (s: any, deckCounts?: any) {
   // #1894：这几个数字改从视图模型的 counts 切片取 —— 列表页顶上的 KPI 读的是同一份，两处不会再各算一遍。
   //   视图模型不在时（单文件门禁/旧闭包）退回原来那几个函数，数字口径不变。
   const fromView = deckCounts || ((typeof deckViewCountsOf === 'function') ? deckViewCountsOf(s) : null)
-  const occ = fromView ? fromView.occupied : occCount(s)
-  const counts = fromView ? fromView.backend : deckCountsOf(s, false)
-  const fr = fromView ? fromView.takeable : (counts ? Math.max(0, counts.open - occ) : frontierCount(s))
+  // #1887：可接直接取视图模型 counts 切片（库的六个数字之一）；没有视图模型时退回本地派生。
+  const counts = (!fromView && typeof deckCountsOf === 'function') ? deckCountsOf(s, false) : null
+  const fr = fromView ? fromView.takeable : (counts ? counts.takeable : frontierCount(s))
   const bugN = fromView ? fromView.bug : bugCount(s)
   const triageN = fromView ? fromView.triage : triageCount(s)
   const n = readyCount(s)

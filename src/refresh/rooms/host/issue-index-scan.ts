@@ -23,6 +23,11 @@ interface IssueIndexWindowDeps {
   // （库里一条票都没有、库打不开、后端认不出都回 null）。后端编号由这一层转手传下去，
   // 装配方不必为了一个字符串再开一趟会话。
   readLibrarySnapshot?: (cwd: string, repo: { owner: string; name: string }, backendId: string) => Promise<{ snapshot: any; oldestRowAtMs: number } | null>
+  /**
+   * #1887：整仓完整枚举被采用之后回调一次（由 commitIssueIndex 触发，只在调用方明确说
+   * 「fullEnumeration: true」时调）。实现住在取数入口：只有那一层摸得到快照库门面。
+   */
+  onFullEnumeration?: (input: { cwd: string; backendId: string; repoIdentity: string; atMs: number }) => Promise<any> | any
   // 取时间（门禁注入假时钟）
   now?: () => number
 }
@@ -106,7 +111,24 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
     const nextWatermarkMs = (indexWindow as any).nextWatermark(startedMs)
     // 基线同水印一条理由：基线一推，「有没有变」这个判断也跟着提前消费掉——被推迟的那一次就再也补不回来。
     if (o.commit === true) commit(rk, nextWatermarkMs, merged)
-    return { ok: true, repo: remote.repo, index: merged, count: Object.keys(merged).length, changed: changed, windowed: !w.full, windowCount: remote.count, nextWatermarkMs: nextWatermarkMs, watermarkCommitted: o.commit === true }
+    return {
+      ok: true,
+      repo: remote.repo,
+      // #1887：库身份由取数入口按会话 refId 原样带回来；完整枚举标记要靠它开对的那一个库。
+      repoIdentity: String(remote.repoIdentity || ''),
+      backendId: String(remote.backendId || ''),
+      index: merged,
+      count: Object.keys(merged).length,
+      changed: changed,
+      // windowed = 这一趟只扫了窗口；full = 这一趟是「没有窗口起点」的整仓枚举（两者互为反面）。
+      windowed: !w.full,
+      full: w.full,
+      // 这一趟的行有没有真的写进库；写失败时完整枚举标记不写（commitIssueIndex 会再看一眼）。
+      persisted: remote.persisted !== false,
+      windowCount: remote.count,
+      nextWatermarkMs: nextWatermarkMs,
+      watermarkCommitted: o.commit === true,
+    }
   }
 
   // 水印与基线唯一的推进口：只许往前走，也不许把基线换成更旧的一份。
@@ -170,9 +192,30 @@ export function createIssueIndexScan(deps: any): any {
   async function fetchIssueIndexWindowed(cwd: any, opts?: any): Promise<any> {
     try { const st: any = _st(); return await st.scan(cwd, opts) } catch (e: any) { return { ok: false, error: { kind: 'env', error: String((e && e.message) || e) } } }
   }
-  /** 水印与基线唯一的推进口：只在「变化真的并进列表之后」（或探测回来说没变）调它。 */
-  async function commitIssueIndex(cwd: any, nextWatermarkMs: any, nextIndex: any): Promise<any> {
-    try { const st: any = _st(); return await st.commit(cwd, nextWatermarkMs, nextIndex) } catch (e) { return { ok: false, reason: 'threw' } }
+  /**
+   * 水印与基线唯一的推进口：只在「变化真的并进列表之后」（或探测回来说没变）调它。
+   *
+   * #1887：opts.fullEnumeration 为真时，推完水印再写「上一次完整枚举时刻」。这个判断不在这里做
+   * 「是不是真的完整」——取数入口已经把「窗口扫描 / 被截断 / 预算拦住 / 行没写进库」那几档挡在外面，
+   * 到得了这里又明说 true 的，就是完整枚举被采用的那一趟。回调失败不影响水印推进（两件事分开记账）。
+   */
+  async function commitIssueIndex(cwd: any, nextWatermarkMs: any, nextIndex: any, opts?: any): Promise<any> {
+    try {
+      const st: any = _st()
+      const committed: any = await st.commit(cwd, nextWatermarkMs, nextIndex)
+      const o: any = opts || {}
+      if (committed && committed.ok !== false && o.fullEnumeration === true && typeof d.onFullEnumeration === 'function') {
+        try {
+          await d.onFullEnumeration({
+            cwd: String(cwd || ''),
+            backendId: String(o.backendId || ''),
+            repoIdentity: String(o.repoIdentity || ''),
+            atMs: Date.now(),
+          })
+        } catch (eM: any) {}
+      }
+      return committed
+    } catch (e) { return { ok: false, reason: 'threw' } }
   }
   return { fetchIssueIndexWindowed: fetchIssueIndexWindowed, commitIssueIndex: commitIssueIndex }
 }

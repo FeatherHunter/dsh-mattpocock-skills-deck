@@ -16,7 +16,7 @@
  *     不能边取边按页提交——进程在页与页之间被杀，库里就会半新半旧。
  */
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
-import type { SnapshotDiagnostic } from '../../../workspace-snapshot/contract/types.js'
+import type { SnapshotCounts, SnapshotDiagnostic } from '../../../workspace-snapshot/contract/types.js'
 import { hasRebuildDiagnostic, SNAPSHOT_DEGRADE } from './snapshot-degradation.js'
 
 /** 库门面里这一层真正用到的两件：读回放、按批写行。 */
@@ -32,6 +32,8 @@ export interface FirstScreenLibrary {
     /** 回放的库版本与行数；老假库可能不带，缺一个都当「不知道」而不是 0。 */
     mergeVersion?: number
     rows?: number
+    /** 回放同一时刻的六个数字 + 完整度（#1887）；老假库可能不带。 */
+    counts?: SnapshotCounts | null
     /** 这一趟库投影花了多少毫秒（#1899 日志的投影时长读数）。 */
     projectionMs?: number
   } | null>
@@ -57,6 +59,15 @@ export interface FirstScreenLibrary {
     backend: string
     repoIdentity: string
   }): Promise<'open' | 'unavailable'> | 'open' | 'unavailable'
+  /**
+   * 库这一刻的六个数字 + 完整度（#1887）。在线重建写完库之后单读一次；
+   * 老假库没有这一口时调用方按「读不到」处理。返回 null = 读不到。
+   */
+  readSnapshotCounts?(input: {
+    workspaceRoot: string
+    backend: string
+    repoIdentity: string
+  }): Promise<SnapshotCounts | null> | SnapshotCounts | null
 }
 
 /** 造首屏要的输入：库门面（可能是异步取到的）、库身份三格、仓库引用、这一趟是不是强制重建。 */
@@ -86,6 +97,11 @@ export interface FirstScreen {
   writeRows: ((rows: unknown[]) => void) | undefined
   /** 组装结束后整批一个事务写库；没有收到行时回 null。 */
   commitRows: () => Promise<unknown>
+  /**
+   * 读一次库这一刻的六个数字 + 完整度（#1887）。在线重建的路在把这一趟取回的行写进库之后调它；
+   * 库门面没接或读失败时回 null（界面按「不知道」处理，不补 0）。
+   */
+  readCounts: () => Promise<SnapshotCounts | null>
   /** 开库诊断：损坏重建、退回只读等；不论有没有回放都要随回包交给界面。 */
   diagnostics: SnapshotDiagnostic[]
   /** 给回包盖上「来自库」的注记：fromCache 与 diskReplay（与在线重建区分开），并带上开库诊断。 */
@@ -119,6 +135,7 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
     mergeVersion?: number
     rows?: number
     projectionMs?: number
+    counts?: SnapshotCounts | null
   } | null = null
   if (options.force !== true) {
     try {
@@ -126,6 +143,13 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
     } catch (e) {
       replay = null
     }
+  }
+  // #1887：回放里若另带了 counts（新门面会带），把它挂到 deck 上；老假库的 snapshot 里可能已经有，
+  // 也可能两个都没有 —— 两个都没有就不挂，由在线重建那条路补。
+  if (replay && replay.counts && replay.snapshot && typeof replay.snapshot === 'object') {
+    const deck = (replay.snapshot.deck && typeof replay.snapshot.deck === 'object') ? replay.snapshot.deck : {}
+    deck.counts = replay.counts
+    replay.snapshot.deck = deck
   }
   // 诊断要在回放读之前或之后拿：handleOf 会把句柄缓存住，先读回放再读诊断也不会重复开库；
   // 但库为空、刚重建时回放是 null，诊断仍要拿到，所以这里不能绑在 replay 上。
@@ -154,11 +178,21 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
       return null
     }
   }
+  // #1887：库这一侧单读一次六个数字；门面没接这一口就回 null（老假库与不接库的世界）。
+  const readCounts = async function (): Promise<SnapshotCounts | null> {
+    if (typeof lib!.readSnapshotCounts !== 'function') return null
+    try {
+      return await Promise.resolve(lib!.readSnapshotCounts(key))
+    } catch (e) {
+      return null
+    }
+  }
   return {
     replay: replay,
     degradeReason: degradeReason,
     writeRows: writeRows,
     commitRows: commitRows,
+    readCounts: readCounts,
     diagnostics: diagnostics,
     decorate: function (snap: any): void {
       if (diagnostics.length) snap.snapshotDiagnostics = diagnostics
@@ -167,6 +201,23 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
       snap.diskReplay = { schema: 'snapshot-sqlite-v1', source: 'sqlite', lastKnownAtMs: replay.lastKnownAtMs }
     },
   }
+}
+
+/**
+ * #1887：把库这一趟的六个数字挂到快照的 deck 上（读不到就原样返回）。
+ *
+ * 为什么放在这里：首屏、刷新、回退三条路用的是同一个库门面与同一种读取；每个电话各写一遍
+ * 「有没有这一口 / 读失败怎么办 / 怎么挂 deck」迟早会漂。调用方只管在「这一趟的行写进库之后」调它。
+ */
+export async function withLibraryCounts(snap: any, screen: any): Promise<any> {
+  if (!snap || typeof snap !== 'object' || !screen || typeof screen.readCounts !== 'function') return snap
+  let counts: SnapshotCounts | null = null
+  try { counts = await screen.readCounts() } catch (e) { counts = null }
+  if (!counts) return snap
+  const deck: any = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}
+  deck.counts = counts
+  snap.deck = deck
+  return snap
 }
 
 /**

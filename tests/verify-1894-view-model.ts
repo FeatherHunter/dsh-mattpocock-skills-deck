@@ -203,7 +203,8 @@ async function main(): Promise<void> {
   {
     let version: number | null = 11
     const snap: any = projectionOf([row('1'), row('2', { labels: ['bug'] })])
-    const backend = { open: 2, closed: 0, total: 2, atMs: 77, source: 'backend' }
+    // #1887：六个数字 + 完整度（库的 readCounts 形状）；不再有 source / atMs / pending。
+    const libCounts = { total: 2, open: 2, closed: 0, takeable: 2, blocked: 0, claimed: 0, completeness: 'complete', complete: true }
     const scope: any = {
       wsKeyOf: function (k: any): string { return String(k || '') },
       snapshotVersionBookOf: function (): any { return { version: version, seenAtMs: 0 } },
@@ -212,10 +213,10 @@ async function main(): Promise<void> {
       isOccupied: function (_st: any, r: any): boolean { return !!(r && r.assignees && r.assignees.length) },
       effortOf: function (r: any): string { return String((r && r.effortId) || '') },
       occCount: function (): number { return 0 },
-      deckCountsOf: function (): any { return backend },
+      deckCountsOf: function (): any { return libCounts },
       bugCount: function (): number { return 1 },
       triageCount: function (): number { return 0 },
-      kpiCountsOf: function (): any { return { takeable: 2, closed: 0, unknown: false, pending: false, atMs: 77, source: 'backend' } },
+      kpiCountsOf: function (): any { return { takeable: 2, blocked: 0, claimed: 0, closed: 0, total: 2, complete: true, unknown: false, occupied: 0 } },
       listPrefs: { stateFilter: 'all', sortKey: 'number', sortDir: 'asc' },
       saveListPrefs: function (): void {},
     }
@@ -230,7 +231,7 @@ async function main(): Promise<void> {
     binding.deckViewOf(stA, scope)
     check(JSON.stringify(versionsOf(viewA)) === JSON.stringify(beforeA), 'E4 同一版本再取一次：一个切片都不重算', versionsOf(viewA))
     const counts: any = binding.deckViewCountsOf(stA, scope)
-    check(counts === viewA.slice('counts') && counts.backend.open === 2 && counts.kpi.takeable === 2, 'E5 deckViewCountsOf 与视图模型 counts 是同一个对象、注入的读数原样可见', counts)
+    check(counts === viewA.slice('counts') && counts.counts.total === 2 && counts.complete === true && counts.kpi.takeable === 2, 'E5 deckViewCountsOf 与视图模型 counts 是同一个对象、注入的六个数字原样可见', counts)
     check(binding.deckProjectionOf(stA, scope) === snap, 'E6 胶囊读的投影与视图模型 projection 切片是同一个快照')
     const res = binding.deckViewCommand(stA, 'setStateFilter', 'closed', scope)
     check(res.changed.indexOf('filters') >= 0 && stA.stateFilter === 'closed', 'E7 命令改完镜像回会话存储（别的角落按 st 字段读也对）', stA.stateFilter)

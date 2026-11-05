@@ -34,7 +34,7 @@ zh:
   list.noDest: （未填写 Destination）
   list.noNotes: （未填写 Notes）
   list.kpi.takeable: 可接
-  list.kpi.occupied: 阻塞
+  list.kpi.blocked: 阻塞
   list.kpi.closed: 已关闭
   list.healthCheck: 体检
   list.healthCheckTitle: 体检：开一个新会话，对当前ISSUE的健康程度进行检查。
@@ -54,8 +54,9 @@ zh:
   list.partialMissing: 缺 {n} 张未关闭票，体检可能遗漏。
   # #1698 计数诚实：拿不到整仓计数、这份清单又不全时不显示数字（不显示假 0）；待校准时给出上次校准时刻。
   list.countsUnknown: 未知
-  list.countsUnknownTitle: 计数还没拿到：后端这次没回答，手上这份清单也不完整，所以这里不显示数字。
-  list.countsPendingTitle: 上次校准：{time}（数字待校准）
+  list.countsUnknownTitle: 计数还没算出来：本机这份数据还不完整，所以这里不显示确定的数字。
+  # #1887：库经历过一次完整枚举 → 直接说数字；没经历过 → 明说这是「已知」的下界，不冒充全仓。
+  list.countsKnownPartial: 已知 {n} 张（未取全）
   list.collapse: 收起
   list.blocked: 被阻塞
   list.blockedTitle: 被 {by} 阻塞（点击查看地图详情）
@@ -302,7 +303,7 @@ en:
   list.noDest: (no Destination)
   list.noNotes: (no Notes)
   list.kpi.takeable: Ready
-  list.kpi.occupied: Blocked
+  list.kpi.blocked: Blocked
   list.kpi.closed: Closed
   list.healthCheck: Health check
   list.healthCheckTitle: "Health check: open a new session to check the health of the current ISSUE."
@@ -321,8 +322,9 @@ en:
   list.partialMissing: Missing {n} open ISSUE(s) — the health check may miss some.
   # #1698 honest counts: show no number (never a fake 0) when the backend count is unavailable and this list is incomplete; when pending, show the last calibration time.
   list.countsUnknown: Unknown
-  list.countsUnknownTitle: Counts not available yet — the backend did not answer and this list is incomplete, so no number is shown.
-  list.countsPendingTitle: Last calibrated {time} (counts pending)
+  list.countsUnknownTitle: Counts not available yet — this local copy is incomplete, so no exact number is shown.
+  # #1887: a full enumeration happened → show the number; otherwise say it is a known lower bound.
+  list.countsKnownPartial: Known {n} (not fully fetched)
   list.collapse: Collapse
   list.blocked: Blocked
   list.blockedTitle: Blocked by {by} (click for map details)
