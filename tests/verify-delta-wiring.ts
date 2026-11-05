@@ -136,8 +136,9 @@ async function run() {
     getTrackerRegistry: async () => fakeRegistry, // #1444：行级增量经只读会话取薄行，装配口要能选出一个后端
     getPlatform: async () => ({ path: path.posix }),
     detectionExec: async () => ({ ok: false, kind: 'env', error: '门禁里不发真请求' }),
-    getCache: () => cacheBox,
-    setCache: (v) => { if (v && v.snapshot) { cacheBox.snapshot = v.snapshot; cacheBox.ts = v.ts } },
+    // #1893：宿主内存副本已删；用两个显式口模拟「不接库的老世界」，生产装配不传它们。
+    readSnapshotForPatch: () => cacheBox.snapshot,
+    writeSnapshotForPatch: (_cwd, snap) => { cacheBox.snapshot = snap; cacheBox.ts = Date.now() },
     readDiskCache: async () => disk.snap,
     writeDiskCache: async (repo, snap) => { disk.snap = snap },
     runGh: runGh,

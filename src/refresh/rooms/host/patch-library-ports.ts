@@ -3,8 +3,11 @@
 // 为什么单列：row-patch.ts 是宿主侧的跑腿件，它不认识「库门面长什么样」，也不该认识 ——
 // 依赖方向是 refresh 房间 → 快照契约，门面实现由宿主装配时注入。这一层把三件事拼起来：
 //   ① 从宿主注入的 getSnapshotLibrary 里拿到库门面；
-//   ② 用「工作区目录 + 当前后端 + owner/name」组成库身份（与首屏读库、索引起点那条路同一份身份）；
-//   ③ 把门面的四个口转成 row-patch 认的四格：读簿记、写簿记、读差分基线、提交变化行。
+//   ② 用「工作区目录 + 当前后端 + 仓库身份」组成库身份（与首屏读库、索引起点那条路同一份身份）：
+//      owner/name 优先（GitHub），注册表 describe 给的 refId 其次（GitLab / 自有实例），本地 Markdown
+//      用工作区目录本身。少一格就会开成另一个库，版本永远对不上、变化集永远是整份。
+//   ③ 把门面的五个口转成 row-patch 认的几格：读回放、读簿记、写簿记、读差分基线、提交变化行。
+//      #1893 起「读回放」是行级增量拿基线的唯一入口——宿主内存副本已删，不许再有第二条。
 //
 // 三条不能改的约定：
 //   1. 身份解析不出来（没有工作区根、当前后端还没读过、owner/name 拿不到）回 null：这不是「库坏了」，
@@ -46,10 +49,14 @@ export interface PatchLibraryCommitResult {
 export interface PatchLibraryPorts {
   /**
    * 这一趟能不能按库走：门面在、四个新口齐、库身份解析得出来。
-   * 回 false 时 row-patch 照旧只写宿主内存副本 —— 老装配（假门面、别的宿主版本）不该因为
-   * 缺一个新口就整条增量路停摆；门面齐但读写失败才按「库写入失败」处理。
+   * 回 false 时 row-patch 照旧按「库不可用」处理（回 rebuild / failed），不再回落到宿主内存副本。
    */
   ready(cwd: string): Promise<boolean>
+  /**
+   * 读这个工作区的当前回放（列表投影 + 行组最老取数时刻）。
+   * #1893：行级增量的基线只能来自这里；回 null 表示「这一趟没有可比对的库」，调用方按无基线整池。
+   */
+  readReplay(cwd: string): Promise<{ snapshot: any; oldestRowAtMs: number; mergeVersion: number } | null>
   readState(cwd: string): Promise<PatchLibraryState | null>
   writeState(cwd: string, write: SyncBookkeepingWrite): Promise<PatchLibraryWriteResult | null>
   readBaseline(cwd: string): Promise<PatchBaselineIndex | null>
@@ -61,18 +68,21 @@ export interface PatchLibraryPorts {
   ): Promise<PatchLibraryCommitResult | null>
 }
 
-/** 装配这一道口要的三样：库门面、仓库键、当前后端编号。全部由宿主接线时注入。 */
+/** 装配这一道口要的四样：库门面、仓库键、注册表、当前后端编号。全部由宿主接线时注入。 */
 export interface PatchLibraryPortsDeps {
   getSnapshotLibrary?: (() => Promise<any> | any) | null
   getRepoKey?: ((cwd: string) => Promise<any> | any) | null
+  /** #1893：GitLab / 自有实例没有 owner/name 远端时，refId 只能问注册表 describe。 */
+  getTrackerRegistry?: (() => Promise<any> | any) | null
   backendIdOf?: (() => string) | null
 }
 
-/** 库身份三格；与门面里 SnapshotLibraryKey 同形。 */
+/** 库身份：门面要的三格 + 回放要的仓库引用。 */
 interface LibraryKey {
   workspaceRoot: string
   backend: string
   repoIdentity: string
+  repo: any
 }
 
 /** 造那一道口。库门面或仓库键没接时，四个方法全部回 null（row-patch 走改造前的老路）。 */
@@ -80,6 +90,7 @@ export function createPatchLibraryPorts(deps: PatchLibraryPortsDeps | null | und
   const d = deps || {}
   const getSnapshotLibrary = d.getSnapshotLibrary
   const getRepoKey = d.getRepoKey
+  const getTrackerRegistry = d.getTrackerRegistry
   const backendIdOf = d.backendIdOf
   // 同一趟里四个口都要身份：按目录记住解析成功的那一份，别把 getRepoKey 问四遍。
   const keyByCwd = new Map<string, LibraryKey>()
@@ -102,13 +113,34 @@ export function createPatchLibraryPorts(deps: PatchLibraryPortsDeps | null | und
     if (!workspaceRoot) return null
     const backend = (typeof backendIdOf === 'function') ? String(backendIdOf() || '') : ''
     if (!backend) return null
-    if (typeof getRepoKey !== 'function') return null
-    let repo: any = null
-    try { repo = await Promise.resolve(getRepoKey(workspaceRoot)) } catch (e) { repo = null }
-    const owner = repo && String(repo.owner || '')
-    const name = repo && String(repo.name || '')
-    if (!owner || !name) return null
-    const key: LibraryKey = { workspaceRoot: workspaceRoot, backend: backend, repoIdentity: owner + '/' + name }
+    // ① 宿主本地 git 远程（GitHub 最常见，纯本地读，不联网）。
+    let repoIdentity = ''
+    if (typeof getRepoKey === 'function') {
+      let repo: any = null
+      try { repo = await Promise.resolve(getRepoKey(workspaceRoot)) } catch (e) { repo = null }
+      const owner = repo && String(repo.owner || '')
+      const name = repo && String(repo.name || '')
+      if (owner && name) repoIdentity = owner + '/' + name
+    }
+    // ② 注册表 describe（GitLab / 自有实例的 refId 只有它知道）。空 refId 的壳不算身份。
+    if (!repoIdentity && typeof getTrackerRegistry === 'function') {
+      try {
+        const reg: any = await Promise.resolve(getTrackerRegistry())
+        if (reg && typeof reg.describe === 'function') {
+          const ref: any = reg.describe({ cwd: workspaceRoot }, backend)
+          if (ref && typeof ref.refId === 'string' && ref.refId) repoIdentity = ref.refId
+        }
+      } catch (e) { repoIdentity = '' }
+    }
+    // ③ 本地 Markdown 的仓库身份就是工作区目录本身（与 #1868 的判定同一口径）。
+    if (!repoIdentity && backend === 'markdown') repoIdentity = workspaceRoot
+    if (!repoIdentity) return null
+    const key: LibraryKey = {
+      workspaceRoot: workspaceRoot,
+      backend: backend,
+      repoIdentity: repoIdentity,
+      repo: { backend: backend, refId: repoIdentity, name: repoIdentity, url: '' },
+    }
     keyByCwd.set(cacheKey, key)
     return key
   }
@@ -124,6 +156,23 @@ export function createPatchLibraryPorts(deps: PatchLibraryPortsDeps | null | und
         if (typeof lib[name] !== 'function') return false
       }
       return true
+    },
+    async readReplay(cwd: string): Promise<{ snapshot: any; oldestRowAtMs: number; mergeVersion: number } | null> {
+      const lib = await libraryOf()
+      const key = await keyOf(cwd)
+      if (!lib || !key || typeof lib.readSnapshotReplay !== 'function') return null
+      try {
+        const got: any = await Promise.resolve(lib.readSnapshotReplay({
+          workspaceRoot: key.workspaceRoot,
+          backend: key.backend,
+          repoIdentity: key.repoIdentity,
+          repo: key.repo,
+        }))
+        if (!got || !got.snapshot) return null
+        return { snapshot: got.snapshot, oldestRowAtMs: Number(got.oldestRowAtMs) || 0, mergeVersion: Number(got.mergeVersion) || 0 }
+      } catch (e) {
+        return null
+      }
     },
     async readState(cwd: string): Promise<PatchLibraryState | null> {
       const lib = await libraryOf()

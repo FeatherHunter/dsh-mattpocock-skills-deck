@@ -6,7 +6,8 @@
  *  - 特性 A：lastProbeAtByCwd/getProbeAt/touchProbeAt 在场；快照校验（ok/304）与 wf.probe 完成即走针；
  *    状态栏常驻时刻取快照的取数时刻（与右侧面板头部同源；2026-10-24 起探测时间不再画在胶囊上）
  *  - 特性 B（#1863 起改口径）：客户端不再有 IndexedDB 持久快照，只留内存 LRU 与在途请求；
- *    loadSnapshot 只水合内存缓存，命中不出现可见加载态并照常发起网络校验（首屏的本地数据改由宿主从快照库回放）
+ *    loadSnapshot 只水合内存缓存，命中不出现可见加载态并照常发起网络校验（首屏的本地数据改由宿主从快照库回放）；
+ *    #1893 起「没有数据且非静默刷新」一律进加载态（库空要等在线重建，界面说「正在取数」）
  *  - 双产物一致：client.js 与 package/lib/client.js 均含上述接线
  *
  * 说明：这里全部是「产物里还在不在」的在场检查（原来逐条 indexOf 判子串，现在找不到时再按
@@ -94,7 +95,9 @@ for (const [name, src] of targets) {
   hasNot(src, 'await diskGetSnapshot(wsKeyOf', name, '内存未命中不再查磁盘')
   hasNot(src, 'setCachedSnapshot(st.cwd, ent.snapshot)', name, '不再从磁盘条目回填内存缓存')
   hasNot(src, 'lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set', name, '不再从磁盘条目恢复上次探测时间')
-  has(src, "if (force && !silent && !hasCache) st.snapMode = 'loading'", name, '可见加载态仍只在没有任何缓存时出现')
+  // #1893：库空时首屏要等一趟在线重建，这一段不许空白——判据从「只有 force 才显示」放宽到
+  //「手上没有数据、也不是后台静默刷新」。有缓存时照旧不画遮罩（缓存优先，秒开旧列表）。
+  has(src, "if (!hasCache && !st.snapshot && !silent) st.snapMode = 'loading'", name, '没有数据且非静默刷新时出现可见加载态（库空不许空白）')
   has(src, 'const doLoad = async function () {', name, 'doLoad 仍是异步装载函数')
 }
 

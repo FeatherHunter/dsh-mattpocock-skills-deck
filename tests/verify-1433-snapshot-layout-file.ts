@@ -5,7 +5,7 @@
  * 依据：#1433 拍板（工作区文件是布局的唯一真源）与验收第 1–4 条；
  * #1449 再收紧：本机记忆不再有布局读写口，快照读不到文件就是「还没答过」，不回退任何记忆。
  *
- * 钉五件事：① 内存命中：文件里 single 压过缓存里的 multi；
+ * 钉五件事：① 库回放：文件里 single 压过回放里的 multi（#1893：回放来源换成快照库；原「内存命中」一档随内存副本退役）；
  *   ② 文件里没有布局时回空（不退回本机记忆，也不留缓存里上一次的旧答案）；
  *   ③ 本地快照库回放：库里那份是 multi、文件里是 single，照样回 single（#1870 起旧的磁盘回放退役，
  *     回放来源换成工作区快照库，这条判据守的东西不变）；
@@ -64,17 +64,19 @@ const mkDeps = (fsSvc: StubFs, cached: any, replay: any) => ({
   DEFAULT_CWD: '', logCtx: null, envelope: null, send: null,
 })
 
-console.log('== ① 内存命中：文件里 single 压过缓存里的 multi ==')
+console.log('== ① 库回放：文件里 single 压过回放里的 multi ==')
 {
   const ws = mkWs('single')
-  const out: any = await createSessionSnapshot(mkDeps(makeFs(), { layout: 'multi', pickedAt: 111 }, null)).handleSnapshot({ cwd: ws })
-  check(out && out.setupLayout && out.setupLayout.layout === 'single', '手改文件后快照回 single（不拿缓存里落后的值顶替）—— 实得 ' + JSON.stringify(out && out.setupLayout))
+  const replay = { ok: true, selection: { backendId: 'github', rev: 0 }, generatedMs: Date.now(), maps: [], issues: [], thinTickets: [], labels: [], setupLayout: { layout: 'multi', pickedAt: 111 } }
+  const out: any = await createSessionSnapshot(mkDeps(makeFs(), null, replay)).handleSnapshot({ cwd: ws })
+  check(out && out.setupLayout && out.setupLayout.layout === 'single', '手改文件后快照回 single（不拿库里落后的值顶替）—— 实得 ' + JSON.stringify(out && out.setupLayout))
 }
 console.log('')
-console.log('== ② 文件里没有布局时回空，不留缓存旧答案 ==')
+console.log('== ② 文件里没有布局时回空，不留库里的旧答案 ==')
 {
   const ws = mkWs(null)
-  const out: any = await createSessionSnapshot(mkDeps(makeFs(), { layout: 'multi', pickedAt: 111 }, null)).handleSnapshot({ cwd: ws })
+  const replay = { ok: true, selection: { backendId: 'github', rev: 0 }, generatedMs: Date.now(), maps: [], issues: [], thinTickets: [], labels: [], setupLayout: { layout: 'multi', pickedAt: 111 } }
+  const out: any = await createSessionSnapshot(mkDeps(makeFs(), null, replay)).handleSnapshot({ cwd: ws })
   check((out && out.setupLayout) == null, '快照里不留上一次的值（回空表示还没答过）—— 实得 ' + JSON.stringify(out && out.setupLayout))
 }
 console.log('')

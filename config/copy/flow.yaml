@@ -43,6 +43,8 @@ zh:
   list.envWarn: "{n} 项环境未就绪，点此查看"
   list.all: 全部
   list.loading: 加载中…
+  # #1893：首屏加载遮罩专用的一句——库空时要等一趟在线重建，说的是「正在取数」而不是笼统的「加载中」。
+  list.fetching: 正在取数…
   list.errFull: 快照加载失败：{err}
   list.restFallback: GraphQL 配额已耗尽，已切换 REST 通道（数据可能略旧，配额恢复后自动回切）
   list.none: 暂无
@@ -309,6 +311,7 @@ en:
   list.envWarn: "{n} check(s) not ready — click to view"
   list.all: All
   list.loading: Loading…
+  list.fetching: Fetching…
   list.errFull: "Snapshot failed: {err}"
   list.restFallback: GraphQL quota exhausted — switched to REST channel (data may be slightly stale; auto-reverts when quota resets)
   list.none: None

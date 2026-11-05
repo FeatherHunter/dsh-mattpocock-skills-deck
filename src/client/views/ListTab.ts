@@ -442,7 +442,9 @@ export     const ListTab = ({ st, narrow }: any) => {
         // #1302：遮罩里不再画五根写死宽度的灰条，改成照真实行的形状画（listSkeletonNode，形状真源在 ListTabRow.ts），
         //   从列表区顶部往下排；「加载中」那句留在最上面当一句说明，不再居中堆在骨架中间。
         (st.snapMode === 'loading' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { className: 'dsws-loading-shade', style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', gap: 8, padding: '10px 0 0', overflow: 'hidden', zIndex: 5, pointerEvents: 'auto' } }, [
-          h('span', { style: { fontSize: 12, color: '#e6edf3', textAlign: 'center', flex: 'none', padding: '0 0 6px' } }, tr('list.loading')),
+          // #1893：首屏等的是「取数」而不是本地读盘，用专门的一句「正在取数」；其余加载占位
+          // （详情、评论、已关闭翻页）仍用 list.loading，不跟着改口径。
+          h('span', { style: { fontSize: 12, color: '#e6edf3', textAlign: 'center', flex: 'none', padding: '0 0 6px' } }, tr('list.fetching')),
           listSkeletonNode(h, 8),
         ]) : null,
         (st.snapMode === 'err' && !st.snapshot && !getCachedSnapshot(st.cwd)) ? h('div', { style: { color: '#f87171', fontSize: 12, padding: '14px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 } }, [Ic({ n: 'alert', size: 12 }), h('span', null, tr('list.errFull', { err: st.snapError }))]) : null,

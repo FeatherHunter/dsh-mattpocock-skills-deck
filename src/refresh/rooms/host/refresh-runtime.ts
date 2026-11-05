@@ -450,8 +450,8 @@ export function createRefreshWiring(deps: any): any {
 
   // ── E（#723 T19c）：行级增量真的能在宿主里跑起来 ────────────────────────────────────────────
   // 以前探测到变化之后没人去跑 src/refresh/rooms/host/row-patch.js，客户端只能整池重建；现在它在这里装起来，由 wf.probe 那条路在
-  //「探测说变了」之后调用。依赖由宿主入口显式传入：readSnapshot / writeSnapshot 读写的正是宿主那份快照缓存与
-  // 磁盘缓存（与客户端看到的列表同一份）；send / decide 是闸的两半，读路径的账与裁决一个字都另不算。
+  //「探测说变了」之后调用。依赖由宿主入口显式传入：#1893 起行级增量的基线只从快照库回放读（不再有宿主内存副本），
+  // 取回的变化行写进库；send / decide 是闸的两半，读路径的账与裁决一个字都另不算。
   // #1472：这段装配原样搬到 ./patch-wiring.js —— 本文件贴着 350 有效行上限，新增接线不能再往这里堆。
   // 行为一个字不变：惰性装配、闸的后端编号在调用那一刻读、两处写回各自包 try，三条约定都写在那个文件头上。
   // 留一个薄壳 patchOf 给 deltaRefresh / deltaEnter / 写事件取数三处共用，保证全仓仍然只有一份补行件。
@@ -462,6 +462,8 @@ export function createRefreshWiring(deps: any): any {
     openSession: openSession,
     workspaceKeyOf: workspaceKeyOf,
     logCtx: logCtx,
+    // #1893：行级增量的库身份靠注册表 describe 补 refId（GitLab / 本地 Markdown 没有 owner/name 远端）。
+    getTrackerRegistry: function (): any { return (typeof d.getTrackerRegistry === 'function') ? d.getTrackerRegistry() : null },
   })
   function patchOf(): any { return patchWiring.patchOf() }
 
@@ -490,7 +492,8 @@ export function createRefreshWiring(deps: any): any {
 
   /** 切进一个工作区那一下要问的事（有待办就整池、并清待办）。 */
   async function deltaEnter(cwd: any): Promise<any> {
-    if (typeof d.getCache !== 'function') return { mode: 'use-cache', reason: 'no-cache-port' }
+    // #1893：内存副本退役后不再有「有没有缓存口」这一格守卫；进入工作区要问的是库里的待办，
+    // patch 自己按库判断（库开不出来时回 store-unavailable，调用方照旧整池）。
     try { return await patchOf().enterWorkspace(cwd) } catch (e: any) { return { mode: 'use-cache', reason: 'patch-threw' } }
   }
 

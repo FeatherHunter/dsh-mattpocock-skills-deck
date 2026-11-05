@@ -99,12 +99,11 @@ async function main() {
       getTrackerRegistry: async () => fakeRegistry,
       getPlatform: async () => ({ path: path.posix }),
       detectionExec: async () => ({ ok: false, kind: 'env', error: '门禁里不发真请求' }),
-      getCache: () => cacheBox,
-      setCache: (v: any) => {
-        if (!v || !v.snapshot) { nullWrites.push(v); return }
-        cacheBox.snapshot = v.snapshot
-        cacheBox.ts = v.ts
-      },
+      // #1893：宿主内存副本已删。门禁模拟「不接库的老世界」的两个显式口——生产装配不传它们。
+      readSnapshotForPatch: () => cacheBox.snapshot,
+      writeSnapshotForPatch: (_cwd: any, snap: any) => { cacheBox.snapshot = snap; cacheBox.ts = Date.now() },
+      // 旧世界里「把缓存标脏」的调用点：这一票之后它已经不发生（nullWrites 恒为空），断言保留。
+      setCache: (v: any) => { if (!v || !v.snapshot) nullWrites.push(v) },
       readDiskCache: async () => disk.snap,
       writeDiskCache: async (repo: any, snap: any) => { disk.snap = snap },
       getRepoKey: async () => ({ owner: 'o', name: 'r' }),

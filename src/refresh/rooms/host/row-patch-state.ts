@@ -7,7 +7,8 @@
 // 三条不能改的约定：
 //   1. 接了库：一切以库为准。读不出来就回 null（调用方按失败处理），不许拿内存那份顶上 ——
 //      那正是「同一张票两个值」的来源。没接库：照旧读写快照的 delta 字段（老调用方与旧门禁）。
-//   2. 先落库、再显示：簿记写库成功之后才镜像到内存快照；写库失败时内存一个字节不改。
+//   2. 先落库、再显示：簿记写库成功之后才（在门禁夹具里）镜像到假快照；写库失败时内存一个字节不改。
+//      #1893 起生产装配没有内存副本可镜像：写库成功就是这一步的全部结果。
 //   3. 行与簿记要一起写时走 commitChanges 的同一个事务（变化行那条路）：行进去了、水印/世代号
 //      没进去，下一拍会重扫；反过来界面会拿到不满意的结果。
 import * as delta from '../../kernel/snapshot-diff.js'
@@ -44,7 +45,11 @@ export interface PatchLibraryPortLike {
 /** 造状态读写件要的依赖；除 library 外都由 row-patch 现给。 */
 export interface PatchStateDeps {
   readSnapshot(cwd: string): Promise<any>
-  writeSnapshot(cwd: string, snap: any): Promise<any>
+  /**
+   * #1893：宿主内存快照副本已删，生产装配不再有这个口。它只剩门禁夹具（不接库的老世界）会注入；
+   * 缺席时下面 writeSnap 是一个明确的空操作——簿记写库成功之后没有「再镜像到内存」这一步。
+   */
+  writeSnapshot?(cwd: string, snap: any): Promise<any>
   library?: PatchLibraryPortLike | null
   now: () => number
   /** 与 row-patch 同一个日志出口：refresh.patch 的字段口径全仓只有那一处 fire。 */
@@ -114,7 +119,11 @@ export function createPatchState(deps: PatchStateDeps) {
   const now = d.now
 
   async function readSnap(cwd: string): Promise<any> { return await Promise.resolve(d.readSnapshot(cwd)) }
-  async function writeSnap(cwd: string, snap: any): Promise<any> { return await Promise.resolve(d.writeSnapshot(cwd, snap)) }
+  /** #1893：生产没有写路（内存副本已删）；门禁夹具注入时才写它自己的假世界。 */
+  async function writeSnap(cwd: string, snap: any): Promise<any> {
+    if (typeof d.writeSnapshot !== 'function') return
+    return await Promise.resolve(d.writeSnapshot(cwd, snap))
+  }
 
   /**
    * 这一趟能不能按库走。老装配（假门面、旧宿主版本）没有 ready 这一格时按「能」处理；

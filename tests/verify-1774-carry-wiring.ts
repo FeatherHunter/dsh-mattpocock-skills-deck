@@ -92,7 +92,10 @@ async function roomDeps(table: any, tracker: any) {
   const d: any = {
     canonicalKey: async function (x: string) { return 'K1774' },
     selectEarly: async function (o: any) { return { backendId: (o && o.backendId) || 'github', source: 'auto', rev: 0 } },
-    isComposerSelection: function () { return true },
+    // #1893：宿主内存副本退役后，首屏电话只有 GitHub 分支会无条件读库回放（composer 支路只给
+    // GitLab / Markdown，理由见 session-snapshot-cache 的 libraryBackend）。这份夹具用的是 GitHub
+    // 后端，所以走统一分支——与生产里「github 不走 composer」一致。
+    isComposerSelection: function () { return false },
     getTrackerRegistry: async function () {
       return {
         modules: function () { return [] },
@@ -103,6 +106,18 @@ async function roomDeps(table: any, tracker: any) {
     getPlatform: async function () { return PLATFORM },
     ctx: { get: function () { return undefined } },
     getCache: table.getCache, setCache: table.setCache, CACHE_MS: 60000,
+    // #1893：宿主内存副本退役后，「上一份快照」只能来自快照库回放。门禁用同一张表模拟库：
+    // 上一趟采纳进表里的那份就是库里的回放（生产里由 SQLite 承担）。
+    getSnapshotLibrary: async function () {
+      return {
+        readSnapshotReplay: async function (input: any) {
+          const e = table.getCache(input && input.workspaceRoot)
+          return (e && e.snapshot) ? { snapshot: e.snapshot, lastKnownAtMs: e.ts } : null
+        },
+        recordIssueRows: async function () { return { ok: true, rows: 0, mergeVersion: null } },
+        readSnapshotDiagnostics: async function () { return [] },
+      }
+    },
     cacheSnapshotIsCurrent: async function () { return null },
     upcaseSnapStates: function (s: any) { return s },
     computeLevels: function () { return { byNumber: {}, byKey: {} } },

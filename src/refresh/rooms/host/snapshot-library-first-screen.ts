@@ -6,8 +6,8 @@
  * 回包上带「来自库」的注记。这件事写在这一层，两支路只差一行调用，不会各写一套、各错一种。
  * 本文件不碰数据库、不发请求：库句面由调用方注入，读写都经过它。
  *
- * #1870：库为空时用宿主工作副本兜底的那一段（判据与回包补权威选择）也收在这里，见文件末尾的
- * createWorkingCopyFallback —— 它与「先从库读」是同一个决定的两半，分开写会漂成两套口径。
+ * #1893：库为空时用宿主工作副本兜底的那一段（#1870 的 createWorkingCopyFallback）已随工作副本一起删除。
+ * 库里有数据就回放；库空就如实回 null，调用方去在线重建并把取回的行写库——这里不再有第二条交付来源。
  *
  * 三条不能改的约定：
  *  1. 库拿不到、打不开、读失败，一律当「这一趟没有回放」：首屏不许因为库不可用而空白，调用方照旧在线取数。
@@ -134,80 +134,4 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
       snap.diskReplay = { schema: 'snapshot-sqlite-v1', source: 'sqlite', lastKnownAtMs: replay.lastKnownAtMs }
     },
   }
-}
-
-/**
- * 库为空时用宿主「工作副本」兜底的判据（#1870）。为什么与「先从库读」住在同一份文件：那是同一个决定的两半——
- * 库有数据就交付库的，没有才轮到工作副本；分两处写迟早漂成两套「什么时候能兜底」。
- *
- * 两条支路的差别只有两个开关，都来自它们原本的语义（别在这里「统一」掉）：
- *  - requireBackend：composer 支路要求工作副本里的后端与这一轮一致（不同后端的数据不能顶替）；
- *    GitHub 支路不看这一格——#683 定的口径是「只换了后端时快照内容没变」，回包带上这一轮的
- *    权威选择就够了。
- *  - maxAgeMs：composer 支路还要求工作副本没过期；GitHub 支路没有年龄门槛。
- */
-export interface WorkingCopyFallbackOptions {
-  getCache(cwd: unknown): { ts: number; snapshot: any } | null | undefined
-  cwd: string
-  now: number
-  cacheMs: number
-  isForce: boolean
-  /** 这一轮算出来的权威选择（要盖到兜底回包上）。 */
-  selection: any
-  /** 这一轮从工作区文件读到的布局答案（含空；空也要盖，见 #1433）。 */
-  setupLayout: any
-  logCtx?: { fire(level: string, event: string, fields: () => unknown): void; isEnabled(level: string): boolean } | null
-}
-
-export interface WorkingCopyFallbackArgs {
-  backendId: string
-  /** 见工厂注释：两条支路按各自原来的语义给。 */
-  requireBackend: boolean
-  maxAgeMs: number | null
-}
-
-export function createWorkingCopyFallback(options: WorkingCopyFallbackOptions): {
-  reply(args: WorkingCopyFallbackArgs): any
-  decorateDiagnostics(reply: any, screen: FirstScreen | null): any
-} {
-  let hitSampleN = 0
-  /** #683（F1 · ADR 的 R4）：回包要带这一轮的权威 {selection, rev} 与布局；相同就返回原对象，不白造。 */
-  function withAuthoritative(entry: any): any {
-    const s = entry && entry.snapshot
-    const sel = options.selection
-    if (!s || !sel || !sel.backendId) return s
-    const prevRev = Number.isInteger(s.selection && s.selection.rev) ? s.selection.rev : 0
-    const nowRev = Number.isInteger(sel.rev) ? sel.rev : 0
-    const sameBackend = String((s.selection && s.selection.backendId) || '') === String(sel.backendId)
-    const sameLayout = String((s.setupLayout && s.setupLayout.layout) || '') === String((options.setupLayout && options.setupLayout.layout) || '')
-    if (sameBackend && prevRev === nowRev && sameLayout) return s
-    const cp = Object.assign({}, s, { selection: sel, rev: nowRev })
-    cp.setupLayout = options.setupLayout
-    return cp
-  }
-  function reply(args: WorkingCopyFallbackArgs): any {
-    if (options.isForce) return null
-    const entry: any = options.getCache(options.cwd)
-    const s = entry && entry.snapshot
-    if (!s) return null
-    const cachedBackend = s.selection && s.selection.backendId
-    if (args.requireBackend && String(cachedBackend || '') !== String(args.backendId || '')) return null
-    if (args.maxAgeMs !== null && (options.now - entry.ts) >= args.maxAgeMs) return null
-    try {
-      const logCtx = options.logCtx
-      if (logCtx && logCtx.isEnabled('debug') && ((++hitSampleN % 100) === 0)) {
-        logCtx.fire('debug', 'snapshot.cache.hit', () => ({ kind: 'memory', ageMs: options.now - entry.ts }))
-      }
-    } catch (eL) {}
-    return withAuthoritative(entry)
-  }
-  /** 兜底回包也要带开库诊断（#1869）：库为空时正是最需要说「库坏过、已重建」的时刻。 */
-  function decorateDiagnostics(out: any, screen: FirstScreen | null): any {
-    try {
-      const diags = screen && screen.diagnostics
-      if (out && Array.isArray(diags) && diags.length) out.snapshotDiagnostics = diags
-    } catch (eD) {}
-    return out
-  }
-  return { reply, decorateDiagnostics: decorateDiagnostics }
 }

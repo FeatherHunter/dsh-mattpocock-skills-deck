@@ -15,7 +15,7 @@
 //   · 每工作区一个世代号，迟到的整池结果不许覆盖更新的增量结果（admitSnapshot 与 run 两处都过 delta.admitResult）；
 //   · **deck.counts 是整仓口径，增量路径不许本地重算**，只许保持旧值并把 deck.partial 置真（票面点名的红线）。
 //
-// 为什么这一整块必须留 JS 而不是进 TS：它要真去 `gh api` 取数、要往磁盘写、要读写宿主那份快照缓存。
+// 为什么这一整块必须留 JS 而不是进 TS：它要真去 `gh api` 取数、要读写本地快照库。
 // 纯逻辑进 TS、取数与落盘留 JS 是本仓库既定的分工（docs/adr/20260913-builtin-ts-shape.md §2.7）。
 //
 // 待办与水印存在哪：就存在快照自己身上（快照的 delta 字段），跟着既有的磁盘缓存那一份文件走，
@@ -64,7 +64,9 @@ function staleSuffix(out: any): string {
 
 /** 建补行件的依赖：全部由宿主接线注入，本文件不 import 宿主其它模块，免得接出环。 */
 interface PatchDeps {
+  /** 现在列表所在的那份快照。#1893 起生产装配给的是库回放；门禁夹具给自己的假快照。 */
   readSnapshot?: (cwd: string) => any
+  /** #1893：生产装配不再给这个口（宿主内存副本已删）；只有不接库的门禁夹具会注入。 */
   writeSnapshot?: (cwd: string, snap: any) => any
   indexOfSnapshot?: (snap: any) => any
   windowRules?: any
@@ -90,8 +92,8 @@ interface PatchDeps {
 
 /**
  * 建一个行级补行的跑腿件。deps 全部由宿主接线时注入（本文件不 import 宿主其它模块，免得接出环）：
- *   readSnapshot(cwd) → 现在列表所在的那份快照，没有就回 null
- *   writeSnapshot(cwd, snap) → 把并好的快照写回（内存与磁盘都由接线方负责）
+ *   readSnapshot(cwd) → 现在列表所在的那份快照（#1893 起来自库回放），没有就回 null
+ *   writeSnapshot(cwd, snap) → 可选；#1893 起生产装配不再提供（内存副本已删），只有门禁夹具用它模拟旧世界
  *   indexOfSnapshot(snap) → 从快照里取出「列表手上那份索引」（注入 indexWindow.indexFromSnapshot）
  *   windowRules → src/refresh/kernel/index-window-rules.js 那个模块（scanWindow / seedFromSnapshot）
  *   probeIndex(cwd, sinceIso) → 只问窗口内的变化，回 { ok, index } 或 { ok:false, error }

@@ -1,5 +1,5 @@
 {
-  "note": "手工整理的页面样本（内容参照本仓库的规格与地图票面）：两张地图（一开一关）、一张规格、阻塞边与引用态、已关闭子票、破链票与两个拉取请求；经真 SQLite 快照库写入再读回。覆盖阻塞边、已关闭容器里的子票与瘦身行。",
+  "note": "手工整理的页面样本（内容参照本仓库的规格与地图票面）：两张地图（一开一关）、一张规格、阻塞边与引用态、已关闭子票、破链票与两个拉取请求；经真 SQLite 快照库写入再读回。#1893 按规格 I6 重新冻结（mergeInfo complete + null 现在写 mergedAt:null），旧基线见 pre-1893/。覆盖阻塞边、已关闭容器里的子票与瘦身行。",
   "repo": {
     "backend": "github",
     "refId": "acme/widgets",
@@ -1079,7 +1079,8 @@
         "closedAt": null,
         "parentKey": null,
         "isPullRequest": true,
-        "commentCount": 5
+        "commentCount": 5,
+        "mergedAt": null
       },
       {
         "key": "300",

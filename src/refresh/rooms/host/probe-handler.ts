@@ -24,7 +24,7 @@ import { idOfParts } from '../../../tracker/kernel/identity-keys.js'
 import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
 // #1689 降级取数的预算与节流：降级常驻时整仓探测从 5 秒放宽到 60 秒、自动校准至少隔 10 分钟。
 // 两件事都挂在这条现有探测拍上判（下面用两个按 cwd 记的毫秒时刻），本文件不新建任何定时器。
-import { calibrationDue, createFallbackRoundBudget, fallbackStandingOf, probeDue } from '../../kernel/fallback-fetch-budget.js'
+import { calibrationDue, createFallbackRoundBudget, probeDue } from '../../kernel/fallback-fetch-budget.js'
 import { FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
 // #1770：房间报「列表只取了第一页」用的事件名与原因值住在契约层（房间与宿主同一份），
 // 探针这边不抄房间的内部字面量，也不依赖房间文件。
@@ -48,8 +48,11 @@ export interface ProbeHandlerDeps {
   issueIndexChanged: any
   rememberIssueIndex: any
   commitIssueIndex: any
-  getCache: any
-  setCache: any
+  /**
+   * #1893：这个工作区当前是不是「降级常驻」（REST 兜底通道）——由采纳快照那一步记下来的一个小布尔，
+   * 不是整份快照。探针拿它判 60 秒探测窗口与 10 分钟校准窗口（#1689）。缺席时按「没降级」处理。
+   */
+  degradedStandingOf?: any
   lastIssueIndexByRepo: any
   lastProbeAtByRepo: any
   deltaRefresh: any
@@ -69,7 +72,7 @@ export interface ProbeHandlerDeps {
 
 /** 造出探针电话：目前只有一个 handleProbe（wf.probe 的处理体）。 */
 export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args: any) => Promise<any> } {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession, logCtx, noteRefreshFailure } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, degradedStandingOf, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession, logCtx, noteRefreshFailure } = deps
   // #1689：降级常驻时的两个节流时刻（毫秒），按 cwd 记。与 lastProbeAtByRepo 分开记，是因为后者
   //   的键要等取数回来才知道（owner/name），而节流必须在发出请求之前判；createProbeHandler 的实例
   //   由宿主入口 _probe() 记忆化，这份状态跨刷新拍安全。
@@ -166,7 +169,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
           // 兼容 remember 的 repoKey 形态：用 backendId+cwd 作 key，避免与 github 的 owner/name 串
           lastIssueIndexByRepo[rk1] = idx
           lastProbeAtByRepo[rk1] = new Date().toISOString()
-          if (changed) setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
+          // #1893：内存副本已删，这一拍不再需要「标脏」——客户端按库版本取变化，探针只回「变了哪几行」。
           return { ok: true, changed: changed, repo: { owner: _selProbe.backendId, name: String(cwd).split(/[\\/]/).pop()||'' }, count: all.length, since: lastProbeAtByRepo[rk1] }
         }
       } catch (e: any) { return { ok: false, error: errText(e), errorKind: 'exception' } }
@@ -183,8 +186,9 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       // #1689 降级常驻的节流与预算：快照明确写着走 REST 兜底通道（fallback:'rest'）时，
       //   整仓探测从 5 秒放宽到 60 秒、自动校准至少隔 10 分钟，两件事都在这条现有探测拍上判。
       //   主路正常时 degraded 恒假，这一段一条请求都不多发，行为与改造前一致。
-      const _cacheNow: any = (typeof getCache === 'function') ? getCache(cwd) : null
-      const degraded: boolean = fallbackStandingOf(_cacheNow && _cacheNow.snapshot)
+      // #1893：降级事实由「采纳快照」那一步记下来的小布尔提供，不再从宿主内存里的整份快照读。
+      // 没接这一格时按「没降级」处理：探针照常 5 秒一拍，不因为接线缺席而自己放宽或收紧窗口。
+      const degraded: boolean = (typeof degradedStandingOf === 'function') ? degradedStandingOf(cwd) === true : false
       const nowMs: number = Date.now()
       if (degraded) {
         if (calibrationDue(nowMs, fallbackCalibrationAtByCwd[cwd], FALLBACK_FETCH_LIMITS)) {
@@ -193,7 +197,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
           //   host-budget.ts）；下一次校准至少 10 分钟后才可能再来。
           fallbackCalibrationAtByCwd[cwd] = nowMs
           fallbackProbeAtByCwd[cwd] = nowMs
-          setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
+          // #1893：不再有内存副本可标脏；客户端收到 changed + mode 就走了既有的整份重取分支。
           return { ok: true, changed: true, mode: 'calibrate', reason: 'fallback-calibration-due', count: 0, since: new Date(nowMs).toISOString() }
         }
         if (!probeDue(nowMs, fallbackProbeAtByCwd[cwd], degraded, FALLBACK_FETCH_LIMITS)) {
@@ -256,7 +260,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       // 该整池的那几档（冷启动 / 票号增减 / 条数过多 / 旧结构）：如实告诉客户端「这一次得整池」。
       // 这一档推水印与基线：客户端收到之后就会整池重建，那一次会把整仓重拿一遍，变化是被并进列表的
       // （不推的话每一拍都要从很旧的水印重扫，白烧额度）。
-      if (changed) setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
+      // #1893：不再标脏内存副本；客户端收到 changed / rebuild 后按库版本取整份或变化集。
       commit()
       return { ok: true, changed: true, mode: 'rebuild', reason: String((delta && delta.reason) || 'no-delta'), repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
     } catch (e: any) { return { ok: false, error: errText(e), errorKind: 'exception' } }
