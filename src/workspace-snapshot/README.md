@@ -90,6 +90,31 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   `unknown`（只盖章不动值）的读结果不受影响。全部组都被挡下时这一趟不推进库版本——什么都没写，
   不该让客户端以为有变化。判据住 `merge/receipt-priority.ts`（纯函数），接线在 `runtime/ingest.ts`。
 
+## 写路径清单（#1889 盘点结果）
+
+| 写路径（文件:入口） | 行为 | 证据 |
+| --- | --- | --- |
+| 建票 `create`（`src/deck/tools/issue-create.ts` → 写事件 → `thin-row-fetch.ts` 的 receipt 回调） | 经库 | V1889 B11 |
+| 关票 / 重开 `close`/`reopen`（`src/deck/tools/issue-patch.ts` → `recordWriteReceipt`） | 经库 | V1889 B1 |
+| 发评论 `comment`（`issue-patch.ts` / 面板 `comment-thread-fetch.ts` 的 `storeCommentReceipt`） | 经库 | V1889 B9、verify-1866 |
+| 改标题与正文 `update`（`issue-patch.ts` → `receiptIssueWriteOf`） | 经库 | V1889 B1/B2 |
+| 改标签 `setLabels`（`issue-patch-labels.ts`） | 经库 | V1889 B3 |
+| 改指派人 `setAssignees`（`issue-patch.ts` → `issueWriteOf` 的指派组） | 经库 | V1889 B4 |
+| 父子边 `setParent`（`map-link.ts` → `parentsGroupOf`） | 经库 | V1889 B5 |
+| 阻塞边 `setBlockedBy`（`map-link.ts` → `blockedByGroupOf`） | 经库 | V1889 B6 |
+| 子票计数与合并信息（`issue-patch.ts` 的回执带 fieldStates） | 经库 | V1889 B7/B8 |
+| `deck_issue_patch` / `deck_issue_create` / `deck_map_link` / `deck_map_plan_create` | 经库 | V1889 B1-B9/B11 |
+| 面板发评论 `panel-comment`（`comment-thread-fetch.ts` 的 `storeCommentReceipt`） | 经库 | verify-1866-replay |
+| `initProject` / `setLabelColors` / `ensureLabelColorsFile`（仓库级元数据） | 不经库 | 回执无票级字段；标签颜色随 labels 组入库 |
+| `deck_issue_report`（在办表） | 不适用 | 规格 D2：在办表会话私有 |
+| `publishFlow`（发布 npm 包） | 不适用 | 写的是注册表，不是工作区数据 |
+| `handoffClaim`（会话交接） | 不适用 | 会话私有状态 |
+| `namingGuardian`（命名持久化） | 不适用 | 规格 D2：不进库 |
+| 拉取请求合并 | 不适用 | 本仓没有发起合并的写路径；合并信息走 mergeInfo 组（V1889 B8），S7 另票 |
+
+「经库」= 写回执先提交进库、成功之后才更新界面；失败一个字节不改。表里每一条在
+`tests/verify-1889-write-receipts.ts` 里都有对应的断言组。
+
 ## 统计（#1887 起）
 
 面板顶上的六个数字（总数 / 开放 / 已关闭 / 可接 / 阻塞 / 已认领）由 `projection/counts.ts` 一条 SQL
