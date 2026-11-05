@@ -5,6 +5,8 @@
 import type {
   ChangeSetProjection,
   ChangeSetQuery,
+  ContainerProjection,
+  ContainerProjectionQuery,
   GroupCompleteness,
   IssueDetailProjection,
   IssueDetailQuery,
@@ -29,6 +31,8 @@ export type {
   ChangeSetProjection,
   ChangeSetQuery,
   ChangeSetTombstone,
+  ContainerProjection,
+  ContainerProjectionQuery,
   DetailGroupStates,
   GroupCompleteness,
   GroupState,
@@ -316,6 +320,11 @@ export interface WorkspaceSnapshotHandle {
    * 库里没有这张票（连骨架都没有）时 issue 为 null；只有骨架时 referenceSkeleton 为真。
    */
   readIssueDetail(query: IssueDetailQuery): IssueDetailProjection
+  /**
+   * 按容器读一次（#1923）：容器行 + 挂在它下面的全部子票行（含已关闭，不含墓碑）。
+   * 已关闭容器的子票按 §6 不进首屏投影，打开它时由这条读口一次取齐；只读句柄也能读。
+   */
+  readContainerProjection(query: ContainerProjectionQuery): ContainerProjection
   /**
    * 读一次变化集（#1890）：从 query.sinceVersion 到当前版本，哪些行变了、哪些行被判不存在。
    * 超过行数上限或落后超过时间上限、客户端版本比库里大、或没有基线时 full 为真 ——

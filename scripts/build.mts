@@ -558,6 +558,10 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1895（规格 #1885 S6）：地图详情切片（当前打开的容器 + 子票 + 层级 + 统计，全部从投影取）。
   //   纯选择器，排在本条之后、接线片之前：接线层的 mapDetail 端口要调它。
   { name: 'deckMapDetail', file: 'src/client/kernel/deck-map-detail.ts' },
+  // #1923（规格 #1885 §6）：已关闭容器的容器级投影 —— 视图模型的 openMap 命令触发一次宿主读取，
+  //   首屏投影一个字节不动。它要用 findMapByIdentity（storeDerived 已在上面）与视图模型的命令端口，
+  //   所以排在 deckMapDetail 之后、接线片之前。
+  { name: 'deckContainerDetail', file: 'src/client/kernel/deck-container-detail.ts' },
   // #1896（规格 #1885 S6）：票详情切片（正文、评论、评审、状态 + 「加载更多评论」命令的数据）。
   //   纯选择器，排在本条之后、接线片之前：接线层的 issueDetail 端口要调它。
   { name: 'deckIssueDetail', file: 'src/client/kernel/deck-issue-detail.ts' },

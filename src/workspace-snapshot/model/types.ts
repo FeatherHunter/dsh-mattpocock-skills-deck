@@ -211,6 +211,32 @@ export interface ListQuery {
 }
 
 /**
+ * 按容器读一次查询（#1923）：容器身份是 (工作单元, 编号) 两段。
+ *
+ * 为什么单列而不是复用 IssueDetailQuery：详情要读正文、评论与四向边，这一条只要
+ * 「容器行 + 它的全部子票行」——两者读的列、读的表与体积都不一样，混成一个查询会让
+ * 「打开一张已关闭容器」多拉一份正文与评论。
+ */
+export interface ContainerProjectionQuery {
+  key: string
+  effortId?: string
+}
+
+/**
+ * 一次按容器读的结果。container 为 null = 库里没有这张容器的行（连引用骨架都没有）；
+ * issues 是挂在它下面的子票行（含已关闭，不含墓碑），形状与列表读完全一致。
+ *
+ * 为什么不在这里算层级与统计：那是领域规则（groupTickets / normalizeMapTickets），
+ * 住在宿主组装层；库这一层只负责把行读齐、读准（规格 D1：领域规则一处实现）。
+ */
+export interface ContainerProjection {
+  mergeVersion: number
+  generatedAtMs: number
+  container: ListIssue | null
+  issues: ListIssue[]
+}
+
+/**
  * 变化集里一行的落点（#1885 评审修复）。由宿主变化集投影按库里的容器树一次算好，
  * 客户端只照单落位，不再自己按 parentKey 判容器归属（规格 D1：领域规则一处实现）。
  *

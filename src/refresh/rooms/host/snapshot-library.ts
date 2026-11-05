@@ -16,6 +16,7 @@
 /// <reference path="../../../workspace-snapshot/node-ambient.d.ts" />
 import type { Comment, Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
 import type {
+  ContainerProjection,
   GroupCompleteness,
   IssueDetailProjection,
   IssueWrite,
@@ -41,7 +42,7 @@ import {
   type SnapshotLibraryKey,
   type SnapshotLogSink,
 } from './snapshot-library-handles.js'
-import { snapshotOfProjection } from './snapshot-library-view.js'
+import { containerProjectionOf, snapshotOfProjection } from './snapshot-library-view.js'
 
 // 句柄缓存与开关：调用方（宿主入口与门禁）从这里拿的仍是同一组名字。
 export { closeSnapshotLibraries, setSnapshotLogSink, snapshotLibraryHandleCount }
@@ -314,6 +315,42 @@ export async function readIssueDetail(input: ReadIssueDetailInput): Promise<Issu
     return handle.readIssueDetail({ key: input.key, effortId: input.effortId })
   } catch (e) {
     return null
+  }
+}
+
+/** 按容器读的输入：库身份三格 + 容器身份两段（工作单元是本地 Markdown 的同号容器区分键）。 */
+export interface ReadContainerProjectionInput extends SnapshotLibraryKey {
+  key: string
+  effortId?: string
+}
+
+/**
+ * 按容器读一次（#1923）：容器行 + 子票 + 层级 + 统计。
+ *
+ * 库开不出来 / 读失败回 null（调用方按「库坏」处理）；库开了但没有这张容器的行时回
+ * { container: null }——两者是两件事，前者不知道库里的情况，后者是本机数据里确实还没有它。
+ * 层级与统计的换算只在 containerProjectionOf 一处（normalizeMapTickets），不在这里另算一遍。
+ */
+export async function readContainerProjection(input: ReadContainerProjectionInput): Promise<any | null> {
+  const handle = await handleOf(input)
+  if (!handle) return null
+  let projection: ContainerProjection
+  try {
+    projection = handle.readContainerProjection({
+      key: String(input.key || ''),
+      effortId: input.effortId === undefined || input.effortId === null ? '' : String(input.effortId),
+    })
+  } catch (e) {
+    return null
+  }
+  if (!projection) return null
+  const shaped = containerProjectionOf(projection)
+  if (!shaped) return { mergeVersion: projection.mergeVersion, container: null, tickets: [], stats: null }
+  return {
+    mergeVersion: projection.mergeVersion,
+    container: shaped.container,
+    tickets: shaped.tickets,
+    stats: shaped.stats,
   }
 }
 

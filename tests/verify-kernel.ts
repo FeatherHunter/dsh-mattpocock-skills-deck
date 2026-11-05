@@ -54,6 +54,8 @@ const MODULES = [
   { name: 'deckViewModel', file: 'deck-view-model', exports: ['createDeckView', 'deckFiltersOf', 'deckReadingOf'] },
   // #1895：地图详情切片（当前容器 + 子票 + 层级 + 统计），纯选择器，由接线层作为 mapDetail 端口接上。
   { name: 'deckMapDetail', file: 'deck-map-detail', exports: ['deckMapDetailOf'] },
+  // #1923：已关闭容器的容器级投影（openMap 命令背后的宿主读取与桶；首屏投影不变）。
+  { name: 'deckContainerDetail', file: 'deck-container-detail', exports: ['fetchContainerProjection', 'deckContainerDetailOfStore', 'containerProjectionLoadOf', 'deckContainerProjectionKeyOf', 'deckForgetContainerProjections'] },
   // #1896：票详情切片（正文、评论、评审、状态），纯选择器，由接线层作为 issueDetail 端口接上；
   //   「加载更多评论」也由它所在的视图模型记账（命令背后的取数在接线层）。
   { name: 'deckIssueDetail', file: 'deck-issue-detail', exports: ['deckIssueDetailOf'] },

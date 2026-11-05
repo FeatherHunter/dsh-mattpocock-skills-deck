@@ -175,6 +175,32 @@ export function noteChangesReply(
   }
 }
 
+/**
+ * 记一次容器级投影回包的读数（#1923）：打开一张已关闭容器时取了多少张子票、多少字节、花了多久。
+ *
+ * 为什么与首屏共用 snapshot.read 事件：它回答的是同一件事「这一趟从库里交回去多少东西」，
+ * 只是 phone 换成了 containerProjection。用户自己点开容器才发一次，低频，不需要新事件名。
+ */
+export function noteContainerReply(
+  logCtx: SnapshotReadLogCtx | null | undefined,
+  reply: any,
+  cwd: unknown,
+  elapsedMs: number,
+  projectionMs: number,
+): void {
+  if (!logCtx || !reply || reply.ok !== true) return
+  fire(logCtx, 'info', 'snapshot.read', {
+    phone: 'containerProjection',
+    source: 'library',
+    cwdHash: workspaceHash8(cwd),
+    version: typeof reply.version === 'number' ? reply.version : -1,
+    rows: Array.isArray(reply.tickets) ? reply.tickets.length : 0,
+    bytes: replyBytesOf(reply),
+    elapsedMs: elapsedMs,
+    projectionMs: projectionMs,
+  })
+}
+
 /** 库这一侧读失败（开不出来/读不出来）时记一行退化：这一趟的整份不是用户要的，是库坏了。 */
 export function noteLibraryFailure(
   logCtx: SnapshotReadLogCtx | null | undefined,

@@ -13,7 +13,8 @@
  * 它只做四件事，其余全在别处：
  *   1) 读视图模型：这一页的容器树、子票、层级与统计全部来自 #1894 的视图模型 mapDetail 切片
  *      （kernel/deck-map-detail.ts 从投影里取当前容器那一份）。#1895 起进页面不再自己发 wf.mapTickets
- *      取子票——同一份投影在列表与地图详情里是同一个版本、同一个状态；
+ *      取子票——同一份投影在列表与地图详情里是同一个版本、同一个状态；#1923 起已关闭容器的子票
+ *      由同一个切片的 bucket 给出（打开它时视图模型的命令取一次，首屏投影不放大）。
  *   2) 算整页模型：mapDetailPageModelOf 一次算出档案 + 一条流（纯函数，不碰界面）；
  *   3) 造四个按钮的回调：wiring/pageActionHandlersOf（注入提示词 / 新会话 / 复制链接 / 打开）；
  *   4) 按模型渲染三块 + 图片放大浮层。
@@ -23,7 +24,6 @@
  * （panel/Dock.ts 里列表页签的 active 分支），老页 MapDetail 的源码与门禁都留着，出问题可以一行切回。
  */
 declare function idOf(...args: any[]): any
-declare function idOfParts(...args: any[]): any
 declare function effortOf(...args: any[]): any
 declare function buildColorOf(...args: any[]): any
 declare function rowActionKind(...args: any[]): any
@@ -92,18 +92,15 @@ export function MapDetailV2Page(props: any): any {
   const colorOf = Object.assign({}, buildColorOf(st), { implement: CONTAINER_ACCENT.spec })
   const cardIdPrefix = cardIdPrefixOf(mId)
 
-  // #1895：进页面不再自己取子票，所以没有「第一帧正在取」这件事；只有视图模型/别处真给了
-  //   一个 loading 桶时才算 busy（单文件求值的门禁靠它造出取数中那一态）。
-  //   桶的键与写它的地方同算法（工作单元 + 容器键）；生产里没有东西再往 st.mapTickets 写。
-  const bucketKey = (typeof idOfParts === 'function')
-    ? idOfParts(String(effortOf(m) || ''), String(m.key !== undefined && m.key !== null ? m.key : m.number).trim())
-    : ''
-  const bucket = (bucketKey && st && st.mapTickets) ? (st.mapTickets[bucketKey] || null) : null
+  // #1923：已关闭容器的子票与统计来自视图模型 mapDetail 切片里的 bucket —— 打开它时由视图模型的
+  //   openMap 命令触发一次容器级读取；页面不再从 st.mapTickets 挑桶，也不自己发请求。
+  //   开放容器没有这个桶，画的就是首屏投影里的那一份子票。
+  const bucket = (detail && detail.bucket) || null
   const busy = !!bucket && String(bucket.mode || '') === 'loading'
-  // 顶栏三态与老页同源（kernel/container-view.ts）：统计优先取视图模型里那份（投影行上的 stats）。
+  // 顶栏三态与老页同源（kernel/container-view.ts）：统计优先取视图模型里那份（容器级读取或投影行的 stats）。
   // 注意档案区的四枚计数按「画出来的行」数（mapDetailPageModel.ts:13-15 写明是有意）；
   // 档案里的「子票那句」会把截断与差额补出来，不让数字悄悄对不上。
-  const effStats = (bucket && bucket.mode === 'real' && bucket.stats) ? bucket.stats : (((detail && detail.stats) || m.stats) || null)
+  const effStats = ((detail && detail.stats) || m.stats) || null
   const cKind = containerKindOf(m) || 'map'
   const cState = containerStateOf({ stats: effStats })
   const tri = containerTriState(cKind, cState)

@@ -27,6 +27,8 @@ import type {
 import type {
   ChangeSetProjection,
   ChangeSetQuery,
+  ContainerProjection,
+  ContainerProjectionQuery,
   IssueDetailProjection,
   IssueDetailQuery,
   ListProjection,
@@ -48,7 +50,7 @@ import {
 } from '../persistence/schema.js'
 import { applySyncBookkeepingRow, readSyncBookkeepingRow } from '../persistence/sync-bookkeeping.js'
 import { openWritableDatabase, describeError } from './open-schema.js'
-import { readListProjection } from '../projection/list.js'
+import { readContainerProjection, readListProjection } from '../projection/list.js'
 import { readIssueDetailProjection } from '../projection/detail.js'
 import { readChangeSetProjection } from '../projection/changes.js'
 import { readCountsProjection } from '../projection/counts.js'
@@ -279,6 +281,10 @@ export function openWorkspaceSnapshot(
     readIssueDetail(query: IssueDetailQuery): IssueDetailProjection {
       ensureOpen()
       return readIssueDetailProjection(db, query, now())
+    },
+    readContainerProjection(query: ContainerProjectionQuery): ContainerProjection {
+      ensureOpen()
+      return readContainerProjection(db, query, now())
     },
     readChangeSet(query: ChangeSetQuery): ChangeSetProjection {
       ensureOpen()

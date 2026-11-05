@@ -11,6 +11,8 @@
 // 子票计数与合并时间各自由自己的组读，行组不再带它们——一行只有一个主人。
 import type { DatabaseSync } from 'node:sqlite'
 import type {
+  ContainerProjection,
+  ContainerProjectionQuery,
   GroupState,
   IssueRowValue,
   ListIssue,
@@ -184,6 +186,53 @@ function toRowValue(row: ListRow): IssueRowValue {
     statusSource: row.status_source,
     statusConflictJson: row.status_conflict_json,
   }
+}
+
+
+/**
+ * 按容器读一次（#1923）：容器行 + 它下面的全部子票行。
+ *
+ * 为什么要有这一条：首屏投影按 #691/#1291 只给开放容器装子票，已关闭容器的子票不在首屏；
+ * 详情页打开一张已关闭容器时要看子票卡片、层级与统计，就得在打开那一刻按父子边把子票读齐，
+ * 而不是把首屏放宽（规格 §6 的收窄仍然成立）。
+ *
+ * 三条口径与列表读逐字相同，不能各写一份：
+ *  1. 只读「有 row 组记录、没有墓碑」的票（引用骨架与确认不存在的行不画）；
+ *  2. 行形状用 projectListRows 同一份换算（标签、指派、边、组三态都一致）；
+ *  3. 子票按状态升序、更新时间倒序、票号升序，与列表读的 ORDER BY 同一条。
+ *
+ * key 是必填的：没有票号的查询没有意义，直接抛错比返回一份空壳更容易发现接线写错。
+ */
+export function readContainerProjection(
+  db: DatabaseSync,
+  query: ContainerProjectionQuery | undefined,
+  nowMs: number,
+): ContainerProjection {
+  const key = String(query?.key ?? '')
+  if (!key) throw new Error('readContainerProjection 缺少 key')
+  const effortId = query?.effortId === undefined || query?.effortId === null ? '' : String(query.effortId)
+  const mergeVersion = readMergeVersion(db)
+  const containerRow = db.prepare(
+    `SELECT ${LIST_ROW_COLUMNS}
+       FROM issue i
+       JOIN issue_group g ON g.issue_id = i.issue_id AND g.group_name = 'row'
+       LEFT JOIN issue_tombstone t ON t.issue_id = i.issue_id
+      WHERE i.effort_id = ? AND i.key = ? AND t.issue_id IS NULL`,
+  ).get(effortId, key) as ListRow | undefined
+  if (!containerRow) return { mergeVersion, generatedAtMs: nowMs, container: null, issues: [] }
+  const container = projectListRows(db, [containerRow])[0] ?? null
+  // 子票按边表反向查（谁把这张容器当父票）。用 IN 子查询而不是 JOIN：同一张票即使有多条
+  // 指向同一容器的父边，也只出现一次，不会把统计算重。
+  const rows = db.prepare(
+    `SELECT ${LIST_ROW_COLUMNS}
+       FROM issue i
+       JOIN issue_group g ON g.issue_id = i.issue_id AND g.group_name = 'row'
+       LEFT JOIN issue_tombstone t ON t.issue_id = i.issue_id
+      WHERE i.issue_id IN (SELECT e.subject_id FROM issue_edge e WHERE e.kind = 'parent' AND e.object_id = ?)
+        AND t.issue_id IS NULL
+      ORDER BY i.state ASC, i.updated_at_ms DESC, i.key ASC`,
+  ).all(Number(containerRow.issue_id)) as ListRow[]
+  return { mergeVersion, generatedAtMs: nowMs, container, issues: projectListRows(db, rows) }
 }
 
 function nullableNumber(value: number | null): number | null {

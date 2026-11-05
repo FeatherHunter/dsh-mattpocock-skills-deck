@@ -13,6 +13,10 @@
  *     fetchMapTickets( / .call('wf.…)；进页面取数的旧接线文件已经不在了，构建清单也不再登记它；
  *     并带一条反证，证明这道静态判据本身抓得住直连写法。
  *
+ * #1923 起的口径补充：已关闭容器的子票、层级与统计由视图模型的 openMap 命令触发一次容器级读取，
+ * 结果作为 mapDetail 切片的 bucket 交给页面（首屏投影不放宽）。本门的 A/B 两组仍只守「开放容器
+ * 从投影取、进页面不取数」；已关闭容器那一条完整链路由 tests/verify-1923-closed-container.ts 守。
+ *
  * 为什么能单独跑：视图模型与地图详情选择器都是纯数据层（不挂 React、不起浏览器、不发电话）。
  * 这一趟按规格「视图状态」那条接缝直接构造它、喂假投影与假宿主电话，断言状态迁移与切片内容。
  *
@@ -325,8 +329,12 @@ async function main(): Promise<void> {
     const page = sourceText('src/client/views/mapDetailV2/view/MapDetailV2Page.ts')
     check(page.indexOf('detail.map') >= 0 && page.indexOf('map: m') >= 0 && page.indexOf('mapDetailPageModelOf(') >= 0,
       'E1 页面把切片里的容器行交给整页模型（m 来自 detail.map，再传给 mapDetailPageModelOf）')
-    check(page.indexOf('const bucket =') >= 0 && page.indexOf("mode || '') === 'loading'") >= 0,
-      'E2 取数桶只剩「有值就按它画」的只读分支（本页不再发起取数）')
+    // #1923：桶与统计都从 mapDetail 切片来；页面不再从 st.mapTickets 挑桶，也不再自己发取数。
+    check(page.indexOf('const bucket =') >= 0 && page.indexOf('detail.bucket') >= 0 && page.indexOf("String(bucket.mode || '') === 'loading'") >= 0 && page.indexOf('detail.stats') >= 0,
+      'E2 取数桶与统计都从 mapDetail 切片来（页面只按桶画，不发起取数）', { bucket: page.indexOf('detail.bucket'), stats: page.indexOf('detail.stats') })
+    const pageCode = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    check(pageCode.indexOf('st.mapTickets') < 0,
+      'E2b 页面代码里不再读 st.mapTickets（已关闭容器的桶由视图模型给出）')
     const binding = sourceText('src/client/kernel/deck-view-binding.ts')
     check(binding.indexOf('mapDetailOf') >= 0 && binding.indexOf('activeMapEffort') >= 0,
       'E3 接线层给视图模型提供 mapDetail 端口，并把当前容器的 effort 一起交给它')
