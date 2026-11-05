@@ -25,6 +25,8 @@ import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import { glabClient } from './client.js'
 import type { GlabRunResult } from './client.js'
 import { issuesPath, issuePath, notesPath, linksPath, projectPath, milestonesPath } from './queries.js'
+// 分页额度只有共享表一处：环检快照那条固定 per_page 也必须从它取值，不能写裸数字（门禁 per-page-digits）。
+import { PAGINATION } from '../../contract/pagination.js'
 
 // 上下文只取平台与执行器两样，而且允许缺：缺了客户端会按 127 如实回，不抛。
 // 写成与 client.ts 的 GlabCtx 同款的两形交叉，读半边与写半边都能把各自的 effective 原样传进来。
@@ -399,7 +401,10 @@ export function requestProjectPermissions(opCtx: MaybeCtx, refId: string, timeou
  * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
  */
 export function requestIssueListCapped(opCtx: MaybeCtx, refId: string, timeoutMs: number): Promise<GlabRunResult> {
-  return clientOf(opCtx).run(['api', issuesPath(refId) + '?per_page=100'], { timeout: timeoutMs })
+  // 走 projectPath 再拼固定查询串，而不是 issuesPath(refId, query)：端点采样门禁要把这一条认成
+  // `projects/{}/issues?per_page=100`（issues-list-capped）；写成变量查询串它会读成 `?{}`。
+  // per_page 的数值仍从共享分页表取，避免裸数字（verify-pagination-limits 的 per-page-digits）。
+  return clientOf(opCtx).run(['api', projectPath(refId) + '/issues?per_page=' + PAGINATION.gitlab.maxPerPage], { timeout: timeoutMs })
 }
 
 /**
