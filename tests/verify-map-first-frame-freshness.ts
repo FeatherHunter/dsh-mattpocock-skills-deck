@@ -153,7 +153,6 @@ globalThis.TicketCardFlow = (await import('../src/client/views/mapDetailV2/view/
 globalThis.MapProfileHeader = (await import('../src/client/views/mapDetailV2/view/profile/MapProfileHeader.js')).MapProfileHeader
 globalThis.MapDetailTop = (await import('../src/client/views/MapDetailTop.js')).MapDetailTop
 globalThis.pageActionHandlersOf = (await import('../src/client/views/mapDetailV2/wiring/pageActionHandlers.js')).pageActionHandlersOf
-globalThis.useMapTicketsFeed = (await import('../src/client/views/mapDetailV2/wiring/useMapTicketsFeed.js')).useMapTicketsFeed
 globalThis.MapDetailV2Page = (await import('../src/client/views/mapDetailV2/view/MapDetailV2Page.js')).MapDetailV2Page
 globalThis.DswsCtx = DswsCtx
 

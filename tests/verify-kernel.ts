@@ -52,6 +52,8 @@ const MODULES = [
   // #1894（规格 #1885 S6）：视图模型基座。登记在这里是为了「改了没重建要被拦下」——
   //   产物新鲜度按 SOURCES 里的真源修改时间比，不登记就漏掉这两份真源。
   { name: 'deckViewModel', file: 'deck-view-model', exports: ['createDeckView', 'deckFiltersOf', 'deckReadingOf'] },
+  // #1895：地图详情切片（当前容器 + 子票 + 层级 + 统计），纯选择器，由接线层作为 mapDetail 端口接上。
+  { name: 'deckMapDetail', file: 'deck-map-detail', exports: ['deckMapDetailOf'] },
   { name: 'deckViewBinding', file: 'deck-view-binding', exports: ['deckViewOf', 'deckViewSliceOf', 'deckViewCountsOf', 'deckProjectionOf', 'deckViewCommand', 'useDeckViewSlice', 'useDeckViewFor', 'deckResolveSessionCwd', 'deckViewForgetFrames'] },
   { name: 'rowActions', file: 'row-actions', exports: ['rowActionKind', 'actionColorOf', 'rowActionText', 'mkRowAction'] },
   // #709（T5）：8 秒自轮询那对排期/取消函数已退役，换成事件驱动入口（四类事件共用一个出口）。

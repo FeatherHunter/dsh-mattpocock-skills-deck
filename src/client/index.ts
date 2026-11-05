@@ -331,6 +331,8 @@ export default {
     // #1894（规格 #1885 S6）：视图模型基座 —— 一份投影 + 会话私有阅读态（筛选/草稿/当前打开的票），
     //   对外只有状态与命令，视图按切片订阅。纯模型在前、生产接线在后：接线要调纯模型的 createDeckView。
     // ==== kernel:deckViewModel (spliced by build) ====
+    // #1895：地图详情这一屏的视图模型切片（容器树、子票、层级、统计都从投影取）。
+    // ==== kernel:deckMapDetail (spliced by build) ====
     // ==== kernel:deckViewBinding (spliced by build) ====
     // 行级动作全家（诊断/接手/…/执行八选一、容器三态按钮）从 store-derived 原样抽出，
     // 排在其后：它们要用 findMapByIdentity 与 isLightHex。

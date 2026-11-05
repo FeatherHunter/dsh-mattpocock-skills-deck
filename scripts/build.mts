@@ -555,6 +555,9 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   //   接线片要用纯片的 createDeckView / deckFiltersOf / deckReadingOf，拼接次序按这条依赖关系排。
   //   两片都声明在 src/client/index.ts 的 kernel:deckViewModel / kernel:deckViewBinding 标记处。
   { name: 'deckViewModel', file: 'src/client/kernel/deck-view-model.ts' },
+  // #1895（规格 #1885 S6）：地图详情切片（当前打开的容器 + 子票 + 层级 + 统计，全部从投影取）。
+  //   纯选择器，排在本条之后、接线片之前：接线层的 mapDetail 端口要调它。
+  { name: 'deckMapDetail', file: 'src/client/kernel/deck-map-detail.ts' },
   { name: 'deckViewBinding', file: 'src/client/kernel/deck-view-binding.ts' },
   // 行级动作全家从 store-derived.ts 原样抽出（那份越过每文件 350 有效行的门禁）；
   //   必须排在本条之后：findMapByIdentity 与 isLightHex 由 store-derived 定义。
@@ -978,7 +981,6 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'mapV2CardProps', file: 'src/client/views/mapDetailV2/model/assembly/cardPropsOf.ts' },
   { id: 'mapV2PageModel', file: 'src/client/views/mapDetailV2/model/assembly/mapDetailPageModel.ts' },
   { id: 'mapV2Styles', file: 'src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts' }, // 页面外壳样式（卡片皮肤仍由 cardsStyles 那一片提供，深浅两套在卡片自己身上）
-  { id: 'mapV2UseFeed', file: 'src/client/views/mapDetailV2/wiring/useMapTicketsFeed.ts' }, // 进页面就拉这张图的全部子票（含已关闭），取数状态由模型翻译成人话
   { id: 'mapV2Actions', file: 'src/client/views/mapDetailV2/wiring/pageActionHandlers.ts' }, // 卡片四个按钮的回调（注入提示词 / 新会话 / 复制链接 / 打开）
   { id: 'mapV2ProfileHeader', file: 'src/client/views/mapDetailV2/view/profile/MapProfileHeader.ts' },
   { id: 'mapV2CardFlow', file: 'src/client/views/mapDetailV2/view/flow/TicketCardFlow.ts' },
