@@ -861,7 +861,6 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcWriteView', file: 'src/client/views/versionControl/vcWriteView.ts' }, // #842 写操作的节点画法（从入口组件搬出，组件守住 350 行）
   { id: 'vcDiffOps', file: 'src/client/views/versionControl/vcDiffOps.ts' }, // #857 差异与提交那几路的动作（从入口组件搬出，组件守 350 行）
   { id: 'vcBlocks', file: 'src/client/views/versionControl/vcBlocks.ts' },
-  { id: 'vcViews', file: 'src/client/views/versionControl/vcViews.ts' }, // #853 第三步：布局 C 的三个视图（改动 / 提交历史 / 工作树）
   { id: 'vcAiHandoff', file: 'src/client/views/versionControl/vcAiHandoff.ts' }, // #854：「让 AI 帮我解决」交接按钮（prompt 三段式 + 开新会话路由）
   { id: 'vcTabVisible', file: 'src/client/views/versionControl/vcTabVisible.ts' },
   { id: 'vcData', file: 'src/client/views/versionControl/vcData.ts' },
@@ -873,7 +872,6 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcCapabilityPages', file: 'src/client/views/versionControl/vcCapabilityPages.ts' },
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
-  { id: 'vcCapabilityList', file: 'src/client/views/versionControl/vcCapabilityList.ts' }, // #1762 T26：「本页负责的能力」列表从壳拆出，排在壳之前
   { id: 'vcSearchPage', file: 'src/client/views/versionControl/vcSearchPage.ts' }, // #1846 全库搜索页自己的版式（输入框在首屏、结果按页面分组），排在壳之前，壳要调它
   { id: 'vcHistoryQuery', file: 'src/client/views/versionControl/vcHistoryQuery.ts' }, // #1903 历史页四条能力的纯判定（搜索范围、命中文件、只看单个文件、比较摘要），排在 vcHistory 之前
   { id: 'vcHistoryOps', file: 'src/client/views/versionControl/vcHistoryOps.ts' }, // #1903 历史页四条能力的动作层（三条只读复用一个三态槽，备注走预检签票 + 凭票执行）

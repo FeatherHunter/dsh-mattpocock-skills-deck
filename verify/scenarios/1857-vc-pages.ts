@@ -48,6 +48,12 @@ const PAGES = [
   { id: 'rebase', kind: 'link', title: '变基待办', sections: ['本次变基', '六步待办', '会动与不会动'] },
   { id: 'conflicts', kind: 'link', title: '冲突向导', sections: ['本次合并', '会动与不会动'] },
   { id: 'task', kind: 'link', title: '任务进度', sections: ['选一种长任务', '进度', '取消之后'] },
+  // #1848 收口走查的其余四页：管理索引（齿轮那屏）与三张分区页。这几页的区块写法由各自的切片票
+  // 定过，收口这一轮只验「四档宽两皮肤下首屏还在、不横向溢出、页尾没有能力清单」。
+  { id: 'manage', kind: 'gear-index', title: '管理', sections: [] },
+  { id: 'remote', kind: 'gear', title: '远端与同步', sections: [] },
+  { id: 'config', kind: 'gear', title: '配置', sections: [] },
+  { id: 'hooks', kind: 'gear', title: '钩子', sections: [] },
 ]
 
 const ENABLED_PAGES = String(process.env.DSH_1857_PAGES || 'migrate,diagnostics,platform,rebase,conflicts,task')
@@ -362,6 +368,15 @@ async function waitForSelector(raw: RawBrowserPage, selector: string, budgetMs: 
 async function goToPage(page: PageHandle, raw: RawBrowserPage, spec: { id: string; kind: string }): Promise<{ ok: boolean; detail: string }> {
   const current = await readState(page)
   if (current !== null && current.bodyPage === spec.id) return { ok: true, detail: 'already-there' }
+  if (spec.kind === 'gear-index') {
+    // 管理索引就是齿轮按下去的那一屏，没有卡片要点。
+    let opened = await realClick(raw, GEAR_BTN)
+    if (!opened.ok) opened = await forceClick(raw, GEAR_BTN)
+    if (!opened.ok) return { ok: false, detail: '点齿轮失败：' + String(opened.problem) }
+    const landedIndex = await waitForBodyPage(page, spec.id, 12000)
+    if (landedIndex !== null) return { ok: true, detail: 'navigated' }
+    return { ok: false, detail: '没有落到管理索引（期望 ' + spec.id + '）' }
+  }
   if (spec.kind === 'link') {
     // 顶部条的额外入口只在二级页上画（一级页签不画，见 vcRealTab 的 !firstLevelTab）：
     // 所以从一级页签出发时先点齿轮进管理索引（那已经是二级页），再点额外入口。

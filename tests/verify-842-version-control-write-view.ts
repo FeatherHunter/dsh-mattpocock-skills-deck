@@ -108,7 +108,6 @@ const VC_FILES = [
   'src/client/views/versionControl/vcWriteView.js',
   'src/client/views/versionControl/vcDiffOps.js', // #857：差异与提交那几路的动作（从入口组件搬出，闭包里排在 vcBlocks 之前）
   'src/client/views/versionControl/vcBlocks.js',
-  'src/client/views/versionControl/vcViews.js', // #853 第三步：布局 C 的三个视图（与构建同序，排在 vcBlocks 之后）
   'src/client/views/versionControl/vcAiHandoff.js', // #854：AI 交接（与构建同序）
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
@@ -172,7 +171,6 @@ const VC_FILES = [
   'src/client/views/versionControl/vcPlatformPage.js',
   'src/client/views/versionControl/vcMigrateExport.js',
   // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
-  'src/client/views/versionControl/vcCapabilityList.js',
   // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
   'src/client/views/versionControl/vcUndoOps.js',
   'src/client/views/versionControl/vcUndoPage.js',
@@ -231,18 +229,17 @@ const VC_FILES = [
 ]
 
 const EXPORTS = [
-  'VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_VIEWS', 'VC_TONE', 'VC_MIDDLE_MIN',
+  'VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_TONE', 'VC_MIDDLE_MIN',
   'VC_FOLD_STEP_CAP', 'VC_SYNC_VALUES', 'VC_DIFF_REASON_KEY', 'VC_OTHER_SUMMARY_NAMES', 'vcFailKeyOf', 'vcFileRowsOf', 'vcDiffViewOf', 'vcSyncViewOf',
   'vcOtherRowOf', 'vcReadsOf', 'vcBlocksOf', 'vcChangeKeyOf', 'vcChangeToneOf', 'vcTail', 'vcMiddle', 'vcShortOid',
   'vcPlusMinus', 'vcTimeKind', 'vcWhenText', 'vcBasisText', 'vcFoldBandAt', 'vcFoldDataOf', 'vcFoldLadderOf', 'vcFoldStateAt',
   'vcFoldOf', 'vcTabVisible', 'vcNewReads', 'vcFailureOf', 'vcReadStatus', 'vcReadDiff', 'vcReadMoreCommits', 'vcNextSkipOf',
-  'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead', 'vcViewOf', 'vcRememberedView',
-  'vcRememberView', 'vcResetViewMemory', 'vcViewCountsOf', 'vcViewBlocksOf', 'vcViewTabsNode', 'vcPickViewStateOf', 'VC_AI_READ_FAIL_KINDS', 'vcAiHandoffOf',
+  'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead', 'VC_AI_READ_FAIL_KINDS', 'vcAiHandoffOf',
   'vcAiButtonNode', 'vcOpenAiHandoff', 'vcFreshOnCwd', 'vcScreenShapeOk', 'vcApplyCommitReply', 'vcMarkLogLoading', 'vcOneLine', 'VC_SCREEN_CACHE_MAX',
   'vcCacheSeedOf', 'vcCacheSave', 'vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf', 'CAPABILITIES', 'PAGE_SURFACES',
   'PAGE_COUNTS', 'CAPABILITY_TOTAL', 'REASONS', 'judge', 'VC_TAB_PAGES', 'VC_MANAGE_PAGES', 'VC_SEARCH_PAGE', 'VC_DEEP_LINKS',
   'VC_SHELL_WIDTHS', 'VC_SHELL_STATES', 'VC_SHELL_SKINS', 'vcPageDepthOf', 'vcPageRegistryOf', 'vcPageCapabilitiesOf', 'vcCapabilityOf', 'vcDeepLinkOf',
-  'vcPageSurfaceOf', 'vcShellStateNode', 'vcShellConfirmCardNode', 'vcShellResultNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf', 'vcCapabilityListOf', 'VC_BLOCK_KEY',
+  'vcPageSurfaceOf', 'vcShellStateNode', 'vcShellConfirmCardNode', 'vcShellResultNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf', 'VC_BLOCK_KEY',
   'vcBlockKeyOf', 'vcReasonKeysOf', 'VC_PALETTE_MAX', 'vcCapabilityAliasOf', 'vcCapabilitySummaryOf', 'vcCapabilityNeedsObjectOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf',
   'vcPaletteNode', 'VC_LOG_BATCH', 'VC_HISTORY_BATCH', 'VC_HISTORY_LANES_MAX', 'VC_HISTORY_DIFF_LINES_WIDE', 'VC_HISTORY_DIFF_LINES_NARROW', 'vcHistoryFirstPageOf', 'vcHistoryModelOf',
   'vcHistoryGraphOf', 'vcHistoryDiffContextOf', 'vcHistoryPageNode', 'vcHistoryListOf', 'vcHistoryRowNode', 'vcHistoryDetailOf', 'vcHistoryGraphNode', 'VC_REMOTE_PHONES',
@@ -324,7 +321,7 @@ const EXPORTS = [
   'vcBoundedMap', 'vcClockText', 'vcClearTheme', 'vcCommitAreaNode', 'vcCommitListOf', 'vcConfirmOf', 'vcDiffOpenKeyOf', 'vcDiffOpsOf',
   'vcGroupOfRow', 'vcMarkCommitFileDiffLoading', 'vcMarkCommitLoading', 'vcMarkDiffLoading', 'vcOpResultOf', 'vcOpStateOf', 'vcPlanMismatchOf', 'vcPushDecisionOf',
   'vcRemoteChoiceOf', 'vcRequestIdOf', 'vcRowStageNodes', 'vcRowStageOf', 'vcRowUnstageNodes', 'vcRowUnstageOf', 'vcRowViewOf', 'vcRunCheck',
-  'vcRunWrite', 'vcSetTheme', 'vcStageAllNode', 'vcStatsNode', 'vcStatsOf', 'vcViewBarNode', 'vcCommitSkelNodes', 'vcViewSkelNode',
+  'vcRunWrite', 'vcSetTheme', 'vcStageAllNode',
   'vcWriteErrFamilyOf', 'vcWriteErrKeyOf', 'vcWriteOpsOf', 'vcWriteTailNodes', 'vcWriteUiOf',
 ]
 

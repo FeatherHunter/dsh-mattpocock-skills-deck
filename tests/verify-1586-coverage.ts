@@ -52,7 +52,6 @@ const CLOSURE_FILES = [
   'src/client/views/versionControl/vcCapabilityPages.ts',
   'src/client/views/versionControl/vcShellPrimitives.ts',
   'src/client/views/versionControl/vcPalette.ts',
-  'src/client/views/versionControl/vcCapabilityList.ts',
   // #1846 全库搜索页自己的版式（输入框在首屏、结果按页面分组）；壳渲染搜索页时调它，覆盖验收要拼进来。
   'src/client/views/versionControl/vcSearchPage.ts',
   // #1829 身份行与同步带拆成独立叶子；壳只在渲染时调用它，覆盖验收拼进来才能渲染页面。

@@ -17,7 +17,7 @@ declare function vcPageDepthOf(pageId: any): number
 declare function vcPageRegistryOf(): any[]
 declare function vcPageCapabilitiesOf(pageId: any): any[]
 declare function vcCapabilityOf(capId: any): any
-// 「本页负责的能力」列表（#1762 T26 从本文件拆到 vcCapabilityList.ts 以守住单文件行数上限）。
+// 「本页负责的能力」列表在 #1860 已退役；它当年从本文件拆出的 vcCapabilityList.ts 也随之删除（#1848）。
 // #1860：能力清单叶子不再挂进页面体（文件与登记随后移除），这里不再声明。
 declare const VC_TAB_PAGES: string[]; declare const VC_MANAGE_PAGES: string[]; declare const VC_SIDE_PAGES: string[]
 declare const VC_SEARCH_PAGE: string; declare const VC_MANAGE_INDEX_PAGE: string

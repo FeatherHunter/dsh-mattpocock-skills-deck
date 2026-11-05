@@ -113,7 +113,6 @@ const VC_FILES = [
   'src/client/views/versionControl/vcWriteView.js',
   'src/client/views/versionControl/vcDiffOps.js', // #857：差异与提交那几路的动作（从入口组件搬出，闭包里排在 vcBlocks 之前）
   'src/client/views/versionControl/vcBlocks.js',
-  'src/client/views/versionControl/vcViews.js', // #853 第三步：布局 C 的三个视图（与构建同序，排在 vcBlocks 之后）
   'src/client/views/versionControl/vcAiHandoff.js', // #854：AI 交接（与构建同序）
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
@@ -179,7 +178,6 @@ const VC_FILES = [
   'src/client/views/versionControl/vcPlatformPage.js',
   'src/client/views/versionControl/vcMigrateExport.js',
   // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
-  'src/client/views/versionControl/vcCapabilityList.js',
   // #1846 全库搜索页自己的版式（输入框在首屏、结果按页面分组）；壳渲染搜索页时调它。
   'src/client/views/versionControl/vcSearchPage.js',
   // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
@@ -254,12 +252,12 @@ function stripExports(text: string): string { return text.replace(/^(\s*)export\
 const VC_SEED_RE = /React\.useState\(function\s*\(\)\s*\{\s*return vcCacheSeedOf\(cwd\) \|\| vcNewReads\(\)\s*;?\s*\}\)/
 const VC_OPENCOMMIT_RE = /openCommit:\s*["']{2},\s*view:/
 const VC_UIINIT_RE = /React\.useState\(function\s*\(\)\s*\{\s*return \{\s*fileShown:\s*\{\},\s*openDiff:\s*["']{2},\s*openCommit:\s*["']{2}/
-const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_VIEWS', 'VC_TONE', 'VC_MIDDLE_MIN', 'VC_FOLD_STEP_CAP', 'VC_SYNC_VALUES', 'VC_DIFF_REASON_KEY', 'VC_OTHER_SUMMARY_NAMES',
+const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_TONE', 'VC_MIDDLE_MIN', 'VC_FOLD_STEP_CAP', 'VC_SYNC_VALUES', 'VC_DIFF_REASON_KEY', 'VC_OTHER_SUMMARY_NAMES',
   'vcFailKeyOf', 'vcFileRowsOf', 'vcDiffViewOf', 'vcSyncViewOf', 'vcOtherRowOf', 'vcReadsOf', 'vcBlocksOf',
   'vcChangeKeyOf', 'vcChangeToneOf', 'vcTail', 'vcMiddle', 'vcShortOid', 'vcPlusMinus', 'vcTimeKind',
   'vcWhenText', 'vcBasisText', 'vcFoldBandAt', 'vcFoldDataOf', 'vcFoldLadderOf', 'vcFoldStateAt', 'vcFoldOf',
   'vcTabVisible', 'vcNewReads', 'vcFailureOf', 'vcReadStatus', 'vcReadDiff', 'vcReadMoreCommits', 'vcNextSkipOf',
-  'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead', 'vcViewOf', 'vcRememberedView', 'vcRememberView', 'vcResetViewMemory', 'vcViewCountsOf', 'vcViewBlocksOf', 'vcViewTabsNode', 'vcPickViewStateOf', 'VC_AI_READ_FAIL_KINDS', 'vcAiHandoffOf', 'vcAiButtonNode', 'vcOpenAiHandoff',
+  'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead', 'VC_AI_READ_FAIL_KINDS', 'vcAiHandoffOf', 'vcAiButtonNode', 'vcOpenAiHandoff',
   'vcFreshOnCwd', 'vcScreenShapeOk', 'vcApplyCommitReply', 'vcMarkLogLoading', 'vcOneLine',
   'VC_SCREEN_CACHE_MAX', 'vcCacheSeedOf', 'vcCacheSave',
   'vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf',
@@ -267,7 +265,7 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'CAPABILITIES', 'PAGE_SURFACES', 'PAGE_COUNTS', 'CAPABILITY_TOTAL', 'REASONS', 'judge',
   'VC_TAB_PAGES', 'VC_MANAGE_PAGES', 'VC_SEARCH_PAGE', 'VC_DEEP_LINKS', 'VC_SHELL_WIDTHS', 'VC_SHELL_STATES', 'VC_SHELL_SKINS',
   'vcPageDepthOf', 'vcPageRegistryOf', 'vcPageCapabilitiesOf', 'vcCapabilityOf', 'vcDeepLinkOf', 'vcPageSurfaceOf',
-  'vcShellStateNode', 'vcShellConfirmCardNode', 'vcShellResultNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf', 'vcCapabilityListOf',
+  'vcShellStateNode', 'vcShellConfirmCardNode', 'vcShellResultNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf',
   'VC_BLOCK_KEY', 'vcBlockKeyOf', 'vcReasonKeysOf',
   'VC_PALETTE_MAX', 'vcCapabilityAliasOf', 'vcCapabilitySummaryOf', 'vcCapabilityNeedsObjectOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf', 'vcPaletteNode',
   // #1744 提交历史页：分页预算、图形化视图、详情与逐文件差异。
@@ -969,17 +967,9 @@ async function main() {
     commits: Array.isArray(liveScreen.commits) ? liveScreen.commits.length : 0,
     worktrees: Array.isArray(liveScreen.otherWorktrees) ? liveScreen.otherWorktrees.length : 0,
   }
-  const vc = VIEW.vcViewCountsOf(liveScreen, { log: { commits: [{ x: 1 }, { x: 2 }] } })
-  check(vc.changes === liveCounts.changes && vc.commits === liveCounts.commits + 2 && vc.worktrees === liveCounts.worktrees, 'V6 视图计数：改动按文件数、历史按已读到的提交数（含续读）、工作树按棵数')
-  const routed = VIEW.vcViewBlocksOf([{ kind: 'hint' }, { kind: 'band' }, { kind: 'identity' }, { kind: 'changes' }, { kind: 'changes', commitMode: true }, { kind: 'commits' }, { kind: 'other' }, { kind: 'terminal' }])
-  check(routed.always.length === 2 && routed.changes.length === 2 && routed.commits.length === 2 && routed.worktrees.length === 2, 'V7 块按视图分区（854 布局 C 原型）：常驻 2（提示/身份），异常带归改动视图，点开的提交归历史视图')
-  check(VIEW.vcViewOf({}) === 'changes' && VIEW.vcViewOf({ view: 'nope' }) === 'changes' && VIEW.vcViewOf({ view: 'worktrees' }) === 'worktrees', 'V8 视图取值非法时回退到改动页（不画空白）')
-  VIEW.vcRememberView('worktrees')
-  const memOk = VIEW.vcRememberedView() === 'worktrees'
-  VIEW.vcResetViewMemory()
-  check(memOk && VIEW.vcRememberedView() === 'changes', 'V9 同一会话内记住上次选的视图，复位回到改动页')
-  const picked = VIEW.vcPickViewStateOf({ view: 'commits', openCommit: 'abc1234', openDiff: 'k', write: { op: '' } }, 'worktrees')
-  check(picked.view === 'worktrees' && picked.openCommit === '' && picked.openDiff === 'k' && picked.write.op === '', 'V11 页签点下去就离开提交详情（原子切换：view 落点、openCommit 清空，其余状态不动）')
+  // #1848：V6–V11 这五条断的是布局 C 时代的三视图壳（vcViews.ts）。#1860 之后四个页签由真实页面壳
+  //   接管，vcViews 的导出在产品代码里已经零引用，文件随之删除；这些断言测的是一段不再参与渲染的代码，
+  //   留着只会假绿。视图切换的现行行为由 verify-1776-vc-live-tab 与 verify-1845-flow-pages 在真壳上守。
   // AI 组 · #854：面板解决不了的事 —— 按钮在四个落点，prompt 三段式，预填不发送。
   const aiScreen = screenOf({ conflictCount: 1, stagedCount: 0, unstagedCount: 1, unstaged: [{ path: 'c.txt', origPath: null, staged: false, unstaged: true, conflict: true, change: 'modified', addedLines: 1, deletedLines: 1 }], repo: { merging: false, rebasing: true, cherryPicking: false, reverting: false, hasCommits: true, bare: false, tier: 'full', autocrlm: null, autocrlf: null } })
   const aiReads = readsOf(aiScreen)

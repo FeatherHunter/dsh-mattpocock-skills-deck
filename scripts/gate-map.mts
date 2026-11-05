@@ -298,7 +298,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   //   详情里的文件行菜单与备注段；单跑实测 776 条。
   // 2026-11-06 #1844：三页按原型 43 / 46 / 47 重排——平台页换成六段分区、诊断页换成八段分区、
   //   迁移页删掉页尾能力说明并补分区断言，Z3d / Z3g / Z17a / Z17l / Z17m / Z17x 等改写后单跑实测 792 条。
-  'verify-818-version-control-view': 792,
+  'verify-818-version-control-view': 787,
   // 2026-11-01 #1776 M4b：远端写通道改成凭票执行后补一条「不带票直接执行必须判红」的断言，单跑实测 296 条。
   'verify-841-write-phones': 296,
   // 2026-11-01 #1776（规格 #1586 M1）：真实页签在 jsdom 里真挂载的门禁——假宿主记录每次电话，

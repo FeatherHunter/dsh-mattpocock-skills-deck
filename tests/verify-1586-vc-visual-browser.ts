@@ -78,8 +78,8 @@ const VC_FILES = [
   // #1745：提交历史页六组 / 诊断页四组的历史高级查询面板（页面壳要调它，闭包里少一片就 ReferenceError）。
   'src/client/views/versionControl/vcQuery.js',
   'src/client/views/versionControl/vcQueryView.js',
-  // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
-  'src/client/views/versionControl/vcCapabilityList.js',
+  // #1848：原 #1762 T26 拆出的「本页负责的能力」列表叶子（vcCapabilityList）随 #1860 退役删除，
+  //   闭包里不再需要它；页面体里不许出现 data-cap-primary 的判据仍然保留。
   // #1846：全库搜索页的正文叶子（输入框在首屏、结果按页面分组）；构建里排在 vcCapabilityList 之后、页面壳之前。
   //   闭包里少了它，壳的挂载段 typeof vcSearchPageNode !== 'function'，搜索页退回旧版式，量不到输入框与结果行。
   'src/client/views/versionControl/vcSearchPage.js',

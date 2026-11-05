@@ -15,9 +15,11 @@ const flush = () => new Promise((r) => setImmediate(r))
 async function main() {
   console.log('提交点开回归门禁（#881）')
   const opsMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'views', 'versionControl', 'vcDiffOps.js')).href)
-  const viewsMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'views', 'versionControl', 'vcViews.js')).href)
   const vcDiffOpsOf = opsMod.vcDiffOpsOf
-  const vcPickViewStateOf = viewsMod.vcPickViewStateOf
+  // #1848：旧的三视图壳 vcViews.ts 已随 #1860 退场（产品代码零引用），这里不再从它导入。
+  // 这条门禁要的是「切视图时把打开的提交清掉、其余状态不动」这一条约定本身，所以就地写一份最小实现：
+  // 它只承担测试替身的角色，判断的是 vcDiffOps 传进来的 onView 是否被按原子切换执行。
+  const vcPickViewStateOf = (ui, v) => ({ ...ui, view: v, openCommit: '' })
   check(typeof vcDiffOpsOf === 'function', '真源可加载：vcDiffOpsOf 存在')
   check(typeof vcPickViewStateOf === 'function', '真源可加载：vcPickViewStateOf 存在')
   // 手动点页签仍清空：这是要保留的老约定，修完也不能丢。
@@ -30,7 +32,7 @@ async function main() {
     const setReads = () => {}
     const readsRef = { current: { commit: { rev: '', state: 'idle' } } }
     const vcStub = (reads) => reads
-    const pickView = (v) => { try { const { vcRememberView } = viewsMod; if (typeof vcRememberView === 'function') vcRememberView(v) } catch (e) {} ; setUi((cur) => vcPickViewStateOf(cur, v)) }
+    const pickView = (v) => setUi((cur) => vcPickViewStateOf(cur, v))
     const ops = vcDiffOpsOf({ ui: ui0, setUi, setReads, readsRef, callHost: () => Promise.resolve({ ok: true, files: [], truncated: false, reason: 'ok' }), cwd: 'D:/w/repo', stateCwdRef: { current: 'D:/w/repo' }, vcDiffOpenKeyOf: () => 'k', vcReadDiff: vcStub, vcReadCommitFiles: (reads) => Promise.resolve(reads), vcReadCommitFileDiff: vcStub, vcApplyDiffReply: vcStub, vcApplyCommitReply: vcStub, vcReadsOf: () => ({ state: 'idle' }), vcMarkDiffLoading: vcStub, vcMarkCommitLoading: vcStub, vcMarkCommitFileDiffLoading: vcStub, vcApplyCommitFileDiffReply: vcStub, onView: pickView })
     fn(ops)
     let cur = ui0

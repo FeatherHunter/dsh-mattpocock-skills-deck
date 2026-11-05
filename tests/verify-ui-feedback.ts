@@ -120,7 +120,6 @@ const MATRIX: [string, string, string[]][] = [
   //   （刷新、返回来源页与提交历史行点开的按钮都在那一叶画）。
   ['src/client/views/versionControl/vcRealShell.ts', '版本管理页', ['vc.row.open.', 'vc.reload', 'vc.commit.back', 'vc.changes.back']],
   ['src/client/views/versionControl/vcAiHandoff.ts', '版本管理的 AI 交接', ['vc.ai.']],
-  ['src/client/views/versionControl/vcViews.ts', '版本管理的三个页签', ['vc.tab.']],
   ['src/client/views/versionControl/vcWriteView.ts', '版本管理的写操作', ['vc.row.stage.', 'vc.viewbar.', 'vc.action.']],
   ['src/client/views/shared/ChainRenderer.ts', '工作流步骤', ['chain.action.', 'chain.form.']],
   ['src/client/views/shared/chips.ts', '兜底药丸', ['chip.fallback.']],
