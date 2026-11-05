@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T05:54:25.513Z",
+  "generatedAt": "2026-11-05T06:38:25.278Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 584,
-  "gateCount": 584,
-  "attributedGates": 528,
+  "chainLength": 585,
+  "gateCount": 585,
+  "attributedGates": 529,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 128,
+  "completionRecordedGates": 129,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 921,
+  "graphFileCount": 922,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -7012,6 +7012,28 @@
       "completionRecord": true,
       "expectedAssertions": 38,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
+      "step": "node tests/verify-1898-pr-merged-refresh.ts",
+      "file": "tests/verify-1898-pr-merged-refresh.ts",
+      "guards": [
+        "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
+        "src/refresh/rooms/host/snapshot-library-adapter.ts",
+        "src/tracker/rooms/github/read/issues-rest-list.ts",
+        "src/tracker/rooms/github/read/issues.ts",
+        "src/tracker/rooms/github/read/pulls.ts",
+        "src/tracker/rooms/github/read/read-page-cap.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/github/read"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 41,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
       "step": "node tests/verify-1899-degradation-logs.ts",
@@ -15084,6 +15106,7 @@
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-1892-pure-projection.ts",
       "node tests/verify-1893-projection-only.ts",
+      "node tests/verify-1898-pr-merged-refresh.ts",
       "node tests/verify-1899-degradation-logs.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
@@ -15519,6 +15542,7 @@
       "node tests/verify-1607-gh-unc-cwd.ts",
       "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-1830-list-label-honesty.ts",
+      "node tests/verify-1898-pr-merged-refresh.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -16075,9 +16099,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 944,
+    "fileCount": 945,
     "dirCount": 92,
-    "coveredFileCount": 944,
+    "coveredFileCount": 945,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 74,
@@ -16862,6 +16886,7 @@
       "src/tracker/rooms/github/read/parent-repair.ts",
       "src/tracker/rooms/github/read/preflight.ts",
       "src/tracker/rooms/github/read/pulls.ts",
+      "src/tracker/rooms/github/read/read-page-cap.ts",
       "src/tracker/rooms/github/read/read-sources.ts",
       "src/tracker/rooms/github/read/repo-permissions.ts",
       "src/tracker/rooms/github/read/rest-detail-completion.ts",
