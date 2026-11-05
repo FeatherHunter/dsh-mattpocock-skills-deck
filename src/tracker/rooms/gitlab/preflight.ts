@@ -23,6 +23,8 @@ import type { RepositoryRef } from '../../contract/entities.js'
 import type { PreflightResult } from '../../contract/results.js'
 import { fail, HINT_UNRECOGNIZED } from '../../kernel/preflight.js'
 import { classifyGlabError } from './errors.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefId } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
@@ -35,13 +37,6 @@ type PreflightHandle = Partial<OpContext> & Partial<BackendContext> & {
 
 // 上下文缺字段就按本地失败回，是因为预检问的正是环境通不通，抛异常反而让调用方无原文可看。
 type PreflightCtx = Partial<OpContext> & Partial<BackendContext>
-
-function repoRefId(repo: { refId?: unknown; name?: unknown } | null | undefined): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
 
 /** 取抛上来的错误里那句可读的话：glab 进程的 stdout/stderr 挂在错误值身上，没有 message 就整段转字符串。 */
 function messageOf(e: unknown): string {

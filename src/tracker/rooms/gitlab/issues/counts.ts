@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/gitlab/counts.ts — GitLab 房的计数读（契约的 `counts`，成员表见
+ * src/tracker/rooms/gitlab/issues/counts.ts — GitLab 房的计数读（契约的 `counts`，成员表见
  * `src/tracker/contract/operations.ts`，「计数契约」见 `src/tracker/contract/results.ts`，#689 新加）。
  *
  * ── 这一条只回答「库里符合条件的工单有多少张」，一行票面都不返回 ────────────────────
@@ -7,7 +7,7 @@
  * 数字改成问后端要，截断就与数字无关了。
  *
  * ── 为什么走 `GET /projects/:id/issues_statistics`（讨论票 #1063 的结论路径）──────────
- * 本房取数一律走 glab（`./client.ts`），而它只把 `{stdout, stderr, code}` 三样交回来，
+ * 本房取数一律走 glab（`../client.ts`），而它只把 `{stdout, stderr, code}` 三样交回来，
  * **HTTP 响应头在这条缝上根本拿不到**：要拿头得给 `glab api` 加 `-i`，那会把响应头掺进 stdout、
  * 让 JSON.parse 直接崩，本房不加这个参数。所以「顺手用 REST 列表的响应头拿总数」这条路走不通。
  * 改成一次 `issues_statistics` 调用：
@@ -19,6 +19,12 @@
  *    `closed ← closed`、`total ← all`。照契约名（open / total）去读回包只会读到 undefined，
  *    再被「缺一个就整体失败」那条挡住 —— 结果是读不出数，而不是读出一个错的数。
  *
+ * ── 为什么住在 issues/ 子树、请求从哪里发（#1914）───────────────────────────────
+ * 计数是「票」这个概念的一部分，落点跟着票读路径搬进 issues/ 子树。发出去的 method、路径与
+ * 查询参数不在本文件拼，一律调根目录 requests.ts 的 requestIssueStatistics：端点采样门禁只扫房间
+ * 根目录，请求形状写在那里才看得见。本文件只做拿到原始进程结果之后的解析、判档与话术，
+ * 行为与日志理由（op=counts 与五个 reason）逐字不变。
+ *
  * 四件故意不做的事：
  *  · 不数合并请求：这个端点叫 issues statistics，官方文档通篇只说 issue（工单）；GitLab 的
  *    合并请求是另一套资源（merge_requests），不走这个口。**这一条只在文档上对过，没有在真仓库上
@@ -29,26 +35,29 @@
  *  · 不拿别的数顶上：三个数里任何一个缺失或不是非负整数，就整体失败（理由 `counts:stat`），
  *    绝不用 0 或「另一个数」凑一个看着像数的东西出来。
  *
- * 判档与选话走本房唯一的出口 `./errors.ts` 的 `failGlab`（判档表在 `src/tracker/kernel/error-rules.ts`）；
+ * 判档与选话走本房唯一的出口 `../errors.ts` 的 `failGlab`（判档表在 `src/tracker/kernel/error-rules.ts`）；
  * 「命令成功了、这个数仍然拿不到」的几条路各自在返回前落一行 `read.degraded`，reason 只取本房
- * 已登记的取值（`./read-log.ts` 的 READ_DEGRADED_REASONS）：`counts:repo-ref` / `counts:transport` /
+ * 已登记的取值（`../read-log.ts` 的 READ_DEGRADED_REASONS）：`counts:repo-ref` / `counts:transport` /
  * `counts:json` / `counts:shape` / `counts:stat`。最外层那个 catch（调用抛上来的那一族）同属
- * `counts:transport` —— read-log.ts 对它的定义是「命令没跑成（起不了进程、超时、非 0 退出），
+ * `counts:transport` —— `../read-log.ts` 对它的定义是「命令没跑成（起不了进程、超时、非 0 退出），
  * 房间这层没拿到任何回包」，抛上来的异常正落在这一格里，所以它同样先落一行再失败。
  */
 
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { OpContext } from '../../contract/contexts.js'
-import type { RepositoryRef } from '../../contract/entities.js'
-import type { ListFilter } from '../../contract/inputs.js'
-import type { Counts, OpResult } from '../../contract/results.js'
-import { fail } from '../../kernel/preflight.js'
-import { glabClient } from './client.js'
-import { failGlab } from './errors.js'
-import { projectPath } from './queries.js'
-import { emitReadDegraded } from './read-log.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { OpContext } from '../../../contract/contexts.js'
+import type { RepositoryRef } from '../../../contract/entities.js'
+import type { ListFilter } from '../../../contract/inputs.js'
+import type { Counts, OpResult } from '../../../contract/results.js'
+import { fail } from '../../../kernel/preflight.js'
+import { failGlab } from '../errors.js'
+import { emitReadDegraded } from '../support/read-log.js'
+// 仓库标识的两个口径（refId 优先回落 name；项目全路径的形状校验）只在 model/repo-identity.ts 一处（#1910）。
+// refId 的原文仍在这里用于失败消息：人一眼能看出差在哪一格。
+import { repoFullPath, repoRefId } from '../model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
+// 请求形状住在房间根目录的 requests.ts（#1914）：本文件只收原始进程结果，再按旧口径归位。
+import { requestIssueStatistics } from '../requests.js'
 
 // 一趟读等远端的时限：与房内 list 那条同一档（10 秒）。计数是轻请求，但等待仍按整趟算进降级行的耗时。
 
@@ -60,35 +69,6 @@ type Bag = Record<string, unknown>
 function asBag(v: unknown): Bag | null {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null
   return v as Bag
-}
-
-/** 失败消息里带上这次收到的仓库标识原文：人一眼能看出差在哪一格（拿不到标识时给空串）。 */
-function refIdOf(repo: RepoLike): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
-
-/**
- * 从 `repo.refId` 取 GitLab 的项目全路径（形如 `group/sub/project`），拿不到就回 null。
- *
- * 只认 refId、不拿 name 当标识（name 是给界面看的显示名，refId 缺时它就是目录名，拿显示名当
- * 远端路径会打到一个不存在的仓库上）—— name 在上面那个函数里只用于失败消息。
- *
- * 「形状对不对」按远端真能认的两种写法判（`projects/:id` 既收完整路径也收数字项目 ID）：
- *  · 完整路径：至少带一段命名空间（含 `/`），且不以 `/` 开头结尾、不出现 `//`、不含空白；
- *  · 纯数字的项目 ID（例如 `42`）也放行。
- * 单段的名字（例如 `myproject`）不是 GitLab 能定位的标识，在这里就按不合格回：早点说清
- * 「入参不合格」比让它跑成一次 404 之后说「仓库不在」更接近实情。
- */
-function fullPathOf(repo: RepoLike): string | null {
-  const refId = typeof repo?.refId === 'string' ? repo.refId.trim() : ''
-  if (!refId) return null
-  if (/\s/.test(refId)) return null
-  if (refId.startsWith('/') || refId.endsWith('/') || refId.includes('//')) return null
-  if (/^[0-9]+$/.test(refId)) return refId
-  return refId.includes('/') ? refId : null
 }
 
 /** filter.state 归一：只有 'open' / 'closed' 两种收窄，其余（含缺失）都是「两种都要」。 */
@@ -142,13 +122,13 @@ export async function counts(
   ctx: OpContext,
 ): Promise<OpResult<Counts>> {
   const t0 = Date.now()
-  const fullPath = fullPathOf(repo)
+  const fullPath = repoFullPath(repo)
   if (!fullPath) {
     // 原文 = 这次收到的入参本身：它缺了或形状不对，人自己能看出差在哪。
     emitReadDegraded(ctx, 'counts', 'counts:repo-ref', Date.now() - t0)
     return fail(
       ERROR_KIND.NOTFOUND,
-      `counts: 仓库标识缺了或形状不对（项目全路径形如 group/sub/project，也可以是数字项目 ID）：${refIdOf(repo)}`,
+      `counts: 仓库标识缺了或形状不对（项目全路径形如 group/sub/project，也可以是数字项目 ID）：${repoRefId(repo)}`,
       repo,
     )
   }
@@ -161,11 +141,10 @@ export async function counts(
   params.set('scope', 'all')
   // labels 是 AND：逗号分隔的几个标签要同时命中（官方文档 issues 一节对 labels 参数的说明）。
   if (labels.length) params.set('labels', labels.join(','))
-  // projectPath 已经对 refId 做过一次 encodeURIComponent，这里不要再编一遍（编两遍会把 %2F 变成 %252F）。
-  const path = `${projectPath(fullPath)}/issues_statistics?${params.toString()}`
+  // 仓库路径的编码与「路径 + 查询串」的拼接只在 requests.ts 一处（编两遍会把 %2F 变成 %252F）；
+  // 本文件只把领域值（仓库全路径、查询串、超时毫秒）交过去。
   try {
-    const c = glabClient(ctx)
-    const r = await c.api(path, {}, { timeout: GITLAB_SLOW_READ_TIMEOUT_MS })
+    const r = await requestIssueStatistics(ctx, fullPath, params.toString(), GITLAB_SLOW_READ_TIMEOUT_MS)
     if (r.code !== 0) {
       // 原文 = 这一次 glab 调用的进程结果（stderr 里那几句是 glab 或远端的原话）。
       emitReadDegraded(ctx, 'counts', 'counts:transport', Date.now() - t0)
@@ -208,7 +187,7 @@ export async function counts(
           : { open: opened, closed, total: all }
     return { ok: true, data }
   } catch (e) {
-    // 抛上来的东西交给本房统一的判档出口；按 read-log.ts 对 `transport` 的定义
+    // 抛上来的东西交给本房统一的判档出口；按 ../read-log.ts 对 `transport` 的定义
     // （起不了进程、超时、非 0 退出这一族），它同样属于「这一趟没读成」，所以先照其余各条的规矩
     // 落一行 read.degraded，再失败 —— 不然「数没读成」在日志里是空的，事后分不清「没走这条路」还是「折在中间」。
     emitReadDegraded(ctx, 'counts', 'counts:transport', Date.now() - t0)

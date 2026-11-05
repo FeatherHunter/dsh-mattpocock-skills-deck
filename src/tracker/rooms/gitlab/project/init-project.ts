@@ -1,5 +1,19 @@
 /**
- * src/tracker/rooms/gitlab/init-project.ts —— GitLab 房的「开仓发布」：把当前工作区建成一张新仓库并推上去。
+ * src/tracker/rooms/gitlab/project/init-project.ts —— GitLab 房的「开仓发布」：把当前工作区建成一张新仓库并推上去。
+ *
+ * ── 为什么住在 project/ 子树（#1919）─────────────────────────────────────────
+ * 规格 #1907 把「开仓发布」归到「项目」这个概念，与票、评论、标签、关系、仓库并列；房间根目录只留
+ * 入口、出网边界、请求边界与兼容转发。房外没有读者按旧路径 import 这个 module（它不在 9 个旧路径
+ * 转发名单里），所以根目录那份直接删除、不留转发文件 —— 留一个空壳只会让「实现住哪」多一个错的答案。
+ *
+ * ── 两条 REST 请求走请求边界，建仓子命令留在本 module ─────────────────────────
+ * 「当前登录人」与「建仓后回查项目本体」都是 `glab api` 的 REST 请求，形状按 ADR 决定一收在房间根目录
+ * 的 `requests.ts`：`requestCurrentUser`（GET user）与 `requestProject`（GET projects/{仓库}）。
+ * 两个函数的参数只收领域值与超时，路径由它们自己用 `queries.ts` 拼；本文件不再拼 method、路径与表单。
+ * `glab repo create` 是**非 api 的子命令**，按 ADR 决定一不进请求边界，仍经 `client.ts` 的进程边界执行；
+ * git 的几条命令继续走 `ctx.exec`。这次搬动只换了那两条请求的出处，没有换任何一条 argv 或超时。
+ * 行为逐字不变：返回形状、失败档位、提示话术、重试与回退判据、`GITLAB_CREATE_PROJECT_TIMEOUT_MS`
+ * 与 git 的四档超时都照旧。
  *
  * ── 与 GitHub 房那份的关系 ────────────────────────────────────────────────────
  * 契约（`contract/operations.ts` 的 `initProject`）只有一份，两个远端后端各写一遍。GitHub 那份
@@ -45,22 +59,22 @@
  * 它只由用户点「发布」那条链触发；写代码的人不要拿它去试跑。
  */
 
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { ErrorKind } from '../../contract/identity.js'
-import type { OpContext, RepoHandle } from '../../contract/contexts.js'
-import type { RepositoryRef } from '../../contract/entities.js'
-import type { InitProjectInput } from '../../contract/inputs.js'
-import { TRACKER_ERROR_STAGE, type OpResult } from '../../contract/results.js'
-import { fail } from '../../kernel/preflight.js'
-import { glabClient } from './client.js'
-import { failGlab } from './errors.js'
-import { projectPath } from './queries.js'
-import { parseGitlabRepo } from './repo.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { ErrorKind } from '../../../contract/identity.js'
+import type { OpContext, RepoHandle } from '../../../contract/contexts.js'
+import type { RepositoryRef } from '../../../contract/entities.js'
+import type { InitProjectInput } from '../../../contract/inputs.js'
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../../contract/results.js'
+import { fail } from '../../../kernel/preflight.js'
+// 建仓子命令是非 api 的 glab 调用，按 ADR 决定一留在本 module，经 client.ts 这一个进程边界跑。
+import { glabClient } from '../client.js'
+import { failGlab } from '../errors.js'
+// 两条 REST 请求的形状住在房间根目录的 requests.ts（#1919）：当前登录人、建仓后的项目回查。
+// 本文件只给领域值与超时，method/路径/表单字段都由请求边界从领域值拼出来。
+import { requestCurrentUser, requestProject } from '../requests.js'
+import { parseGitlabRepo } from '../repo/identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS, GITLAB_CREATE_PROJECT_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
-
-/** glab 客户端的最小口：本文件只用它的 run，类型从工厂的返回里取，不另写一份。 */
-type GlabClient = ReturnType<typeof glabClient>
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_CREATE_PROJECT_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 
 /** 本地进程的一次执行结果：三格与 glabClient 的回包同形状，git 那几条命令走同一套读法。 */
 interface ProcResult {
@@ -149,11 +163,14 @@ function addressFromOutput(stdout: string): CreatedProject | null {
  * （gitlab.com），自建实例上会拼出一个指向别处的地址 —— 而 `git push` 到别处是**真的会写**。
  * 宁可为这一格多问一次，也不拿猜出来的地址去配 remote。
  *
- * @param c glab 客户端
+ * 请求本身走房间根目录请求边界的 `requestProject`（GET projects/{仓库}）：路径由它对领域值做编码，
+ * 超时仍是这一档 `GITLAB_READ_TIMEOUT_MS`。回包怎么读、认不出时回 null 都不住在请求边界里。
+ *
+ * @param ctx 单次调用上下文（请求边界从这里取平台与执行器）
  * @param fallbackPath 「登录人/仓库名」，不带 `--group` 建仓时项目就落在登录人的命名空间下
  */
-async function readCreatedProject(c: GlabClient, fallbackPath: string): Promise<CreatedProject | null> {
-  const res = await c.run(['api', projectPath(fallbackPath)], { timeout: GITLAB_READ_TIMEOUT_MS })
+async function readCreatedProject(ctx: OpContext, fallbackPath: string): Promise<CreatedProject | null> {
+  const res = await requestProject(ctx, fallbackPath, GITLAB_READ_TIMEOUT_MS)
   if (res.code !== 0) return null
   const bag = parseJsonObject(res.stdout)
   if (!bag) return null
@@ -193,7 +210,8 @@ async function readCreatedProject(c: GlabClient, fallbackPath: string): Promise<
  *
  * @param handle 识别时给的那点线索（本函数只读 `cwd`；`refId` 那一格对「建新仓库」没有意义）
  * @param input 建仓输入（`name` 必填；`visibility` 省略按私有处理）
- * @param ctx 单次调用上下文（git 走 `ctx.exec`、glab 走本房唯一的出口 `glabClient`）
+ * @param ctx 单次调用上下文（git 走 `ctx.exec`；REST 读走根目录 `requests.ts` 的具名函数，
+ *   非 api 的建仓子命令走 `glabClient` 的进程边界）
  */
 export async function initProject(
   handle: RepoHandle,
@@ -253,7 +271,9 @@ export async function initProject(
   }
 
   const c = glabClient(ctx)
-  const userRes = await c.run(['api', 'user'], { timeout: GITLAB_READ_TIMEOUT_MS })
+  // 读当前登录人的形状住在请求边界（requestCurrentUser）；这一步只给上下文与超时，
+  // 失败判档与话术仍在本文件，与搬动前逐字相同。
+  const userRes = await requestCurrentUser(ctx, GITLAB_READ_TIMEOUT_MS)
   if (userRes.code !== 0) {
     // glab 不在（127）、没登录、远端回绝，都在这里拦下；档位交 failGlab 按原文判。
     return failGlab(userRes, userRes.stderr || userRes.stdout || 'initProject: glab 没答出当前登录人', userRes, ctx)
@@ -302,7 +322,7 @@ export async function initProject(
   }
 
   // ── 5）认地址：先认输出，再回查一次接口；两条都不成就停下 ──────────────────────
-  const created = addressFromOutput(create.stdout) ?? (await readCreatedProject(c, `${login}/${name}`))
+  const created = addressFromOutput(create.stdout) ?? (await readCreatedProject(ctx, `${login}/${name}`))
   if (!created) {
     return fail(
       ERROR_KIND.PARSE as ErrorKind,

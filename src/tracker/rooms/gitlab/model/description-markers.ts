@@ -1,16 +1,21 @@
 /**
- * rooms/gitlab/description-markers.ts —— 票面正文文件头的标记，读写共用同一套形状。
+ * rooms/gitlab/model/description-markers.ts —— 票面正文文件头的标记：解析、成对重写与降级回退。
  *
- * 为什么单立一份：归属与阻塞的回退写法都是正文里的一行字，读法写法必须成对出现，
- * 改一边另一边跟着改。写侧只加不删、读侧按时间猜，就是因为两边各写一遍。
- * 本文件只做纯字符串变换，不碰契约类型。组合进归一与重导出留在 normalize，
- * 调用方的引用路径不用动。
+ * 为什么收进 model 一处（#1911）：归属与阻塞的回退写法都是正文里的一行字，读法与写法必须成对出现，
+ * 改一边另一边就得跟着改。以前这份规则住在房间根目录的 description-markers.ts，而「机器表优先、
+ * 可见行兜底」的回退与可见行解析留在 normalize.ts —— 同一件事有两个出处，读规则已经漂移过一次
+ * （#1801：写说已取消、读说仍被阻塞）。现在标记的解析、成对写、降级回退全部在本文件；
+ * normalize 只消费它，房外仍可从旧 normalize 路径取到这些函数，引用路径不用动。
  *
  * 两套标记：
  *   归属是隐藏标记（子票归属的唯一真相，新写的票都是它），旧可见行只在过渡期回退认，不再写。
  *   阻塞成对写：可见行给人读，隐藏表给程序读，一次写齐，读侧隐藏优先。
- * 口径：只认文件头，即第一个标题之前那一段，没有标题时只看前十行，正文里的不算。
+ * 口径：归属标记与阻塞机器表只认文件头，即第一个标题之前那一段，没有标题时只看前十行，正文里的不算。
+ * 可见 `Blocked by:` 行沿用旧口径在整篇正文里找第一处（历史行为，改口径会改变存量票的读法）。
  * 两处任一处改口径，另一处与共享包 marker.ts 必须跟着改。
+ *
+ * 本文件只做纯字符串变换，不 import 契约类型：回退读返回原始片段（票号加人写的原文），
+ * state / type 由消费方补。这样标记模块只回答「正文里写了什么」，契约形状仍只有 normalize 一处决定。
  */
 // 子票归属的唯一真相：文件头里的隐藏标记 `<!-- DSH-PARENT: <地图号> -->`（#1599 起，
 // 2026-10-28 拍板于 #1176：可见的 `Part of #<地图号>` 声明行退役，只在过渡期回退认）。
@@ -149,4 +154,60 @@ export function rewriteDescriptionWithBlockedPair(oldBody: string | null | undef
   while (at < lines.length && (ANCHOR_LINE_RE.test(lines[at]) || HIDDEN_PARENT_RE.test(lines[at].trim()))) at++
   lines.splice(at, 0, visible, hidden)
   return lines.join('\n')
+}
+
+/**
+ * 可见 `Blocked by:` 行里的一条原始引用。
+ * key 是票号；title 原样保留人写的那一段（可能是 `#12`、`group/proj#12` 或网页地址加 `#12`），
+ * 因为契约里 IssueRef.title 要保留原文片段，这个模块不替调用方改写展示文字。
+ */
+export interface VisibleBlockedRef {
+  key: string
+  title: string
+}
+
+/**
+ * 可见 `Blocked by:` 行的回退读法（机器表缺失时用）：在整篇正文里找第一处，按行内逗号切分，
+ * 支持 `#iid`、`group/proj#iid`、`url#iid` 三种写法；不跨行续读（历史口径，注释里旧话说“只行内”）。
+ * 去重按票号、保留第一次出现的原文片段；state 恒 open、type 恒 issue 由消费方补。
+ * 没有这一行返回 null（区别于「有行但是空的」），空行返回 []。
+ *
+ * 为什么留在 model：这是阻塞降级回退的另一半。只把机器表搬走、可见行解析留在 normalize，
+ * 读规则就又有两个出处——这正是本票要收掉的东西。
+ */
+export function parseVisibleBlockedBy(body: unknown): VisibleBlockedRef[] | null {
+  if (typeof body !== 'string' || !body) return null
+  const m = body.match(/^Blocked by:\s*(.+)$/m)
+  if (!m) return null
+  const line = (m[1] as string).trim()
+  if (!line) return []
+  const parts = line
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const out: VisibleBlockedRef[] = []
+  const seen = new Set<string>()
+  for (const p of parts) {
+    // 三式：#iid / group/proj#iid / url#iid —— 一律取末尾 #<digits>。
+    const mm = p.match(/#(\d+)\s*$/)
+    const key = mm ? (mm[1] as string) : p.replace(/^#/, '').trim()
+    if (!key) continue
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ key: String(key), title: p })
+  }
+  return out
+}
+
+/**
+ * 正文回退读阻塞（机器表优先，可见行兜底）：原生不可用时调用，返回票号数组，没有任何写法返回 null。
+ * graph/read.ts 的读回退与 graph/write.ts 的环检快照都走这一处，不各写一遍认法——这一条以前在 normalize.ts，
+ * 与机器表解析分居两处；现在两个读法同住本文件，顺序固定，改口径只改这里。
+ */
+export function parseBlockedByFallback(body: unknown): string[] | null {
+  const table = parseHiddenBlockedBy(body)
+  if (table !== null) return table
+  const parsed = parseVisibleBlockedBy(body)
+  if (parsed !== null) return parsed.map((r) => r.key)
+  return null
 }

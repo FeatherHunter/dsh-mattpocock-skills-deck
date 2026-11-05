@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T09:22:57.178Z",
+  "generatedAt": "2026-11-05T10:28:18.590Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 573,
   "gateCount": 573,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 116,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 915,
+  "graphFileCount": 934,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -15816,9 +15816,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 938,
-    "dirCount": 92,
-    "coveredFileCount": 938,
+    "fileCount": 957,
+    "dirCount": 101,
+    "coveredFileCount": 957,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 73,
@@ -16641,30 +16641,49 @@
       "src/tracker/rooms/gitlab/budget.ts",
       "src/tracker/rooms/gitlab/capability-register.ts",
       "src/tracker/rooms/gitlab/client.ts",
-      "src/tracker/rooms/gitlab/comments.ts",
-      "src/tracker/rooms/gitlab/counts.ts",
-      "src/tracker/rooms/gitlab/create-write.ts",
-      "src/tracker/rooms/gitlab/description-markers.ts",
+      "src/tracker/rooms/gitlab/comments/write.ts",
       "src/tracker/rooms/gitlab/errors.ts",
-      "src/tracker/rooms/gitlab/graph-blocking.ts",
       "src/tracker/rooms/gitlab/graph-membership.ts",
-      "src/tracker/rooms/gitlab/graph.ts",
+      "src/tracker/rooms/gitlab/graph/membership.ts",
+      "src/tracker/rooms/gitlab/graph/read.ts",
+      "src/tracker/rooms/gitlab/graph/write.ts",
       "src/tracker/rooms/gitlab/idempotency.ts",
-      "src/tracker/rooms/gitlab/identity-ops.ts",
       "src/tracker/rooms/gitlab/index.ts",
-      "src/tracker/rooms/gitlab/init-project.ts",
       "src/tracker/rooms/gitlab/issues.ts",
-      "src/tracker/rooms/gitlab/labels-ops.ts",
-      "src/tracker/rooms/gitlab/labels.ts",
+      "src/tracker/rooms/gitlab/issues/counts.ts",
+      "src/tracker/rooms/gitlab/issues/create-write.ts",
+      "src/tracker/rooms/gitlab/issues/idempotency.ts",
+      "src/tracker/rooms/gitlab/issues/index.ts",
+      "src/tracker/rooms/gitlab/issues/maps.ts",
+      "src/tracker/rooms/gitlab/issues/pages.ts",
+      "src/tracker/rooms/gitlab/issues/read.ts",
+      "src/tracker/rooms/gitlab/issues/shared.ts",
+      "src/tracker/rooms/gitlab/issues/sub-issues.ts",
+      "src/tracker/rooms/gitlab/issues/write.ts",
+      "src/tracker/rooms/gitlab/labels/assign.ts",
+      "src/tracker/rooms/gitlab/labels/colors.ts",
+      "src/tracker/rooms/gitlab/labels/list.ts",
+      "src/tracker/rooms/gitlab/labels/shared.ts",
       "src/tracker/rooms/gitlab/maps.ts",
+      "src/tracker/rooms/gitlab/model/description-markers.ts",
+      "src/tracker/rooms/gitlab/model/normalize.ts",
+      "src/tracker/rooms/gitlab/model/repo-identity.ts",
       "src/tracker/rooms/gitlab/normalize.ts",
-      "src/tracker/rooms/gitlab/pages.ts",
       "src/tracker/rooms/gitlab/preflight.ts",
+      "src/tracker/rooms/gitlab/project/init-project.ts",
       "src/tracker/rooms/gitlab/queries.ts",
       "src/tracker/rooms/gitlab/read-log.ts",
       "src/tracker/rooms/gitlab/read-sources.ts",
       "src/tracker/rooms/gitlab/repo.ts",
-      "src/tracker/rooms/gitlab/sub-issues.ts",
+      "src/tracker/rooms/gitlab/repo/current-user.ts",
+      "src/tracker/rooms/gitlab/repo/identity.ts",
+      "src/tracker/rooms/gitlab/repo/permissions.ts",
+      "src/tracker/rooms/gitlab/requests.ts",
+      "src/tracker/rooms/gitlab/room/fixes.ts",
+      "src/tracker/rooms/gitlab/room/links.ts",
+      "src/tracker/rooms/gitlab/support/capability-register.ts",
+      "src/tracker/rooms/gitlab/support/read-log.ts",
+      "src/tracker/rooms/gitlab/support/read-sources.ts",
       "src/tracker/rooms/markdown/budget.ts",
       "src/tracker/rooms/markdown/capability-register.ts",
       "src/tracker/rooms/markdown/comment-format.ts",
@@ -16844,6 +16863,15 @@
       "src/tracker/rooms/github/transport",
       "src/tracker/rooms/github/write",
       "src/tracker/rooms/gitlab",
+      "src/tracker/rooms/gitlab/comments",
+      "src/tracker/rooms/gitlab/graph",
+      "src/tracker/rooms/gitlab/issues",
+      "src/tracker/rooms/gitlab/labels",
+      "src/tracker/rooms/gitlab/model",
+      "src/tracker/rooms/gitlab/project",
+      "src/tracker/rooms/gitlab/repo",
+      "src/tracker/rooms/gitlab/room",
+      "src/tracker/rooms/gitlab/support",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
       "src/tracker/session",
@@ -16995,6 +17023,42 @@
       {
         "path": "src/tracker/rooms/github/channels",
         "fileCount": 7
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/comments",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/graph",
+        "fileCount": 3
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/issues",
+        "fileCount": 10
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/labels",
+        "fileCount": 4
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/model",
+        "fileCount": 3
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/project",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/repo",
+        "fileCount": 3
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/room",
+        "fileCount": 2
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/support",
+        "fileCount": 3
       },
       {
         "path": "src/workspace-snapshot/model",
