@@ -11,9 +11,10 @@ import type { SnapshotBackend } from '../model/types.js'
 
 /**
  * 库结构版本。升级走显式迁移（#1886 起），迁移失败或版本比本代码新才整库重建：
- * 版本 1 是「没有版本的存储层」，2 起加了版本号、行上的最后变化版本、墓碑与同步簿记。
+ * 版本 1 是「没有版本的存储层」，2 起加了版本号、行上的最后变化版本、墓碑与同步簿记，
+ * 3 起（#1889）组上记「上次由写回执写入的时刻」，供回执优先窗口使用。
  */
-export const SNAPSHOT_SCHEMA_VERSION = 2
+export const SNAPSHOT_SCHEMA_VERSION = 3
 
 /** 建表顺序照顾外键：被引用的表先建。 */
 export const SNAPSHOT_SCHEMA_STATEMENTS: readonly string[] = [
@@ -87,6 +88,9 @@ export const SNAPSHOT_SCHEMA_STATEMENTS: readonly string[] = [
     operation       TEXT,
     last_queried_ms INTEGER NOT NULL,
     written_version INTEGER NOT NULL,
+    -- 这一组最后一次由「写回执」写入的时刻毫秒；NULL = 从没被回执写过或已过期。
+    -- 回执优先窗口按它判「这次读结果能不能覆盖这一组」（#1889，见 merge/receipt-priority.ts）。
+    receipt_ms      INTEGER,
     PRIMARY KEY (issue_id, group_name)
   ) STRICT, WITHOUT ROWID`,
   `CREATE TABLE label (

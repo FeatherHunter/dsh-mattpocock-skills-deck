@@ -401,10 +401,12 @@ export async function recordWriteReceipt(input: WriteReceiptInput): Promise<Writ
   if (!writes.length) return { ok: true, rows: 0, mergeVersion: null }
   const handle = await handleOf(input)
   if (!handle) return { ok: true, degraded: true, rows: 0, mergeVersion: null, reason: 'library-unavailable' }
-  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+  // kind:'receipt'（#1889）：这一批是「写完之后 tracker 交回来的那张票」，它自己就是刚写完的真状态。
+  // 库据此给每一组盖回执时刻，并在随后一个短窗口内挡住迟到的读结果；回执本身不受窗口约束。
+  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes })
   // 与读结果写入同一口径：stale 说明期间有别的写者先提交了，重读版本再写一次；两次都不成才放弃。
   if (!result.committed && result.reason === 'stale') {
-    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes })
   }
   if (!result.committed) return { ok: false, rows: 0, mergeVersion: null, reason: result.reason }
   return { ok: true, rows: writes.length, mergeVersion: result.mergeVersion }
@@ -470,10 +472,11 @@ export async function recordCommentReceipt(input: CommentReceiptInput): Promise<
   }
 
   let planned = planOf()
-  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes: [planned.write] })
+  // kind:'receipt'（#1889）：刚发出去的那一条是真状态，评论组在随后一个短窗口内不被读结果覆盖。
+  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes: [planned.write] })
   if (!result.committed && result.reason === 'stale') {
     planned = planOf()
-    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes: [planned.write] })
+    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes: [planned.write] })
   }
   if (!result.committed) return { ok: false, mergeVersion: null, position: null, reason: result.reason }
   const applied = Array.isArray(result.commentPositions) && result.commentPositions.length ? result.commentPositions[0] : planned.fallbackPosition

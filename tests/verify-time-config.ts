@@ -136,6 +136,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/rooms/host/comment-thread-fetch.ts', access: 'ISSUE_DETAIL_LOCAL_TTL_MS', gen: 'ISSUE_DETAIL_LOCAL_TTL_MS', key: 'issueDetailLocalTtlMs' },
   // #1890：变化集的两个降级阈值（config/ttl.yaml 里并排的两格）：行数上限与时间上限，
   // 宿主两条新读口从这里取，不在代码里写第二份数字。
+  // #1889：写回执优先窗口（config/ttl.yaml 的 snapshotReceiptPriorityMs）。快照库的摄入事务
+  // 从这里取窗口长度，判据在 merge/receipt-priority.ts，不在代码里写第二份数字。
+  { file: 'src/workspace-snapshot/runtime/ingest.ts', access: 'SNAPSHOT_RECEIPT_PRIORITY_MS', gen: 'SNAPSHOT_RECEIPT_PRIORITY_MS', key: 'snapshotReceiptPriorityMs' },
   { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', access: 'SNAPSHOT_CHANGES_MAX_ROWS', gen: 'SNAPSHOT_CHANGES_MAX_ROWS', key: 'snapshotChangesMaxRows' },
   { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', access: 'SNAPSHOT_CHANGES_MAX_AGE_MS', gen: 'SNAPSHOT_CHANGES_MAX_AGE_MS', key: 'snapshotChangesMaxAgeMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },
@@ -428,6 +431,9 @@ const EXEMPTS: ExemptRow[] = [
   // —— 注入结构体的字段：值由调用方按已登记参数装进来，本文件不写数字 ——
   { file: 'src/refresh/kernel/admission-policy.ts', name: 'rebuildMinGapMs', reason: '注入字段，接的是上游 REBUILD_MIN_INTERVAL_YELLOW_MS（已登记），缺省 0' },
   // —— 读钟算出来的测量值（耗时、时刻）：调 YAML 改不了它，不是可调参数 ——
+  // #1889：库里读出来的「这一组上次由回执写入的时刻」，只是拿去做窗口比较，本身不是可调参数；
+  // 真正可调的是窗口长度 SNAPSHOT_RECEIPT_PRIORITY_MS（见 REFERENCES，来自 snapshotReceiptPriorityMs）。
+  { file: 'src/workspace-snapshot/runtime/ingest.ts', name: 'receiptMs', reason: '库里读出来的时刻（毫秒时间戳），不是可调时长；窗口长度走 SNAPSHOT_RECEIPT_PRIORITY_MS（已登记）' },
   { file: 'src/shared/version-control/src/parse-log.ts', name: 'aMs', reason: '测量用局部变量（两次读钟的差），不是可调参数' },
   { file: 'src/shared/version-control/src/parse-log.ts', name: 'cMs', reason: '测量用局部变量（两次读钟的差），不是可调参数' },
   { file: 'src/tracker/detection/backendDecision.ts', name: 'autoMs', reason: '测量用局部变量，不是可调参数' },

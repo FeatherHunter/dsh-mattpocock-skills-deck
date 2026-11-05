@@ -382,8 +382,12 @@ export const RECEIPT_SOURCE = 'refresh-write'
  * 后端会把改完的整票读回来。它表达的组与列表读结果同一套换算（行、标签、指派、父票、阻塞），
  * 只是来源与操作名换成写回执那一档。
  *
- * 什么不做：写回执不碰正文、评论、评审、子票计数、合并信息这几组 —— 那几样回执没表达，
- * 拿它去清空会把上一次详情取到的内容误删（「没表达」不等于「确认没有」，这是三态的总规矩）。
+ * 什么不做：写回执不碰评论、评审这两组 —— 那两样回执带的是「票本身」，不是一页评论或一条评审，
+ * 拿它去写会把上一次取到的内容误删（「没表达」不等于「确认没有」，这是三态的总规矩）。
+ *
+ * #1889 起正文跟着回执写（前提是回执里确实带了正文）：改标题/正文那一条写路径的回执会带着
+ * 整份正文回来，不写它等于这次写没有落库，界面只能等下一次详情读——那正是本票要补的缺口。
+ * 回执没带正文（undefined）时不表达这一组，行为与改造前一致。
  */
 export function receiptIssueWriteOf(issue: Issue, operation: string, backend = ''): IssueWrite {
   const write = issueWriteOf(issue)
@@ -394,6 +398,7 @@ export function receiptIssueWriteOf(issue: Issue, operation: string, backend = '
     group.source = RECEIPT_SOURCE
     group.operation = operation
   }
+  if (typeof issue.body === 'string') write.groups.body = complete(issue.body, RECEIPT_SOURCE, operation)
   applyBackendCapabilityGaps(write.groups, backend, RECEIPT_SOURCE, operation, false)
   return write
 }

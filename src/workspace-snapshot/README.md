@@ -79,6 +79,17 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   `sync.expectedGeneration` 是库这一侧的世代门：库里世代号与它不等就整批丢弃（回 `stale`），
   行与簿记一个字节都不动。只写簿记的那一趟不动 `merge_version`（版本号只由数据提交推进）。
 
+## 写回执与回执优先窗口（#1889 起）
+
+- **写回执**：写操作成功之后 tracker 交回来的那张票，按组并进库（调用方传 `ingest({ kind: 'receipt' })`）。
+  每一组在 `issue_group.receipt_ms` 上记下「上次由回执写入的时刻」；提交之后界面才该更新。
+- **回执优先窗口**：回执提交后的一个短窗口（`config/ttl.yaml` 的 `snapshotReceiptPriorityMs`，
+  经生成器进 `SNAPSHOT_RECEIPT_PRIORITY_MS`）之内，任何**读结果**都不得覆盖回执表达过的字段组。
+  它补的是版本门挡不住的那种迟到：写已经在 v10 提交，一趟读 v10 才开始、却从远端拿到写之前的状态。
+- **按组判，不是整行挡**：回执表达过的组让给回执，其余组照常更新；窗口一过读结果照常覆盖。
+  `unknown`（只盖章不动值）的读结果不受影响。全部组都被挡下时这一趟不推进库版本——什么都没写，
+  不该让客户端以为有变化。判据住 `merge/receipt-priority.ts`（纯函数），接线在 `runtime/ingest.ts`。
+
 ## 统计（#1887 起）
 
 面板顶上的六个数字（总数 / 开放 / 已关闭 / 可接 / 阻塞 / 已认领）由 `projection/counts.ts` 一条 SQL
@@ -127,5 +138,7 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
 - `tests/verify-1888-changes-to-store.ts`：后台发现的变化先写进库——差分基线从库读、水印/世代号/待办
   写进库级元信息并在关库重开后仍在、库写入失败时内存副本不改、迟到的整池结果被世代号挡住、
   行级增量的回包键集与改造前一致。
+- `tests/verify-1889-write-receipts.ts`：写路径清单与操作百科逐条对账（经库 / 不经库 / 不适用）、
+  十类写各自先落库再显示、整批失败不留半写、回执优先窗口的字段组粒度与时间边界（真 SQLite + 假时钟）。
 
 单扇跑法：`node --import ./scripts/ts-hook.mts tests/verify-1862-snapshot-database.ts`。

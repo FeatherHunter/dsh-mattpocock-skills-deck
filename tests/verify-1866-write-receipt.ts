@@ -185,12 +185,15 @@ async function main(): Promise<void> {
     check(!!afterB && afterB.commentsCursor === '2',
       'B5 追加一条不等于「取到了第 3 条」：游标不许前进', afterB && afterB.commentsCursor)
 
-    // 下一趟「加载更多」取回前缀 0..3（4 条）：不许把刚发的那一条冲掉。
+    // 紧接着的一趟「加载更多」取回前缀 0..3（4 条）：正落在 #1889 的回执优先窗口里。
+    // 那一页的前缀盖得到刚发的那一条（它就在第 5 位，前缀 0..3 够不到它；但窗口按组算，
+    // 整组在窗口内都要让给回执），所以这一页不写库：刚发的那一条原样留着。
+    // 窗口一过照常落库、游标照常前进 —— 那两件事由 tests/verify-1889-write-receipts.ts 的 D16/D17 守。
     await recordIssueComments(Object.assign({ issue: issueWith('7', commentsUpTo(4), 5) }, libKeyOf(rootB)))
     const afterPageB = await storedDetail(rootB, '7')
-    check(bodies(afterPageB).join('|') === '评论 1|评论 2|评论 3|评论 4|评论 99',
-      'B6 取回更多前缀之后，刚发的那一条仍在（位置不重叠）', bodies(afterPageB))
-    check(!!afterPageB && afterPageB.commentsCursor === '4', 'B7 取一页之后游标照常前进到 4',
+    check(bodies(afterPageB).join('|') === '评论 1|评论 2|评论 99',
+      'B6 窗口内的这一页没有把刚发的那一条冲掉（回执那一条原样在）', bodies(afterPageB))
+    check(!!afterPageB && afterPageB.commentsCursor === '2', 'B7 这一页没写进库，游标不前进（下次还会重新取）',
       afterPageB && afterPageB.commentsCursor)
 
     // ── C. 状态：关闭之后的回执写进去 ───────────────────────────────────────────

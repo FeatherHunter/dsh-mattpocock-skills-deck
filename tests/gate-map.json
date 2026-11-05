@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T05:13:42.284Z",
+  "generatedAt": "2026-11-05T05:54:25.513Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 583,
-  "gateCount": 583,
-  "attributedGates": 527,
+  "chainLength": 584,
+  "gateCount": 584,
+  "attributedGates": 528,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 127,
+  "completionRecordedGates": 128,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 920,
+  "graphFileCount": 921,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6821,6 +6821,31 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
+      "step": "node tests/verify-1889-write-receipts.ts",
+      "file": "tests/verify-1889-write-receipts.ts",
+      "guards": [
+        "src/refresh/rooms/host/snapshot-library-adapter.ts",
+        "src/refresh/rooms/host/snapshot-library.ts",
+        "src/workspace-snapshot/contract/types.ts",
+        "src/workspace-snapshot/merge/receipt-priority.ts",
+        "src/workspace-snapshot/persistence/migrate.ts",
+        "src/workspace-snapshot/persistence/schema.ts",
+        "src/workspace-snapshot/runtime/ingest.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/workspace-snapshot/contract",
+        "src/workspace-snapshot/merge",
+        "src/workspace-snapshot/persistence",
+        "src/workspace-snapshot/runtime"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 60,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
+    },
+    {
       "step": "node tests/verify-1890-read-channels.ts",
       "file": "tests/verify-1890-read-channels.ts",
       "guards": [
@@ -12902,6 +12927,7 @@
         "src/tracker/rooms/markdown/scratch-listing.ts",
         "src/workspace-snapshot/persistence/sync-bookkeeping.ts",
         "src/workspace-snapshot/projection/changes.ts",
+        "src/workspace-snapshot/runtime/ingest.ts",
         "src/workspace-snapshot/runtime/lease.ts",
         "src/workspace-snapshot/runtime/open.ts",
         "tests/verify-time-config.ts"
@@ -12954,7 +12980,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 176 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 177 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -15054,6 +15080,7 @@
       "node tests/verify-1886-schema-migration.ts",
       "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-1888-changes-to-store.ts",
+      "node tests/verify-1889-write-receipts.ts",
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-1892-pure-projection.ts",
       "node tests/verify-1893-projection-only.ts",
@@ -15726,15 +15753,18 @@
     "src/workspace-snapshot/contract": [
       "node tests/verify-1886-schema-migration.ts",
       "node tests/verify-1888-changes-to-store.ts",
+      "node tests/verify-1889-write-receipts.ts",
       "node tests/verify-1890-read-channels.ts"
     ],
     "src/workspace-snapshot/merge": [
-      "node tests/verify-1866-write-receipt.ts"
+      "node tests/verify-1866-write-receipt.ts",
+      "node tests/verify-1889-write-receipts.ts"
     ],
     "src/workspace-snapshot/persistence": [
       "node tests/verify-1866-write-receipt.ts",
       "node tests/verify-1886-schema-migration.ts",
       "node tests/verify-1888-changes-to-store.ts",
+      "node tests/verify-1889-write-receipts.ts",
       "node tests/verify-time-config.ts"
     ],
     "src/workspace-snapshot/projection": [
@@ -15747,6 +15777,7 @@
       "node tests/verify-1886-schema-migration.ts",
       "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-1888-changes-to-store.ts",
+      "node tests/verify-1889-write-receipts.ts",
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-time-config.ts"
     ],
@@ -16044,9 +16075,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 943,
+    "fileCount": 944,
     "dirCount": 92,
-    "coveredFileCount": 943,
+    "coveredFileCount": 944,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 74,
@@ -16959,6 +16990,7 @@
       "src/workspace-snapshot/contract/types.ts",
       "src/workspace-snapshot/merge/collection.ts",
       "src/workspace-snapshot/merge/paged.ts",
+      "src/workspace-snapshot/merge/receipt-priority.ts",
       "src/workspace-snapshot/merge/row.ts",
       "src/workspace-snapshot/merge/scalar.ts",
       "src/workspace-snapshot/merge/version-gate.ts",
