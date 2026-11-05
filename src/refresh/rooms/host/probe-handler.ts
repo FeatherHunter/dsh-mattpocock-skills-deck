@@ -227,10 +227,20 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       // 这一拍真的探过了：降级窗口从这里重新起算（失败的探不推窗口，下一拍仍会重试）。
       if (degraded) fallbackProbeAtByCwd[cwd] = nowMs
       lastProbeAtByRepo[rk1] = new Date().toISOString()
-      const commit: any = function (): any { try { return commitIssueIndex(cwd, remote.nextWatermarkMs, remote.index) } catch (eC: any) { return null } }
+      // #1887：完整枚举（没有窗口起点）且这一趟的行真的写进库，才在采用之后把「上一次完整枚举时刻」写库。
+      // 窗口扫描、被页上限或预算截断（那几趟到不了这里）、被推迟/丢弃的都不满足，完整度保持「已知」。
+      const commit: any = async function (): Promise<any> {
+        try {
+          return await commitIssueIndex(cwd, remote.nextWatermarkMs, remote.index, {
+            fullEnumeration: remote.full === true && remote.persisted !== false,
+            backendId: String((_selProbe && _selProbe.backendId) || ''),
+            repoIdentity: String(remote.repoIdentity || ''),
+          })
+        } catch (eC: any) { return null }
+      }
       if (!changed) {
         // 没变 = 列表与远端一致，推水印（与基线）是安全的（不推就要每拍重扫同一个窗口）。
-        commit()
+        await commit()
         return { ok: true, changed: false, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
       }
       let delta: any = null
@@ -241,7 +251,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       if (delta && delta.mode === 'patch' && delta.rows && delta.rows.length) {
         // 并进列表了：水印与基线跟着走。客户端按库版本取变化，不再等这一份整份快照（#1891）：
         //   回包只带变化的行号与版本，数据本身走 wf.snapshotChanges。
-        commit()
+        await commit()
         return {
           ok: true, changed: true, mode: 'patch', repo: repo, count: remote.count,
           rows: delta.rows, version: delta.version, queries: delta.queries, partial: delta.partial === true,
@@ -249,7 +259,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
         }
       }
       if (delta && delta.mode === 'nothing') {
-        commit()
+        await commit()
         return { ok: true, changed: false, mode: 'nothing', repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
       }
       if (delta && (delta.mode === 'deferred' || delta.mode === 'failed' || delta.mode === 'stale-dropped')) {
@@ -261,7 +271,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       // 这一档推水印与基线：客户端收到之后就会整池重建，那一次会把整仓重拿一遍，变化是被并进列表的
       // （不推的话每一拍都要从很旧的水印重扫，白烧额度）。
       // #1893：不再标脏内存副本；客户端收到 changed / rebuild 后按库版本取整份或变化集。
-      commit()
+      await commit()
       return { ok: true, changed: true, mode: 'rebuild', reason: String((delta && delta.reason) || 'no-delta'), repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
     } catch (e: any) { return { ok: false, error: errText(e), errorKind: 'exception' } }
   }

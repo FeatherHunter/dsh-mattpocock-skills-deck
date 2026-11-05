@@ -44,6 +44,7 @@ import * as snapshotLibrary from '../src/refresh/rooms/host/snapshot-library.js'
 import { deckCountsOf, kpiCountsOf } from '../src/client/kernel/store-derived.ts'
 import { applySnapshotChangeSet } from '../src/refresh/rooms/client/snapshot-change-merge.ts'
 import { createSnapshotReadChannels } from '../src/refresh/rooms/host/snapshot-read-channels.ts'
+import { createIssueList } from '../src/refresh/rooms/host/issue-list-fetch.ts'
 import type { IssueWrite } from '../src/workspace-snapshot/contract/types.js'
 
 const GATE = 'verify-1887-counts-from-library'
@@ -166,6 +167,50 @@ function countIndependently(dbPath: string): Six {
 function sameSix(a: any, b: any): boolean {
   return !!a && !!b && a.total === b.total && a.open === b.open && a.closed === b.closed
     && a.takeable === b.takeable && a.blocked === b.blocked && a.claimed === b.claimed
+}
+
+/** 一条契约票（索引扫描的假后端交回的原样行）。 */
+function issueRowOf(key: string, state: string, updatedAt: string): any {
+  return {
+    key: key, effortId: '', type: 'issue', title: '票 ' + key, state: state, body: '', url: '',
+    createdAt: '2026-10-01T00:00:00Z', updatedAt: updatedAt, closedAt: null, parentKey: null,
+    labels: [], assignees: [], blockedBy: [], isPullRequest: false,
+  }
+}
+
+/** 假索引会话：listPage 按第几页给数据（nextCursor 为 null 就翻到底）。 */
+function indexSessionOf(pageOf: (n: number) => { items: any[], nextCursor: string | null }): any {
+  let n = 0
+  return {
+    listPage: async function (): Promise<any> {
+      n += 1
+      const page = pageOf(n)
+      return { ok: true, data: { items: page.items, nextCursor: page.nextCursor, total: page.items.length } }
+    },
+  }
+}
+
+/** 造一份真取数入口：会话是假的、库是真的；索引扫描与写库都走生产那两件。 */
+function makeIssueList(cwd: string, session: any): any {
+  const repo = { backend: 'github', refId: 'acme/widgets', name: 'acme/widgets', url: '' }
+  return createIssueList({
+    getRepoKey: async function (): Promise<any> { return { owner: 'acme', name: 'widgets' } },
+    issueIndexFromSnapshot: function (): any { return {} },
+    issueIndexChanged: function (): boolean { return true },
+    rememberIssueIndex: function (): void {},
+    openSession: async function (): Promise<any> {
+      return {
+        ok: true, backendId: 'github', repoRef: repo,
+        call: async function (fn: any): Promise<any> { return fn(session, {}) },
+      }
+    },
+    onIssueRows: async function (c: string, ref: any, rows: any[]): Promise<any> {
+      return snapshotLibrary.recordIssueRows({ workspaceRoot: c, backend: String(ref.backend), repoIdentity: String(ref.refId), rows: rows })
+    },
+    getSnapshotLibrary: async function (): Promise<any> { return snapshotLibrary },
+    logCtx: null,
+    noteSnapshot: function (): void {},
+  })
 }
 
 async function main(): Promise<void> {
@@ -464,6 +509,98 @@ async function main(): Promise<void> {
   } finally {
     try { rmSync(fRoot, { recursive: true, force: true }) } catch { /* 清理失败不影响结论 */ }
   }
+  // ==========================================================================
+  // G 完整枚举标记：只有「完整枚举 + 没被截断 + 行真的写进库」被采用之后才写
+  // ==========================================================================
+  {
+    const KEY = { backend: 'github', repoIdentity: 'acme/widgets' }
+
+    // G1–G8：一次完整的整仓枚举 → 采用之后变「完整」，关库重开仍在。
+    const g1Root = makeWorkspace('verify-1887-g1-')
+    try {
+      closeSnapshotLibraries()
+      const nowIso = new Date().toISOString()
+      const list = makeIssueList(g1Root, indexSessionOf(function (): any {
+        return { items: [issueRowOf('1', 'open', nowIso), issueRowOf('2', 'closed', nowIso)], nextCursor: null }
+      }))
+      const scan: any = await list.fetchIssueIndexWindowed(g1Root, { backendId: 'github' })
+      check(!!scan && scan.ok === true && scan.full === true && scan.windowed === false && scan.persisted === true,
+        'G1 第一次没有水印 → 整仓完整枚举（full 真、windowed 假、行写进库）', scan)
+      check(!!scan && scan.repoIdentity === 'acme/widgets' && scan.backendId === 'github',
+        'G2 扫描回包带着库身份（完整枚举标记要靠它开对库）', scan && { repoIdentity: scan.repoIdentity, backendId: scan.backendId })
+      const beforeMark = await readSnapshotCounts({ workspaceRoot: g1Root, ...KEY })
+      check(!!beforeMark && beforeMark.completeness === 'known',
+        'G3 只取数、还没采用 → 完整度仍是「已知」（取数完成不等于采用）', beforeMark && beforeMark.completeness)
+      const committed: any = await list.commitIssueIndex(g1Root, scan.nextWatermarkMs, scan.index, {
+        fullEnumeration: scan.full, backendId: scan.backendId, repoIdentity: scan.repoIdentity,
+      })
+      check(!!committed && committed.ok === true, 'G4 采用这一趟（推进水印与基线）', committed)
+      const marked = await readSnapshotCounts({ workspaceRoot: g1Root, ...KEY })
+      check(!!marked && marked.completeness === 'complete', 'G5 完整枚举被采用之后完整度变「完整」', marked && marked.completeness)
+      check(!!marked && marked.total === 2 && marked.open === 1 && marked.closed === 1,
+        'G6 同一份库上的六个数字（2 张票、1 开 1 关）', marked)
+      const st = { snapshot: { deck: { counts: marked } } }
+      const kpi: any = kpiCountsOf(st, false, { open: 0, occupied: 0, closed: 0 })
+      check(!!kpi && kpi.complete === true, 'G7 措辞条件：完整枚举之后不再走「已知 N 张（未取全）」那一支', kpi)
+      closeSnapshotLibraries()
+      const reopened = await readSnapshotCounts({ workspaceRoot: g1Root, ...KEY })
+      check(!!reopened && reopened.completeness === 'complete', 'G8 关库重开之后完整度仍然是「完整」（它住在库里）', reopened && reopened.completeness)
+    } finally {
+      try { closeSnapshotLibraries() } catch { /* 句柄已经关了 */ }
+      try { rmSync(g1Root, { recursive: true, force: true }) } catch { /* 清理失败不影响结论 */ }
+    }
+
+    // G9–G12：翻页被预算拦住（索引不完整）→ 这一趟到不了 commit，完整度仍是「已知」。
+    const g2Root = makeWorkspace('verify-1887-g2-')
+    try {
+      closeSnapshotLibraries()
+      const nowIso = new Date().toISOString()
+      let pageNo = 0
+      const list = makeIssueList(g2Root, indexSessionOf(function (): any {
+        pageNo += 1
+        return { items: [issueRowOf('1', 'open', nowIso)], nextCursor: 'cursor-' + pageNo }
+      }))
+      const scan: any = await list.fetchIssueIndexWindowed(g2Root, { backendId: 'github' })
+      check(!!scan && scan.ok === false && !!scan.error && String(scan.error.kind) === 'truncated',
+        'G9 翻页被本轮请求预算拦住 → 如实回「截断」，不拿不完整的索引当完整枚举', scan)
+      check(!scan || scan.full !== true, 'G10 截断的那一趟没有「完整枚举」这一档（调用方不会拿它去写标记）', scan && scan.full)
+      const afterTrunc = await readSnapshotCounts({ workspaceRoot: g2Root, ...KEY })
+      check(!!afterTrunc && afterTrunc.completeness === 'known',
+        'G11 被截断的那一趟之后完整度仍是「已知」', afterTrunc && afterTrunc.completeness)
+      const probeSrc = codeOnly(sourceOf('src/refresh/rooms/host/probe-handler.ts'))
+      check(probeSrc.indexOf('fullEnumeration: remote.full === true && remote.persisted !== false') >= 0,
+        'G12 探针只在「完整枚举且这一趟的行真的写进库」时才把标记交给推进口（结构性判据）')
+    } finally {
+      try { closeSnapshotLibraries() } catch { /* 句柄已经关了 */ }
+      try { rmSync(g2Root, { recursive: true, force: true }) } catch { /* 清理失败不影响结论 */ }
+    }
+
+    // G13–G16：有可用水印 → 这一趟是窗口扫描；即使被采用也不写「完整枚举」。
+    const g3Root = makeWorkspace('verify-1887-g3-')
+    try {
+      closeSnapshotLibraries()
+      const nowIso = new Date().toISOString()
+      const list = makeIssueList(g3Root, indexSessionOf(function (): any {
+        return { items: [issueRowOf('1', 'open', nowIso)], nextCursor: null }
+      }))
+      const seeded: any = await list.commitIssueIndex(g3Root, Date.now(), {})
+      check(!!seeded && seeded.ok === true, 'G13 先立一个可用水印（只推状态，不写完整枚举时刻）', seeded)
+      const scan: any = await list.fetchIssueIndexWindowed(g3Root, { backendId: 'github' })
+      check(!!scan && scan.ok === true && scan.full === false && scan.windowed === true,
+        'G14 有水印时这一趟是窗口扫描（full 假、windowed 真）', scan && { full: scan.full, windowed: scan.windowed })
+      const committed: any = await list.commitIssueIndex(g3Root, scan.nextWatermarkMs, scan.index, {
+        fullEnumeration: scan.full, backendId: scan.backendId, repoIdentity: scan.repoIdentity,
+      })
+      check(!!committed && committed.ok === true, 'G15 窗口扫描被采用（推进水印）', committed)
+      const afterWindow = await readSnapshotCounts({ workspaceRoot: g3Root, ...KEY })
+      check(!!afterWindow && afterWindow.completeness === 'known',
+        'G16 窗口扫描被采用也不写完整枚举时刻 → 完整度仍是「已知」', afterWindow && afterWindow.completeness)
+    } finally {
+      try { closeSnapshotLibraries() } catch { /* 句柄已经关了 */ }
+      try { rmSync(g3Root, { recursive: true, force: true }) } catch { /* 清理失败不影响结论 */ }
+    }
+  }
+
 }
 
 await main()
