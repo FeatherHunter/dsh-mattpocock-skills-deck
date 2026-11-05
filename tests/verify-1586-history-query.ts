@@ -470,13 +470,29 @@ async function main() {
   }
   const dBadKinds = dKinds.filter(function (k) { const r = dReplies[k]; return !(r && r.ok === true && r.kind === k) })
   check(dBadKinds.length === 0, 'D1 十条查询逐条走通 wf.gitHistoryQuery（失败的 ' + (dBadKinds.join(',') || '无') + '）')
+  // 每种查询固定两条前置命令（确认仓库根那两步），之后才是这条查询自己的命令。
+  // #1903 起 compare 在跑 diff 之前先把两端各认一遍（认不出的那一端要原样说给用户听，
+  //   不能让 git 的 fatal 原文或者「当成 HEAD」糊过去），所以它比别的多两条。
   let dArgvBad = ''
-  dKinds.forEach(function (k, i) {
+  let dCursor = 0
+  const dCompareResolve: string[][] = []
+  dKinds.forEach(function (k) {
+    const extra = k === 'compare' ? 2 : 0
+    const slice = dRoute.seen.slice(dCursor, dCursor + 3 + extra)
+    dCursor += 3 + extra
     const want = CR.historyQueryCommandFor(k, dParams[k] || {})
-    const got = qAfterPrefix(dRoute.seen[i * 3 + 2])
+    const got = qAfterPrefix(slice[slice.length - 1])
     if (!want.ok || JSON.stringify(want.args) !== JSON.stringify(got)) dArgvBad = dArgvBad || (k + ' 期望 ' + JSON.stringify(want.args) + ' 实得 ' + JSON.stringify(got))
+    if (extra > 0) {
+      dCompareResolve.push(qAfterPrefix(slice[2]))
+      dCompareResolve.push(qAfterPrefix(slice[3]))
+    }
   })
   check(dArgvBad === '', 'D2 十条电话发出的 argv 与共享层的命令口径逐条相同（' + (dArgvBad || '十条全同') + '）')
+  const dResolveOk = dCompareResolve.length === 2
+    && dCompareResolve[0][0] === 'rev-parse' && dCompareResolve[0][dCompareResolve[0].length - 1] === 'HEAD~1^{commit}'
+    && dCompareResolve[1][0] === 'rev-parse' && dCompareResolve[1][dCompareResolve[1].length - 1] === 'HEAD^{commit}'
+  check(dResolveOk, 'D2b 3.8 比较之前先把左右两端各认一遍：认不出的那一端才说得清是哪一端（实得 ' + JSON.stringify(dCompareResolve) + '）')
   const dFH = dReplies['file-history']
   check(dFH.commits.length === 2 && dFH.count === 2 && dFH.reason === 'ok' && !!dFH.commits[0].oid, 'D3 3.4 单文件历史：真样本两条提交、count 与 reason 都在（实测 ' + dFH.count + ' 条，reason ' + dFH.reason + '）')
   const dBL = dReplies.blame

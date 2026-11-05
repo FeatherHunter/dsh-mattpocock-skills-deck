@@ -41,6 +41,7 @@ declare function vcHistoryCommitsOf(...args: any[]): any[]
 declare function vcHistoryFileStateOf(...args: any[]): string
 declare function vcHistoryFileSourceOf(...args: any[]): any
 declare function vcHistoryHasNoteOf(...args: any[]): boolean
+declare const VC_HISTORY_FILE_MAX: number
 declare function vcHistoryFilterOf(...args: any[]): any[]
 declare function vcHistoryIsMergeCommitOf(...args: any[]): boolean
 declare function vcHistoryGraphOf(...args: any[]): any
@@ -198,6 +199,9 @@ export const vcHistoryRowNode = function (h: any, t: any, o: any) {
   const subject: string = String(c.subject || '')
   const open: boolean = opts.expanded === true
   const menuOpen: boolean = opts.menuOpen === true
+  // 两枚标记（命中哪个文件 / 这条有没有备注）先算好：宽档跟在小字行里，窄档小字行整块折掉时要单独占一行，
+  //   否则「代码范围搜出来的命中行标出文件」这件事在最窄的两档就看不见了（原型 87 里它一直在）。
+  const marks: any = vcHistoryMarksNode(h, t, { hitPath: opts.hitPath, hasNote: opts.hasNote === true })
   const body: any[] = [
     width >= 380 ? h('span', { key: 'short', className: 'commit-hash mono', 'data-vc-history-short': '1' }, String(c.short || vcShortOid(oid))) : null,
     // 合并提交的标题是 git 自动生成的原文（例如 Merge branch 'main'），直接读像乱码：
@@ -218,8 +222,8 @@ export const vcHistoryRowNode = function (h: any, t: any, o: any) {
         ? h('span', { key: 'files', className: 'commit-files', 'data-vc-history-files': '1' }, t('vc.shell.history.filesCount', { n: String(c.files) }))
         : null,
       // 两枚标记：按代码搜命中时写清是哪份文件，写过备注的再带一枚「备注」（原型 history.ts 同一位置）。
-      vcHistoryMarksNode(h, t, { hitPath: opts.hitPath, hasNote: opts.hasNote === true }),
-    ]) : null,
+      marks,
+    ]) : (marks === null ? null : h('span', { key: 'meta', className: 'commit-meta', 'data-vc-history-marks-row': '1' }, marks)),
     h('span', { key: 'chev', className: 'commit-chevron', 'aria-hidden': 'true' }, vcPageIconOf(h, 'chevron', 12)),
   ]
   const line: any = h('div', { key: 'line', className: 'commit-line' }, [
@@ -263,7 +267,10 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
   // 只看某个文件时，行来自那条「这个文件的历史」的读数本身（已经由 git log --follow 筛过），
   //   客户端再按路径筛一次会把这些行全筛掉——它们的路径清单不是在这里读的。
   const fromFileRead: boolean = fileOnly !== '' && vcHistoryFileSourceOf(ui, opts.reads) !== null
-  const visible: any[] = vcHistoryFilterOf(commits, query, mergeOnly, scope, fromFileRead ? '' : fileOnly)
+  // 只看某个文件时这份读数里没有「改到了哪些文件」的清单，代码范围那套按路径匹配在这里没有依据：
+  //   按说明那一套在结果里再筛一次，既不凭空筛空、也不会冒出一句「没有提交改过它」。
+  const effScope: string = fromFileRead ? 'message' : scope
+  const visible: any[] = vcHistoryFilterOf(commits, query, mergeOnly, effScope, fromFileRead ? '' : fileOnly)
   const menu: string = String(ui.historyMenu || '')
   const hasMore: boolean = model.hasMore === true
   const rows: any[] = []
@@ -328,7 +335,7 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
     ]))
   } else if (!visible.length) {
     // 空态各说各的：只看某个文件时是「没有提交改过它」，代码范围是「没有提交改到匹配这些文字的文件」。
-    const emptyKey: string = vcHistoryEmptyKeyOf({ scope: scope, query: query, fileOnly: fileOnly })
+    const emptyKey: string = vcHistoryEmptyKeyOf({ scope: effScope, query: query, fileOnly: query.trim() !== '' ? '' : fileOnly })
     const emptyText: string = emptyKey === 'vc.shell.history.fileOnlyEmpty'
       ? t(emptyKey, { name: vcHistoryNameOf(fileOnly) })
       : t(emptyKey)
@@ -336,7 +343,10 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
   } else {
     scroll.push(h('div', { key: 'list', id: 'vc-history-list', className: 'history-list', role: 'list', 'aria-label': t('vc.shell.history.listLabel') }, rows))
   }
-  if (hasMore === true) {
+  // 「加载更早的提交」只对「整份历史」有意义：只看某个文件、或者正在比较两个引用时，
+  //   续读回来的是普通历史，画出来的是另一份读数 —— 那颗按钮按了不会有任何变化，所以这两种模式下不画。
+  const paging: boolean = !ui.historyCompare && fileOnly === ''
+  if (hasMore === true && paging) {
     scroll.push(h('button', {
       key: 'more', type: 'button', className: 'vcs-hist-load-more',
       'data-vc-load-more': '1',
@@ -344,9 +354,14 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
       disabled: model.logState === 'loading' ? true : undefined,
     }, t('vc.shell.history.loadMore', { batch: VC_HISTORY_BATCH })))
   }
-  if (model.logState === 'loading') {
+  // 单文件历史的读法本身有上限（git log --follow 一次最多给 200 条）：到顶就明说，不让人以为这就是全部。
+  if (fileOnly !== '' && fileState === 'ok') {
+    const fileData: any = vcHistoryDataOf(opts.reads, 'file-history')
+    if (fileData && Number(fileData.count) >= VC_HISTORY_FILE_MAX) scroll.push(h('span', { key: 'capped', className: 'note', 'data-vc-history-file-capped': '1' }, t('vc.shell.history.fileOnlyCapped', { n: String(VC_HISTORY_FILE_MAX) })))
+  }
+  if (model.logState === 'loading' && paging) {
     scroll.push(h('span', { key: 'moreLoading', className: 'note vcs-hist-more-state', 'data-vc-history-more-state': 'loading' }, t('vc.shell.history.loadingMore')))
-  } else if (model.logState === 'err') {
+  } else if (model.logState === 'err' && paging) {
     scroll.push(h('span', { key: 'moreError', className: 'note vcs-hist-more-state', 'data-vc-history-more-state': 'error' }, t('vc.shell.history.moreError')))
     scroll.push(h('button', { key: 'moreRetry', type: 'button', className: 'vcs-hist-more-retry', 'data-vc-history-more-retry': '1', 'data-press': 'button', 'data-log': 'vc.history.more-retry' }, t('vc.shell.history.moreRetry')))
   }
@@ -375,10 +390,11 @@ export const vcHistoryPageNode = function (h: any, t: any, o: any) {
     model: model, commit: reads && reads.commit, commitDiffs: reads && reads.commitDiffs,
     reads: reads, ui: ui, width: width, nowMs: readAt,
   }) : null
-  // 比较开着时不画图形化历史：列表位置已经是比较结果，再挂一条提交车道会让人以为那是比较出来的东西。
+  // 比较开着、或者只看某个文件时都不画图形化历史：列表位置已经是比较结果 / 只是改过这个文件的提交，
+  //   下面再挂一条全部提交的车道，会让人以为那是筛出来的东西（原型 88 / 90 里这块也不在）。
   const list = vcHistoryListOf(h, t, {
     model: model, ui: ui, width: width, nowMs: readAt, reads: reads,
-    withGraph: detail === null && !ui.historyCompare,
+    withGraph: detail === null && !ui.historyCompare && String(ui.historyFileOnly || '') === '',
   })
   const kids: any[] = []
   if (detail) {

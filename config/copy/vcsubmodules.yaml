@@ -87,6 +87,7 @@ zh:
   vc.sub.why.confirm-required: "这个动作需要先确认。"
   # #1843 阶段 4 重做：清单段、空态、批量段、添加表单与逐行差异说明。
   vc.sub.listSectionTitle: "子模块清单"
+  vc.sub.listCount: "{n} 个"
   vc.sub.listSectionNote: "每一行只回答三件事：路径、指向哪条提交、现在是不是登记的样子。"
   vc.sub.emptyTitle: "这个仓库没有子模块"
   vc.sub.emptyHint: ".gitmodules 不存在或没有登记任何子模块。空状态照实画，不拿演示行填满。"
@@ -184,6 +185,7 @@ en:
   vc.sub.why.confirm-required: "This action needs confirmation first."
   # #1843 stage 4 redesign: list section, empty state, batch section, add form and per-row difference notes.
   vc.sub.listSectionTitle: "Submodule list"
+  vc.sub.listCount: "{n}"
   vc.sub.listSectionNote: "Each row answers only three things: the path, which commit it points at, and whether the checkout matches what is registered."
   vc.sub.emptyTitle: "This repository has no submodules"
   vc.sub.emptyHint: ".gitmodules is missing or registers no submodule. The empty state is drawn from the real structure, with no demo rows."

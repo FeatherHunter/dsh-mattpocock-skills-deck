@@ -10,7 +10,7 @@
 // 命中行上要写出「命中 <文件>」—— 只有路径本身参与匹配时，这句话才是真的。
 // 想按补丁正文找是另一条能力（git log -S/-G，账本 3.7 的命令原文），这里不冒充它。
 
-// 两次搜索范围。值同时写进 data 属性，门禁与委托层按它认。
+// 两种搜索范围（说明 / 代码变化）。值同时写进 data 属性，委托层按它认；按钮的次序也按它排。
 export const VC_HISTORY_SCOPES: string[] = ['message', 'code']
 
 /** 搜索范围归一：认不出的值一律回「说明」，不造第三种范围。 */
@@ -39,13 +39,6 @@ export const vcHistoryHitPathOf = function (commit: any, needle: any): string {
     if (paths[i].toLowerCase().indexOf(q) >= 0) return paths[i]
   }
   return ''
-}
-
-/** 路径最后那一段（只用来在标记与空态里写「哪份文件」，不参与任何判定）。 */
-export const vcHistoryFileNameOf = function (path: any): string {
-  const text: string = String(path === undefined || path === null ? '' : path)
-  const at: number = text.lastIndexOf('/')
-  return at < 0 ? text : text.slice(at + 1)
 }
 
 /** 只看合并的判据：两个父提交的才是合并提交（与图形视图同一判据）。 */

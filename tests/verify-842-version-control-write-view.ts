@@ -132,6 +132,10 @@ const VC_FILES = [
   'src/client/views/versionControl/vcBranchSections.js', // #1881：本页后两段正文（标签、上游跟踪）与四件小工具，注入次序在视图叶子之前
   'src/client/views/versionControl/vcBranchPage.js', // #1829 阶段 3：分支与标签页的视图叶子（静态树 vcBranchTreeOf 画页面结构，组件 vcBranchPageOf 供壳挂载）
   // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）。
+  // #1903：历史页四条能力的纯判定、动作层与多出来的画法（vcHistory 与 vcHistoryDetail 都要调它们），排在历史页之前。
+  'src/client/views/versionControl/vcHistoryQuery.js',
+  'src/client/views/versionControl/vcHistoryOps.js',
+  'src/client/views/versionControl/vcHistoryExtra.js',
   'src/client/views/versionControl/vcHistory.js',
   // #1829 阶段 3：图形视图与提交详情从历史页拆成独立叶子；它们在 vcHistory 之后、页面壳之前拼接。
   'src/client/views/versionControl/vcHistoryGraph.js',

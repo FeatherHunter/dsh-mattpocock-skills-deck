@@ -462,6 +462,8 @@ const EXEMPTS: ExemptRow[] = [
   // #1751 贮藏页执行层：时限与读钟都由父文件按已登记参数注入，叶子不写数字。
   { file: 'src/host/versionControlStash.ts', name: 'timeoutMs', reason: '注入参数，接父文件 TIMEOUT_MS（即 stepWaitMs，已登记），叶子不自留时限' },
   { file: 'src/host/versionControlStash.ts', name: 'nowMs', reason: '读钟口（测试注入假钟，生产走 Date.now），不是可调时长' },
+  { file: 'src/host/versionControlNote.ts', name: 'nowMs', reason: '读钟口（测试注入假钟，生产走 Date.now），给备注票签有效期用，不是可调时长（#1903）' },
+  { file: 'src/client/views/versionControl/vcHistoryOps.ts', name: 'nowMs', reason: '读钟口（容器注入的 Date.now），给备注请求编号用，不是可调时长（#1903）' },
   { file: 'src/host/versionControlStashTicket.ts', name: 'timeoutMs', reason: '注入参数，接父文件 TIMEOUT_MS（即 stepWaitMs，已登记）；票据层只把时限递给读现场那一步，不自留数字' },
   // #1748 历史改写执行层：只读与写两档超时由装配壳按已登记参数注入，恢复点里的时刻由调用方给（本文件不读钟）。
   { file: 'src/host/versionControlUndoCheck.ts', name: 'readTimeoutMs', reason: '注入字段，接的是 VC_UNDO_READ_TIMEOUT_MS（已登记），不是新参数' },

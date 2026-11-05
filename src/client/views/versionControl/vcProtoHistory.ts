@@ -60,7 +60,8 @@ export const VC_PROTO_STYLE_HISTORY: string[] = [
   "[data-vc-shell] .history-compare.is-on { color: var(--accent); border-bottom-color: var(--accent); }",
   // #1903 搜索范围切换：两颗小按钮贴在搜索框右边，不另起一行（原型 app.css 的 .scope-switch）。
   "[data-vc-shell] .scope-switch { flex: none; display: inline-flex; border: 1px solid var(--line-2); border-radius: 999px; overflow: hidden; }",
-  "[data-vc-shell] .scope-btn { min-height: 22px; padding: 0 7px; border: 0; background: transparent; color: var(--mut); font-size: 10px; cursor: pointer; transition: background 0.12s ease, color 0.12s ease; }",
+  "[data-vc-shell] .scope-btn { min-height: 22px; padding: 0 7px; border: 0; background: transparent; color: var(--mut); font-size: 10px; cursor: pointer; }",
+  "[data-vc-shell] .scope-btn { transition: background 0.12s ease, color 0.12s ease; }",
   "[data-vc-shell] .scope-btn + .scope-btn { border-left: 1px solid var(--line-2); }",
   "[data-vc-shell] .scope-btn:hover { background: var(--raised); color: var(--ink-2); }",
   "[data-vc-shell] .scope-btn.is-on { background: var(--accent-soft); color: var(--accent); font-weight: 650; }",
@@ -83,7 +84,9 @@ export const VC_PROTO_STYLE_HISTORY: string[] = [
   "[data-vc-shell] .compare-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--raised); }",
   "[data-vc-shell] .compare-title { flex: none; font-size: 11px; color: var(--ink-2); }",
   "[data-vc-shell] .compare-title .mono { color: var(--info); font-weight: 650; }",
-  "[data-vc-shell] .compare-summary { flex: 1; min-width: 0; font-size: 10px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }",
+  // 结果头里的「几个文件」在最窄档会被省略号吃掉（300 档实测只剩「1 个文…」）：这一格允许折行，
+  //   宁可让结果头变成两行，也要把数字读完。
+  "[data-vc-shell] .compare-summary { flex: 1; min-width: 0; font-size: 10px; line-height: 1.5; color: var(--faint); overflow-wrap: anywhere; }",
   "[data-vc-shell] .compare-files { display: grid; gap: 2px; }",
   "[data-vc-shell] .compare-files-note { padding: 2px 2px 6px; font-size: 10px; color: var(--faint); }",
   "[data-vc-shell] .compare-file { min-height: 28px; }",

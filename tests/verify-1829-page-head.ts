@@ -173,6 +173,9 @@ async function main() {
   const hideRow: any[] = (hideHead && Array.isArray(hideHead.children) && Array.isArray(hideHead.children[0].children)) ? hideHead.children[0].children : []
   const keepHead = leaf.vcPageHeadNode(h, trZh, { page: 'changes', hideCount: false })
   check(hideRow.length === 1 && textOf(hideRow[0]) === trZh('vc.shell.page.changes') && pick(hideHead, 'vcs-page-count') === undefined && !!pick(keepHead, 'vcs-page-count'), 'C6 hideCount=true 时标题行只剩标题、不画能力计数；hideCount=false 照旧画（默认行为不变）')
+  // #1843：维护页的页头在收起计数之后挂一枚「含不可逆动作」红 chip；这句话与分区旁「危险区」不是同一条词条。
+  const dangerHead = leaf.vcPageHeadNode(h, trZh, { page: 'maintenance', hideCount: true, danger: true })
+  check(pick(dangerHead, 'vcs-page-count') === undefined && textOf(pick(dangerHead, 'section-danger')) === trZh('vc.shell.page.danger'), 'C7 danger=true 时页头挂「含不可逆动作」chip，且与收起计数并存（实得「' + textOf(pick(dangerHead, 'section-danger')) + '」）')
 
   // ===== D 分区原语：section.page-section，危险区加 is-danger 与 data 标记，标题行给条数与危险提示 =====
   const sec = leaf.vcPageSectionNode(h, trZh, {
@@ -185,7 +188,9 @@ async function main() {
   check(!!secHead && secHead.type === 'div', 'D3 标题行是 div.section-head')
   check(textOf(pick(sec, 'section-title')) === trZh('vc.shell.page.changes'), 'D4 分区标题用真词条（实得「' + textOf(pick(sec, 'section-title')) + '」）')
   check(textOf(pick(sec, 'section-count')) === '3', 'D5 分区条数是 span.section-count（实得「' + textOf(pick(sec, 'section-count')) + '」）')
-  check(textOf(pick(sec, 'section-danger')) === trZh('vc.shell.page.danger'), 'D6 危险提示是 span.section-danger，文字来自 vc.shell.page.danger（实得「' + textOf(pick(sec, 'section-danger')) + '」）')
+  // #1843：分区标题旁的 chip 说「危险区」（vc.shell.page.dangerZone）；页头那枚说的是「含不可逆动作」
+  //   （vc.shell.page.danger）。两句话用途不同，不能共用一个词条。
+  check(textOf(pick(sec, 'section-danger')) === trZh('vc.shell.page.dangerZone'), 'D6 危险提示是 span.section-danger，文字来自 vc.shell.page.dangerZone（实得「' + textOf(pick(sec, 'section-danger')) + '」）')
   check(textOf(pick(sec, 'section-note')) === trZh('vc.shell.page.empty'), 'D7 说明段是 p.section-note（实得「' + textOf(pick(sec, 'section-note')) + '」）')
   check(findAll(sec, function (n: any) { return n.type === 'span' && (textOf(n) === '一' || textOf(n) === '二') }).length === 2, 'D8 children 数组原样画进分区')
   const plainSec = leaf.vcPageSectionNode(h, trZh, { title: 'vc.shell.page.commits', children: h('span', { key: 'only' }, '单') })

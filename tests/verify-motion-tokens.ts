@@ -225,6 +225,11 @@ console.log('== ⑤ 无裸时长 ==')
   // 它们不参与产品级动效令牌（MOTION）的收敛——改令牌值就会偏离原型的按下手感，而本票的验收基准正是原型。
   const EXEMPTS: { file: string; snippet: string; reason: string }[] = [
   {
+    file: 'src/client/views/versionControl/vcProtoHistory.ts',
+    snippet: 'transition',
+    reason: '原型定稿样式原样移植：范围按钮与文件行菜单的过渡时长取自 docs/prototype/vc-redesign/styles/app.css（#1903 那一批行段），是按下手感基准的一部分；抽成 MOTION 令牌会与原型值不一致。',
+  },
+  {
     file: 'src/client/views/versionControl/vcProtoChanges.ts',
     snippet: 'transition',
     reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
@@ -246,11 +251,6 @@ console.log('== ⑤ 无裸时长 ==')
   },
   {
     file: 'src/client/views/versionControl/vcProtoComposer.ts',
-    snippet: 'transition',
-    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
-  },
-  {
-    file: 'src/client/views/versionControl/vcProtoHistory.ts',
     snippet: 'transition',
     reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
   },

@@ -276,7 +276,8 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'VC_HISTORY_BATCH', 'VC_HISTORY_LANES_MAX', 'VC_HISTORY_DIFF_LINES_WIDE', 'VC_HISTORY_DIFF_LINES_NARROW',
   'vcHistoryFirstPageOf', 'vcHistoryModelOf', 'vcHistoryGraphOf', 'vcHistoryDiffContextOf', 'vcHistoryPageNode', 'vcHistoryListOf', 'vcHistoryRowNode', 'vcHistoryDetailOf', 'vcHistoryGraphNode',
   // #1903 历史页四条能力：纯判定、动作层与多出来的四块画法（门禁逐块断言）。
-  'vcHistoryScopeOf', 'vcHistoryHitPathOf', 'vcHistoryIsMergeCommitOf', 'vcHistoryEmptyKeyOf', 'vcHistoryCompareSummaryOf', 'vcHistoryFileNameOf', 'vcHistoryFilterOf',
+  'vcHistoryScopeOf', 'vcHistoryHitPathOf', 'vcHistoryIsMergeCommitOf', 'vcHistoryEmptyKeyOf', 'vcHistoryCompareSummaryOf', 'vcHistoryFilterOf',
+  'VC_HISTORY_FILE_MAX', 'VC_NOTE_TEXT_MAX',
   'vcHistoryMarksNode', 'vcHistoryScopeSwitchNode', 'vcHistoryCompareFormNode', 'vcHistoryCompareHeadNode', 'vcHistoryCompareFilesNode', 'vcHistoryFileOnlyNode',
   'vcHistoryNoteNode', 'vcHistoryFileMenuNode', 'vcHistoryToolsNode', 'vcHistoryCommitsOf', 'vcHistoryHasNoteOf', 'vcHistoryFileStateOf', 'vcHistoryFileSourceOf',
   'VC_NOTE_PHONES', 'vcHistoryOpsOf', 'vcNoteDraftOf', 'vcNewNoteWrite',
@@ -2184,7 +2185,7 @@ async function main() {
   check(subRows.length === 2 && subRows[0].path === 'libs/lib' && subRows[1].initialized === false && subRows[0].absorbFrom.indexOf('.git') >= 0, 'W37 行模型带齐清单要用的字段（路径 / 是否已初始化 / 吸收前后的 .git 目录）')
   const subPageBoard = { state: 'ok', board: subBoard, rows: subRows }
   const subHtml = renderToStaticMarkup(VIEW.vcSubmodulesPageNode(h, tZh, { board: subPageBoard, ui: VIEW.vcSubmodulesUiOf(null), ops: {} }))
-  check(subHtml.indexOf('data-vc-sub-page="1"') >= 0 && attrValuesOf(subHtml, 'data-vc-sub-entry').join(',') === '10.1,10.2,10.3,10.4,10.5,10.6,10.7,10.8', 'W38 子模块页真的渲染出八条入口（实得 ' + attrValuesOf(subHtml, 'data-vc-sub-entry').length + ' 条）')
+  check(subHtml.indexOf('data-vc-sub-page="1"') >= 0 && attrValuesOf(subHtml, 'data-vc-sub-entry').length === 0, 'W38 子模块页不再画页尾能力清单（八条能力的主入口在命令面板与管理索引，实得 ' + attrValuesOf(subHtml, 'data-vc-sub-entry').length + ' 条）')
   check(attrValuesOf(subHtml, 'data-vc-sub-batch').join(',') === 'init,fetch,recorded,status' && attrValuesOf(subHtml, 'data-vc-sub-row').length === 2, 'W39 批量四项与逐行清单都画出来（两行子模块各占一行）')
   check(subHtml.indexOf('data-cap-primary') < 0, 'W40 子模块页不用主入口标记 data-cap-primary（每条能力的唯一主入口仍由能力行负责，Z1d 不会被抢）')
   const subConfirmUi = VIEW.vcSubmodulesUiOf({ mode: 'confirm', op: 'absorb', plan: { action: 'absorb', path: 'libs/lib', moves: [{ from: 'D:/w/repo/libs/lib/.git', to: 'D:/w/repo/.git/modules/libs/lib' }] }, ticket: { id: 'tk-sub' } })
@@ -2479,6 +2480,54 @@ async function main() {
   check(z1Html.indexOf('data-vc-history-compare-open="1"') >= 0 && z1Html.indexOf('data-vc-history-merge-only') >= 0 && z1Html.indexOf('data-vc-history-scope="1"') >= 0,
     'Z8 范围行同时有「只看合并」、已加载条数与「比较两个引用」三个入口')
   check(VIEW.vcHistoryFilterOf(zqCommits, '', true, 'message').length === 0, 'Z8b 只看合并时只剩合并提交（这两条都不是合并）')
+
+  // Z9 窄档也要把「命中哪份文件 / 有没有备注」标出来：小字行折掉时这两枚标记单独占一行。
+  const z9Code = hcHtmlOf({ reads: zqReads(), width: 300, ui: { historyScope: 'code', historyQuery: 'IssueDetail' } })
+  check(attrValuesOf(z9Code, 'data-vc-history-hit').join(',') === 'src/client/views/IssueDetail.ts',
+    'Z9a 300 档下命中行同样标出命中的文件（小字行折掉时标记单独占一行，实际 ' + attrValuesOf(z9Code, 'data-vc-history-hit').join(',') + '）')
+  check(z9Code.indexOf('data-vc-history-marks-row="1"') >= 0, 'Z9b 窄档的标记行带自己的属性，样式与宽档那份分开管')
+  const z9Plain = zqCommits.map(function (c) { return Object.assign({}, c, { hasNote: false }) })
+  const z9Note = hcHtmlOf({ reads: hcReadsOf({ commits: z9Plain }), width: 380, ui: { historyNotes: { [zqCommits[0].oid]: true } } })
+  check(attrValuesOf(z9Note, 'data-vc-history-note-tag').length === 1, 'Z9c 380 档下写过备注的那一行同样带「备注」标记')
+
+  // Z10 只有「整份历史」才画「加载更早的提交」：只看某个文件、正在比较时那颗按钮按了不会有变化。
+  const z10More = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, hasMore: true }), width: 460, ui: {} })
+  check(attrValuesOf(z10More, 'data-vc-load-more').length === 1, 'Z10a 整份历史还有下一批时画「加载更早的提交」')
+  const z10File = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, hasMore: true, reads: { queries: { 'file-history': { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'file-history', path: 'src/client/views/IssueDetail.ts', commits: [zqCommits[0]], count: 1, reason: 'ok' } } } } }), width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts' } })
+  check(attrValuesOf(z10File, 'data-vc-load-more').length === 0, 'Z10b 只看某个文件时不画「加载更早的提交」（续读回来的不是这份读数）')
+  const z10Compare = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, hasMore: true, reads: { queries: { compare: { state: 'ok', seq: 1, error: null, data: z5Data } } } }), width: 460, ui: { historyCompare: { left: 'HEAD~1', right: 'HEAD' } } })
+  check(attrValuesOf(z10Compare, 'data-vc-load-more').length === 0, 'Z10c 比较结果在列表位置时不画「加载更早的提交」')
+
+  // Z11 单文件历史读满上限时明说「只列了最近 N 条」，不让人把那 200 条当成全部。
+  const z11Capped = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, reads: { queries: { 'file-history': { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'file-history', path: 'src/client/views/IssueDetail.ts', commits: [zqCommits[0]], count: 200, reason: 'ok' } } } } }), width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts' } })
+  check(attrValuesOf(z11Capped, 'data-vc-history-file-capped').length === 1 && z11Capped.indexOf(fill(tZh('vc.shell.history.fileOnlyCapped'), { n: '200' })) >= 0,
+    'Z11 单文件历史读满 200 条时写明「只列了最近 200 条」')
+  const z11Few = hcHtmlOf({ reads: hcReadsOf({ commits: zqCommits, reads: { queries: { 'file-history': { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'file-history', path: 'src/client/views/IssueDetail.ts', commits: [zqCommits[0]], count: 3, reason: 'ok' } } } } }), width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts' } })
+  check(attrValuesOf(z11Few, 'data-vc-history-file-capped').length === 0, 'Z11b 没读满时不画这句（没到顶就不是截断）')
+
+  // Z12 四条能力在账本里仍各只有一个主入口（命令面板与管理索引按账本渲染，不在页面正文里再挂一次）。
+  const z12Ids = ['3.4', '3.7', '3.8', '3.12']
+  const z12Lists = z12Ids.map(function (id) { return VIEW.CAPABILITIES.filter(function (c) { return c.id === id }) })
+  check(z12Lists.every(function (list) { return list.length === 1 && list[0].primaryEntry === '提交历史页' && list[0].page === 'commits' }),
+    'Z12a 四条能力在账本里各恰好一条，主入口都还是「提交历史页」（实际 ' + JSON.stringify(z12Lists.map(function (l) { return l.length + ':' + (l[0] && l[0].primaryEntry) })) + '）')
+  check(z1Html.indexOf('data-cap-primary') < 0, 'Z12b 历史页正文里不另挂主入口标记：入口在面板里只算一处，不在页面上再算一处')
+
+  // Z13 只看某个文件时切「代码变化」不会把列表筛空：这份读数里没有文件清单，代码范围那套没有依据。
+  const z13Reads = hcReadsOf({ commits: zqCommits, reads: { queries: { 'file-history': { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'file-history', path: 'src/client/views/IssueDetail.ts', commits: [zqCommits[0]], count: 1, reason: 'ok' } } } } })
+  // 搜的是这条提交说明里真有的词：老做法在代码范围里按路径匹配，这份读数没有路径，会把唯一一行筛掉。
+  const z13Html = hcHtmlOf({ reads: z13Reads, width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts', historyScope: 'code', historyQuery: '建议' } })
+  check(attrValuesOf(z13Html, 'data-vc-history-row').length === 1, 'Z13a 只看某个文件时切到代码范围、再搜一个说明里有的词，列表不会被筛空（实际 ' + attrValuesOf(z13Html, 'data-vc-history-row').length + ' 行）')
+  check(attrValuesOf(z13Html, 'data-vc-history-scope-btn').length === 0, 'Z13b 只看某个文件时不画范围按钮：这时候切范围不会有任何变化')
+  const z13Empty = hcHtmlOf({ reads: z13Reads, width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts', historyQuery: '没有这个词' } })
+  check(z13Empty.indexOf(tZh('vc.shell.history.filterEmpty')) >= 0 && z13Empty.indexOf(tZh('vc.shell.history.fileOnlyEmpty').replace('{name}', 'IssueDetail.ts')) < 0,
+    'Z13c 只看某个文件又搜不到时，说的是「已被搜索词筛掉」，不说「没有提交改过它」')
+
+  // Z14 备注的结论行跟着它写的那条提交走：换一条提交时不能把上一条的「已保存」挂过来。
+  const z14Reads = hcReadsOf({ commits: zqCommits, reads: { commit: { rev: zqCommits[1].oid, seq: 1, state: 'ok', files: [], truncated: false, reason: 'ok', error: null } } })
+  const z14Html = hcHtmlOf({ reads: z14Reads, width: 460, ui: { openCommit: zqCommits[1].oid, historyNote: { state: 'ok', rev: zqCommits[0].oid, text: 'x', removing: false, error: null } } })
+  check(z14Html.indexOf('data-vc-history-note-result') < 0, 'Z14 在 A 上保存的结论不会出现在 B 的备注段里')
+  const z14Same = hcHtmlOf({ reads: z14Reads, width: 460, ui: { openCommit: zqCommits[1].oid, historyNote: { state: 'ok', rev: zqCommits[1].oid, text: 'x', removing: false, error: null } } })
+  check(z14Same.indexOf('data-vc-history-note-result') >= 0, 'Z14b 是同一条提交时结论行照常画')
 
   // ---- R 组：远端与同步页（#1754 T18，域 8 的 8.1–8.4）----
   // 三种读数分开验：本地读数（git remote -v + 本地跟踪分支，不联网）、用户点「联网查看」后才走的
@@ -3276,7 +3325,7 @@ async function main() {
     // #1738/#1860：命令面板行的主入口标记换个属性名 —— 面板少一条 data-cap-primary，Z1d 必须当场红。
     { name: '命令面板行主入口标记改成另一个属性名', patch: (s) => s.replace("'data-cap-primary': row.id,", "'data-cap-entry': row.id,"), test: primaryMarkerJudgmentOf, what: 'Z1d' },
     // #1744：历史页的「加载更多」不再画（有更多也装成到顶）—— Y2a 必须当场红。
-    { name: '历史页不再画「加载更多」', patch: (s) => s.replace('  if (hasMore === true) {', '  if (false) {'), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y1Reads })); return html.indexOf('data-vc-load-more') >= 0 }, what: 'Y2a' },
+    { name: '历史页不再画「加载更多」', patch: (s) => s.replace('  if (hasMore === true && paging) {', '  if (false) {'), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y1Reads })); return html.indexOf('data-vc-load-more') >= 0 }, what: 'Y2a' },
     // #1744：图形化视图丢掉父提交连线（合并提交画成一条线）—— Y6b 必须当场红。
     { name: '图形化视图丢掉父提交连线', patch: (s) => s.replace('      parents: parentList.slice()', '      parents: []'), test: (v) => { const g = v.vcHistoryGraphOf(hcRows4); return g.rows[1].parents.length === 2 && g.rows[3].parents.length === 0 }, what: 'Y6b' },
     // #1744：点开提交不再画详情（整页替换那一层没了）—— Y4a 必须当场红。

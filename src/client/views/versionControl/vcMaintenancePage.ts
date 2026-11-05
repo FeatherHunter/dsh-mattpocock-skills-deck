@@ -118,7 +118,7 @@ const vcMaintObjectFactsOf = function (t: any, objects: any): any[] {
 
 /** 类型徽章：只决定 tone 类名（is-write / is-read / is-danger），文字走词表，不在页面里写死说法。 */
 const vcMaintBadgeOf = function (h: any, t: any, tone: string, labelKey: string) {
-  return h('span', { key: 'badge', className: 'badge is-' + tone }, t(labelKey))
+  return h('span', { key: 'badge', className: 'vcs-badge is-' + tone }, t(labelKey))
 }
 
 /**
@@ -383,7 +383,8 @@ export const vcMaintenancePageNode = function (props: any) {
   })
   stack.push(vcPageSectionNode(h, t, {
     title: 'vc.maintenance.section.actions.title',
-    count: actionCards.length,
+    countText: 'vc.maintenance.section.actions.count',
+    countVars: { n: actionCards.length },
     note: 'vc.maintenance.section.actions.note',
     children: actionCards,
   }))
@@ -410,7 +411,8 @@ export const vcMaintenancePageNode = function (props: any) {
   }, vcPageSectionNode(h, t, {
     danger: true,
     title: 'vc.maintenance.section.danger.title',
-    count: VC_MAINTENANCE_PAGE_DANGER.length + VC_MAINTENANCE_PAGE_DANGER_FORMS.length,
+    countText: 'vc.maintenance.section.danger.count',
+    countVars: { n: VC_MAINTENANCE_PAGE_DANGER.length + VC_MAINTENANCE_PAGE_DANGER_FORMS.length },
     note: 'vc.maintenance.section.danger.note',
     children: dangerKids,
   })))

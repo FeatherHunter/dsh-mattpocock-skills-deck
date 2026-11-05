@@ -35,6 +35,7 @@ declare function vcReadFirstScreenSliceOf(reads: any, id: any): any
 declare function vcFirstScreenSliceOf(reads: any, id: any): any
 declare function vcFirstScreenSliceStateOf(reads: any, id: any): any
 declare function vcHistoryOpsOf(deps: any): any
+declare function vcNewNoteWrite(): any
 declare function vcHistoryNoteOpenOf(deps: any, rev: any): any
 declare function vcWorktreesUiOf(ui: any): any
 declare function createWorktreesOpsOf(deps: any): any
@@ -104,7 +105,7 @@ export const vcRealActionsOf = function (deps: any): any {
     },
     // 提交详情：同一笔已经读好就不重复发；打开另一笔时先落加载态（vcReadCommitFiles 自己处理）。
     openCommit: function (oid: any): any {
-      const ui: any = Object.assign({}, uiNow(), { openCommit: String(oid || ''), openFile: '', historyMenu: '', historyFileMenu: '' })
+      const ui: any = Object.assign({}, uiNow(), { openCommit: String(oid || ''), openFile: '', historyMenu: '', historyFileMenu: '', historyNote: vcNewNoteWrite() })
       setUi(ui); vcHistoryNoteOpenOf({ callHost: call, cwd: cwd, getReads: readsNow, setReads: setReads, getUi: uiNow, setUi: setUi, nowMs: nowMs }, oid)
       const reads: any = readsNow()
       const prev: any = reads.commit || {}
@@ -169,7 +170,9 @@ export const vcRealActionsOf = function (deps: any): any {
       const commits: any[] = (first.data && Array.isArray(first.data.commits)) ? first.data.commits : []
       const log: any = reads.log || {}
       const skip: number = commits.length + (Number(log.fetched) || 0)
-      return Promise.resolve(vcReadMoreCommits(reads, call, cwd, skip, String(uiNow().historyScope || '') === 'code')).then(function (next: any) { setReads(next); return next })
+      // 续读回来的每一批都要带上「改到了哪些文件」与「哪几条有备注」：否则先续读、再切到代码范围时这批提交搜不到，
+      //   旧提交的「备注」标记也会在重载之后消失。
+      return Promise.resolve(vcReadMoreCommits(reads, call, cwd, skip, true)).then(function (next: any) { setReads(next); return next })
     },
     // 贮藏：写动作走三段式 —— 先预检签票，再把确认卡停在触发点；用户确认后凭 ticketId + requestId 执行。
     //   读动作（list / show）与最近丢弃的恢复不要票，直接走执行电话；预检失败只落结果，不发执行电话。
