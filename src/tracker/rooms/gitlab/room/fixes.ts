@@ -6,7 +6,7 @@
  * 冻住是为了让运行时改动当场失败，而不是悄悄改掉界面上的动作。
  *
  * 这里出现的 prompt 值是字符串键名（glabInstallFix / glabLoginFix），不是导入的文本；
- * 文本住在 room/prompts.ts，由入口的 prompts 对象解析。改键名要同时改那边。
+ * 文本住在入口 index.ts 的 prompts 对象里（房外门禁按入口原文扫描那一块）。改键名要同时改那边。
  */
 export const fixes = Object.freeze({
   'glab:installed': {

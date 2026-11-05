@@ -2,8 +2,8 @@
  * src/tracker/rooms/gitlab/index.ts — GitLab 后端适配器（主缝实现），本文件是这个房间的入口真源。
  *
  * 入口只留三件事：模块对象、工厂与识别（matches / describe）。链接与地址在 room/links.ts，
- * 提示文案在 room/prompts.ts（healthCheck 与 subIssue 因房外门禁按入口原文读取而留在这里），
- * 修复指引在 room/fixes.ts；搬走的名字在下面显式再导出，房外的 import 路径与名字不变。
+ * 修复指引在 room/fixes.ts；提示文案留在入口（房外门禁按本文件原文词法扫描 prompts 块），
+ * 搬走的名字在下面显式再导出，房外的 import 路径与名字不变。
  *
  * 定版：#135（labels/milestone分流）+ #144 一页纸（数据归一8文件表 + blocking双路径 + preflight + parentKey归一 + 三底座）
  * 严格对照契约名录（`../../contract/operations-catalog.ts` 的 23 条操作 + 3 条定位口）与实体形状；
@@ -53,10 +53,9 @@ import type { PartiallyProvidedCapability, ProvidedCapability } from '../../cont
 import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_FALLBACK_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
-// 链接、提示文案与修复指引搬进 room/：入口只负责装配，改一处地址或一句话不必打开入口。
+// 链接与地址、修复指引搬进 room/；提示文案留在入口（房外门禁按本文件原文扫描 prompts 块）。
 import { issueAddress, repoSearchAddress, issueRefPattern, links, DEFAULT_GITLAB_WEB_ORIGIN } from './room/links.js'
 import { fixes } from './room/fixes.js'
-import { commandVocabulary, glabInstallFix, glabLoginFix, glabRepoFix } from './room/prompts.js'
 
 // 房外仍按旧路径从入口 import 这些公开名字：搬进 room/ 之后在这里显式转发，保证 import 路径与名字不变。
 // DEFAULT_GITLAB_WEB_ORIGIN 与 refOrigin 本来就不是导出，不在此列；openRepository 也不是导出（见下面的说明）。
@@ -303,23 +302,32 @@ export function createGitlabBackend(ctx: BackendContext) {
   return attachGlabOpUsage(backend)
 }
 
-/**
- * 修复契约注入文案（GitLab 后端，双语单源；供 fixes 引用，host 组装时解析）。
- *
- * 安装与登录两对键（glabInstallFix/cliInstall、glabLoginFix/cliLogin）的文本在 room/prompts.ts
- * 各只有一份，这里四个键指向同一份值；#1190 的通用键保留给首开引导清单，老键保留给检查页
- * fixes 与旧门禁断言。commandVocabulary 与 glabRepoFix 也从那里导入。
- *
- * healthCheck 与 subIssue 两块留在入口而不是搬进 room/prompts.ts：tests/verify-686-accept.ts
- * 直接按路径读本文件原文来抠这两块；要搬走必须先改那道房外门禁，不能只改这里。
- */
+/** 修复契约注入文案（GitLab 后端，双语单源；供 fixes 引用，host 组装时解析）。 */
 export const prompts = {
-  commandVocabulary: commandVocabulary,
-  glabInstallFix: glabInstallFix,
-  glabLoginFix: glabLoginFix,
-  cliInstall: glabInstallFix,
-  cliLogin: glabLoginFix,
-  glabRepoFix: glabRepoFix,
+  // #716：这个后端自己的命令行名与站点名（提示词模板里的 {cli} / {cliBrand} 由这一格填）。
+  commandVocabulary: { cli: 'glab', cliBrand: 'GitLab' },
+  glabInstallFix: {
+    zh: '请为 DSH 安装 GitLab CLI（glab）。官方安装说明只有一处：https://docs.gitlab.com/cli/，按那一页的指引做，不要凭记忆写安装命令。\n1. 先检查：终端执行 glab --version；有版本号就直接汇报已装版本，不要重复安装；\n2. 没有 glab 时，打开上面那一页，按你的系统对应的那一节装；那一页打不开就如实说打不开，不要编命令；\n3. 装完请用户点「重查」；如果重查仍说找不到，先用绝对路径跑一次 glab --version 证明装好了，再请用户重启宿主（宿主只在启动时读 PATH）。',
+    en: 'Install the GitLab CLI (glab) for DSH. The only official install guide is https://docs.gitlab.com/cli/ — follow that page, do not write install commands from memory.\n1. Check first: glab --version; if a version is reported, report it and do not reinstall;\n2. If missing, open the page above and follow the section for your OS; if the page cannot be opened, say so plainly and do not invent commands;\n3. After install, ask the user to re-check; if it still reports missing, prove the install with an absolute-path glab --version, then ask the user to restart the host (the host reads PATH only at startup).',
+  },
+  glabLoginFix: {
+    zh: '请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后用 glab auth status --hostname <主机名> 验证这一台主机（不带 --hostname 会把其它已配置主机一起查，别的主机坏了会误报失败）；然后请用户点「重查」。',
+    en: 'Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify this host with glab auth status --hostname <hostname> (without --hostname glab checks every configured host, so a broken unrelated host reports a false failure); then ask the user to re-check.',
+  },
+  // #1190 通用键：首开引导清单不写后端名，统一按 cliInstall / cliLogin 向当前后端要文本。
+  //   内容与 glab* 同一份（单源文本、两个键名），老键保留给检查页 fixes 与旧门禁断言。
+  cliInstall: {
+    zh: '请为 DSH 安装 GitLab CLI（glab）。官方安装说明只有一处：https://docs.gitlab.com/cli/，按那一页的指引做，不要凭记忆写安装命令。\n1. 先检查：终端执行 glab --version；有版本号就直接汇报已装版本，不要重复安装；\n2. 没有 glab 时，打开上面那一页，按你的系统对应的那一节装；那一页打不开就如实说打不开，不要编命令；\n3. 装完请用户点「重查」；如果重查仍说找不到，先用绝对路径跑一次 glab --version 证明装好了，再请用户重启宿主（宿主只在启动时读 PATH）。',
+    en: 'Install the GitLab CLI (glab) for DSH. The only official install guide is https://docs.gitlab.com/cli/ — follow that page, do not write install commands from memory.\n1. Check first: glab --version; if a version is reported, report it and do not reinstall;\n2. If missing, open the page above and follow the section for your OS; if the page cannot be opened, say so plainly and do not invent commands;\n3. After install, ask the user to re-check; if it still reports missing, prove the install with an absolute-path glab --version, then ask the user to restart the host (the host reads PATH only at startup).',
+  },
+  cliLogin: {
+    zh: '请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后用 glab auth status --hostname <主机名> 验证这一台主机（不带 --hostname 会把其它已配置主机一起查，别的主机坏了会误报失败）；然后请用户点「重查」。',
+    en: 'Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify this host with glab auth status --hostname <hostname> (without --hostname glab checks every configured host, so a broken unrelated host reports a false failure); then ask the user to re-check.',
+  },
+  glabRepoFix: {
+    zh: '当前工作区未解析出 GitLab 仓库（glab 无法定位 owner/project）。请先向用户确认意图：\nA. 本地项目（不需要 GitLab）→ 切换到「本地 Markdown」后端；\nB. 确实要用 GitLab → 核对 remote 指向（git remote get-url origin / glab config），或 glab repo create 创建并关联；\n完成后请用户点「重查」。',
+    en: 'No GitLab repository resolved for the current workspace. Confirm intent: A. local project → switch to "Local Markdown"; B. GitLab really wanted → verify the remote (git remote get-url origin / glab config), or create/associate via glab repo create; then ask the user to re-check.',
+  },
   subIssue: {
     // 2026-09 修正：旧文案让 agent 执行 setParent(map.key) / list({parentKey})，但宿主侧没有这些 agent tool —— 照做不到。
     //   改成这个后端真的能做的动作：在 map 文件的任务清单里引用子票。
