@@ -177,13 +177,6 @@ export const GITLAB_ENDPOINTS: readonly GitlabEndpointSpec[] = [
     note: 'counts：一次拿到打开、关闭、全部三个数（回包字段叫 opened/closed/all，与契约的 open/closed/total 不同名）',
   },
   {
-    id: 'labels-list',
-    method: 'GET',
-    shape: 'projects/{}/labels',
-    request: 'projects/{id}/labels?per_page=100',
-    note: '读标签全集（改标签颜色前后核对现状用）',
-  },
-  {
     id: 'labels-list-paged',
     method: 'GET',
     shape: 'projects/{}/labels?per_page={}&page={}&include_ancestor_groups=false',

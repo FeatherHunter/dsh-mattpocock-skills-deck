@@ -5,7 +5,7 @@
  *  - LabelInput = string | {name,color?,description?}
  *  - SetOpts = { expectedUpdatedAt?:string } → 不匹配 → kind:'conflict'
  *  - GitLab: PUT /projects/:id/issues/:iid {labels: names}（整集替换，comma sep）
- *  - 颜色由项目色板决定，不由调用方持久化；二次 GET /projects/:id/labels 补色板（normalize已处理读侧）
+ *  - 颜色由项目色板决定，不由调用方持久化；读侧的颜色来自仓库标签清单（见 labels-ops.ts 的 listLabels）
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -153,46 +153,4 @@ export async function setLabels(
   }
 }
 
-// 旧名兼容：addLabel → setLabels，参数与返回与 setLabels 完全一致，留着只为不断旧调用。
-export const addLabel = (
-  ...args: Parameters<typeof setLabels>
-): Promise<OpResult<Issue>> => setLabels(...args)
-
-// 非op：列仓库标签色板（供DeckProjection.labels并集，非契约op），只取 name/color 两格以便并集。
-export async function listLabels(
-  ctx: CtxLike | null | undefined,
-  repo: RepoLike,
-  opCtx: CtxLike | null | undefined,
-): Promise<OpResult<Label[]>> {
-  const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'listLabels: repo.refId missing', '')
-  try {
-    const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-    const res = await c.run(['api', `projects/${encodeURIComponent(id)}/labels`], { timeout: GITLAB_READ_TIMEOUT_MS })
-    if (res.code !== 0) {
-      // 原文 = 列色板那一次 glab 调用的进程结果。
-      return failGlab(res, res.stderr || res.stdout || 'listLabels failed', res, effective)
-    }
-    let arr: unknown = []
-    try {
-      arr = JSON.parse(res.stdout) as unknown
-    } catch {
-      arr = []
-    }
-    if (!Array.isArray(arr)) arr = []
-    const labels: Label[] = (arr as unknown[]).map((l) => {
-      const lb = l !== null && typeof l === 'object' ? (l as Record<string, unknown>) : {}
-      return {
-        name: typeof lb['name'] === 'string' ? String(lb['name']) : '',
-        color: typeof lb['color'] === 'string' ? String(lb['color']) : '',
-      } as Label
-    })
-    return { ok: true, data: labels }
-  } catch (err: unknown) {
-    // 原文 = 抛上来的那个 Error 对象本身。
-    return failGlab(err, errMsg(err), err, effective)
-  }
-}
-
-export default { setLabels, addLabel, listLabels }
+export default { setLabels }
