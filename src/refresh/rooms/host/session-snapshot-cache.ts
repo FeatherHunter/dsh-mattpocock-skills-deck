@@ -17,7 +17,18 @@ import { createFailureSegmentNotes } from './failure-segment-notes.js'
 // #1835：快照回包的三处装饰（布局答案、后端模块声明、跨会话在办表）搬去了 ./snapshot-decoration.js，本文件回到 350 行以内。
 import { createSnapshotDecoration } from './snapshot-decoration.js'
 // #1867：首屏先读本地快照库这件事收在 ./snapshot-library-first-screen.ts（GitHub 与 GitLab 两支路共用）。
-import { firstScreenFromLibrary, createWorkingCopyFallback, type FirstScreenLibrary } from './snapshot-library-first-screen.js'
+import { firstScreenFromLibrary, type FirstScreenLibrary } from './snapshot-library-first-screen.js'
+// #1885 评审修复（规格 I2 / §9）：库版本读数与 304 回包形状从电话体里搬出来（本文件贴着 350 行上限）。
+import { libraryVersionOf, notModifiedForVersion } from './snapshot-reply-version.js'
+// #1887：六个数字由快照库一次查询算出；电话层只负责在库写到最新之后把它挂到 deck 上。
+import { applyDeckCounts } from '../../../tracker/deck-counts.js'
+// #1899：首屏回包的读数（行数/字节数/耗时/版本）与退化原因落在这里记，口径只此一份。
+import {
+  applySnapshotReadout,
+  createSnapshotReadout,
+  noteSnapshotReply,
+  type SnapshotReplyReadout,
+} from './snapshot-read-log.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都堆在文件顶部：本文件的依赖全部由接线处 index.js 那份对象注入（JS 不查编译错误），
@@ -37,17 +48,18 @@ type Reg = { get(id: string): BackendLike; describe(o: { cwd: string }, id: stri
 type BackendModule = Parameters<typeof projectUiDescription>[0]
 type UiDescription = ReturnType<typeof projectUiDescription>
 /**
- * #1774：previousSnapshot 是上一趟已知的快照（房间内存缓存里那份），来源不完整时交给编排层
+ * #1774：previousSnapshot 是上一趟已知的快照（#1893 起只从库回放里取；即使 force 也读一次，但不用它交付），
  * 补回上次的容器与子票。为什么由这里传：编排器是每次请求新建的实例，它自己的进程内缓存永远是空的。
  */
 type ComposerOpts = { ifNoneMatch?: string; force?: boolean; previousSnapshot?: unknown; onRows?: (rows: unknown[]) => void }
 // #1863/#1867：宿主侧快照库门面与「首屏先读库」的读写口径住 ./snapshot-library-first-screen.ts（两支路共用）。
+// #1893（规格 #1885 S5）：宿主内存里的工作副本已删。本文件只做「读库 / 取数写库」两件事，
+// 回包一律是库的一次投影；库空时走在线重建，并在回包的 snapshotFetch 里交代取到了几行。
+// 以前那份「库为空就拿内存副本兜底」的入口（createWorkingCopyFallback）已随工作副本一起退役。
 type Composed = { ok: boolean; error?: { message?: string } | null; snapshot?: unknown; fail?: unknown; notModified?: unknown; status?: unknown; version?: unknown; cached?: unknown }
 type Composer = { composeSnapshot(id: string, repo: RepoRef, ctx: unknown, o: ComposerOpts): Promise<Composed> }
 type Levels = { byNumber?: Record<string, unknown>; byKey?: Record<string, unknown> }
 type Envelope = ReturnType<typeof createSnapshotEnvelope>
-// 工作副本里那份快照：selection 是权威选择，setupLayout 是记住的布局答案。
-type CachedSnap = { selection?: Sel | null; setupLayout?: Layout | null; generatedMs?: number; fromCache?: boolean; backendModules?: unknown }
 // 在途表取回的那份回包：两条电话路各自组装，形状不同，取回时只能按「是对象、可能带 ok」这一层还原。
 type Reply = { ok?: unknown; [k: string]: unknown }
 // 记住的布局答案（#683）：layout 是选的哪一种，pickedAt 是什么时候选的。
@@ -58,8 +70,7 @@ type Platform = { ident?: unknown }
 type SnapshotDeps = {
   canonicalKey(cwd: unknown): Promise<string> | string; selectEarly(o: { cwd: string; backendId?: unknown }): Promise<Sel | null> | Sel | null; isComposerSelection(sel: Sel | null): sel is Sel & { backendId: string }; getTrackerRegistry(): Promise<Reg> | Reg; getPlatform(): Promise<Platform> | Platform
   ctx: { get(name: string): unknown }; logCtx?: LogCtx | null; DEFAULT_CWD?: string; envelope?: Envelope | null
-  // #1870：工作副本的读写口（行级增量与库为空时的兜底用；面板数据本身只从库回放）。
-  getCache(cwd: string): { ts: number; snapshot: CachedSnap | null }; setCache(v: { ts: number; snapshot: unknown; error: unknown; cwd: string }): void; CACHE_MS: number
+  // #1893：内存工作副本的读写口（getCache / setCache / CACHE_MS）已删：面板数据的唯一来源是库。
   upcaseSnapStates(snap: unknown): Inner; computeLevels(tickets: Row[]): Levels; groupTickets(tickets: Row[]): unknown
   getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<{ owner?: string; name?: string } | null> | { owner?: string; name?: string } | null
   adoptSnapshot(snap: unknown, c: unknown): unknown; detectionExec(cmd: string, args: unknown[], opts: unknown, phase: string): unknown; getGhPath(): string | null; getGhLastError(): unknown; errText(e: unknown): string
@@ -71,14 +82,14 @@ type SnapshotDeps = {
   // #1835：失败历史的口（与宿主刷新失败共用同一个事件库）。快照取数以前只在界面留失败态、没有历史，
   //   事后查不到「什么时候、哪个环节、为什么」。只在这一段失败的第一次记一条，恢复后清标记。
   noteRefreshFailure?: any
-  // #1863：首屏读本地快照库的口。没接时行为与今天一致（磁盘缓存 + 在线重建）。
+  // #1863：首屏读本地快照库的口。没接时照旧走在线重建（#1893 起不再有内存副本兜底）。
   getSnapshotLibrary?: (() => Promise<FirstScreenLibrary | null> | FirstScreenLibrary | null) | null
 }
 
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；#1835 起失败段判重、回包装饰各有一份同目录的共用实现。
 export function createSessionSnapshot(deps: SnapshotDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure, getSnapshotLibrary } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure, getSnapshotLibrary } = deps
   // #723（T19）：快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）搬到了 ./snapshotEnvelope.js
   // （这个文件贴着 350 行上限，要让出位置挂「每个会话在处理哪些票」的读数）。没注入时现造一个，
   // 行为与搬前逐字一致 —— 单测里手工拼实例的那几处就靠这条兜底。
@@ -102,6 +113,28 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
   // #1835：快照取数失败的失败段记历史（同一段只记一条，任何一次成功回包都算这一段结束）。
   const failureNotes = createFailureSegmentNotes(noteRefreshFailure)
   /**
+   * #1893：在线重建结束之后，把这一趟取回的行整批写库，并回「真交进库几行」。
+   *
+   * 为什么行数要进回包：库空时用户等的就是这一趟取数；snapshotFetch.rows 是这一趟的进度，
+   * 界面与日志据此分得清「这一份是等来的」与「这一份是库里现成的」。库没接、或库写失败时回 0：
+   * 数据照旧交付（可用性优先），但进度如数为 0，不假装写进去了。
+   */
+  async function commitFetchRows(first: FirstScreenLibrary | any): Promise<number> {
+    if (!first || typeof first.commitRows !== 'function') return 0
+    try {
+      const written = await first.commitRows()
+      return (written && typeof written.rows === 'number') ? written.rows : 0
+    } catch (e) { return 0 }
+  }
+  /**
+   * #1887：库这一刻的六个数字 + 完整度。在线重建时要在「这一趟取回的行写进库」之后再读，
+   * 否则读到的是上一轮的数字。读不到就回 null（界面按「不知道」处理，不补 0）。
+   */
+  async function readLibraryCounts(first: any): Promise<any | null> {
+    if (!first || typeof first.readCounts !== 'function') return null
+    try { return await first.readCounts() } catch (e) { return null }
+  }
+  /**
    * #1835：快照取数失败补一条可回看的历史。
    *
    * 为什么包在外层：snapshotOf 的失败出口只有末尾一个 catch，但成功回包有好几种形状（快照对象、
@@ -110,31 +143,30 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
    */
   async function handleSnapshot(args: Args) {
     const cwdRef: { cwd: string } = { cwd: '' } // 路径归一见下面 snapshotOf 里的 canonicalKey（#1835）
-    const reply: any = await snapshotOf(args, cwdRef)
+    const readout: SnapshotReplyReadout = createSnapshotReadout()
+    const startedAt = Date.now()
+    const reply: any = await snapshotOf(args, cwdRef, readout)
     if (cwdRef.cwd) {
       if (reply && reply.ok === false) failureNotes.fail(cwdRef.cwd, 'snapshot', reply && reply.failKind)
       else failureNotes.clear(cwdRef.cwd)
     }
-    return await attachWorkRouteTable(reply, args)
+    const out: any = await attachWorkRouteTable(reply, args)
+    // #1899：这一趟交出去几行、多少字节、花了多久、为什么没有从库出——只看日志能回答的那几格。
+    noteSnapshotReply(logCtx, out, cwdRef.cwd, readout, Date.now() - startedAt)
+    return out
   }
-  async function snapshotOf(args: Args, cwdRef: { cwd: string }) {
+  async function snapshotOf(args: Args, cwdRef: { cwd: string }, readout: SnapshotReplyReadout) {
       const _rawSnapCwd = (args && args.cwd) || ''; if (!String(_rawSnapCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawSnapCwd); if (String(cwd == null ? '' : cwd)) cwdRef.cwd = String(cwd) // #1003 空目录闸：没目录不冒充取快照；#1835 外层要按这个工作区记失败段
-      const now = Date.now()
       // 第一性原理分发前置：先算 selection，再决定数据链路（避免旧判断遮住 Markdown）
       const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
       const _layEarly = await readSetupLayoutOf(cwd) // #683（F1 · R6）：记住的布局答案随每条回包一起回去（同 R4 那条路）
       const useComposerEarly = isComposerSelection(_selEarly)
       const isForce = !!(args && args.force)
-      // #683（F1 · ADR 的 R4）/#1870：库为空时的兜底判据与回包补权威选择都收在
-      // snapshot-library-first-screen.ts 的 createWorkingCopyFallback 里（与「先从库读」同一份实现）。
-      const cacheFallback = createWorkingCopyFallback({ getCache: getCache, cwd: cwd, now: now, cacheMs: CACHE_MS, isForce: isForce, selection: _selEarly, setupLayout: _layEarly, logCtx: logCtx })
       try { if (logCtx) logCtx.fire('info', 'snapshot.request', { cwdHash: hash8(cwd), backend: String((_selEarly && _selEarly.backendId) || ''), force: isForce }) } catch (eL) {}
-      // #1870：面板数据的主来源是本地快照库（两条支路各自的 firstScreenFromLibrary）；下面这份工作副本
-      // 只在库里还没有这一轮数据时兜底（库刚被清掉、库打不开、第一次进工作区），不再抢在库前面交付。
-      const cachedEntry = getCache(cwd)
-      // 「这一趟为什么要重建」只在真要重建时记：库里有回放的那一趟根本没重建，记一条 miss 是谎话。
-      const missReason = (function () { try { if (isForce) return 'force'; const c = getCache(cwd); if (!c.snapshot) return 'empty'; const cb = c.snapshot.selection && c.snapshot.selection.backendId; const nb = _selEarly && _selEarly.backendId; if (cb !== nb) return 'backend-changed'; return 'expired' } catch (e) { return 'expired' } })()
-      /** 真要去后端重建之前记一条 miss（库没回放、工作副本也兜不住）。 */
+      // #1893：这一趟只有两种起点——库里有回放（直接交付投影），或者库空（在线重建、写库、再交付）。
+      // 「库为空拿内存副本兜底」那一档随工作副本一起退役，所以 miss 的原因只剩 force 与 library-empty。
+      const missReason = isForce ? 'force' : 'library-empty'
+      /** 真要去后端重建之前记一条 miss（库没回放；这正是「正在取数」的开始）。 */
       const noteMiss = function (): void { try { if (logCtx) logCtx.fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {} }
       // #729：在途合并与刷新路共用一张表（键不带强制标记；强制只搭强制的车，非强制搭任何车）
       const _sharedInflight = await _loadSharedInflight()
@@ -168,15 +200,16 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           const identityResolved = !!(repoRef && repoRef.refId && (backendId !== 'gitlab' || String(repoRef.refId) !== String(cwd)))
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
           const libraryBackend = backendId === 'gitlab' || backendId === 'markdown'
-          const first = (libraryBackend && identityResolved) ? await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId, repoIdentity: String((repoRef && repoRef.refId) || ''), repo: repoRef, force: !!(args && args.force) }) : null
-          // #1870：库里有数据就只读库；库为空时才用工作副本兜底（再没有才联网重建）。
-          // #1869：开库诊断（损坏重建、只读租约）随兜底回包一起交给界面，否则库坏了重建完，
-          // 界面只看到一份旧数据，谁也看不出本机数据被清过。
-          if (!(first && first.replay)) {
-            const fallback = cacheFallback.reply({ backendId: String((_selEarly && _selEarly.backendId) || ''), requireBackend: true, maxAgeMs: CACHE_MS })
-            if (fallback) return cacheFallback.decorateDiagnostics(fallback, first)
-            noteMiss()
-          }
+          // #1893：即使 force 也读一次回放——它不是用来交付的，而是给编排层的 previousSnapshot
+          // （来源不完整时补回上次已知的容器与子票）。交付要不要用回放，下面单独判 isForce。
+          const first = (libraryBackend && identityResolved) ? await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId, repoIdentity: String((repoRef && repoRef.refId) || ''), repo: repoRef, force: false }) : null
+          applySnapshotReadout(readout, first, isForce) // #1899：这一趟从库出还是在线重建、没有回放时是哪种退化
+          // 规格 §9：304 按库版本判（内容散列退场）。版本一致时连组装都不做。
+          const notModified = await notModifiedForVersion(first, args, cwd, _selEarly, _layEarly, isForce); if (notModified) return notModified
+          // #1893：库里有数据就只读库；库空则走在线重建（取数 → 写库 → 再交付），没有内存副本兜底。
+          // #1869：开库诊断（损坏重建、只读租约）仍随在线重建的回包一起交给界面——库坏了重建完，
+          // 界面得能看出本机数据被清过。
+          if (isForce || !(first && first.replay)) noteMiss()
           // #927：面板取数这一路的每条命令都过闸（分类是「人的动作」那一档：只记账、不降档）；没给 send 时照旧直发。
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'snapshot'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'snapshot') }).then(function (r) { return r.result }) } }
           const { createSnapshotComposer } = await import('../../../host/tracker/snapshot.js')
@@ -184,23 +217,17 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           // ifNoneMatch；composer 只按本地类型标注，不碰它的实现。
           // #1446：额度读数口接上了才传；#1439 A2：会话口接上了就经会话取数（没接的两种口 composer 各自保持老形状）。
           const composer: Composer = createSnapshotComposer(reg, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
-          const res: Composed = (first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (first && first.replay) ? first.replay.snapshot : ((cachedEntry && cachedEntry.snapshot) || null), onRows: first ? first.writeRows : undefined })
+          const res: Composed = (!isForce && first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (first && first.replay) ? first.replay.snapshot : null, onRows: first ? first.writeRows : undefined })
           if (!res.ok) { const _e1: Error & { fail?: unknown } = new Error((res.error && res.error.message) || 'composeSnapshot failed'); if (res.fail) _e1.fail = res.fail; throw _e1 }
-          // #683（F1 · ADR 的 R4）：后端说「没变」（304）时也要把权威选择带上 —— 那正是「只换了后端、 快照内容一个字没变」这个现场：不带的话客户端收到 304 就什么都不做，面板头继续显示旧后端。
-          // #1440：304 回包必须带上工作区根（与下面重建分支的 workspaceRoot: cwd 同一个值）。
-          //   后面挂工作路线表那一步（withWorkRouteTable → work-route-readout）只认 reply.workspaceRoot，
-          //   拿不到根就挂一张 {ok:false, reason:'host.work-route.no-workspace'} 的坏表；客户端在本地
-          //   没表时又会照收，于是面板一直显示「读不出来」、自己不会好。304 是「内容没变」的合法结果，
-          //   不是失败，回包照样要自含解释这张表所需的全部信息，不能指望调用现场再补根。
-          if (res.notModified === true || res.status === 304) {
-            const _pair: { selection?: Sel | null; rev?: unknown; setupLayout?: Layout | null } = (_selEarly && _selEarly.backendId) ? { selection: _selEarly, rev: (Number.isInteger(_selEarly.rev) ? _selEarly.rev : 0) } : {}
-            // #1449：布局无条件带上（含 null）—— 客户端删掉浏览器那份布局表以后，只能靠这条回包清空旧答案。
-            _pair.setupLayout = _layEarly
-            return Object.assign({ ok: true, workspaceRoot: cwd, notModified: true, status: 304, version: res.version || '', cached: true, generatedMs: Date.now() }, _pair)
-          }
           // #1869：首屏取回来的行先收在内存里，等编排器成功返回后整批一个事务写库；
           // 进程在这之前被杀，库仍是上一轮完整数据（不会留下半批）。
-          if (first) { try { await first.commitRows() } catch (e) {} }; const inner = upcaseSnapStates(res.snapshot)
+          // #1893：取回来的行整批写库，行数进回包（在线重建的进度）。
+          const fetchedRows = await commitFetchRows(first); const inner = upcaseSnapStates(res.snapshot)
+          // #1887：库写到最新之后再读一次六个数字，挂到 deck 上；读不到就不挂（不补 0）。
+          const libCounts = await readLibraryCounts(first)
+          if (libCounts) { const deck: any = (inner.deck && typeof inner.deck === 'object') ? inner.deck : {}; applyDeckCounts(deck, libCounts); inner.deck = deck }
+          // #1885 评审修复（规格 I2）：这一份回包对应的库版本（在线重建写完库之后读，才是这一份的版本）。
+          const replyVersion = await libraryVersionOf(first)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
           let allForList: Row[] = []
           ;(inner.maps || []).forEach(function(m){
@@ -298,9 +325,12 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
             repoRoot, workspaceRoot: cwd,
             maps: inner.maps, issues: allForList, thinTickets: inner.thinTickets, labels: labels,
             repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck, fallback: inner.fallback, fallbackAt: inner.fallbackAt, fallbackReason: inner.fallbackReason, refresh: inner.refresh,
+            // #1893：有回放时这一格是 null；在线重建时把「取到几行、什么时候取完」交给界面。
+            snapshotFetch: (!isForce && first && first.replay) ? null : { source: 'online-rebuild', rows: fetchedRows, at: Date.now() },
+            version: replyVersion,
           })
-          // #1867：有回放时盖上「来自库」的注记；没有回放时 snap 保持在线组装的形状，不冒充缓存。
-          if (first) first.decorate(snap)
+          // #1867：真正交付库回放时才盖上「来自库」的注记；在线重建（含 force）不冒充缓存。
+          if (!isForce && first && first.replay) first.decorate(snap)
           return adoptSnapLog(snap, cwd)
         }
         // 统一契约：所有后端均走 composeSnapshot（旧的直连快照组装 buildSnapshot 已随 #1870 删除）
@@ -318,6 +348,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
             maps: [], issues: [], thinTickets: [], labels: [],
             backendModules, selection: _sel, setupLayout: _layEarly,
             deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+            snapshotFetch: null,
           })
           return adoptSnapLog(snap, cwd)
         }
@@ -345,6 +376,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
               maps: [], issues: [], thinTickets: [], labels: [],
               backendModules: backendModulesNoRepo, selection: _selNoRepo, setupLayout: _layEarly,
               deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
+              snapshotFetch: null,
             })
             return adoptSnapLog(snapNoRepo, cwd)
           }
@@ -353,22 +385,27 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         // #1863：首屏先无条件读本地快照库——不探测远端、不等整份重建。有数据就直接回放；
         // 库坏/为空才落到下面的在线重建（首屏不许因库不可用而空）。
         // #1870：旧的整份磁盘快照文件已退役，这里不再有「磁盘回放」这一档。
-        const first = await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId2, repoIdentity: String((repoRef2 && repoRef2.refId) || ''), repo: repoRef2, force: isForce })
-        // #1870：库里有数据就只读库；库为空时才用工作副本兜底（再没有才联网重建）。
-        // #1869：开库诊断随兜底回包一起交给界面（见 composer 支路同一处的说明）。
-        if (!(first && first.replay)) {
-          const fallback = cacheFallback.reply({ backendId: backendId2, requireBackend: false, maxAgeMs: null })
-          if (fallback) return cacheFallback.decorateDiagnostics(fallback, first)
-          noteMiss()
-        }
+        // #1893：与 composer 支路同一口径——force 也读一次回放，只把它交给 previousSnapshot，不用于交付。
+        const first = await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId2, repoIdentity: String((repoRef2 && repoRef2.refId) || ''), repo: repoRef2, force: false })
+        applySnapshotReadout(readout, first, isForce) // #1899：与 composer 支路同一口径
+        // 规格 §9：304 按库版本判（内容散列退场）；与 composer 支路同一口径。
+        const notModified2 = await notModifiedForVersion(first, args, cwd, _selEarly, _layEarly, isForce); if (notModified2) return notModified2
+        // #1893：库里有数据就只读库；库空则走在线重建，没有内存副本兜底（与 composer 支路同一口径）。
+        // #1869：开库诊断随在线重建的回包一起交给界面（见 composer 支路同一处的说明）。
+        if (isForce || !(first && first.replay)) noteMiss()
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
         // #1446：回退路径也把额度读数带上；#1439 A2：会话口同主路径（见上方的 composer）。
         const composer2: Composer = createComposer2(reg2, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
-        const res2: Composed = (first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (first && first.replay) ? first.replay.snapshot : ((cachedEntry && cachedEntry.snapshot) || null), onRows: first ? first.writeRows : undefined })
+        const res2: Composed = (!isForce && first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (first && first.replay) ? first.replay.snapshot : null, onRows: first ? first.writeRows : undefined })
         if (!res2.ok) { const _e2: Error & { fail?: unknown } = new Error((res2.error && res2.error.message) || 'composeSnapshot failed'); if (res2.fail) _e2.fail = res2.fail; throw _e2 }
-        // 同主路径：回退支路也等编排器成功后再整批写库。
-        if (first) { try { await first.commitRows() } catch (e) {} }; const inner2 = upcaseSnapStates(res2.snapshot)
+        // #1893：同 composer 支路，取回来的行整批写库（编排器成功之后），行数进回包。
+        const fetchedRows2 = await commitFetchRows(first); const inner2 = upcaseSnapStates(res2.snapshot)
+        // #1887：与 composer 支路同一口径：写库之后再读一次六个数字，挂到 deck 上。
+        const libCounts2 = await readLibraryCounts(first)
+        if (libCounts2) { const deck2: any = (inner2.deck && typeof inner2.deck === 'object') ? inner2.deck : {}; applyDeckCounts(deck2, libCounts2); inner2.deck = deck2 }
+        // #1885 评审修复（规格 I2）：与 composer 支路同一口径，回包带这一份对应的库版本。
+        const replyVersion2 = await libraryVersionOf(first)
         ;(inner2.maps || []).forEach(function(m){ 
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {
@@ -420,8 +457,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         let viewer2: unknown = null, viewerLogin2: string | null = null
         try {
           const tr = reg2.get(backendId2)
-          // #1863：库回放这一趟不联网问当前用户；viewer 留给下一次在线刷新补。
-          if ((!first || !first.replay) && tr && typeof tr.getCurrentUser === 'function') {
+          // #1863：真正交付库回放的这一趟不联网问当前用户；在线重建（含 force）照常补 viewer。
+          if ((isForce || !first || !first.replay) && tr && typeof tr.getCurrentUser === 'function') {
             const vr = await tr.getCurrentUser(repoRef2, ctx2b)
             if (vr && vr.ok && vr.data) { viewer2 = vr.data; viewerLogin2 = vr.data.login || null }
           }
@@ -431,11 +468,14 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           maps: inner2.maps, issues: allForList2, thinTickets: inner2.thinTickets, labels: labels2,
           repository: repoRef2, backendModules: backendModules2, selection: _sel, setupLayout: _layEarly,
           viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, fallbackAt: inner2.fallbackAt, fallbackReason: inner2.fallbackReason, refresh: inner2.refresh,
+          snapshotFetch: (!isForce && first && first.replay) ? null : { source: 'online-rebuild', rows: fetchedRows2, at: Date.now() },
+          version: replyVersion2,
         })
-        if (first) first.decorate(snap2)
+        if (!isForce && first && first.replay) first.decorate(snap2)
         return adoptSnapLog(snap2, cwd)
       } catch (e) {
-        setCache({ ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }) // #715 失败也把种类一起回给界面（见下一行）：配额被别人耗尽 / 插件自己的取数失败 = 两句不同的话；没带种类的一律按后者说，拿不准时不许说「等整点恢复」。
+        // #1893：内存副本已删，失败不再需要「把缓存标脏」；失败本身照旧把种类一起回给界面（#715）：
+        // 配额被别人耗尽 / 插件自己的取数失败 = 两句不同的话；没带种类的一律按后者说，拿不准时不许说「等整点恢复」。
         return { ok: false, error: errText(e), failKind: ((e as any) && (e as any).fail && (e as any).fail.kind) ? (e as any).fail.kind : 'fetch-failed', env: { ghError: getGhLastError() } }
       }
       })()

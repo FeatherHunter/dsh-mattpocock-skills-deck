@@ -59,6 +59,8 @@ try {
     db.exec('DROP TABLE issue_tombstone')
     db.exec('DROP INDEX issue_change_version')
     db.exec('ALTER TABLE issue DROP COLUMN last_change_version')
+    // #1889：v3 加的「上次由回执写入的时刻」也要拆掉，造出来的才是真正的上一版形状（v2）。
+    db.exec('ALTER TABLE issue_group DROP COLUMN receipt_ms')
     db.exec('ALTER TABLE meta DROP COLUMN sync_watermark_ms')
     db.exec('ALTER TABLE meta DROP COLUMN sync_generation')
     db.exec('ALTER TABLE meta DROP COLUMN sync_pending_json')

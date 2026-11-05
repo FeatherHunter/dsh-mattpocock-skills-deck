@@ -43,6 +43,13 @@ type SnapInput = {
   fallbackAt?: unknown
   fallbackReason?: unknown
   refresh?: unknown
+  /** #1893：首屏取数进度（见 SNAPSHOT_TOP_FIELDS 的说明）；库回放 / 空快照时传 null。 */
+  snapshotFetch?: unknown
+  /**
+   * #1885 评审修复（规格 I2）：这一份读回包对应的库版本。库没接或认不出库时传 null/不给，
+   * 表示「这次不知道版本」——不编一个 0（0 是合法的库版本，不能冒充「没有」）。
+   */
+  version?: number | null
 }
 
 /** deck 那一块里本文件真读到的几个字段（#1796 起多一个 missingOpen：缺几张未关闭票）。 */
@@ -66,6 +73,10 @@ export const SNAPSHOT_TOP_FIELDS: string[] = [
   'selection', 'setupLayout', 'capabilities', 'viewer', 'viewerLogin', 'deck',
   'fallback', 'fallbackAt', 'fallbackReason', 'refresh',
   'fromCache', 'diskReplay', 'workRouteTable',
+  // #1893：这一份是库回放还是库空时的在线重建、在线重建取到了几行（null = 来自库回放）。
+  'snapshotFetch',
+  // #1885 评审修复（规格 I2）：这份回包对应的快照库版本；null = 这一趟认不出库（不冒充 0）。
+  'version',
 ]
 
 /**
@@ -134,6 +145,10 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
       viewer: (o.viewer !== undefined ? o.viewer : null),
       viewerLogin: (o.viewerLogin !== undefined ? o.viewerLogin : null),
       deck: o.deck as DeckLike, fallback: (o.fallback === 'rest' ? 'rest' : null), fallbackAt: (o.fallback === 'rest' ? (o.fallbackAt || null) : null), fallbackReason: (o.fallback === 'rest' ? (o.fallbackReason || null) : null), refresh: (o.refresh || null),
+      // #1893：库回放时这一格是 null；库空走在线重建时带「取到几行、什么时候取完」，
+      // 界面与日志据此把「这一份是等来的」和「这一份是库里现成的」分开。
+      snapshotFetch: (o.snapshotFetch !== undefined ? o.snapshotFetch : null),
+      version: (o.version !== undefined ? o.version : null),
     }
     return snap
   }

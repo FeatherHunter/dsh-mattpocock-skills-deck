@@ -869,8 +869,9 @@ async function main() {
   check(eIndexSrc.split('\n').length <= 400, 'E8 宿主入口物理行不超过四百行（实测 ' + eIndexSrc.split('\n').length + ' 行）')
   const eSettingsSrc = sourceText('tests/verify-settings-phones.ts')
   // 电话总数由 tests/verify-settings-phones.ts 钉住；别处加电话时这一条也要跟着改（#1776 M4b 加远端预检后 118 → 119；
-  // #1806 的四条工作区电话在 2026-11-03 随身份记录机制撤掉，回到 119；#1903 加了提交备注两条，119 → 121）。
-  check(eSettingsSrc.indexOf('nPhones === 121') >= 0, 'E9 宿主电话总数登记为一百二十一条（维护页三条、#1776 M4b 的远端预检电话算进去了；#1806 的四条工作区电话已撤）')
+  // #1806 的四条工作区电话在 2026-11-03 随身份记录机制撤掉，回到 119；#1903 加了提交备注两条，119 → 121；
+  // #1890 加了轮询信号与变化集两条，121 → 123；#1923 加了容器级投影一条，123 → 124；#1922 加了库占用读数一条，124 → 125）。
+  check(eSettingsSrc.indexOf('nPhones === 125') >= 0, 'E9 宿主电话总数登记为一百二十五条（维护页三条、#1776 M4b 的远端预检电话算进去了；#1806 的四条工作区电话已撤；#1903、#1890、#1923、#1922 各添的几条都算进去了）')
   const eTimeouts = fs.readFileSync(path.join(ROOT, 'config/timeouts.yaml'), 'utf8')
   check(/vcMaintenanceReadTimeoutMs: 30000/.test(eTimeouts) && /vcMaintenanceWriteTimeoutMs: 600000/.test(eTimeouts), 'E10 时间配置两条键带值（读 30 秒 / 写 10 分钟盖住整仓备份）')
   const eGen = sourceText('scripts/generate-time-config.mts')

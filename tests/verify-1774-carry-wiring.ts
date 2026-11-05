@@ -92,7 +92,10 @@ async function roomDeps(table: any, tracker: any) {
   const d: any = {
     canonicalKey: async function (x: string) { return 'K1774' },
     selectEarly: async function (o: any) { return { backendId: (o && o.backendId) || 'github', source: 'auto', rev: 0 } },
-    isComposerSelection: function () { return true },
+    // #1893：宿主内存副本退役后，首屏电话只有 GitHub 分支会无条件读库回放（composer 支路只给
+    // GitLab / Markdown，理由见 session-snapshot-cache 的 libraryBackend）。这份夹具用的是 GitHub
+    // 后端，所以走统一分支——与生产里「github 不走 composer」一致。
+    isComposerSelection: function () { return false },
     getTrackerRegistry: async function () {
       return {
         modules: function () { return [] },
@@ -103,6 +106,18 @@ async function roomDeps(table: any, tracker: any) {
     getPlatform: async function () { return PLATFORM },
     ctx: { get: function () { return undefined } },
     getCache: table.getCache, setCache: table.setCache, CACHE_MS: 60000,
+    // #1893：宿主内存副本退役后，「上一份快照」只能来自快照库回放。门禁用同一张表模拟库：
+    // 上一趟采纳进表里的那份就是库里的回放（生产里由 SQLite 承担）。
+    getSnapshotLibrary: async function () {
+      return {
+        readSnapshotReplay: async function (input: any) {
+          const e = table.getCache(input && input.workspaceRoot)
+          return (e && e.snapshot) ? { snapshot: e.snapshot, lastKnownAtMs: e.ts } : null
+        },
+        recordIssueRows: async function () { return { ok: true, rows: 0, mergeVersion: null } },
+        readSnapshotDiagnostics: async function () { return [] },
+      }
+    },
     cacheSnapshotIsCurrent: async function () { return null },
     upcaseSnapStates: function (s: any) { return s },
     computeLevels: function () { return { byNumber: {}, byKey: {} } },
@@ -266,12 +281,11 @@ async function main() {
     check(!!m2 && m2.tickets.length === 3 && m2.stats && m2.stats.total === 3, '补回后子票三张、计数 3', show(m2 && m2.stats))
     check(!!m2 && !!m2.carry, '补回带上 carry 标记', show(m2 && m2.carry))
     check(keysOf(r2.snapshot.issues).length === 0, '补回的子票不再出现在 issues', show(keysOf(r2.snapshot.issues)))
-    // 截断那趟后端 counts 不可用、行也不全：计数必须沿用第一趟的「上次已知」，不许缩水（#1698 口径）。
-    // #1796 合并后的口径：首屏只装开放工作集，本地按行重算这一档已取消；后端 counts 拿不到时
-    //   按诚实口径不写数字、标待校准 —— 宁可没有数字，也不拿派生值冒充「上次已知」。
+    // #1887：编排层不再向后端要计数、也不写 deck.counts，更没有「待校准」标记 ——
+    //   六个数字由电话层在库写到最新之后一次查询算出。这里守的是「编排层没有偷偷造数字」。
     const dec2 = r2.snapshot.deck && r2.snapshot.deck.counts
-    check(!dec2, '截断那趟后端计数拿不到时不写计数（#1796：不拿派生值冒充）', show(dec2))
-    check(!!r2.snapshot.deck && r2.snapshot.deck.countsPending === true, '截断那趟计数标待校准（countsPending=true）', show(r2.snapshot.deck && r2.snapshot.deck.countsPending))
+    check(!dec2 && !!r2.snapshot.deck && !('countsPending' in r2.snapshot.deck),
+      '截断那趟编排层不写计数、也不留待校准（数字由库一次查询算）', show({ counts: dec2, pending: r2.snapshot.deck && r2.snapshot.deck.countsPending }))
     // 反证：同样的新实例但不传上一份快照 —— 旧行为当场现形（容器消失、子票漏进 issues）。
     // 这一条不是要它红，而是钉住「上一份快照必须由调用方传进来」这条接线是承重的。
     const c3 = snapMod.createSnapshotComposer(reg)
@@ -298,8 +312,7 @@ async function main() {
     // 所以这里判的是「摊平后仍然一张不多一张不少」：容器只出现一次，三张子票各一次。
     check(keysOf(r2.issues).join(',') === '2001,2002,2003,2004', '第二趟截断：扁平列表仍是容器 + 三张子票，一张不多一张不少', show(keysOf(r2.issues)))
     const dec2 = r2.deck && r2.deck.counts
-    check(!dec2, '第二趟截断：后端计数拿不到时不写计数（#1796：不拿派生值冒充）', show(dec2))
-    check(!!r2.deck && r2.deck.countsPending === true, '第二趟截断：计数标待校准', show(r2.deck && r2.deck.countsPending))
+    check(!dec2 && !!r2.deck && !('countsPending' in r2.deck), '第二趟截断：编排层不写计数、也不留待校准（数字由库算）', show({ counts: dec2, pending: r2.deck && r2.deck.countsPending }))
     check(!!r2.deck && r2.deck.partial === true, '第二趟截断：仓库级 deck.partial 为真（清单可能不全）', show(r2.deck && r2.deck.partial))
     // 第三趟（票面主场景）：整棵子树一起掉出第一页，这一趟列表里一行都没有。
     const r3 = await h.handleSnapshot({ cwd: 'K1774', force: true })
@@ -310,8 +323,7 @@ async function main() {
     check(!!m3 && !!m3.carry && m3.carry.kept === 3, '第三趟：carry 记下补回三张', show(m3 && m3.carry))
     check(keysOf(r3.issues).join(',') === '2001,2002,2003,2004', '第三趟：扁平列表仍是容器 + 三张子票，一张不多一张不少', show(keysOf(r3.issues)))
     const dec3 = r3.deck && r3.deck.counts
-    check(!dec3, '第三趟：后端计数拿不到时不写计数（#1796：不拿派生值冒充）', show(dec3))
-    check(!!r3.deck && r3.deck.countsPending === true, '第三趟：计数标待校准', show(r3.deck && r3.deck.countsPending))
+    check(!dec3 && !!r3.deck && !('countsPending' in r3.deck), '第三趟：编排层不写计数、也不留待校准（数字由库算）', show({ counts: dec3, pending: r3.deck && r3.deck.countsPending }))
     check(!!r3.deck && r3.deck.partial === true, '第三趟：仓库级 deck.partial 仍为真', show(r3.deck && r3.deck.partial))
     // 第四趟：来源恢复完整，且列表里确实没有 2001 —— 这时以本次为准，容器应当被删掉。
     tracker.list = async function () { return { ok: true, data: [childRow('2002', '2001')] } }
@@ -334,8 +346,7 @@ async function main() {
     check(!!m2 && !!m2.carry && typeof m2.carry.at === 'number', '第二趟截断：容器带 carry 标记', show(m2 && m2.carry))
     check(keysOf(r2.issues).join(',') === '2001,2002,2003,2004', '第二趟截断：扁平列表仍是容器 + 三张子票，一张不多一张不少', show(keysOf(r2.issues)))
     const dec2 = r2.deck && r2.deck.counts
-    check(!dec2, '第二趟截断：后端计数拿不到时不写计数（#1796：不拿派生值冒充）', show(dec2))
-    check(!!r2.deck && r2.deck.countsPending === true, '第二趟截断：计数标待校准', show(r2.deck && r2.deck.countsPending))
+    check(!dec2 && !!r2.deck && !('countsPending' in r2.deck), '第二趟截断：编排层不写计数、也不留待校准（数字由库算）', show({ counts: dec2, pending: r2.deck && r2.deck.countsPending }))
     check(!!r2.deck && r2.deck.partial === true, '第二趟截断：仓库级 deck.partial 为真', show(r2.deck && r2.deck.partial))
     // 第三趟（票面主场景）：整棵子树一起掉出第一页，这一趟列表里一行都没有。
     const r3 = await h.handleRefresh({ cwd: 'K1774' })
@@ -346,8 +357,7 @@ async function main() {
     check(!!m3 && !!m3.carry && m3.carry.kept === 3, '第三趟：carry 记下补回三张', show(m3 && m3.carry))
     check(keysOf(r3.issues).join(',') === '2001,2002,2003,2004', '第三趟：扁平列表仍是容器 + 三张子票，一张不多一张不少', show(keysOf(r3.issues)))
     const dec3 = r3.deck && r3.deck.counts
-    check(!dec3, '第三趟：后端计数拿不到时不写计数（#1796：不拿派生值冒充）', show(dec3))
-    check(!!r3.deck && r3.deck.countsPending === true, '第三趟：计数标待校准', show(r3.deck && r3.deck.countsPending))
+    check(!dec3 && !!r3.deck && !('countsPending' in r3.deck), '第三趟：编排层不写计数、也不留待校准（数字由库算）', show({ counts: dec3, pending: r3.deck && r3.deck.countsPending }))
     check(!!r3.deck && r3.deck.partial === true, '第三趟：仓库级 deck.partial 仍为真', show(r3.deck && r3.deck.partial))
   }
 
@@ -377,7 +387,7 @@ async function main() {
     check(Array.isArray(r2.snapshot.maps) && r2.snapshot.maps.length === 0, '编排层拒绝别后端的上一份快照：截断那趟不补容器', show(r2.snapshot && keysOf(r2.snapshot.maps)))
     check(keysOf(r2.snapshot.issues).join(',') === '2002', '被拒的上一份快照不会把子票搬回容器', show(keysOf(r2.snapshot.issues)))
     const decE = r2.snapshot.deck && r2.snapshot.deck.counts
-    check(!decE || decE.source !== 'previous-known', '被拒的上一份快照不沿用它的计数', show(decE))
+    check(!decE, '被拒的上一份快照不沿用它的计数（编排层本来就不写计数）', show(decE))
   }
   {
     // E2：真房间上切后端 —— 上一份快照属于 github，这一趟房间明确按 gitlab 取（同一份房间缓存），

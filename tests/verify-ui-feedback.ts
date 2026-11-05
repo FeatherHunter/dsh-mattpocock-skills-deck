@@ -477,7 +477,9 @@ function audit(read: (p: string) => string): AuditResult[] {
     {
       what: '拉取请求页签的三种状态字（打开 / 已关闭 / 已合并）',
       file: 'src/client/views/PrTab.ts',
-      marks: ["'data-state': prStateKind(x)", "className: 'dsws-chip dsws-pr-state'"],
+      // #1897：行上的 data-state 改读切片行带来的 stateKind（页面不再自己判三态），标记跟着换；
+      //   浅色层那几条选择器一个没动，仍按 data-state 的三种取值命中。
+      marks: ["'data-state': kind", "className: 'dsws-chip dsws-pr-state'"],
       sels: [
         'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="open"] .dsws-idnum,',
         'body:not([data-ds-dark-theme]) .dsws-aggrow[data-state="open"] .dsws-pr-state{',

@@ -221,8 +221,9 @@ async function run(): Promise<void> {
   // ---- ⑦ 探测拍上的三条回包：到点校准 / 窗口内空拍 / 主路照旧 ----
   console.log('\n⑦ 探测拍接线（到点校准、窗口内空拍、主路照旧）')
   const cwd = 'C:/ws/demo'
-  const cacheBox: any = { ts: Date.now(), snapshot: { fallback: 'rest' }, error: null, cwd: cwd }
-  const sets: any[] = []
+  // #1893：宿主内存副本退役后，探针的降级判据改成一个同步的小布尔（由采纳快照那一步记下）。
+  const degradedBox = { value: true }
+  const degradedReads: string[] = []
   const outbound = { probe: 0, delta: 0 }
   const deps: any = {
     canonicalKey: async (v: any) => v,
@@ -235,8 +236,7 @@ async function run(): Promise<void> {
     issueIndexChanged: () => false,
     rememberIssueIndex: () => {},
     commitIssueIndex: () => {},
-    getCache: () => cacheBox,
-    setCache: (v: any) => { sets.push(v) },
+    degradedStandingOf: (c: any) => { degradedReads.push(String(c)); return degradedBox.value },
     lastIssueIndexByRepo: {},
     lastProbeAtByRepo: {},
     deltaRefresh: async () => { outbound.delta += 1; return { mode: 'nothing' } },
@@ -247,16 +247,14 @@ async function run(): Promise<void> {
   const first = await probe.handleProbe({ cwd: cwd })
   check(first.ok === true && first.mode === 'calibrate' && first.reason === 'fallback-calibration-due',
     '降级常驻第一拍：到点校准，回 mode=calibrate（客户端走既有的整仓重建那一支 = 完整枚举）')
-  check(outbound.probe === 0 && outbound.delta === 0, '校准这一拍一条出站请求都不发（缓存清脏交给客户端整仓重取）')
-  check(sets.length === 1 && sets[0].snapshot === null, '校准把宿主缓存清脏（setCache snapshot:null）')
-  // 客户端按校准结果整仓重取后会拿回一份同样写着 fallback:rest 的快照，这里照实模拟。
-  cacheBox.snapshot = { fallback: 'rest' }
+  check(outbound.probe === 0 && outbound.delta === 0, '校准这一拍一条出站请求都不发（客户端按 changed+mode 整仓重取）')
+  check(degradedReads.length >= 1 && degradedReads[0] === cwd, '降级判据读的是这个工作区的同步小布尔（不再从内存副本读整份快照）', degradedReads)
   const second = await probe.handleProbe({ cwd: cwd })
   check(second.ok === true && second.changed === false && second.mode === 'throttled' && second.reason === 'fallback-probe-window',
     '降级窗口内（距上次探测不足 60 秒）：回 mode=throttled 的空拍')
   check(outbound.probe === 0 && outbound.delta === 0, '窗口内空拍零出站（5 秒节拍照跑，只是这一拍不发请求）')
-  // 主路正常：快照没有 fallback 标记，探测一拍就照旧发窗口索引。
-  cacheBox.snapshot = { issues: [] }
+  // 主路正常：采纳快照那一步记下的降级事实变回 false，探测一拍就照旧发窗口索引。
+  degradedBox.value = false
   const third = await probe.handleProbe({ cwd: cwd })
   check(outbound.probe === 1 && third.ok === true && third.changed === false,
     '主路正常时照旧发窗口探测（降级节流不影响平时那 5 秒一拍的行为）')

@@ -134,6 +134,13 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'SHELL_RESOLVE_TIMEOUT_MS', gen: 'SHELL_RESOLVE_TIMEOUT_MS', key: 'shellResolveMs' },
   // #1864：详情在本地快照库里的新鲜度（config/ttl.yaml 的 issueDetailLocalTtlMs）。
   { file: 'src/refresh/rooms/host/comment-thread-fetch.ts', access: 'ISSUE_DETAIL_LOCAL_TTL_MS', gen: 'ISSUE_DETAIL_LOCAL_TTL_MS', key: 'issueDetailLocalTtlMs' },
+  // #1890：变化集的两个降级阈值（config/ttl.yaml 里并排的两格）：行数上限与时间上限，
+  // 宿主两条新读口从这里取，不在代码里写第二份数字。
+  // #1889：写回执优先窗口（config/ttl.yaml 的 snapshotReceiptPriorityMs）。快照库的摄入事务
+  // 从这里取窗口长度，判据在 merge/receipt-priority.ts，不在代码里写第二份数字。
+  { file: 'src/workspace-snapshot/runtime/ingest.ts', access: 'SNAPSHOT_RECEIPT_PRIORITY_MS', gen: 'SNAPSHOT_RECEIPT_PRIORITY_MS', key: 'snapshotReceiptPriorityMs' },
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', access: 'SNAPSHOT_CHANGES_MAX_ROWS', gen: 'SNAPSHOT_CHANGES_MAX_ROWS', key: 'snapshotChangesMaxRows' },
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', access: 'SNAPSHOT_CHANGES_MAX_AGE_MS', gen: 'SNAPSHOT_CHANGES_MAX_AGE_MS', key: 'snapshotChangesMaxAgeMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'DEFER_EXPIRY_MS', gen: 'DEFER_EXPIRY_MS', key: 'deferExpiryMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
@@ -292,7 +299,6 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/kernel/slotRenderer-queue.ts', name: 'SLOT_QUEUE_STEP_MS', key: 'slotQueueStepMs' },
   { file: 'src/client/kernel/slotRenderer-modal-view.ts', name: 'SLOT_MODAL_OPEN_DELAY_MS', key: 'slotModalOpenDelayMs' },
   { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'STORE_NOTICE_DISMISS_MS', key: 'storeNoticeDismissMs' },
-  { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'SNAPSHOT_PICKED_GUARD_MS', key: 'snapshotPickedGuardMs' },
   { file: 'src/client/kernel/store-switch.ts', name: 'STORE_SWITCH_CONFIRM_MS', key: 'storeSwitchConfirmMs' },
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'STATUS_MENU_DISMISS_DELAY_MS', key: 'statusMenuDismissDelayMs' },
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'STATUS_MENU_HOVER_OPEN_DELAY_MS', key: 'statusMenuHoverOpenDelayMs' },
@@ -425,6 +431,9 @@ const EXEMPTS: ExemptRow[] = [
   // —— 注入结构体的字段：值由调用方按已登记参数装进来，本文件不写数字 ——
   { file: 'src/refresh/kernel/admission-policy.ts', name: 'rebuildMinGapMs', reason: '注入字段，接的是上游 REBUILD_MIN_INTERVAL_YELLOW_MS（已登记），缺省 0' },
   // —— 读钟算出来的测量值（耗时、时刻）：调 YAML 改不了它，不是可调参数 ——
+  // #1889：库里读出来的「这一组上次由回执写入的时刻」，只是拿去做窗口比较，本身不是可调参数；
+  // 真正可调的是窗口长度 SNAPSHOT_RECEIPT_PRIORITY_MS（见 REFERENCES，来自 snapshotReceiptPriorityMs）。
+  { file: 'src/workspace-snapshot/runtime/ingest.ts', name: 'receiptMs', reason: '库里读出来的时刻（毫秒时间戳），不是可调时长；窗口长度走 SNAPSHOT_RECEIPT_PRIORITY_MS（已登记）' },
   { file: 'src/shared/version-control/src/parse-log.ts', name: 'aMs', reason: '测量用局部变量（两次读钟的差），不是可调参数' },
   { file: 'src/shared/version-control/src/parse-log.ts', name: 'cMs', reason: '测量用局部变量（两次读钟的差），不是可调参数' },
   { file: 'src/tracker/detection/backendDecision.ts', name: 'autoMs', reason: '测量用局部变量，不是可调参数' },
@@ -434,13 +443,16 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/tracker/rooms/github/read/issues.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   // #1698：KPI 投影里的「上次校准时刻」，0 表示不知道时刻（界面显示占位），不是可调参数。
   { file: 'src/client/kernel/store-derived.ts', name: 'atMs', reason: '界面占位：0 表示不知道上次校准时刻，不是可调参数' },
+// #1894：视图模型接线层把 kpiCountsOf 的投影原样收下，atMs 只是界面占位（0 = 不知道上次校准时刻）。
+{ file: 'src/client/kernel/deck-view-binding.ts', name: 'atMs', reason: '界面占位：0 表示不知道上次校准时刻（透传 kpi 投影里的 atMs），不是可调参数' },
   // #1829：改动页同步事实行的「远端跟踪分支更新于」，值来自首屏聚合读的快照，不是本文件决定的可调时长。
   { file: 'src/client/views/versionControl/vcRealModel.ts', name: 'basisMs', reason: '读数快照里的远端跟踪分支时刻（宿主首屏聚合读给），不是本文件决定的可调时长' },
   { file: 'src/client/views/ListTab.ts', name: 'atMs', reason: '透传 KPI 投影里的上次校准时刻（只用于格式化成 HH:mm），不是可调参数' },
-  // #1864：详情投影里的「上次已知时刻」与「按需细节被淘汰时的上次已知时刻」都是读钟记下来的值，
-  //   只用于格式化成 HH:mm 给界面看，调 YAML 改不了它们。
+  // #1864：详情投影里的「上次已知时刻」是读钟记下来的值，只用于格式化成 HH:mm 给界面看，调 YAML 改不了它。
   { file: 'src/client/views/shared/detailProjection.ts', name: 'atMs', reason: '详情回包里的上次已知时刻（读钟记下的值），只用于格式化成 HH:mm，不是可调参数' },
-  { file: 'src/client/views/shared/detailProjection.ts', name: 'evictedAtMs', reason: '按需细节被淘汰时行上记号里的上次已知时刻，只用于格式化成 HH:mm，不是可调参数' },
+  // #1896：票详情切片里的「上次已知时刻」是读钟记下来的值，只用于告诉界面这份详情有多旧，
+  //   调 YAML 改不了它。
+  { file: 'src/client/kernel/deck-issue-detail.ts', name: 'lastKnownAtMs', reason: '详情切片里的上次已知时刻（读钟记下的值），随切片交回，不是可调参数' },
   // #1698：计数判定读钟、企业版能力探测时刻，都是读钟记下来的值，不是可调参数。
   { file: 'src/tracker/deck-counts.ts', name: 'nowMs', reason: '读钟时刻（Date.now 的注入口），用来标计数「什么时候校准的」，不是可调参数' },
   { file: 'src/tracker/rooms/github/routing/runtime-capability.ts', name: 'probedAtMs', reason: '探测发生的时刻（读钟记录，只用于在答案里标「何时探的」），不是可调参数' },
@@ -491,9 +503,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（verdict 的输出），不是输入参数' },
   // #1690：合并版本门记「上一轮合并开始时刻」，是读钟记下来的状态字段，调 YAML 改不了它。
   { file: 'src/refresh/kernel/snapshot-merge.ts', name: 'lastStartMs', reason: '状态字段：上一轮合并开始时刻（读钟记下来的时刻），不是可调时长' },
-  // #1692：磁盘回放的「上次已知」时刻与按需细节淘汰用的时间戳，都是读钟记下来的时刻。
-  { file: 'src/refresh/kernel/detail-eviction.ts', name: 'nowMs', reason: '读钟时刻（调用方传入的 Date.now），给淘汰记号与行时间戳用，不是可调参数' },
-  { file: 'src/client/views/IssueDetail.ts', name: 'evictedAtMs', reason: '算出来的时刻（淘汰记号里的上次已知时刻，界面格式化成人看的 HH:mm），不是可调参数' },
+  // #1692/#1922：磁盘回放的「上次已知」时刻是读钟记下来的时刻（淘汰用的时间戳随淘汰机制一起退役）。
   // #1693：通知事件库的去重窗口由调用方注入（上游是已登记的 notificationEventDedupeMs），读钟函数是测试注钟口。
   { file: 'src/refresh/kernel/notification-events.ts', name: 'windowMs', reason: '透传变量，接的是 store 注入的去重窗口（上游是已登记的 notificationEventDedupeMs），不是新参数' },
   { file: 'src/refresh/rooms/host/notification-store.ts', name: 'nowMs', reason: '读钟函数（Date.now 的包法，测试可注入），不是可调参数' },
@@ -516,10 +526,12 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/client/snapshot-sync.ts', name: 'timeOfMs', reason: '函数名（把时刻格式化成给人看的文字），不是时间参数' },
   { file: 'src/refresh/rooms/client/snapshot-sync.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/client/kernel/router.ts', name: 'fitMs', reason: '滚动位置回正的状态字段，不是时间参数' },
-  { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'cacheMs', reason: '从快照里读出的生成时刻，不是可调参数' },
-  { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'incomingMs', reason: '同上' },
-  { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'curMs', reason: '同上' },
+  // #1891：水合胜负改按库版本判之后，cacheMs / incomingMs / curMs 这一族「生成时刻」变量已从文件里退休
+  // （时间不再参与「谁的结论更新」）；工时测量那一格照旧。
   { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
+  // #1891：版本簿记里的「这个库版本是什么时候见到的」——只交给宿主做「落后太久就整份」的降级判断，
+  //   不参与新旧判断（新旧只看版本号），也不是本文件决定的可调时长。
+  { file: 'src/refresh/rooms/client/snapshot-version-sync.ts', name: 'seenAtMs', reason: '同步簿记：看到这个库版本的本地时刻（时间只用于落后降级的输入，不决定新旧），不是可调参数' },
   { file: 'src/client/kernel/store-switch.ts', name: '_hadToWait', reason: '布尔判断结果（这一步有没有等过），不是时间参数' },
   { file: 'src/client/statusbar/checksums.ts', name: '_probeMs', reason: '读出来的探测时刻，不是可调参数' },
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
@@ -541,6 +553,12 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（退避结论的输出），不是输入参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
+  // #1888：行级增量的同步簿记搬进库之后，待办里记的「什么时候记下这条待办」是状态字段，调 YAML 改不了它。
+  { file: 'src/refresh/rooms/host/row-patch-state.ts', name: 'pendingAtMs', reason: '待办里记下的时刻（什么时候记下这条待办），随状态一起读写，不是可调参数' },
+  // #1885 评审修复：库行换算里这三个时刻都来自后端给的库行，只用于格式化与排序，调 YAML 改不了它们。
+  { file: 'src/shared/snapshot-row-fields.ts', name: 'createdAtMs', reason: '库行里的创建时刻（后端给的原始毫秒），只用于格式化与排序，不是可调参数' },
+  { file: 'src/shared/snapshot-row-fields.ts', name: 'updatedAtMs', reason: '库行里的更新时刻（后端给的原始毫秒），只用于格式化与排序，不是可调参数' },
+  { file: 'src/shared/snapshot-row-fields.ts', name: 'closedAtMs', reason: '库行里的关闭时刻（后端给的原始毫秒），只用于格式化，不是可调参数' },
   { file: 'src/host/versionControlFirstScreen.ts', name: 'readAtMs', reason: '读钟时刻（这一趟首屏聚合读取是什么时候开始的），不是可调参数' },
   { file: 'src/host/versionControlSyncCheck.ts', name: 'readAtMs', reason: '读钟时刻（这一趟同步预检是什么时候读的现场），不是可调参数' },
   // #1756：克隆预检与执行的回包都带自己那一刻的读钟时刻，用来和票据过期对上，不是可调参数。
@@ -635,6 +653,23 @@ const EXEMPTS: ExemptRow[] = [
   // #1862 工作区快照库：租约与开库诊断路径上的两个名字是读钟或测量值，不是可调时长。
   { file: 'src/workspace-snapshot/runtime/lease.ts', name: 'nowMs', reason: '读钟时刻（调用方注入的时钟），抢租约与续租时写进 meta，不是可调参数' },
   { file: 'src/workspace-snapshot/runtime/open.ts', name: 'elapsedMs', reason: '测量用局部变量（开库耗时），写进诊断日志，不是可调参数' },
+  // #1888：库里的同步簿记三格（水印、待办与它们各自的时刻、上次完整枚举的时刻）都是状态字段，
+  //   随库持久化；它们记录「发生了什么时候的事」，不是本文件决定的可调时长。
+  { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'watermarkMs', reason: '上次扫到哪儿的时刻（库里的状态字段），不是可调参数' },
+  { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'pendingAtMs', reason: '待办里记下的时刻（什么时候记下这条待办），库里的状态字段，不是可调参数' },
+  { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'atMs', reason: '待办 JSON 里记下的时刻（与 pendingAtMs 同一件事的另一种写法），不是可调参数' },
+  { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'fullEnumerationMs', reason: '上一次完整枚举发生在什么时候的时刻（库里的状态字段，用来判库有没有取全），不是可调参数' },
+  // #1890：变化集投影本身不读配置，两个上限都由宿主电话从中央时间参数传进来；sinceMs 是
+  //   客户端交上来的「上次看到该版本的时刻」，只参与降级判断，不是本文件决定的可调时长。
+  { file: 'src/workspace-snapshot/projection/changes.ts', name: 'maxAgeMs', reason: '透传参数：值由调用方从中央时间参数 snapshotChangesMaxAgeMs 传入，本文件不写数字' },
+  { file: 'src/workspace-snapshot/projection/changes.ts', name: 'sinceMs', reason: '调用方给的起点时刻（客户端上次看到该库版本的时刻），不是可调参数' },
+  // #1890：变化集读口把客户端交来的时刻归一成非负整数再往下传；两格都是同一个输入，不是两个参数。
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', name: 'rawSinceMs', reason: '客户端交来的原始时刻（参数原文），只做归一与校验，不是可调参数' },
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', name: 'sinceMs', reason: '归一之后的起点时刻（客户端上次看到该库版本的时刻），只参与降级判断，不是可调参数' },
+  // 2026-11-05 #1899：两条读口与首屏回包的「投影耗时」读数（日志字段），是由起止时刻相减算出来的派生值，
+  // 不是可调时长；真要有可调的时间参数，那是变化集的两个降级阈值（上面 REFERENCES 里的两行）。
+  { file: 'src/refresh/rooms/host/snapshot-read-channels.ts', name: 'projectionMs', reason: '变化集投影的实际耗时（起止时刻相减的派生值），只进日志，不是可调参数' },
+  { file: 'src/refresh/rooms/host/snapshot-library.ts', name: 'projectionMs', reason: '库投影的实际耗时（起止时刻相减的派生值），只进日志，不是可调参数' },
 ]
 
 // 时间味判定，两类都认：

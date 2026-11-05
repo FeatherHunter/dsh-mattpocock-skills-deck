@@ -29,6 +29,8 @@ import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant
 import { applyIssueFilter, labelsOf } from '../model/issue-filter.js'
 // #1796：状态筛下推查询（工单 / 拉取请求 / REST 三档）单独一文件，读路径只取结果。
 import { issueStatesOf, pullStatesOf, restStateOf } from './list-state.js'
+// #1898：这一次列表最多翻几页（调用方经上下文给；没给就翻到底）。
+import { listMaxPagesOf } from './read-page-cap.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf, toOpResultError } from '../support/errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
@@ -139,6 +141,8 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
     const all = []
     let after = null
     let hasNext = true
+    // #1898：两条查询各自翻了几页（订阅方的页上限按张表各算一次）。
+    let issuePages = 0
     // 拉取请求那张表到 1000 条就停；工单那张到 500 条就停。两处都在停下来的那一刻把这件事记在这两个变量上，
     // 收尾时统一记一行降级 —— 「回成功、只装了一部分」必须能从日志里看出来。
     let issuesTruncated = false
@@ -155,6 +159,11 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
     // GraphQL 不在计划里就一次都不试：把 needRest 直接置上，下面两轮查询靠 needRest 让路，
     // 原因记 list:degraded —— 不是主路坏了，是这次计划不让走 GraphQL。
     const channels = readChannelsOf(ctx)
+    // #1898：这一次最多翻几页（没给 = 翻到底），以及「只要拉取请求」那一档。
+    // 只要拉取请求时工单那条查询整段跳过：那两表的结果反正会被 applyIssueFilter 筛掉，
+    // 先取一遍再筛等于白花一条请求与一页窗口（补合并状态那条路正是只取拉取请求）。
+    const pageCap = listMaxPagesOf(ctx)
+    const onlyPulls = !!(filter && typeof filter === 'object' && filter.isPullRequest === true)
     if (!channels.graphql) {
       needRest = true
       needRestWhy = 'list:degraded'
@@ -165,7 +174,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
     // #1830：标签同样是一档筛选，和状态一样下推；无标签时不带变量，走不带 labels 的那份查询。
     const labels = labelsOf(filter)
     // 分页按契约页大小取（一页 50，配合列表去评论把单查询压回 1.5 秒线内），超量分页
-    while (!needRest && hasNext) {
+    while (!needRest && !onlyPulls && hasNext) {
       // 构造带变量查询：gh api graphql -f query -f owner -f name -F first -F after -F states[]
       const query = labels.length ? LIST_QUERY_WITH_LABELS : LIST_QUERY
       const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
@@ -176,6 +185,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.gql' })
+      issuePages += 1
       if (!r.ok) { needRest = true; needRestWhy = 'list:gql-err'; if (!firstRestCause) firstRestCause = (r && r.error) || r; break }
       const text = r.data.stdout || ''
       let j
@@ -192,6 +202,9 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       const pageInfo = issues.pageInfo
       if (pageInfo && pageInfo.hasNextPage) after = pageInfo.endCursor
       else hasNext = false
+      // #1898：调用方给了页上限（这一轮最多翻几页）就停在这儿。只有确实还有下一页才记截断 ——
+      // 后端自己说没有了（hasNext=false）时，停在第几页都是到底了，那不是截断。
+      if (pageCap && issuePages >= pageCap) { issuesTruncated = hasNext; break }
       // 安全上限：最多 500 条。到顶就 break，并把「被截断过」记在 `issuesTruncated` 上（收尾时记一行降级）。
       if (all.length >= 500) { issuesTruncated = true; break }
     }
@@ -199,6 +212,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       // 拉取请求主路（同池合并：GraphQL issues 不含拉取请求，直接拼接；限流/超时走下方同一兜底）
       let prAfter = null
       let prHasNext = true
+      let prPages = 0
       while (prHasNext) {
         const args = ['api', 'graphql', '-f', `query=${labels.length ? LIST_PR_QUERY_WITH_LABELS : LIST_PR_QUERY}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
         for (const s of pullStates) args.push('-F', `states[]=${s}`)
@@ -206,6 +220,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
         if (prAfter) args.push('-F', `after=${prAfter}`)
         else args.push('-F', 'after=')
         const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.pr' })
+        prPages += 1
         if (!r.ok) { needRest = true; if (!firstRestCause) firstRestCause = (r && r.error) || r; break }
         let j
         try { j = JSON.parse(r.data.stdout || '') } catch (e) { needRest = true; if (!firstRestCause) firstRestCause = e; break }
@@ -221,6 +236,8 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
         const pageInfo = prs.pageInfo
         if (pageInfo && pageInfo.hasNextPage) prAfter = pageInfo.endCursor
         else prHasNext = false
+        // #1898：调用方给了页上限就停在这儿；确实还有下一页才记截断（后端说没有了就是到底了）。
+        if (pageCap && prPages >= pageCap) { prTruncated = prHasNext; break }
         if (all.length >= 1000) { prTruncated = true; break }
       }
     }
@@ -250,9 +267,10 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       // #1796：状态档也要下推给 REST 降级路径（open / closed / all），与主路同一档。
       const restState = restStateOf(filter)
       // #1830：状态与标签都下推给 REST 降级路；REST 用逗号分隔标签，带逗号的名字由这一层放弃下推（见 issues-rest-list.ts）。
-      const rest = await fetchAllIssuesREST(parsed, ctx, restState, labels)
+      // #1898：REST 降级路也按同一页上限停页（两张表各一串请求；补合并状态那条路最多两页）。
+      const rest = await fetchAllIssuesREST(parsed, ctx, restState, labels, pageCap)
       if (!rest.ok) return { ok: false, error: rest.error }
-      const pulls = await fetchAllPullsREST(parsed, ctx, restState)
+      const pulls = await fetchAllPullsREST(parsed, ctx, restState, pageCap)
       const raws = enrichRestPRs(rest.data.rows, pulls.ok ? pulls.data : [])
       // #1691：先把每行自带的关系字段补进行内（父票边、依赖边、子票计数）；
       // 都在行里表达时，这一趟一张容器票的子票请求都不用发。

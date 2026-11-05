@@ -3,6 +3,10 @@
 // 上层（refresh、界面、测试）只应该 import contract/ 里的东西。这里的形状是 #1862 定下的
 // 门面骨架，后续实施票（1863+）直接按这个形状接，不要各自再造一套批次类型。
 import type {
+  ChangeSetProjection,
+  ChangeSetQuery,
+  ContainerProjection,
+  ContainerProjectionQuery,
   GroupCompleteness,
   IssueDetailProjection,
   IssueDetailQuery,
@@ -12,14 +16,24 @@ import type {
   SnapshotActor,
   SnapshotBackend,
   SnapshotComment,
+  SnapshotCounts,
   SnapshotDiagnostic,
   SnapshotLabel,
   SnapshotMode,
   SnapshotReview,
+  SnapshotStorageStats,
   SubIssueCountsValue,
 } from '../model/types.js'
 
 export type {
+  ChangeRowPlacement,
+  ChangeSetChangedRow,
+  ChangeSetFullReason,
+  ChangeSetProjection,
+  ChangeSetQuery,
+  ChangeSetTombstone,
+  ContainerProjection,
+  ContainerProjectionQuery,
   DetailGroupStates,
   GroupCompleteness,
   GroupState,
@@ -34,11 +48,13 @@ export type {
   SnapshotActor,
   SnapshotBackend,
   SnapshotComment,
+  SnapshotCounts,
   SnapshotDiagnostic,
   SnapshotDiagnosticCode,
   SnapshotLabel,
   SnapshotMode,
   SnapshotReview,
+  SnapshotStorageStats,
   SubIssueCountsValue,
 } from '../model/types.js'
 
@@ -152,6 +168,55 @@ export interface MarkMissingResult {
 }
 
 /**
+ * 同步簿记（#1888，规格 #1885 §5）：水印、世代号、待办三样，住进库级元信息，与数据同生共死。
+ *
+ * 为什么放在库里而不是宿主内存：行级增量判「远端有没有变」就靠这三样。放在进程内存里时，
+ * 切会话或重启宿主之后水印与待办一起清空，第一拍要整仓重扫；而变化只补进内存时，库与界面
+ * 还会说出两个值。三样都写进 meta 之后，关库重开读回来的就是上一次的现场。
+ *
+ * 约定：簿记不是数据。只写簿记不动 merge_version、不盖行上的变化版本 —— 版本号只由数据提交
+ * 推进，否则每一次探测都会让别人手里的 startMergeVersion 提前过期。
+ */
+export interface SyncBookkeeping {
+  /** 上一次次探测的起点毫秒；0 = 还没有可用水印。 */
+  watermarkMs: number
+  /** 本工作区的世代号：每收下一份结果加一，迟到的结果拿旧值来比就会被挡住。 */
+  generation: number
+  /** 没并进去的变化票号（去重、按字符串排序）。 */
+  pending: string[]
+  /** 最近一次记待办的时刻毫秒；没有待办时是 0。 */
+  pendingAtMs: number
+  /** 最近一次记待办的原因代号；没有待办时是空串。 */
+  pendingReason: string
+  /** 整仓最近一次完整枚举完成的时刻毫秒；0 = 从没完整取过。 */
+  fullEnumerationMs: number
+}
+
+/**
+ * 一次簿记写入。只给要改的那几格，没给的保持库里的值。
+ *
+ * expectedGeneration 是「迟到的结果不许覆盖更新的结果」在库这一侧的落点：给了它、而库里当前
+ * 的世代号与它不等，整笔写入（含同一事务里的行）一个字都不动，回 stale。
+ */
+export interface SyncBookkeepingWrite {
+  watermarkMs?: number
+  generation?: number
+  pending?: readonly string[]
+  pendingAtMs?: number
+  pendingReason?: string
+  fullEnumerationMs?: number
+  expectedGeneration?: number
+}
+
+/** 单独写簿记的回执；committed 为假表示被门挡下或写失败，state 仍是读到的当前值。 */
+export interface SyncBookkeepingResult {
+  committed: boolean
+  state: SyncBookkeeping
+  reason?: 'stale' | 'readonly' | 'write-failed'
+  detail?: string
+}
+
+/**
  * 一批读结果。startMergeVersion 是调用方开始读这批数据时看到的版本（readList / getMergeVersion
  * 返回的那个）。事务里发现任一被表达组的 written_version 比它大，说明期间有别的写者先提交了，
  * 整批丢弃，避免用旧读结果覆盖新数据。
@@ -159,11 +224,27 @@ export interface MarkMissingResult {
 export interface WriteBatch {
   startMergeVersion: number
   writes: IssueWrite[]
+  /**
+   * 这一批的来路（#1889）：'read'（缺省）= 读结果，要过「回执优先窗口」；'receipt' = 写回执，
+   * 它自己就是刚写完的那份真状态，不受窗口约束，并在提交时给每一组盖上回执时刻。
+   *
+   * 为什么必须由调用方说清楚：库自己分不出「这一批是写完之后读回来的」还是「一次普通取数」，
+   * 而两者的胜负规则不同——前者永远赢，后者在一个短窗口内要让给前者。
+   */
+  kind?: 'read' | 'receipt'
+  /**
+   * 与这一批行同一个事务提交的同步簿记（#1888）。行级增量把「变化的那几行」与「水印/世代号/待办」
+   * 一起写：行写进去而簿记没写进去，下一拍就得重扫；簿记先进而行没进去，界面又会拿到不满意的结果。
+   * 给了 expectedGeneration 时，库里世代号对不上就整批丢弃（回 stale），行与簿记都不动。
+   */
+  sync?: SyncBookkeepingWrite
 }
 
 export interface IngestSuccess {
   committed: true
   mergeVersion: number
+  /** 这一批顺带写下的同步簿记（只有 batch.sync 给了才有）。 */
+  sync?: SyncBookkeeping
   /**
    * 这一批里写回执那条评论最后落在第几位（#1866）。只有表达过评论写回执时才有值；
    * 上层拿它说「这一条存在第几位」，与库里实际写下的位置一致（被占用时可能往后挪过）。
@@ -218,12 +299,45 @@ export interface WorkspaceSnapshotHandle {
    * 票重新出现时由普通写入清掉墓碑，所以这不是永久判决。只读句柄拒绝。
    */
   markMissing(entries: readonly MissingTicket[], startMergeVersion: number): MarkMissingResult
+  /**
+   * 读同步簿记（水印、世代号、待办）。只读句柄也能读：库是唯一真相，读不写。
+   */
+  readSyncBookkeeping(): SyncBookkeeping
+  /**
+   * 只写同步簿记，不动数据、不动合并版本。只读句柄拒绝。
+   * 给了 expectedGeneration 而库里世代号对不上时回 committed:false / stale，一个字节不改。
+   */
+  writeSyncBookkeeping(write: SyncBookkeepingWrite): SyncBookkeepingResult
+  /**
+   * 面板顶上的六个数字（#1887）：只读、一次查询，按库里的行与边算。
+   *
+   * 为什么放在句柄上而不是让上层自己拼 SQL：完整度要看库级同步簿记，而簿记与数据同生共死；
+   * 上层拿到的必须是一个自洽的答案（六个数字 + 这份答案够不够全），不能自己拿一个数字去猜另一个。
+   * 只读句柄也能读：它不改任何库内容。
+   */
+  readCounts(): SnapshotCounts
+  /**
+   * 库的占用读数（#1922）：库文件字节数与票行数。只读、不改库，只读句柄也能读。
+   * 库只增不删，但增长要看得见——环境检查页的诊断读数用它，不使用它做任何清理决定。
+   */
+  readStorageStats(): SnapshotStorageStats
   readList(query?: ListQuery): ListProjection
   /**
    * 读一张票的详情：行、正文、标签、指派、父子、阻塞、被阻塞、子票、合并信息与各组三态。
    * 库里没有这张票（连骨架都没有）时 issue 为 null；只有骨架时 referenceSkeleton 为真。
    */
   readIssueDetail(query: IssueDetailQuery): IssueDetailProjection
+  /**
+   * 按容器读一次（#1923）：容器行 + 挂在它下面的全部子票行（含已关闭，不含墓碑）。
+   * 已关闭容器的子票按 §6 不进首屏投影，打开它时由这条读口一次取齐；只读句柄也能读。
+   */
+  readContainerProjection(query: ContainerProjectionQuery): ContainerProjection
+  /**
+   * 读一次变化集（#1890）：从 query.sinceVersion 到当前版本，哪些行变了、哪些行被判不存在。
+   * 超过行数上限或落后超过时间上限、客户端版本比库里大、或没有基线时 full 为真 ——
+   * 这四种情况都不给变化行，调用方必须整份重取。只读句柄也能读。
+   */
+  readChangeSet(query: ChangeSetQuery): ChangeSetProjection
   /** 整库重建（清空后按当前身份建空库）。只读句柄拒绝。 */
   rebuild(): void
   close(): void

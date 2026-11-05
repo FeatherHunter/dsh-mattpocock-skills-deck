@@ -1,0 +1,1130 @@
+{
+  "note": "#1682 真机夹具（两页 200 行里挑出的 10 行，8 张工单 + 2 个拉取请求，字段形状原样保留）；经 GitHub 归一化写进真 SQLite 快照库、readList({state:\"all\"}) 读回；期望值在 #1892 搬前冻结，#1893 按规格 I6（unknown 不写字段）重新冻结，旧基线见 pre-1893/。覆盖容器树、父子边、已关闭行与拉取请求。",
+  "repo": {
+    "backend": "github",
+    "refId": "acme/widgets",
+    "name": "acme/widgets",
+    "url": "https://github.com/acme/widgets"
+  },
+  "version": 1,
+  "rows": [
+    {
+      "effortId": "",
+      "key": "1598",
+      "row": {
+        "type": "issue",
+        "title": "BUG：deck_context 在大仓必超时——列表全仓扫描、过滤在客户端、每页还取票正文",
+        "state": "closed",
+        "url": "https://github.com/example/repo/issues/1598",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": false,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": {
+        "total": 0,
+        "completed": 0,
+        "percent": 0
+      },
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "1601",
+      "row": {
+        "type": "issue",
+        "title": "摘锁后把链路走通并验完：新工作区到读写票，补上界面复核",
+        "state": "closed",
+        "url": "https://github.com/example/repo/issues/1601",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": false,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "ready-for-agent",
+          "color": null,
+          "description": null
+        },
+        {
+          "name": "wayfinder:task",
+          "color": null,
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": {
+        "total": 0,
+        "completed": 0,
+        "percent": 0
+      },
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "1622",
+      "row": {
+        "type": "issue",
+        "title": "人手点「重新检查」撞上后台在飞的链求值时先等它收尾再自己算（#1474）",
+        "state": "closed",
+        "url": "https://github.com/example/repo/pull/1622",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": true,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "1667",
+      "row": {
+        "type": "issue",
+        "title": "规格：票详情页在已关闭或被未完成票阻塞时，顶栏的「执行」与「新会话」两个按钮置灰不可点",
+        "state": "closed",
+        "url": "https://github.com/example/repo/issues/1667",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": false,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "ready-for-agent",
+          "color": null,
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": {
+        "total": 2,
+        "completed": 2,
+        "percent": 100
+      },
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "1587",
+      "row": {
+        "type": "issue",
+        "title": "Bump dependency-cruiser from 18.6.0 to 18.7.0",
+        "state": "open",
+        "url": "https://github.com/example/repo/pull/1587",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": true,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "dependencies",
+          "color": null,
+          "description": null
+        },
+        {
+          "name": "javascript",
+          "color": null,
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": null,
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "1673",
+      "row": {
+        "type": "map",
+        "title": "地图：GitLab 后端在 web profile 下的真机系统化测试方案",
+        "state": "open",
+        "url": "https://github.com/example/repo/issues/1673",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": false,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "wayfinder:map",
+          "color": null,
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": {
+        "total": 6,
+        "completed": 3,
+        "percent": 50
+      },
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "1677",
+      "row": {
+        "type": "issue",
+        "title": "决策：环境夹具、批次编排与证据组织怎么定",
+        "state": "open",
+        "url": "https://github.com/example/repo/issues/1677",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": false,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "wayfinder:grilling",
+          "color": null,
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": {
+        "total": 0,
+        "completed": 0,
+        "percent": 0
+      },
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "1681",
+      "row": {
+        "type": "issue",
+        "title": "规格：面板快照唯一化与 GitHub 房间读渠道分层（含面板内通知中心）",
+        "state": "open",
+        "url": "https://github.com/example/repo/issues/1681",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": false,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "ready-for-agent",
+          "color": null,
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": {
+        "total": 19,
+        "completed": 0,
+        "percent": 0
+      },
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "1699",
+      "row": {
+        "type": "issue",
+        "title": "退役列表内降级提示行，旧门禁改通知断言",
+        "state": "open",
+        "url": "https://github.com/example/repo/issues/1699",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": false,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "ready-for-agent",
+          "color": null,
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": {
+        "total": 0,
+        "completed": 0,
+        "percent": 0
+      },
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    },
+    {
+      "effortId": "",
+      "key": "1700",
+      "row": {
+        "type": "issue",
+        "title": "收口：30 条验收、五类输入与已知红清零",
+        "state": "open",
+        "url": "https://github.com/example/repo/issues/1700",
+        "createdAtMs": null,
+        "updatedAtMs": null,
+        "closedAtMs": null,
+        "stateReason": null,
+        "isPullRequest": false,
+        "commentCount": null,
+        "milestoneJson": null,
+        "customFieldsJson": null,
+        "status": null,
+        "statusVisible": null,
+        "statusSource": null,
+        "statusConflictJson": null
+      },
+      "labels": [
+        {
+          "name": "ready-for-agent",
+          "color": null,
+          "description": null
+        }
+      ],
+      "assignees": [],
+      "parents": [],
+      "blockedBy": [],
+      "subIssues": {
+        "total": 0,
+        "completed": 0,
+        "percent": 0
+      },
+      "mergedAtMs": null,
+      "groups": {
+        "row": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "body": null,
+        "labels": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "assignees": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "parents": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "blockedBy": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-list",
+          "operation": "list",
+          "lastQueriedMs": 1793000000000
+        },
+        "subIssues": {
+          "completeness": "complete",
+          "reason": null,
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        },
+        "mergeInfo": {
+          "completeness": "unknown",
+          "reason": "not-expressed",
+          "source": "refresh-detail",
+          "operation": "get",
+          "lastQueriedMs": 1793000000000
+        }
+      }
+    }
+  ],
+  "expected": {
+    "repository": {
+      "backend": "github",
+      "refId": "acme/widgets",
+      "name": "acme/widgets",
+      "url": "https://github.com/acme/widgets"
+    },
+    "maps": [
+      {
+        "key": "1673",
+        "number": 1673,
+        "effortId": "",
+        "type": "map",
+        "title": "地图：GitLab 后端在 web profile 下的真机系统化测试方案",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/example/repo/issues/1673",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [
+          {
+            "name": "wayfinder:map",
+            "color": ""
+          }
+        ],
+        "assignees": [],
+        "isPullRequest": false,
+        "tickets": [],
+        "destination": "",
+        "notes": "",
+        "decisions": [],
+        "fog": [],
+        "outOfScope": []
+      }
+    ],
+    "issues": [
+      {
+        "key": "1598",
+        "number": 1598,
+        "effortId": "",
+        "type": "issue",
+        "title": "BUG：deck_context 在大仓必超时——列表全仓扫描、过滤在客户端、每页还取票正文",
+        "state": "closed",
+        "body": "",
+        "url": "https://github.com/example/repo/issues/1598",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [],
+        "assignees": [],
+        "isPullRequest": false
+      },
+      {
+        "key": "1601",
+        "number": 1601,
+        "effortId": "",
+        "type": "issue",
+        "title": "摘锁后把链路走通并验完：新工作区到读写票，补上界面复核",
+        "state": "closed",
+        "body": "",
+        "url": "https://github.com/example/repo/issues/1601",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [
+          {
+            "name": "ready-for-agent",
+            "color": ""
+          },
+          {
+            "name": "wayfinder:task",
+            "color": ""
+          }
+        ],
+        "assignees": [],
+        "isPullRequest": false
+      },
+      {
+        "key": "1622",
+        "number": 1622,
+        "effortId": "",
+        "type": "issue",
+        "title": "人手点「重新检查」撞上后台在飞的链求值时先等它收尾再自己算（#1474）",
+        "state": "closed",
+        "body": "",
+        "url": "https://github.com/example/repo/pull/1622",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [],
+        "assignees": [],
+        "isPullRequest": true
+      },
+      {
+        "key": "1667",
+        "number": 1667,
+        "effortId": "",
+        "type": "issue",
+        "title": "规格：票详情页在已关闭或被未完成票阻塞时，顶栏的「执行」与「新会话」两个按钮置灰不可点",
+        "state": "closed",
+        "body": "",
+        "url": "https://github.com/example/repo/issues/1667",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [
+          {
+            "name": "ready-for-agent",
+            "color": ""
+          }
+        ],
+        "assignees": [],
+        "isPullRequest": false
+      },
+      {
+        "key": "1587",
+        "number": 1587,
+        "effortId": "",
+        "type": "issue",
+        "title": "Bump dependency-cruiser from 18.6.0 to 18.7.0",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/example/repo/pull/1587",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [
+          {
+            "name": "dependencies",
+            "color": ""
+          },
+          {
+            "name": "javascript",
+            "color": ""
+          }
+        ],
+        "assignees": [],
+        "isPullRequest": true
+      },
+      {
+        "key": "1677",
+        "number": 1677,
+        "effortId": "",
+        "type": "issue",
+        "title": "决策：环境夹具、批次编排与证据组织怎么定",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/example/repo/issues/1677",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [
+          {
+            "name": "wayfinder:grilling",
+            "color": ""
+          }
+        ],
+        "assignees": [],
+        "isPullRequest": false
+      },
+      {
+        "key": "1681",
+        "number": 1681,
+        "effortId": "",
+        "type": "issue",
+        "title": "规格：面板快照唯一化与 GitHub 房间读渠道分层（含面板内通知中心）",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/example/repo/issues/1681",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [
+          {
+            "name": "ready-for-agent",
+            "color": ""
+          }
+        ],
+        "assignees": [],
+        "isPullRequest": false
+      },
+      {
+        "key": "1699",
+        "number": 1699,
+        "effortId": "",
+        "type": "issue",
+        "title": "退役列表内降级提示行，旧门禁改通知断言",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/example/repo/issues/1699",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [
+          {
+            "name": "ready-for-agent",
+            "color": ""
+          }
+        ],
+        "assignees": [],
+        "isPullRequest": false
+      },
+      {
+        "key": "1700",
+        "number": 1700,
+        "effortId": "",
+        "type": "issue",
+        "title": "收口：30 条验收、五类输入与已知红清零",
+        "state": "open",
+        "body": "",
+        "url": "https://github.com/example/repo/issues/1700",
+        "createdAt": "",
+        "updatedAt": "",
+        "closedAt": null,
+        "labels": [
+          {
+            "name": "ready-for-agent",
+            "color": ""
+          }
+        ],
+        "assignees": [],
+        "isPullRequest": false
+      }
+    ],
+    "thinTickets": [],
+    "deck": null
+  }
+}

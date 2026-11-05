@@ -121,6 +121,13 @@ const ALLOWED = {
   'workspaceSnapshot.open': ['backend', 'rootHash', 'repoHash', 'dbExisted', 'journalMode', 'mode', 'reason', 'mergeVersion'],
   'workspaceSnapshot.lease': ['acquired', 'ownerHash', 'reason', 'detail', 'nowMs'],
   'workspaceSnapshot.ingest': ['committed', 'reason', 'writes', 'startMergeVersion', 'mergeVersion', 'elapsedMs', 'detail'],
+  // 2026-11-05（#1899）新增常驻 #154 snapshot.read 与 #155 snapshot.degrade：快照与变化集回包的读数
+  //   （行数、字节数、耗时、投影耗时、库版本、数据来源）与「这一趟为什么退成整份」的原因值。字段只有
+  //   枚举、数字、布尔与 8 位短散列（cwdHash），不记路径原文、不记回包内容本身。
+  //   落点：src/refresh/rooms/host/snapshot-read-log.ts（两条读口与首屏共用一份口径）、
+  //   src/refresh/rooms/client/snapshot-version-sync.ts（客户端退回整份那一行）。
+  'snapshot.read': ['phone', 'source', 'cwdHash', 'version', 'rows', 'bytes', 'elapsedMs', 'projectionMs', 'full'],
+  'snapshot.degrade': ['side', 'phone', 'reason', 'cwdHash', 'version'],
   'workspaceSnapshot.corrupt': ['stage', 'action', 'backupSuffix', 'oldBackend', 'oldRepoHash', 'detail'],  // 2026-10-28（#1617）：删掉 `since`。逐版本核过发射行（从 #708 落地起直到今天）都只记三格，
   //   附录里写的「since 增量起点」是设计稿口径、从未发射；白名单要按真实发射维护。这条事件现在
   //   由运行时采集断言「实得键集与白名单一字不差」，多一格少一格都会变红。
@@ -402,7 +409,7 @@ const ALLOWED = {
   //   这一次走的是哪一档（补那几条薄查询 / 该整池 / 没变 / 被推迟 / 过期丢弃）、为什么、变了几行、
   //   真发出去几条薄查询、水印推没推、待办里现在几条。只记短散列、枚举与数字，不记路径与命令原文。
   // 2026-10-24 #1472：写事件触发的补取数也借这一行报账，失败那一行多带一个 err（上游原话截断 120 字符）。
-  'refresh.patch': ['keyHash', 'mode', 'reason', 'changed', 'queries', 'watermark', 'pending', 'err', 'evicted', 'evictedBytes'],
+  'refresh.patch': ['keyHash', 'mode', 'reason', 'changed', 'queries', 'watermark', 'pending', 'err'],
   // 2026-09-23 #707（T3 第二批）新增两条按需事件（附录 1.5 节 #78～#79）：视野模型自己产生的两条轨迹 ——
   //   一次上报（哪一种信号、窗口散列、工作区根散列、面板可不可见、这一笔算不算数）、
   //   一次收摊结论（活跃几个、保留几个定时器、停掉几个、有没有一个收尾节拍、整桌收没收、正在看的几个）。
@@ -950,13 +957,14 @@ async function captureGhTransport(rows) {
 
 // refresh.patch：成功行走 createPatch 里唯一那份字段口径；失败行借 write-event-fetch 的真实失败分支
 // 把上游原话带进同一个 fire（err 是 #1472 定下的唯一原文类键，路径替换与 120 字截断都在 fire 里做）。
-// 2026-10-31（#1692）：真淘汰过一行时成功行再带 evicted / evictedBytes 两格，这里按真淘汰行补一笔。
+// 2026-11-05（#1922）：淘汰机制退役，evicted / evictedBytes 两格从字段口径里删除；
+// 这里仍走一遍成功行与失败行，确认剩下的字段与白名单一致。
 async function captureRefreshPatch(rows) {
   const patchMod = await loadProductModule('src/refresh/rooms/host/row-patch.js')
   const writeEventMod = await loadProductModule('src/refresh/rooms/host/write-event-fetch.js')
   const sink = { isEnabled: (level) => level === 'debug', fire: (level, event, fields) => pushRuntimeRow(rows, level, event, fields) }
   const patch = patchMod.createPatch({ logCtx: sink, workspaceKeyOf: () => 'verify-log-fields-runtime' })
-  patch.log('patch', 'rows-changed', { keyHash: 'h-1617', changed: 2, queries: 1, watermark: 'advanced', pending: 0, evicted: 1, evictedBytes: 2048 })
+  patch.log('patch', 'rows-changed', { keyHash: 'h-1617', changed: 2, queries: 1, watermark: 'advanced', pending: 0 })
   const fetcher = writeEventMod.createWriteEventFetch({
     patchOf: () => ({ log: patch.log, patchTickets: async () => { throw new Error('取数爆了') } }),
     hash8: (s) => 'h:' + String(s),

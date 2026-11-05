@@ -18,14 +18,23 @@ import type {
   OpenWorkspaceSnapshotOptions,
   OpenWorkspaceSnapshotResult,
   SnapshotMode,
+  SnapshotStorageStats,
+  SyncBookkeeping,
+  SyncBookkeepingResult,
+  SyncBookkeepingWrite,
   WorkspaceSnapshotHandle,
   WriteBatch,
 } from '../contract/types.js'
 import type {
+  ChangeSetProjection,
+  ChangeSetQuery,
+  ContainerProjection,
+  ContainerProjectionQuery,
   IssueDetailProjection,
   IssueDetailQuery,
   ListProjection,
   ListQuery,
+  SnapshotCounts,
   SnapshotDiagnostic,
 } from '../model/types.js'
 import {
@@ -40,9 +49,13 @@ import {
   readMergeVersion,
   type SnapshotIdentity,
 } from '../persistence/schema.js'
+import { applySyncBookkeepingRow, readSyncBookkeepingRow } from '../persistence/sync-bookkeeping.js'
 import { openWritableDatabase, describeError } from './open-schema.js'
-import { readListProjection } from '../projection/list.js'
+import { readContainerProjection, readListProjection } from '../projection/list.js'
 import { readIssueDetailProjection } from '../projection/detail.js'
+import { readChangeSetProjection } from '../projection/changes.js'
+import { readCountsProjection } from '../projection/counts.js'
+import { readStorageStats } from './storage-stats.js'
 import { ingestWrites } from './ingest.js'
 import { markMissingTickets } from './tombstone-write.js'
 import {
@@ -192,7 +205,10 @@ export function openWorkspaceSnapshot(
         return { committed: false, reason: 'readonly' }
       }
       const startedAt = now()
-      const result = ingestWrites(db, batch.writes, batch.startMergeVersion, startedAt)
+      const result = ingestWrites(
+        db, batch.writes, batch.startMergeVersion, startedAt, batch.sync,
+        batch.kind === 'receipt' ? 'receipt' : 'read',
+      )
       const elapsedMs = now() - startedAt
       if (result.committed) {
         logSnapshot(logEvent, 'info', 'workspaceSnapshot.ingest', {
@@ -202,7 +218,12 @@ export function openWorkspaceSnapshot(
           mergeVersion: result.mergeVersion,
           elapsedMs,
         })
-        return { committed: true, mergeVersion: result.mergeVersion as number, commentPositions: result.commentPositions }
+        return {
+          committed: true,
+          mergeVersion: result.mergeVersion as number,
+          commentPositions: result.commentPositions,
+          ...(result.sync ? { sync: result.sync } : null),
+        }
       }
       const reason = result.reason ?? 'write-failed'
       logSnapshot(logEvent, reason === 'stale' ? 'warn' : 'error', 'workspaceSnapshot.ingest', {
@@ -214,6 +235,30 @@ export function openWorkspaceSnapshot(
         elapsedMs,
       })
       return { committed: false, reason, detail: result.detail }
+    },
+    readSyncBookkeeping(): SyncBookkeeping {
+      ensureOpen()
+      return readSyncBookkeepingRow(db)
+    },
+    writeSyncBookkeeping(write: SyncBookkeepingWrite): SyncBookkeepingResult {
+      ensureOpen()
+      if (mode !== 'writable') {
+        return { committed: false, state: readSyncBookkeepingRow(db), reason: 'readonly' }
+      }
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        const current = readSyncBookkeepingRow(db)
+        const applied = applySyncBookkeepingRow(db, write, current)
+        if (!applied.committed) {
+          db.exec('ROLLBACK')
+          return { committed: false, state: applied.state, reason: 'stale' }
+        }
+        db.exec('COMMIT')
+        return { committed: true, state: applied.state }
+      } catch (error) {
+        try { db.exec('ROLLBACK') } catch { /* 事务可能已因约束错误自动回滚 */ }
+        return { committed: false, state: readSyncBookkeepingRow(db), reason: 'write-failed', detail: describeError(error) }
+      }
     },
     markMissing(entries: readonly MissingTicket[], startMergeVersion: number): MarkMissingResult {
       ensureOpen()
@@ -227,6 +272,14 @@ export function openWorkspaceSnapshot(
       }
       return markMissingTickets(db, entries, startMergeVersion, now())
     },
+    readCounts(): SnapshotCounts {
+      ensureOpen()
+      return readCountsProjection(db)
+    },
+    readStorageStats(): SnapshotStorageStats {
+      ensureOpen()
+      return readStorageStats(db, dbPath)
+    },
     readList(query?: ListQuery): ListProjection {
       ensureOpen()
       return readListProjection(db, query, now())
@@ -234,6 +287,14 @@ export function openWorkspaceSnapshot(
     readIssueDetail(query: IssueDetailQuery): IssueDetailProjection {
       ensureOpen()
       return readIssueDetailProjection(db, query, now())
+    },
+    readContainerProjection(query: ContainerProjectionQuery): ContainerProjection {
+      ensureOpen()
+      return readContainerProjection(db, query, now())
+    },
+    readChangeSet(query: ChangeSetQuery): ChangeSetProjection {
+      ensureOpen()
+      return readChangeSetProjection(db, query, now())
     },
     rebuild(): void {
       ensureOpen()

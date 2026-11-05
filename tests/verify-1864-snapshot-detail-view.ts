@@ -6,7 +6,8 @@
  *   B 被阻塞关系：确认没有 → 整段不画；不知道 → 画一行「被阻塞关系还没拿到 · 上次数据（时间）」；
  *   C 从库读回来的详情要标「上次数据（时间）」，并让评论区按「还没取过」处理（评论是 #1865 的事）；
  *   D 这一趟真取回来的详情（live）照旧按「有正文 / 无描述」两档画，不误标成上次数据；
- *   E 按需细节被淘汰过、或取数失败时，正文格各画各的话，不冒充「无描述」。
+ *   E 取数失败、还在取数时，正文格各画各的话，不冒充「无描述」。
+ *     2026-11-05 #1922 起按需细节不再淘汰，所以没有「曾取过但被淘汰」那一档。
  *
  * 为什么测这个模块：判据与画法都收在 views/shared/detailProjection.ts 的纯函数里，视图只消费；
  * 直接调用这几个纯函数就能断言「两句话不同」，不用起浏览器。
@@ -99,11 +100,11 @@ check(typeof withBody.notice === 'string' && withBody.notice.indexOf('detail.las
 const bodyText: any = withBody.bodySlot
 check(bodyText.kind === 'text' && bodyText.text === '这是正文。', 'A3 有正文就画正文', bodyText)
 
-const emptyBody: any = proj.bodySlotOf(libraryDetail({ body: '' }), withBody, null, 'real')
+const emptyBody: any = proj.bodySlotOf(libraryDetail({ body: '' }), withBody, 'real')
 check(emptyBody.kind === 'none', 'A4 完整取过且为空 = 确认没有正文', emptyBody)
 check(String(emptyBody.caption).indexOf('detail.noBody') >= 0, 'A5 确认没有正文画「无描述」', emptyBody.caption)
 
-const unknownBody: any = proj.bodySlotOf(libraryDetail({}), withBody, null, 'real')
+const unknownBody: any = proj.bodySlotOf(libraryDetail({}), withBody, 'real')
 check(unknownBody.kind === 'unknown' && unknownBody.atMs === CLOCK, 'A6 库里不知道正文 = 不知道，带上次已知时刻', unknownBody)
 check(String(unknownBody.caption).indexOf('detail.bodyNotYet') >= 0 && String(unknownBody.caption).indexOf('detail.lastKnownData') >= 0,
   'A7 不知道正文画「还没拿到」并带上次数据时刻', unknownBody.caption)
@@ -135,18 +136,20 @@ check(commentsUnknownFlag === true, 'C2 视图按「评论未知」处理（不�
 const liveDetail: any = { number: 5, key: '5', effortId: '', title: '子票五', state: 'OPEN', body: '' }
 const liveView: any = proj.detailViewFor(stateWith(liveDetail), 5, '')
 check(liveView.source === 'live' && liveView.notice === '', 'D1 live 详情不标「上次数据」', liveView)
-check(proj.bodySlotOf(liveDetail, liveView, null, 'real').kind === 'none', 'D2 live 的空正文 = 确认没有', proj.bodySlotOf(liveDetail, liveView, null, 'real'))
+check(proj.bodySlotOf(liveDetail, liveView, 'real').kind === 'none', 'D2 live 的空正文 = 确认没有', proj.bodySlotOf(liveDetail, liveView, 'real'))
 const liveText: any = { number: 5, key: '5', effortId: '', title: '子票五', state: 'OPEN', body: 'live 正文' }
-check(proj.bodySlotOf(liveText, liveView, null, 'real').kind === 'text', 'D3 live 的正文照画')
+check(proj.bodySlotOf(liveText, liveView, 'real').kind === 'text', 'D3 live 的正文照画')
 
-// ── E. 淘汰与失败：各画各的话 ─────────────────────────────────────────────────
-const evictedSlot: any = proj.bodySlotOf(null, { lastKnownAtMs: 0, source: 'none' }, { detailEvicted: { lastKnownAtMs: CLOCK } }, 'real')
-check(evictedSlot.kind === 'evicted' && evictedSlot.atMs === CLOCK, 'E1 按需细节被淘汰过就画「未取（曾在某时）」', evictedSlot)
-check(String(evictedSlot.caption).indexOf('detail.evictedAt') >= 0, 'E2 淘汰那档画的是「未取」', evictedSlot.caption)
-const failSlot: any = proj.bodySlotOf(null, { lastKnownAtMs: CLOCK, source: 'none' }, null, 'err')
-check(failSlot.kind === 'unknown' && failSlot.atMs === CLOCK, 'E3 取数失败且没有详情 = 不知道，带上次已知时刻', failSlot)
-const loadingSlot: any = proj.bodySlotOf(null, { lastKnownAtMs: 0, source: 'none' }, null, 'loading')
-check(loadingSlot.kind === 'loading', 'E4 还在取数 = 加载中', loadingSlot)
+// ── E. 失败与加载：各画各的话（淘汰那一档随 #1922 退役） ─────────────────────
+const failSlot: any = proj.bodySlotOf(null, { lastKnownAtMs: CLOCK, source: 'none' }, 'err')
+check(failSlot.kind === 'unknown' && failSlot.atMs === CLOCK, 'E1 取数失败且没有详情 = 不知道，带上次已知时刻', failSlot)
+const loadingSlot: any = proj.bodySlotOf(null, { lastKnownAtMs: 0, source: 'none' }, 'loading')
+check(loadingSlot.kind === 'loading', 'E2 还在取数 = 加载中', loadingSlot)
+// #1922：不设上限、不淘汰之后，没有详情且不是失败时就只有「加载中」这一档——
+// 快照行上就算留着一个旧版本的 detailEvicted 记号，也不再有任何一档去读它。
+const bareSlot: any = proj.bodySlotOf(null, { lastKnownAtMs: 0, source: 'none' }, 'real')
+check(bareSlot.kind === 'loading' && bareSlot.kind !== 'evicted',
+  'E3 没有「曾取过但被淘汰」这一档：没有详情、不是失败就是加载中', bareSlot)
 
 // ── F. 回归：列表行的快照投影仍能画，且标出上次数据时刻 ────────────────────────
 const rowSnapshot: any = {

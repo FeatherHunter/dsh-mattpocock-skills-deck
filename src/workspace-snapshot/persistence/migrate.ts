@@ -28,6 +28,11 @@ const MIGRATIONS: Record<number, readonly string[]> = {
     ) STRICT`,
     'CREATE INDEX tombstone_version ON issue_tombstone(version)',
   ],
+  // 2 → 3（#1889）：组上记「上次由写回执写入的时刻毫秒」，回执优先窗口按它判。
+  // 旧库里这一列是 NULL，表示「从没被回执写过」——升级之后回执优先立即生效，不需要别的回填。
+  2: [
+    'ALTER TABLE issue_group ADD COLUMN receipt_ms INTEGER',
+  ],
 }
 
 /**

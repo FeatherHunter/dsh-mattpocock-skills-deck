@@ -1,13 +1,14 @@
 /**
  * src/refresh/rooms/host/snapshot-library.ts —— 宿主侧的快照库门面（#1863）
  *
- * 职责只有三件，别把它做成第二个编排器：
- *  1. 按 (工作区, 后端, 仓库身份) 懒开一个库句柄，最多同时留 4 个；淘汰时关掉最旧的。
- *  2. recordIssueRows：把列表电话拿到的 tracker 票按组、分批写进库。失败只回结果，不抛。
- *  3. readSnapshotReplay：把库里的列表投影装回界面要的快照主体（容器树 + 子票 + 瘦身行）。
+ * 职责（别把它做成第二个编排器）：
+ *  1. recordIssueRows：把列表电话拿到的 tracker 票按组、分批写进库。失败只回结果，不抛。
+ *  2. readSnapshotReplay：把库里的列表投影装回界面要的快照主体（容器树 + 子票 + 瘦身行）。
+ *  3. 详情、评论页、写回执与评论回执各自的读/写口。
  *
- * 为什么句柄要缓存：租约心跳每 5 秒续一次，每次请求都开/关库会让心跳与连接反复重建，
- * 还会让两个并发请求互相抢租约。缓存之后同一进程里同一身份只有一个写者。
+ * #1888 起句柄缓存与同步簿记读写各自搬到同目录的 snapshot-library-handles.ts 与
+ * snapshot-library-sync.ts（本文件贴着 350 有效行上限）；四个新口在这里原样转出，
+ * 调用方仍然只认这一个门面。
  *
  * 为什么写入要分批：孩子可能一次回来几千张票，单条事务里既吃内存又让版本门太粗；
  * 200 条一批是经验值——一轮列表最多几十批，每批都在毫秒级。
@@ -15,12 +16,12 @@
 /// <reference path="../../../workspace-snapshot/node-ambient.d.ts" />
 import type { Comment, Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
 import type {
+  ContainerProjection,
   GroupCompleteness,
   IssueDetailProjection,
   IssueWrite,
   ListProjection,
-  OpenWorkspaceSnapshotOptions,
-  SnapshotBackend,
+  SnapshotCounts,
   SnapshotDiagnostic,
   WorkspaceSnapshotHandle,
 } from '../../../workspace-snapshot/contract/types.js'
@@ -32,141 +33,34 @@ import {
   issueWritesOf,
   receiptIssueWriteOf,
 } from './snapshot-library-adapter.js'
-import { snapshotOfProjection } from './snapshot-library-view.js'
+import {
+  closeSnapshotLibraries,
+  handleOf,
+  setSnapshotLogSink,
+  snapshotLibraryHandleCount,
+  supportedBackend,
+  type SnapshotLibraryKey,
+  type SnapshotLogSink,
+} from './snapshot-library-handles.js'
+import { containerProjectionOf, snapshotOfProjection } from './snapshot-library-view.js'
 
-// 开库走契约入口；上面那行环境声明把快照树用到的最小 Node 能力借给本文件（与宿主其余
-// 「不挂整包 Node 类型」的写法同一口径）。说明符写成字面量，依赖图才看得见「刷新 → 契约」这条边。
-// 租约标识要进程号；宿主侧其余文件也都是「可能不存在」的局部声明，不引整包 Node 类型。
-declare const process: { pid: number } | undefined
-async function openSnapshot(options: OpenWorkspaceSnapshotOptions): Promise<{ handle: WorkspaceSnapshotHandle }> {
-  const mod = await import('../../../workspace-snapshot/contract/index.js')
-  return mod.openWorkspaceSnapshot(options)
-}
-
-/** 同一工作区最多同时留几个库句柄；工作区一般只有一个，留 4 是给多仓库/多后端切换。 */
-const MAX_HANDLES = 4
+// 句柄缓存与开关：调用方（宿主入口与门禁）从这里拿的仍是同一组名字。
+export { closeSnapshotLibraries, setSnapshotLogSink, snapshotLibraryHandleCount }
+export type { SnapshotLibraryKey, SnapshotLogSink }
+// 同步簿记、差分基线与变化行提交（#1888）：行级增量要用的四个口，实现住在同目录的 sync 模块。
+export {
+  commitChangeRows,
+  readIssueIndex,
+  readSyncState,
+  writeSyncState,
+} from './snapshot-library-sync.js'
+export type { ChangeRowsInput, ChangeRowsResult, LibrarySyncState } from './snapshot-library-sync.js'
+// 版本查询与变化集两条新读口（#1890）：实现住在同目录的 read 模块，调用方仍只认这一个门面。
+export { readLibraryVersion, readLibraryChangeSet, readLibraryStorageStats } from './snapshot-library-read.js'
+export type { LibraryChangeSetInput, LibraryStorageStats } from './snapshot-library-read.js'
 
 /** 一批写多少张票；见文件头。 */
 export const SNAPSHOT_WRITE_CHUNK = 200
-
-/** 开库身份：三个格一起决定库文件与句柄，缺一个都会串工作区。 */
-export interface SnapshotLibraryKey {
-  workspaceRoot: string
-  backend: string
-  repoIdentity: string
-}
-
-export interface RecordIssueRowsInput extends SnapshotLibraryKey {
-  rows: Issue[]
-  /**
-   * true = 整批只开一个事务（刷新/首屏整轮写入用）；缺省按 200 条分批（写回执等增量用）。
-   * 为什么要有这个开关：整轮刷新被杀时，库里要么是上一轮完整数据、要么是这一轮完整数据；
-   * 分批评只能保证「每一批原子」，保证不了整轮原子。见 #1869 的 1869-02。
-   */
-  atomic?: boolean
-}
-
-export interface RecordIssueRowsResult {
-  ok: boolean
-  /** 这一趟真正提交进库的票数（分批失败时是失败前已提交的数量）。 */
-  rows: number
-  /** 最后一批提交后的合并版本；没写成功时是 null。 */
-  mergeVersion: number | null
-  /** 没写成功时的简短原因（readonly / unavailable / 具体异常一句）。 */
-  reason?: string
-}
-
-export interface SnapshotReplayInput extends SnapshotLibraryKey {
-  repo: RepositoryRef
-}
-
-export interface SnapshotReplay {
-  /** 与在线组装同形：{repository,maps,issues,thinTickets,deck}。 */
-  snapshot: any
-  mergeVersion: number
-  /** 库里这批数据最后一次被查询的时间（毫秒）；界面用它说「这是上次的数据」。 */
-  lastKnownAtMs: number
-  /**
-   * 行组**最老**的那一次取数时刻（毫秒）。给「从库里的数据立扫描起点」用，界面不用它。
-   *
-   * 为什么不能拿 lastKnownAtMs 顶替：那是所有票、所有字段组里最新的那一个。库里的行并不齐——
-   * 列表有单页上限，详情与写回执又只更新一张，老票的时刻停在很久以前。拿最新的那一刻当
-   * 「整份数据是什么时候的」，等于替所有旧行宣称「它们在那一刻也是新的」：起点之后的窗口
-   * 从此接不住那些行更早发生的改动，属于静默漏报（正是 kernel/index-window-rules.ts 要防的那一类）。
-   * 取最小值才是真话：每一行都至少是那一刻取到的。
-   */
-  oldestRowAtMs: number
-  /** 回放的行数，便于日志与门禁断言。 */
-  rows: number
-}
-
-interface HandleEntry {
-  handle: WorkspaceSnapshotHandle
-  key: string
-}
-
-const handles = new Map<string, HandleEntry>()
-let leaseSeq = 0
-
-/**
- * #1869：快照库四族事件（开库、租约、写入、损坏重建）的出口。宿主装配时塞进来，缺席就完全不记——
- * 与仓库「可选注入 logEvent」的既有约定同一口径（快照树自己的 runtime/log.ts 就是这么写的）。
- *
- * 为什么由宿主注入而不是这里直接找日志库：刷新房在依赖方向上低于宿主，往上引会把装配关系反过来。
- */
-export type SnapshotLogSink = (level: string, event: string, fields: Record<string, unknown>) => void
-let logSink: SnapshotLogSink | null = null
-
-/** 接上日志出口。传 null 关掉（门禁与测试用）。 */
-export function setSnapshotLogSink(sink: SnapshotLogSink | null): void {
-  logSink = sink
-}
-
-function cacheKeyOf(input: SnapshotLibraryKey): string {
-  return [input.workspaceRoot, input.backend, input.repoIdentity].join('\u0000')
-}
-
-function supportedBackend(backend: string): backend is SnapshotBackend {
-  return backend === 'github' || backend === 'gitlab' || backend === 'markdown'
-}
-
-/** 拿一个可用的句柄；开不出来回 null（首屏不许因为库不可用而空，调用方会回落在线路径）。 */
-async function handleOf(input: SnapshotLibraryKey): Promise<WorkspaceSnapshotHandle | null> {
-  if (!input.workspaceRoot || !supportedBackend(input.backend)) return null
-  const key = cacheKeyOf(input)
-  const hit = handles.get(key)
-  if (hit) {
-    // Map 的插入顺序当 LRU：每次命中挪到队尾。
-    handles.delete(key)
-    handles.set(key, hit)
-    return hit.handle
-  }
-  let opened: { handle: WorkspaceSnapshotHandle }
-  try {
-    leaseSeq += 1
-    const pid = (typeof process !== 'undefined' && process) ? process.pid : 0
-    opened = await openSnapshot({
-      workspaceRoot: input.workspaceRoot,
-      backend: input.backend,
-      repoIdentity: input.repoIdentity,
-      leaseOwner: 'refresh-' + pid + '-' + leaseSeq,
-      now: () => Date.now(),
-      // #1869：开库与后续写入的轨迹都走这一个口；没接时快照树自己就不记，一个字节都不会多写。
-      ...(logSink ? { logEvent: logSink as any } : null),
-    })
-  } catch (e) {
-    return null
-  }
-  while (handles.size >= MAX_HANDLES) {
-    const oldestKey = handles.keys().next().value as string | undefined
-    if (oldestKey === undefined) break
-    const oldest = handles.get(oldestKey)
-    handles.delete(oldestKey)
-    try { if (oldest) oldest.handle.close() } catch (e) { /* 关不掉也不影响新句柄 */ }
-  }
-  handles.set(key, { handle: opened.handle, key })
-  return opened.handle
-}
 
 /** 错误收成一句人话；不把异常对象原样抛给上层。 */
 function textOf(e: unknown): string {
@@ -246,6 +140,60 @@ function oldestRowAtMsOf(projection: ListProjection): number {
   return oldest || projection.generatedAtMs
 }
 
+export interface RecordIssueRowsInput extends SnapshotLibraryKey {
+  rows: Issue[]
+  /**
+   * true = 整批只开一个事务（刷新/首屏整轮写入用）；缺省按 200 条分批（写回执等增量用）。
+   * 为什么要有这个开关：整轮刷新被杀时，库里要么是上一轮完整数据、要么是这一轮完整数据；
+   * 分批评只能保证「每一批原子」，保证不了整轮原子。见 #1869 的 1869-02。
+   */
+  atomic?: boolean
+}
+
+export interface RecordIssueRowsResult {
+  ok: boolean
+  /** 这一趟真正提交进库的票数（分批失败时是失败前已提交的数量）。 */
+  rows: number
+  /** 最后一批提交后的合并版本；没写成功时是 null。 */
+  mergeVersion: number | null
+  /** 没写成功时的简短原因（readonly / unavailable / 具体异常一句）。 */
+  reason?: string
+}
+
+export interface SnapshotReplayInput extends SnapshotLibraryKey {
+  repo: RepositoryRef
+}
+
+export interface SnapshotReplay {
+  /** 与在线组装同形：{repository,maps,issues,thinTickets,deck}。 */
+  snapshot: any
+  mergeVersion: number
+  /** 库里这批数据最后一次被查询的时间（毫秒）；界面用它说「这是上次的数据」。 */
+  lastKnownAtMs: number
+  /**
+   * 行组**最老**的那一次取数时刻（毫秒）。给「从库里的数据立扫描起点」用，界面不用它。
+   *
+   * 为什么不能拿 lastKnownAtMs 顶替：那是所有票、所有字段组里最新的那一个。库里的行并不齐——
+   * 列表有单页上限，详情与写回执又只更新一张，老票的时刻停在很久以前。拿最新的那一刻当
+   * 「整份数据是什么时候的」，等于替所有旧行宣称「它们在那一刻也是新的」：起点之后的窗口
+   * 从此接不住那些行更早发生的改动，属于静默漏报（正是 kernel/index-window-rules.ts 要防的那一类）。
+   * 取最小值才是真话：每一行都至少是那一刻取到的。
+   */
+  oldestRowAtMs: number
+  /** 回放的行数，便于日志与门禁断言。 */
+  rows: number
+  /**
+   * 面板六个数字 + 完整度（#1887）。库里的行与边算出来的一次查询结果，和这一份回放同一时刻。
+   * null = 这一趟读不到（库坏、查询失败）；调用方按「不知道」处理，不补 0。
+   */
+  counts: SnapshotCounts | null
+  /**
+   * 这一趟库投影花了多少毫秒（从 readList 进到出）。日志里的投影时长取它，不拿整趟回包的耗时冒充：
+   * 序列化与组装装饰各占一块，混在一起就分不清「库慢」还是「回包大」。
+   */
+  projectionMs: number
+}
+
 /**
  * 开库诊断：损坏后整库重建、身份或结构不符重建、退回只读。库开不出来就回空数组。
  *
@@ -262,23 +210,60 @@ export async function readSnapshotDiagnostics(input: SnapshotLibraryKey): Promis
   }
 }
 
+/**
+ * 库这一趟开得出来吗：只回答「句柄能不能拿到」，不读数据、不改任何状态。
+ *
+ * 为什么单开一口：首屏没有回放时，「库空」与「库坏了/打不开」给出的界面动作完全不同（前者等一次
+ * 取数就好，后者本机数据被清过、要重新取一遍），而两者都回不出数据。只靠回放为 null 分不开，
+ * 所以让门面自己回答一次；老门禁的假库没有这一口时由调用方按「开得出来」处理。
+ */
+export async function readSnapshotLibraryHealth(input: SnapshotLibraryKey): Promise<'open' | 'unavailable'> {
+  const handle = await handleOf(input)
+  return handle ? 'open' : 'unavailable'
+}
+
+/**
+ * 库这一刻的六个数字 + 完整度（#1887）。库开不出来或读失败回 null —— 调用方按「不知道」处理。
+ *
+ * 与 readSnapshotReplay 里的 counts 是同一个查询：回放那条路把它随快照一起交回去，
+ * 在线重建那条路在把这一趟取回的行写进库之后再单读一次（写之前读到的会是上一轮的数字）。
+ */
+export async function readSnapshotCounts(input: SnapshotLibraryKey): Promise<SnapshotCounts | null> {
+  const handle = await handleOf(input)
+  if (!handle) return null
+  try {
+    return handle.readCounts()
+  } catch (e) {
+    return null
+  }
+}
+
 /** 库为空（或者开不出来）回 null；有行就回放成与在线组装同形的快照主体。 */
 export async function readSnapshotReplay(input: SnapshotReplayInput): Promise<SnapshotReplay | null> {
   const handle = await handleOf(input)
   if (!handle) return null
   let projection: ListProjection
+  const projectionStartedAt = Date.now()
   try {
     projection = handle.readList({ state: 'all' })
   } catch (e) {
     return null
   }
+  const projectionMs = Date.now() - projectionStartedAt
   if (!projection || !projection.issues.length) return null
+  const snapshot = snapshotOfProjection(input.repo, projection)
+  // #1887：六个数字与回放同一时刻算出，随回包一起交给界面；读不出来就不挂 counts（不知道，不补 0）。
+  let counts: SnapshotCounts | null = null
+  try { counts = handle.readCounts() } catch (e) { counts = null }
+  if (counts) snapshot.deck = { counts }
   return {
-    snapshot: snapshotOfProjection(input.repo, projection),
+    snapshot: snapshot,
     mergeVersion: projection.mergeVersion,
     lastKnownAtMs: lastKnownAtMsOf(projection),
     oldestRowAtMs: oldestRowAtMsOf(projection),
     rows: projection.issues.length,
+    projectionMs: projectionMs,
+    counts: counts,
   }
 }
 
@@ -330,6 +315,42 @@ export async function readIssueDetail(input: ReadIssueDetailInput): Promise<Issu
     return handle.readIssueDetail({ key: input.key, effortId: input.effortId })
   } catch (e) {
     return null
+  }
+}
+
+/** 按容器读的输入：库身份三格 + 容器身份两段（工作单元是本地 Markdown 的同号容器区分键）。 */
+export interface ReadContainerProjectionInput extends SnapshotLibraryKey {
+  key: string
+  effortId?: string
+}
+
+/**
+ * 按容器读一次（#1923）：容器行 + 子票 + 层级 + 统计。
+ *
+ * 库开不出来 / 读失败回 null（调用方按「库坏」处理）；库开了但没有这张容器的行时回
+ * { container: null }——两者是两件事，前者不知道库里的情况，后者是本机数据里确实还没有它。
+ * 层级与统计的换算只在 containerProjectionOf 一处（normalizeMapTickets），不在这里另算一遍。
+ */
+export async function readContainerProjection(input: ReadContainerProjectionInput): Promise<any | null> {
+  const handle = await handleOf(input)
+  if (!handle) return null
+  let projection: ContainerProjection
+  try {
+    projection = handle.readContainerProjection({
+      key: String(input.key || ''),
+      effortId: input.effortId === undefined || input.effortId === null ? '' : String(input.effortId),
+    })
+  } catch (e) {
+    return null
+  }
+  if (!projection) return null
+  const shaped = containerProjectionOf(projection)
+  if (!shaped) return { mergeVersion: projection.mergeVersion, container: null, tickets: [], stats: null }
+  return {
+    mergeVersion: projection.mergeVersion,
+    container: shaped.container,
+    tickets: shaped.tickets,
+    stats: shaped.stats,
   }
 }
 
@@ -417,10 +438,12 @@ export async function recordWriteReceipt(input: WriteReceiptInput): Promise<Writ
   if (!writes.length) return { ok: true, rows: 0, mergeVersion: null }
   const handle = await handleOf(input)
   if (!handle) return { ok: true, degraded: true, rows: 0, mergeVersion: null, reason: 'library-unavailable' }
-  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+  // kind:'receipt'（#1889）：这一批是「写完之后 tracker 交回来的那张票」，它自己就是刚写完的真状态。
+  // 库据此给每一组盖回执时刻，并在随后一个短窗口内挡住迟到的读结果；回执本身不受窗口约束。
+  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes })
   // 与读结果写入同一口径：stale 说明期间有别的写者先提交了，重读版本再写一次；两次都不成才放弃。
   if (!result.committed && result.reason === 'stale') {
-    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes })
   }
   if (!result.committed) return { ok: false, rows: 0, mergeVersion: null, reason: result.reason }
   return { ok: true, rows: writes.length, mergeVersion: result.mergeVersion }
@@ -486,24 +509,13 @@ export async function recordCommentReceipt(input: CommentReceiptInput): Promise<
   }
 
   let planned = planOf()
-  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes: [planned.write] })
+  // kind:'receipt'（#1889）：刚发出去的那一条是真状态，评论组在随后一个短窗口内不被读结果覆盖。
+  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes: [planned.write] })
   if (!result.committed && result.reason === 'stale') {
     planned = planOf()
-    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes: [planned.write] })
+    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes: [planned.write] })
   }
   if (!result.committed) return { ok: false, mergeVersion: null, position: null, reason: result.reason }
   const applied = Array.isArray(result.commentPositions) && result.commentPositions.length ? result.commentPositions[0] : planned.fallbackPosition
   return { ok: true, mergeVersion: result.mergeVersion, position: applied }
-}
-
-/** 测试与进程收尾用：关掉所有缓存句柄；之后再用会重新开库。 */export function closeSnapshotLibraries(): void {
-  for (const entry of handles.values()) {
-    try { entry.handle.close() } catch (e) { /* 幂等关闭 */ }
-  }
-  handles.clear()
-}
-
-/** 当前缓存的句柄数（测试断言句柄上限用）。 */
-export function snapshotLibraryHandleCount(): number {
-  return handles.size
 }

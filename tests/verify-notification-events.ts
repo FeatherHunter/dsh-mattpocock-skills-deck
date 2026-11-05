@@ -503,7 +503,8 @@ if (S) {
   probeEvents = await probeStore.read('/ws-probe')
   check(probeEvents.filter((e: any) => e.type === INSTANT).length === 2, '恢复后的新一段失败再记一条（失败段判重不把两段并成一段）')
   // 写事件补好的快照直接交付（mode:'patch'）这一拍根本没探测，不能当成恢复；否则一段没结束的失败会被切碎。
-  probeWritePatch = { snapshot: { repo: 'acme/probe' } }
+  // #1891：写事件补丁交给探针的是「变化的行号 + 版本」，整份快照不再随回包走。
+  probeWritePatch = { rows: [], version: 'v-probe', at: 1 }
   const patchReply = await probe.handleProbe({ cwd: '/ws-probe' })
   check(patchReply && patchReply.ok === true && patchReply.mode === 'patch', '写事件补好的快照直接交付仍走 patch 快路径')
   stageClock += 120000
@@ -516,6 +517,8 @@ if (S) {
   const snapStore = mkStageStore('snap')
   const snapMod = await imp('src/refresh/rooms/host/session-snapshot-cache.ts')
   let snapShouldFail = true
+  // #1893：宿主内存副本退役后，首屏的本地数据来自快照库回放；这个变量模拟「库里有/没有回放」。
+  let snapLibReplay: any = null
   const snapHandler = snapMod.createSessionSnapshot({
     envelope: { buildSnap: (x: any) => x, adoptSnapLog: (x: any) => x, withWorkRouteTable: async (r: any) => r },
     canonicalKey: async (c: string) => c,
@@ -524,10 +527,11 @@ if (S) {
     getTrackerRegistry: async () => ({ get: () => ({}), modules: () => [] }),
     getPlatform: async () => ({}),
     ctx: { get: () => null },
-    getCache: () => (snapShouldFail ? { ts: 0, snapshot: null } : { ts: stageClock, snapshot: { repo: 'acme/snap', repoRoot: '/w', selection: { backendId: 'github', rev: 0 } } }),
-    setCache: () => {},
-    CACHE_MS: 100000,
-    cacheSnapshotIsCurrent: () => true,
+    getSnapshotLibrary: async () => ({
+      readSnapshotReplay: async () => snapLibReplay,
+      readSnapshotDiagnostics: async () => [],
+      recordIssueRows: async () => ({ ok: true, rows: 0, mergeVersion: null }),
+    }),
     upcaseSnapStates: (v: any) => v,
     computeLevels: () => ({ byNumber: {}, byKey: {} }),
     groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
@@ -550,11 +554,14 @@ if (S) {
   check(snapEvents.length === 1 && snapEvents[0].code === 'refresh-failed.snapshot', '取数失败进历史，机器码标出「取数」环节')
   check(snapEvents[0].params && snapEvents[0].params.kind === 'quota-exhausted', '取数失败的原因类别记成机器码（quota-exhausted）')
   check(!hasCjk(JSON.stringify(snapEvents[0])), '取数失败历史里没有中文界面文案')
+  // 恢复：库里出现一份回放（不是拿内存副本兜底），这一趟不再取数、照旧回成功。
   snapShouldFail = false
+  snapLibReplay = { snapshot: { ok: true, maps: [], issues: [], thinTickets: [], labels: [], repository: { refId: 'acme/snap' }, selection: { backendId: 'github', rev: 0 }, generatedMs: stageClock }, lastKnownAtMs: stageClock }
   const snapOkReply = await snapHandler.handleSnapshot({ cwd: '/ws-snap' })
-  check(snapOkReply && snapOkReply.ok !== false, '取数恢复后照旧回成功（缓存命中即成功）')
+  check(snapOkReply && snapOkReply.ok !== false, '取数恢复后照旧回成功（库里有回放即成功）')
   stageClock += 120000
   snapShouldFail = true
+  snapLibReplay = null
   await snapHandler.handleSnapshot({ cwd: '/ws-snap' })
   snapEvents = await snapStore.read('/ws-snap')
   check(snapEvents.filter((e: any) => e.code === 'refresh-failed.snapshot').length === 2, '恢复后的新一段取数失败再记一条')

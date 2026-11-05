@@ -49,6 +49,19 @@ const MODULES = [
   { name: 'storeSwitch', file: 'store-switch', exports: ['labelOf', 'presentationById', 'setPresentationMap', 'backendColorOf', 'backendBgOf', 'backendBorderOf', 'repoShortName', 'DEFAULT_SWITCH_PROMPT_ZH', 'openSwitchConfirm', 'closeSwitchConfirm', 'loadSwitchCri', 'confirmSwitchConfirm'] },
   { name: 'storeSnapshot', file: 'snapshot-cache-store', exports: ['makeStore', 'shared', 'stores', 'storeOf', 'emit', 'sub', 'useStore', 'SNAP_CWD_LRU_MAX', 'snapshotByCwd', 'touchLRUClient', 'getCachedSnapshot', 'getCachedEntry', 'setCachedSnapshot', 'getSnapshotVersion', 'lastProbeAtByCwd', 'getProbeAt', 'touchProbeAt', 'CHAIN_CWD_LRU_MAX', 'chainByCwd', 'getChainCacheKey', 'getCachedChain', 'setCachedChain', 'hydrateFromCache', 'mergeSelection', 'applySnapshotSelection', 'getCwdSync', 'NOTICE_COLOR', 'noticeIcon', 'flash'] },
   { name: 'storeDerived', file: 'store-derived', exports: ['compute', 'frontierAll', 'openIssuesOf', 'isOccupied', 'occCount', 'frontierCount', 'applyStandaloneBlocks', 'hasLabelOf', 'isTriageLike', 'bugCount', 'triageCount', 'buildColorOf', 'isLightHex', 'timeStampStr'] },
+  // #1894（规格 #1885 S6）：视图模型基座。登记在这里是为了「改了没重建要被拦下」——
+  //   产物新鲜度按 SOURCES 里的真源修改时间比，不登记就漏掉这两份真源。
+  { name: 'deckViewModel', file: 'deck-view-model', exports: ['createDeckView', 'deckFiltersOf', 'deckReadingOf'] },
+  // #1895：地图详情切片（当前容器 + 子票 + 层级 + 统计），纯选择器，由接线层作为 mapDetail 端口接上。
+  { name: 'deckMapDetail', file: 'deck-map-detail', exports: ['deckMapDetailOf'] },
+  // #1923：已关闭容器的容器级投影（openMap 命令背后的宿主读取与桶；首屏投影不变）。
+  { name: 'deckContainerDetail', file: 'deck-container-detail', exports: ['fetchContainerProjection', 'deckContainerDetailOfStore', 'containerProjectionLoadOf', 'deckContainerProjectionKeyOf', 'deckForgetContainerProjections'] },
+  // #1896：票详情切片（正文、评论、评审、状态），纯选择器，由接线层作为 issueDetail 端口接上；
+  //   「加载更多评论」也由它所在的视图模型记账（命令背后的取数在接线层）。
+  { name: 'deckIssueDetail', file: 'deck-issue-detail', exports: ['deckIssueDetailOf'] },
+  // #1897：拉取请求页切片（投影行 + 三态 + 次序 + 四个数），纯选择器，由接线层作为 prList 端口接上。
+  { name: 'deckPrList', file: 'deck-pr-list', exports: ['deckPrListOf', 'deckPrPortOf'] },
+  { name: 'deckViewBinding', file: 'deck-view-binding', exports: ['deckViewOf', 'deckViewSliceOf', 'deckViewCountsOf', 'deckProjectionOf', 'deckViewCommand', 'useDeckViewSlice', 'useDeckViewFor', 'deckResolveSessionCwd', 'deckViewForgetFrames'] },
   { name: 'rowActions', file: 'row-actions', exports: ['rowActionKind', 'actionColorOf', 'rowActionText', 'mkRowAction'] },
   // #709（T5）：8 秒自轮询那对排期/取消函数已退役，换成事件驱动入口（四类事件共用一个出口）。
   { name: 'probeChain', file: 'probe-chain-subscription', exports: ['chainEventRefresh', 'CHAIN_EVENT_REASONS', 'loadChain', 'chainSteps', 'chainStep', 'chainStepStatus', 'chainStepOk', 'chainStepBad', 'readyCount', 'envTotal', 'envLabel', 'setupCheck', 'openBlockers', 'blockerNames', 'detectCwd'] },
@@ -57,6 +70,10 @@ const MODULES = [
   // #707：probe-snapshot.js 拆到这里之前 349 行（门禁上限 350），把颜色小函数、数据层增量差异、
   //   高亮清除搬成单独一片；那三样东西的导出名与行为一字未改。
   { name: 'probeSnapshotHelpers', file: 'snapshot-sync-helpers', exports: ['hexA', 'darken', 'diffSnapshots', '_flashClearPending', 'scheduleFlashClear'] },
+  // #1891：客户端按库版本取变化的两片 —— 变化集并进手上那份（纯合并），以及同步引擎与生产接线。
+  //   登记在这里是为了「改了没重建要被拦下」：产物新鲜度按 SOURCES 里的真源修改时间比。
+  { name: 'snapshotChangeMerge', file: 'snapshot-change-merge', exports: ['applySnapshotChangeSet', 'changeRowPatch', 'isNewerSnapshotVersion'] },
+  { name: 'snapshotVersionSync', file: 'snapshot-version-sync', exports: ['createSnapshotVersionSync', 'createPollingVersionSource', 'runSnapshotVersionTick', 'runSnapshotVersionTickGroup', 'captureSnapshotVersion', 'rememberSnapshotVersion', 'snapshotVersionBookOf', 'forgetSnapshotVersion'] },
   { name: 'probeAuto', file: 'refresh-timer', exports: ['PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'lastFocusProbe', '_actionProbePending', 'probeNow', 'scheduleActionProbe', 'startAutoProbe', 'startActiveProbeLoop', 'spinAll', 'refreshAll', 'SNAP_FRESH_MS', 'snapFresh'] },
   // #707：视野模型的客户端半边（窗口标识、焦点与可见性监听、20 秒本地心跳、处境判定）。
   { name: 'attentionHeartbeat', file: 'client-attention-heartbeat', exports: ['attentionWindowId', 'attentionVisible', 'attentionNoteHuman', 'attentionStoreOf', 'attentionRootOf', 'attentionKeyOf', 'noteShownAttentionStore', 'forgetShownAttentionStore', '_shownAttentionStore', '_attentionPlan', 'adoptAttentionPlan', 'attentionStandingOf', 'ATTENTION_SILENT_MS', 'attentionSuspended', 'attentionBeat', 'startAttentionHeartbeat', 'startAttentionSignals', 'stopAttentionSignals'] },

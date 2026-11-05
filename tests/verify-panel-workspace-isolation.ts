@@ -76,8 +76,10 @@ const RULES: IsolationRule[] = [
     bad: src => /if\s*\(\s*shared\.cwd\s*!==\s*foundCwds\[0\]\s*\)\s*shared\.cwd\s*=\s*foundCwds\[0\]/.test(src),
   },
   {
-    name: '组内首个 primary 负责 loadSnapshot（带正确 cwd）',
-    bad: src => !/loadSnapshot\(primary/.test(src),
+    // #1891：组内首个 primary 不再自己整份重建，改为带上正确 cwd 之后交给版本同步；
+    // 这条判据守的是同一件事——「整组读数据时用的是被探查的那个工作区」，不是别的 cwd。
+    name: '组内首个 primary 带上正确 cwd，再交给版本同步',
+    bad: src => !/if\s*\(\s*!primary\.cwd\s*\)\s*primary\.cwd\s*=\s*cwd/.test(src) || !/runSnapshotVersionTickGroup\(group/.test(src),
   },
 ]
 
@@ -93,7 +95,8 @@ const MUTATIONS: RuleMutation[] = [
   { rule: '空组时不发全量重建（#232 R3：无人观看的工作区静默放行）', from: 'if (!group.length) {', to: "if (!group.length) { host.call('wf.refresh', { cwd: cwd });" },
   { rule: '兜底路径按 sessionId→cwd 精确映射（sidToCwd 表要真的被用来赋值）', from: 'st.cwd = sidToCwd[st.sessionId]', to: 'st.cwd = foundCwds[0]' },
   { rule: '已移除首绑缺陷指纹：shared.cwd !== foundCwds[0] 时无条件改写', from: '= Array.from(foundCwdsByNorm.values())', to: '= Array.from(foundCwdsByNorm.values())\n      if (shared.cwd !== foundCwds[0]) shared.cwd = foundCwds[0]' },
-  { rule: '组内首个 primary 负责 loadSnapshot（带正确 cwd）', from: 'loadSnapshot(primary, true, true)', to: 'loadSnapshot(rest[0], true, true)' },
+  // #1891：变异把「带上正确 cwd」换成别的 cwd，对应判据必须报红。
+  { rule: '组内首个 primary 带上正确 cwd，再交给版本同步', from: 'if (!primary.cwd) primary.cwd = cwd', to: 'if (!primary.cwd) primary.cwd = rest[0].cwd' },
 ]
 
 let failed = 0

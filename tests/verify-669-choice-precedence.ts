@@ -31,10 +31,8 @@ import { compileFn, evalWithScope } from './lib/eval-probe.js'
 // （.ts 会先按构建那份口径转译，引号与换行会被重排）。本文件只求值、不按文本形状扫源码。
 import { spliceableJs } from './lib/source-text.ts'
 // 中央时间真值：切换确认的收起延时只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
-import { STORE_SWITCH_CONFIRM_MS, SNAPSHOT_PICKED_GUARD_MS } from '../src/shared/time-config/values.js'
+import { STORE_SWITCH_CONFIRM_MS } from '../src/shared/time-config/values.js'
 (globalThis as unknown as Record<string, unknown>).STORE_SWITCH_CONFIRM_MS = STORE_SWITCH_CONFIRM_MS
-// 水合守卫的保护窗（#1240）：justPicked 的源码被剥掉 import 行后求值，裸名字从这里取。
-;(globalThis as unknown as Record<string, unknown>).SNAPSHOT_PICKED_GUARD_MS = SNAPSHOT_PICKED_GUARD_MS
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -152,25 +150,35 @@ console.log('== B 行为层（客户端）：不上报 hint；合并照宿主回
   check(stB.selection.backendId === 'gitlab', '宿主回的是别的后端 → 照宿主的来（谁改了文件谁是真相）')
 }
 
-// ── B2 水合：缓存里那份旧快照不许抹掉用户刚点的那一下（#1003 用 pickedAt 时刻判，不用标记）──
+// ── B2 水合：缓存里那份旧快照不许抹掉用户刚点的那一下 ──
+// #1891 起判据是库版本（点选那一刻的版本 vs 缓存那份的版本），时间不再参与：「谁的结论更新」这件事
+//   只由版本号回答。版本不知道时不拿「没点过」冒充 —— 有明确人选就按「刚点过」保守处理。
 console.log('')
-console.log('== B2 行为层（水合）：hydrateFromCache 不许把刚点的选择覆盖回旧后端 ==')
+console.log('== B2 行为层（水合）：hydrateFromCache 不许把刚点的选择覆盖回旧后端（按库版本判） ==')
 {
   const hydrateSrc = snapSrc.match(/const hydrateFromCache = function\(st\) \{[\s\S]*?\n\}/)![0]
   const keepLine = (prefsSrc.match(/const keepUserPick = function[\s\S]*?\n\}/) || [''])[0]
   const mergeSrc2 = snapSrc.match(/const mergeSelection = function\(st, incoming\) \{[\s\S]*?\n\}/)![0]
-  const justSrc = snapSrc.match(/const justPicked = function\(st, c\) \{[\s\S]*?\n\}/)![0]
+  // 参数表由转译器排版（function (st, c, cachedVersion)），按形状宽松匹配，不去钉手写源码的排版。
+  const justSrc = snapSrc.match(/const justPicked = function[^(]*\([^)]*\) \{[\s\S]*?\n\}/)![0]
+  const cachedSnap = { libraryVersion: 5, id: '缓存里那份切换前的快照', selection: { backendId: 'github', source: 'explicit' }, repository: { backend: 'github', name: 'r' } }
   const mkHydrate = function (patched: string[] | null) {
     const writes: any[] = []
     // 这里选 evalWithScope：函数表达式自带全部依赖，作用域传空。
     const keepUserPick = evalWithScope(keepLine.trim().replace(/^const keepUserPick = /, ''), {})
-    // 这里选 evalWithScope：五个依赖名原来靠参数注入，现在写进作用域，函数体不动。
+    // 这里选 evalWithScope：依赖名原来靠参数注入，现在写进作用域，函数体不动。
     const mergeSelection = evalWithScope(mergeSrc2.replace(/^const mergeSelection = /, ''), {
       log: () => {}, dswsLogHash: () => 'h', dswsLogTrunc: (s: unknown) => s, setCachedSelection: (cwd: unknown, sel: unknown) => writes.push(sel), keepUserPick,
+      snapshotVersionBookOf: () => ({ version: heldVersion, seenAtMs: 1 }),
     })
     const justPicked = justSrc ? evalWithScope(justSrc.replace(/^const justPicked = /, ''), {}) : (() => false)
     const deps: Record<string, any> = {
-      getCachedSnapshot: () => ({ generatedMs: 100, id: '缓存里那份切换前的快照', selection: { backendId: 'github', source: 'explicit' }, repository: { backend: 'github', name: 'r' } }),
+      getCachedSnapshot: () => cachedSnap,
+      getCachedEntry: () => ({ snapshot: cachedSnap, libraryVersion: 5 }),
+      // 手上那份的库版本：这一组用例里由每个现场自己给（默认 5 = 与缓存那份同版）。
+      snapshotVersionBookOf: () => ({ version: heldVersion, seenAtMs: 1 }),
+      isNewerSnapshotVersion: (a: unknown, b: unknown) => (typeof a === 'number' && typeof b === 'number' && a > b),
+      rememberSnapshotVersion: () => {},
       rememberWorkspaceRoot: () => {}, wsKeyOf: (p: unknown) => String(p || ''), snapshotByCwd: new Map(), touchLRUClient: () => {},
       mergeSelection, setCachedRepository: () => {}, setPresentationMap: () => {}, getCachedSelection: () => null,
       getCachedRepository: () => null, getCachedChain: () => null, promptLang: () => 'zh', nowStr: () => '', log: () => {}, dswsLogHash: () => 'h',
@@ -182,20 +190,25 @@ console.log('== B2 行为层（水合）：hydrateFromCache 不许把刚点的�
     const fn = compileFn(names, body)(...names.map((n) => deps[n]))
     return { fn, writes }
   }
-  const now = Date.now()
-  const pick = () => ({ cwd: 'D:\\x', selection: { backendId: 'markdown', source: 'explicit', pickedAt: now }, snapshot: { id: '面板上正显示的那一份', generatedMs: 100 } })
+  let heldVersion: any = 5
+  // 刚点过：点选那一刻已经看到第 7 版，缓存那份是第 5 版（旧结论）→ 守卫成立，不合并缓存的选择。
+  const pick = (): any => ({ cwd: 'D:\\x', pickedVersion: 7, selection: { backendId: 'markdown', source: 'explicit' }, snapshot: { id: '面板上正显示的那一份' } })
+  heldVersion = 7
   const good = mkHydrate(null)
   const stG = pick()
   good.fn(stG)
   check(stG.selection.backendId === 'markdown', '水合之后刚点的那一下还在（旧缓存 github 没盖回来）—— 实得 ' + JSON.stringify(stG.selection))
+  heldVersion = 5
   const noPick = mkHydrate(null)
   const stN = { cwd: 'D:\\x', selection: null, snapshot: null }
   noPick.fn(stN)
   check(stN.selection && stN.selection.backendId === 'github', '没点过时旧快照照旧水合进来（正常秒显不受影响）—— 实得 ' + JSON.stringify(stN.selection))
-  const broken = mkHydrate(['!justPicked(st, c)', 'true'])
+  heldVersion = 7
+  const broken = mkHydrate(['!justPicked(st, c, incomingVer)', 'true'])
   const stB2 = pick()
   broken.fn(stB2)
   check(stB2.selection.backendId === 'github', '反证 B2 成立：把这道守卫摘掉之后，同一份现场当场退回 github —— 实得 ' + JSON.stringify(stB2.selection))
+  heldVersion = 5
 }
 
 // ── C 组：切换之后按场景分流（真 store-switch + 真 guide-steps）──────────────────────────

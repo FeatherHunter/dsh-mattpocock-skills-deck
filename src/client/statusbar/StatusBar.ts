@@ -15,6 +15,10 @@
 declare function backendColorOf(...args: any[]): any;
 declare function capFoldScheduleFold(...args: any[]): any;
 declare function checksumsOf(...args: any[]): any;
+// #1894：全局读数与订阅钩子来自视图模型接线层（与列表页同一个 counts 切片）。单文件求值的门禁里没有这一片。
+declare function useDeckViewSlice(...args: any[]): any;
+// #1894：问「这个会话在哪个目录」的那条宿主电话已经搬进视图模型接线层，视图文件不再直连 host.call。
+declare function deckResolveSessionCwd(...args: any[]): any;
 declare function clearStatusClose(...args: any[]): any;
 declare function closeStatusBugMenu(...args: any[]): any;
 declare function closeStatusGate(...args: any[]): any;
@@ -180,11 +184,8 @@ export const StatusBar = (props: any) => {
     if (summaryCwd) { apply(summaryCwd, 'summary'); return }
     const cwd0 = detectCwd(props && props.session)
     if (cwd0) { apply(cwd0, 'session'); return }
-    if (sid && typeof host !== 'undefined' && typeof host.call === 'function') {
-      host.call('wf.cwd', { sessionId: sid }).then(function (res: any) {
-        if (res && res.ok && res.cwd) apply(res.cwd, 'wf.cwd')
-      }).catch(function () {})
-    }
+    // #1894：这条宿主电话搬进 kernel/deck-view-binding.ts 的 deckResolveSessionCwd，视图层只收结果。
+    try { if (typeof deckResolveSessionCwd === 'function') deckResolveSessionCwd(s, sid, apply) } catch (eCwd) {}
   }, [sid, summaryCwd])
   React.useEffect(function () {
     loadChain(s, false)
@@ -198,7 +199,9 @@ export const StatusBar = (props: any) => {
   // #1395：胶囊「工作路线」那一段画不画的判据结论（含「有表但没有本会话的行」这一档）由同目录
   //   SessionChainCapsule.ts 的 logStatusFallback 按退化形状变化记一行；这里只负责在状态变化时把状态交给它。
   React.useEffect(function () { logStatusFallback(s, sid) }, [s.snapshot, s.cwd, s.snapMode, s.ownWorkRoute, sid])
-  const csx = checksumsOf(s)
+  // #1894：订阅视图模型的 counts 切片（切片的版本没变时不会重画）；门禁单文件求值时没有这一片。
+  const deckCounts = (typeof useDeckViewSlice === 'function') ? useDeckViewSlice(s, 'counts') : null
+  const csx = checksumsOf(s, deckCounts)
   const { fr, bugN, triageN, n, timeStr, freshColor, tipOf } = csx
   // 2026-08-28 优化3：胶囊状态栏任何情况下都不隐藏（#187「未选后端隐藏整条」门控退休，仅留导航引导）。
   // _isOtherSBGate 仍用于 go()：未选后端（backendId=null 且非 pending）时点击面板分段 → 设置页引导。

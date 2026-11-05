@@ -35,6 +35,10 @@ declare const openUrl: any;
 declare const retryRepoSync: any;
 declare const setupRunTextForClick: any;
 declare const userHintOf: any;
+// #1890：诊断读数那一格显示的当前库版本（纯函数住 views/shared/truthLines.ts，构建时拼进同一个闭包）。
+declare function snapshotVersionReadoutOf(...args: any[]): any;
+// #1922：诊断读数里的库占用（库文件字节数 / 票行数）。不淘汰，但增长要看得见。
+declare function snapshotStoreStatsReadoutOf(...args: any[]): any;
 
 export const ChecksTab = ({ st }: any) => {
   const cx = React.useContext(DswsCtx)
@@ -60,6 +64,31 @@ export const ChecksTab = ({ st }: any) => {
   // #284：单一口径 = 链快照步骤（pending = 诚实未知/未接入，置灰展示，不计入 ready/total）
   const steps = chainSteps(st)
   const chainSnapshot = st.chainSnapshot || null
+  // #1890：诊断读数里要能看见当前库版本。这里只读一次 wf.snapshotVersion（信号不带真相，
+  // 几十字节），不轮询、不取变化集 —— 面板的五秒轮询是下一条票的事。读不到就保持 null，
+  // 页面显示「—」，不编一个 0（0 是合法的库版本，冒充 0 会让读者以为库刚重建过）。
+  const [libraryVersionReply, setLibraryVersionReply] = React.useState(null as any)
+  // #1922：库占用读数（库文件字节数与票行数）。与版本同一个拍子读一次：2026-11-05 起按需细节
+  // 不设上限、不淘汰，库只会变大，增长必须在诊断页看得见；读不到就如实显示「—」，不编 0。
+  const [libraryStatsReply, setLibraryStatsReply] = React.useState(null as any)
+  React.useEffect(function () {
+    let alive = true
+    try {
+      const cwd = (st && st.cwd) ? String(st.cwd) : ''
+      if (!cwd || typeof host === 'undefined' || !host || typeof host.call !== 'function') return
+      host.call('wf.snapshotVersion', { cwd: cwd }).then(function (res: any) {
+        if (alive) setLibraryVersionReply(res || null)
+      }, function () {
+        if (alive) setLibraryVersionReply(null)
+      })
+      host.call('wf.snapshotStoreStats', { cwd: cwd }).then(function (res: any) {
+        if (alive) setLibraryStatsReply(res || null)
+      }, function () {
+        if (alive) setLibraryStatsReply(null)
+      })
+    } catch (e) {}
+    return function () { alive = false }
+  }, [st && st.cwd, (st && st.snapshot && st.snapshot.generatedMs) || 0])
   // no-repo 判定：链步骤 gh:remote 失败（原 findCheck('gh:remote').level==='bad'）
   const remoteStep = chainStep(st, 'gh:remote')
   const remoteBad = !!(remoteStep && remoteStep.status === 'fail')
@@ -269,6 +298,7 @@ export const ChecksTab = ({ st }: any) => {
       }
       const sel = st.selection || (snap && snap.selection) || null
       const repoRef = st.repository || (snap && snap.repository) || null
+      const libraryStatsReadout: any = snapshotStoreStatsReadoutOf(libraryStatsReply)
       return h('details', { style: { marginTop: 8, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, padding: '6px 8px', background: 'rgba(255,255,255,.02)' } }, [
         // 本次界面反馈需求：能力诊断折叠条能点，给它悬停反馈、按压态与点击日志。
         h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'check.diag.toggle', style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } }, [
@@ -279,6 +309,9 @@ export const ChecksTab = ({ st }: any) => {
         h('div', { style: { fontSize: 11, color: '#8b8b95', marginTop: 6, lineHeight: 1.6 } }, [
           h('div', null, tr('env.diagBackend') + ': ' + (sel && sel.backendId ? sel.backendId : '\u2014') + (sel && sel.source ? ' (' + sel.source + ')' : '') + (sel && sel.pending ? ' \u23F3 pending' : '') + (sel && sel.multiHit ? ' \u26A0 multiHit:' + sel.multiHit.join(',') : '')),
           repoRef ? h('div', null, tr('env.diagRepo') + ': ' + repoRef.name + (repoRef.url ? ' \u2014 ' + repoRef.url : ' ' + tr('env.diagLocal'))) : null,
+          h('div', null, tr('env.diagLibraryVersion') + ': ' + snapshotVersionReadoutOf(libraryVersionReply).text),
+          h('div', null, tr('env.diagLibraryBytes') + ': ' + libraryStatsReadout.bytesText),
+          h('div', null, tr('env.diagLibraryRows') + ': ' + libraryStatsReadout.rowsText),
           h('div', null, tr('env.diagFields') + ': present=' + counts.present + ' \u00b7 empty=' + counts.empty + ' \u00b7 missing=' + counts.missing),
           h('div', { style: { fontSize: 10, color: '#6b7280', marginTop: 4 } }, tr('env.diagNote')),
           h('div', { style: { marginTop: 6 } }, [

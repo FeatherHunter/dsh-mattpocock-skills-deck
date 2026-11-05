@@ -1,6 +1,6 @@
 // tests/verify-snapshot-cache-first.ts
 //
-// 门禁：手上有新鲜快照缓存时，「面板数据」这条通话必须立刻交付，不许在交付前先联网核对。
+// 门禁：手上有快照库里的数据时，「面板数据」这条通话必须立刻交付，不许在交付前先联网核对。
 //
 // 为什么必须有这条：
 //   核对一次要把全仓库 issue 扫一遍（实测 505 条、6 页、约 4~5 秒），而结论多数是「没变」，
@@ -8,118 +8,139 @@
 //   改成「先交付、后核对」之后，这条契约必须被钉住，否则以后有人顺手把核对挪回交付之前，
 //   卡顿会无声地回来（不会有任何报错，只有用户觉得慢）。
 //
-// 契约（2026-09-11 定版）：只要手上有缓存，无论它多旧，都立刻交付、一律不核对。
-//   核对完全交给后台那条 60 秒自动探测（它发现变化会把缓存标脏，标脏后自然走不到这条短路）。
-//   早期版本曾要求「缓存超过 60 秒就仍要核对」，实践证伪了它：客户端手上那份几乎总是超过
-//   60 秒，那个门槛每次都被触发，等于没改。数据新鲜与否由状态胶囊的时间戳表达（超五分钟变红），
-//   用户看得见，不需要用「让用户等」来表达。
+// #1893（规格 #1885 S5）改的是「缓存住哪儿」，不是这条契约：宿主内存副本已删，首屏的本地数据
+// 来自本地 SQLite 快照库的回放。判据从「内存缓存命中」换成「库里有回放就交付、取数次数为零」；
+// 原来那几条「缓存多旧都立刻交付」的年龄用例随之退役——库回放没有 TTL，改由库版本与刷新路径管新鲜度。
 //
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-snapshot-cache-first.ts
 
+import { printGateResult } from './lib/gate-result.ts'
+import type { Issue, RepositoryRef } from '../src/tracker/contract/entities.ts'
 import { createSessionSnapshot } from '../src/refresh/rooms/host/session-snapshot-cache.ts'
 
+const GATE = 'verify-snapshot-cache-first'
+const CWD = 'D:\\dsh-plugin\\dsh-mattpocock-skills-deck'
+const REPO: RepositoryRef = { backend: 'github', refId: 'FeatherHunter/dsh-mattpocock-skills-deck', name: 'dsh-mattpocock-skills-deck', url: '' }
 let failed = 0
 let total = 0
-function check(ok, msg) {
+function check(ok: unknown, msg: string, detail?: unknown): void {
   total++
-  console.log((ok ? '  PASS ' : '  FAIL ') + msg)
+  console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail === undefined ? '' : '（实得 ' + JSON.stringify(detail) + '）')))
   if (!ok) failed++
 }
 
-const CWD = 'D:\\dsh-plugin\\dsh-mattpocock-skills-deck'
-const snapshot = {
-  ok: true,
-  generatedMs: 1789000000000,
-  maps: [{ number: 1, title: '地图', state: 'OPEN', tickets: [] }],
-  issues: [{ number: 2, state: 'OPEN', updatedAt: '2026-09-11T00:00:00Z', title: '票' }],
-  labels: [],
-  selection: { backendId: 'github', source: 'auto' },
-  repository: { refId: 'FeatherHunter/dsh-mattpocock-skills-deck', name: 'FeatherHunter/dsh-mattpocock-skills-deck' },
+function replaySnapshot(): any {
+  return {
+    ok: true,
+    generatedMs: 1789000000000,
+    maps: [{ number: 1, title: '地图', state: 'OPEN', tickets: [] }],
+    issues: [{ number: 2, key: '2', state: 'OPEN', updatedAt: '2026-09-11T00:00:00Z', title: '票' }],
+    thinTickets: [],
+    labels: [],
+    repository: REPO,
+  }
 }
 
 /**
- * 造一个能跑通「读缓存」这条短路的宿主。
- * ageMs 控制缓存看起来有多新；核对桩故意慢，用来证明交付没有等它。
- * 返回的对象里带计数，用来观察有没有真的去联网核对。
+ * 造一台首屏电话：库门面交回一个固定回放；取数与开会话都装计数器（并抛错，任何一次触碰都留痕迹）。
+ * 线上那套依赖里已经没有 getCache / setCache / CACHE_MS —— 这条门禁就是来证明不需要它们的。
  */
-const VALIDATE_MS = 400
-function makeHost(ageMs) {
-  const cache = { ts: Date.now() - ageMs, snapshot: snapshot, error: null, cwd: CWD }
-  const probe = { validateCalled: 0 }
+function makeHost(opts?: { emptyLibrary?: boolean }) {
+  const net = { list: 0, currentUser: 0, openSession: 0, exec: 0, libraryRead: 0 }
+  const backend = {
+    list: async () => { net.list += 1; return { ok: true, data: [issueRow()] } },
+    counts: async () => ({ ok: false, error: { kind: 'unsupported' } }),
+    listPage: async () => ({ ok: false, error: { kind: 'unsupported' } }),
+    listSubIssues: async () => ({ ok: false, error: { kind: 'unsupported' } }),
+    getCurrentUser: async () => { net.currentUser += 1; return { ok: true, data: { login: 'octo' } } },
+  }
+  const library = {
+    readSnapshotReplay: async () => {
+      net.libraryRead += 1
+      return (opts && opts.emptyLibrary) ? null : { snapshot: replaySnapshot(), lastKnownAtMs: 1789000000000 }
+    },
+    readSnapshotDiagnostics: async () => [],
+    recordIssueRows: async () => ({ ok: true, rows: 1, mergeVersion: 1 }),
+  }
+  const adopted: { snapshot: any } = { snapshot: null }
   const h = createSessionSnapshot({
-    canonicalKey: async (c) => c,
-    selectEarly: async () => ({ backendId: 'github', source: 'auto' }),
-    isComposerSelection: () => false,          // false = 走 GitHub 那条分支（本次改动所在）
-    getTrackerRegistry: async () => ({ get: () => null, modules: () => [], describe: () => null }),
-    getPlatform: async () => ({ fs: { resolve: async () => ({}) }, path: { join: () => '' }, getHome: async () => '' }),
-    ctx: { get: () => undefined },
-    getCache: () => cache,
-    setCache: (v) => { Object.assign(cache, v) },
-    CACHE_MS: 60000,
-    // 故意慢：真实环境里这一步就是那次全仓库扫描（4~5 秒）。这里等 400ms 就够说明问题。
-    cacheSnapshotIsCurrent: async () => { probe.validateCalled++; await new Promise((r) => setTimeout(r, VALIDATE_MS)); return true },
-    upcaseSnapStates: (s) => s,
+    canonicalKey: async (c: unknown) => String(c),
+    selectEarly: async () => ({ backendId: 'github', source: 'auto', rev: 1 }),
+    isComposerSelection: () => false,
+    getTrackerRegistry: async () => ({ get: () => backend, modules: () => [], describe: () => REPO }),
+    getPlatform: async () => ({}),
+    ctx: { get: () => null },
+    upcaseSnapStates: (s: any) => s,
     computeLevels: () => ({ byNumber: {}, byKey: {} }),
     groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
     getRepoRoot: async () => CWD,
     getRepoKey: async () => ({ owner: 'FeatherHunter', name: 'dsh-mattpocock-skills-deck' }),
-    readDiskCache: async () => null,
-    writeDiskCache: async () => {},
-    adoptSnapshot: async (s) => s,
-    detectionExec: async () => ({ ok: false }),
+    adoptSnapshot: (snap: any) => { adopted.snapshot = snap; return snap },
+    detectionExec: () => { net.exec += 1; throw new Error('不该执行命令') },
     getGhPath: () => '',
     getGhLastError: () => '',
-    errText: (e) => String(e),
+    errText: (e: any) => String((e && e.message) || e),
     DEFAULT_CWD: CWD,
     logCtx: null,
-  })
-  return { h, probe, cache }
+    // 库门面一直在；「库空」是 readSnapshotReplay 回 null，不是门面没接——后者会让取回的行无处可写。
+    getSnapshotLibrary: async () => library,
+    openSession: async () => { net.openSession += 1; return { ok: true, backendId: 'github', call: async (fn: any) => fn(backend, {}) } },
+  } as any)
+  return { h, net, adopted }
 }
 
-console.log('快照缓存优先门禁（新鲜缓存必须立刻交付，不许先联网核对）')
+function issueRow(): Issue {
+  return {
+    key: '2', effortId: '', type: 'issue', title: '票', state: 'open', body: '',
+    url: '', createdAt: '2026-09-11T00:00:00Z', updatedAt: '2026-09-11T00:00:00Z', closedAt: null, parentKey: null,
+  }
+}
 
-// ---------- 一、新鲜缓存：必须立刻交付，且不许联网核对 ----------
+console.log('快照缓存优先门禁（库里有数据必须立刻交付，不许先联网核对）')
+
+// ---------- 一、库里有回放：必须立刻交付，且不许联网 ----------
 {
-  const { h, probe } = makeHost(1000)   // 1 秒前生成，远小于 60 秒
+  const { h, net, adopted } = makeHost()
   const t0 = Date.now()
   const got = await h.handleSnapshot({ cwd: CWD })
   const ms = Date.now() - t0
-
-  check(got === snapshot, '新鲜缓存：返回的就是缓存里那一份（同对象，不是重新拼的）')
-  check(probe.validateCalled === 0, '新鲜缓存：全程没有去联网核对（核对次数 ' + probe.validateCalled + '）')
-  check(ms < VALIDATE_MS / 2, '新鲜缓存：交付 ' + ms + ' ms，明显快于那次核对的 ' + VALIDATE_MS + ' ms —— 没有等它')
+  const snap = adopted.snapshot || got.snapshot
+  check(got && got.ok === true, '库里有回放：首屏成功', got)
+  check(!!snap && snap.fromCache === true && !!snap.diskReplay, '库里有回放：回包标了 fromCache 与 diskReplay（这一份来自库）')
+  check(!!snap && (snap.maps || []).length === 1 && (snap.issues || []).some((row: any) => String(row.key) === '2'),
+    '库里有回放：地图容器与那张票都在（数据就是库里那一条）', snap && { maps: (snap.maps || []).length, issues: snap.issues })
+  check(!snap || !snap.snapshotFetch, '库里有回放：不冒充在线重建（snapshotFetch 为空）', snap && snap.snapshotFetch)
+  check(net.list === 0 && net.currentUser === 0 && net.openSession === 0 && net.exec === 0,
+    '库里有回放：全程没有取数请求、没有问当前用户、没有开会话', net)
+  check(ms < 1000, '库里有回放：交付 ' + ms + ' 毫秒（本来就不该等网络）', ms)
 }
 
-// 边界：缓存有多旧都不影响交付，只验一个明显不同的年龄值即可。
+// ---------- 二、再问一次：同一份库回放仍然零取数（没有按年龄失效这一档） ----------
 {
-  const { h, probe } = makeHost(59000)
-  const got = await h.handleSnapshot({ cwd: CWD })
-  check(got === snapshot && probe.validateCalled === 0, '边界（59 秒）：同样立刻交付、不核对 —— 年龄不再是判据')
+  const { h, net } = makeHost()
+  const a = await h.handleSnapshot({ cwd: CWD })
+  const b = await h.handleSnapshot({ cwd: CWD })
+  check(a && b && a.ok === true && b.ok === true, '同一份库连续两次首屏都成功')
+  check(net.list === 0 && net.libraryRead === 2, '两次都读了库、一次都没取数（库回放没有年龄门槛）', net)
 }
 
-// ---------- 三、过期缓存：同样立刻交付，不再核对 ----------
+// ---------- 三、库空：必须在线重建，不许拿任何本地副本交付 ----------
 {
-  // 这一条是有意改掉的旧契约（原为「缓存超过 60 秒就仍要核对」）。
-  // 实践证伪了它：客户端手上那份几乎总是超过 60 秒，于是每次开面板都回到「先核对」的老路，
-  // 等于没改。数据新鲜与否改由状态胶囊的时间戳表达（超过五分钟变红），由用户看得见。
-  const { h, probe } = makeHost(120000)  // 2 分钟，早已超过 60 秒
-  const t0 = Date.now()
-  const got = await h.handleSnapshot({ cwd: CWD })
-  const ms = Date.now() - t0
-  check(got === snapshot, '过期缓存：同样立刻交付手上那份（不再因为它旧就拦下）')
-  check(probe.validateCalled === 0, '过期缓存：也没有联网核对（核对次数 ' + probe.validateCalled + '）—— 核对完全交给后台的 60 秒自动探测')
-  check(ms < VALIDATE_MS / 2, '过期缓存：交付 ' + ms + ' ms，仍然没有等核对')
+  const { h, net } = makeHost({ emptyLibrary: true })
+  const got: any = await h.handleSnapshot({ cwd: CWD })
+  check(got && got.ok === true, '库空时首屏走在线重建并成功', got)
+  check(net.list > 0, '库空时真的去后端取数了（没有本地副本可以冒充数据）', net)
+  check(!!got && got.snapshotFetch && got.snapshotFetch.source === 'online-rebuild' && got.snapshotFetch.rows > 0,
+    '库空时回包带在线重建的进度（取到了几行）', got && got.snapshotFetch)
 }
 
-// ---------- 四、强制重建：不许走缓存短路 ----------
+// ---------- 四、强制重建：不许走库回放短路 ----------
 {
-  const { h, probe } = makeHost(1000)
-  // force 时不该命中缓存短路，而会往下走重建；这里只断言「没有走那条不核对的短路」。
-  // 下方重建路径的依赖不完整，允许它抛错，只要不把缓存原样当成结果返回即可。
-  let returned = null
-  try { returned = await h.handleSnapshot({ cwd: CWD, force: true }) } catch (e) { returned = 'threw' }
-  check(returned !== snapshot, '强制重建：没有把手上那份缓存原样当结果返回（实得 ' + String(returned === 'threw' ? '走到重建路径' : returned) + '）')
+  const { h, net } = makeHost()
+  const got: any = await h.handleSnapshot({ cwd: CWD, force: true })
+  check(got && got.ok === true, '强制重建成功', got)
+  check(net.list > 0, '强制重建没有把手上的库回放原样当结果返回（真的去取了数）', net)
 }
 
-console.log(failed ? '\n快照缓存优先门禁未通过 ' + failed + '/' + total : '\n快照缓存优先门禁全部通过（' + total + ' 项）')
+printGateResult(GATE, total, failed)
 process.exit(failed ? 1 : 0)

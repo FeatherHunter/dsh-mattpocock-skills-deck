@@ -551,6 +551,24 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.ts' },
+  // #1894（规格 #1885 S6）：视图模型基座。纯片（视图模型本体）在前，接线片（帧共享、命令、切片订阅）在后；
+  //   接线片要用纯片的 createDeckView / deckFiltersOf / deckReadingOf，拼接次序按这条依赖关系排。
+  //   两片都声明在 src/client/index.ts 的 kernel:deckViewModel / kernel:deckViewBinding 标记处。
+  { name: 'deckViewModel', file: 'src/client/kernel/deck-view-model.ts' },
+  // #1895（规格 #1885 S6）：地图详情切片（当前打开的容器 + 子票 + 层级 + 统计，全部从投影取）。
+  //   纯选择器，排在本条之后、接线片之前：接线层的 mapDetail 端口要调它。
+  { name: 'deckMapDetail', file: 'src/client/kernel/deck-map-detail.ts' },
+  // #1923（规格 #1885 §6）：已关闭容器的容器级投影 —— 视图模型的 openMap 命令触发一次宿主读取，
+  //   首屏投影一个字节不动。它要用 findMapByIdentity（storeDerived 已在上面）与视图模型的命令端口，
+  //   所以排在 deckMapDetail 之后、接线片之前。
+  { name: 'deckContainerDetail', file: 'src/client/kernel/deck-container-detail.ts' },
+  // #1896（规格 #1885 S6）：票详情切片（正文、评论、评审、状态 + 「加载更多评论」命令的数据）。
+  //   纯选择器，排在本条之后、接线片之前：接线层的 issueDetail 端口要调它。
+  { name: 'deckIssueDetail', file: 'src/client/kernel/deck-issue-detail.ts' },
+  // #1897（规格 #1885 S6）：拉取请求页切片（投影里的 PR 行 + 三态 + 次序 + 四个数）。
+  //   纯选择器，排在本条之后、接线片之前：接线层的 prList 端口要调它。
+  { name: 'deckPrList', file: 'src/client/kernel/deck-pr-list.ts' },
+  { name: 'deckViewBinding', file: 'src/client/kernel/deck-view-binding.ts' },
   // 行级动作全家从 store-derived.ts 原样抽出（那份越过每文件 350 有效行的门禁）；
   //   必须排在本条之后：findMapByIdentity 与 isLightHex 由 store-derived 定义。
   { name: 'rowActions', file: 'src/client/kernel/row-actions.ts' },
@@ -620,6 +638,10 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'probeSnapshotHelpers', file: 'src/refresh/rooms/client/snapshot-sync-helpers.ts' },
+  // #1891（规格 #1885 S4）：客户端只看库版本判新鲜度 —— 变化集并进手上那份（纯合并）在前，
+  //   同步引擎与生产接线在后。两片都不 import 别的模块（客户端闭包靠拼接），跨片名字各写 declare。
+  { name: 'snapshotChangeMerge', file: 'src/refresh/rooms/client/snapshot-change-merge.ts' },
+  { name: 'snapshotVersionSync', file: 'src/refresh/rooms/client/snapshot-version-sync.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'probeAuto', file: 'src/refresh/rooms/client/refresh-timer.ts' },
@@ -679,6 +701,8 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
   // 所以按同一套拼接做法把这一份真源拼进界面闭包 —— 界面只许消费这些名字，不许再写一份数字。
   { marker: '// ==== shared:refreshBudget (spliced by build) ====', file: 'src/refresh/kernel/host-budget.ts' },
+  // #1885 评审修复：库行 → 界面行的三态换算只有一份（宿主投影与客户端变化集合共用同一份源码文本）。
+  { marker: '// ==== shared:snapshotRowFields (spliced by build) ====', file: 'src/shared/snapshot-row-fields.ts' },
   // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 src/shared/version-control/src/rules.ts，
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/src/rules.ts' },
@@ -981,7 +1005,6 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'mapV2CardProps', file: 'src/client/views/mapDetailV2/model/assembly/cardPropsOf.ts' },
   { id: 'mapV2PageModel', file: 'src/client/views/mapDetailV2/model/assembly/mapDetailPageModel.ts' },
   { id: 'mapV2Styles', file: 'src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts' }, // 页面外壳样式（卡片皮肤仍由 cardsStyles 那一片提供，深浅两套在卡片自己身上）
-  { id: 'mapV2UseFeed', file: 'src/client/views/mapDetailV2/wiring/useMapTicketsFeed.ts' }, // 进页面就拉这张图的全部子票（含已关闭），取数状态由模型翻译成人话
   { id: 'mapV2Actions', file: 'src/client/views/mapDetailV2/wiring/pageActionHandlers.ts' }, // 卡片四个按钮的回调（注入提示词 / 新会话 / 复制链接 / 打开）
   { id: 'mapV2ProfileHeader', file: 'src/client/views/mapDetailV2/view/profile/MapProfileHeader.ts' },
   { id: 'mapV2CardFlow', file: 'src/client/views/mapDetailV2/view/flow/TicketCardFlow.ts' },
@@ -2111,8 +2134,6 @@ const CLIENT_TIME_NAMES: string[] = [
   'STATUS_MENU_FALLBACK_DELAY_MS',
   'SNAPSHOT_PROBE_MS',
   'STORE_NOTICE_DISMISS_MS',
-  // 刚选中快照的保护窗（snapshot-cache-store.ts 的水合守卫，#1240）。
-  'SNAPSHOT_PICKED_GUARD_MS',
   'ISSUE_DETAIL_CONFIRM_MS',
   'COMMENT_RESULT_FLASH_MS',
   'COMMENTS_MORE_LOADING_MIN_MS',
