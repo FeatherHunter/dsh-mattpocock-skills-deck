@@ -123,7 +123,6 @@ function deckCountsFor(scope: DeckViewScope, projection: any): any {
     triage: triage,
     backend: backend,
     kpi: kpi,
-    atMs: (backend && typeof backend.atMs === 'number') ? backend.atMs : 0,
   }
 }
 

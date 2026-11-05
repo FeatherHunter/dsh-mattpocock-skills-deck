@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T00:53:29.505Z",
+  "generatedAt": "2026-11-05T01:01:41.443Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 577,
   "gateCount": 577,
@@ -12598,6 +12598,7 @@
         "src/client/floating/SkillFloatList.ts",
         "src/client/kernel/api-handoff.ts",
         "src/client/kernel/api-io.ts",
+        "src/client/kernel/deck-view-binding.ts",
         "src/client/kernel/motion.ts",
         "src/client/kernel/router.ts",
         "src/client/kernel/settings-debug.ts",
@@ -12817,7 +12818,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 173 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 174 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
