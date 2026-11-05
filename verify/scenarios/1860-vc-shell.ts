@@ -2765,6 +2765,27 @@ async function runInteraction(context: ScenarioContext, page: PageHandle, raw: R
   }
 
   if (await openPalette('interact-palette-reopen', 'second')) {
+    // #1903 验收 7：四条历史能力在命令面板里各恰好一条主入口（面板沿用能力账本，页面正文不再另挂一个）。
+    const paletteCaps: Array<{ capId: string; rows: string[] }> = []
+    for (const capId of ['3.4', '3.7', '3.8', '3.12']) {
+      await setValue(page, '[data-vc-palette-input]', capId)
+      await sleep(400)
+      const probe = await evaluateThrough<{ rows: string[] }>(page, scriptOf([
+        '(function () {',
+        '  var rows = Array.prototype.map.call(document.querySelectorAll(' + JSON.stringify('[data-vc-palette-row]') + '), function (el) {',
+        '    return String(el.getAttribute(' + JSON.stringify('data-vc-palette-row') + ') || ' + JSON.stringify('') + ');',
+        '  });',
+        '  return { rows: rows };',
+        '})()',
+      ]))
+      paletteCaps.push({ capId: capId, rows: probe.ok ? probe.value.rows : [] })
+    }
+    facts.paletteCapRows = paletteCaps
+    const singles = paletteCaps.every(function (one) { return one.rows.filter(function (id) { return id === one.capId }).length === 1 })
+    add('interact-palette-caps-one-entry', singles, '#1903 四条历史能力在命令面板里各恰好一条主入口',
+      paletteCaps.map(function (one) { return one.capId + '：' + String(one.rows.filter(function (id) { return id === one.capId }).length) + ' 条' }).join('；'))
+    await setValue(page, '[data-vc-palette-input]', '')
+    await sleep(200)
     const backdrop = await evaluateThrough<{ ok: boolean; reason?: string }>(page, domClickScript(PALETTE_BACKDROP_SELECTOR))
     facts.backdropClick = backdrop.ok ? backdrop.value : { error: backdrop.error.message }
     const closed = await waitGone(page, PALETTE_SELECTOR, 5000)
