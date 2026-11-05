@@ -55,6 +55,12 @@ const vcChangesResultNodeOf = function (h: any, t: any, result: any): any {
     else if (op === 'rm-cached') text = t('vc.changes.view.resultUntracked', { name: name })
     else if (op === 'rm-tracked') text = t('vc.changes.view.resultDeleted', { name: name })
     else if (op === 'mv') text = t('vc.changes.view.resultRenamed', { from: name, to: String(r.to || '') })
+    // 整份文件的暂存与取消暂存也要说人话：宿主的回包里 cmd 就是 unstage 这样的动作名，
+    //   直接抄进「{cmd} 完成」会让人在真机上看到一行英文机器词（真机走查抓到的）。
+    else if (op === 'unstage') text = t('vc.changes.view.resultUnstagedFile', { name: name })
+    else if (op === 'stage-file') text = t('vc.changes.view.resultStagedFile', { name: name })
+    else if (op === 'discard-file') text = t('vc.changes.view.resultDiscardedFile', { name: name })
+    else if (op === 'ignore') text = t('vc.changes.view.resultIgnoredFile', { name: name })
     else text = t('vc.changes.result.ok', { cmd: String(r.cmd || op), ms: String(r.ms === undefined ? '' : r.ms), n: String(r.n === undefined ? 0 : r.n) })
   } else {
     const err: any = r.error || {}

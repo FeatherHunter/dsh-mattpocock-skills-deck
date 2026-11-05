@@ -365,8 +365,10 @@ export function cleanArgs(paths: string[]): string[] {
   return paths.length ? ['clean', '-fd', '--'].concat(paths) : ['clean', '-fd']
 }
 
-/** 删除已跟踪文件（能力 1.9）：同时把删除放进暂存区。 */
-export function rmArgs(paths: string[]): string[] { return ['rm', '--'].concat(paths) }
+/** 删除已跟踪文件（能力 1.9）：同时把删除放进暂存区。
+ *  一律带 -f：改动页只列有改动的文件，删除一条改过的文件时 git 会因为本地改动拒绝执行；
+ *  确认卡已经把「这次会丢掉多少行」说清楚了，所以按确认过的意图强制删。干净文件加 -f 没有额外后果。 */
+export function rmArgs(paths: string[]): string[] { return ['rm', '-f', '--'].concat(paths) }
 
 /** 只停止跟踪（能力 1.10）：删索引条目，文件留在工作区。 */
 export function rmCachedArgs(paths: string[]): string[] { return ['rm', '--cached', '--'].concat(paths) }

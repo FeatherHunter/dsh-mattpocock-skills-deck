@@ -255,9 +255,10 @@ export function createChangesCheck(deps: any): any {
       const one: any = await lsFilesOne(cwd, path)
       if (one.ok !== true) return one
       if (!one.tracked) return fail('args', 'nothing-to-do', '这个路径不在索引里；删除已跟踪文件只处理已跟踪的路径')
-      const e: any = entryOf(screen, path, 'unstaged')
-      const staged: any = entryOf(screen, path, 'staged')
-      if (staged || e) return fail('args', 'path-modified', writeHintFor('path-modified'))
+      // 已暂存的改动不许连坐：先把暂存撤了再删，免得一次动作同时改索引里的两件事。
+      // 未暂存的改动可以一起删——改动页只列有改动的文件，删除一条改过的文件正是它最常见的用法；
+      //   git rm 用 -f 才肯删，确认卡里已经把「会丢掉多少行」写清楚，用户点的是确认。
+      if (entryOf(screen, path, 'staged')) return fail('args', 'path-modified', '这个文件还有已暂存的改动，删除前请先撤回暂存')
       plan = makeChangesPlan({ op: 'rm-tracked', paths: [path] })
     } else if (op === 'rm-cached') {
       const badPath: any = pathArgProblem(a.path)

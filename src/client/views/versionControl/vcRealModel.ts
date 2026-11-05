@@ -308,14 +308,17 @@ export const vcRealChangesSeedOf = function (reads: any): any {
     if (row.untracked === true || status === '??' || status.indexOf('untracked') >= 0) untracked += 1
   }
   // #1829 文件行要逐行读数：把片里两组 FileEntry 归一成同一形状再交给界面；
-  //   缺字段给缺省值（change 缺省 modified、增删行数缺省 null 表示「不知道」），
-  //   一个文件同时有暂存与未暂存两边改动时会在两组各出现一行——这正是原型的两组，不在界面里合并。
+  //   缺字段给缺省值（change 缺省 modified、增删行数缺省 null 表示「不知道」）。
+  // #1902：row.staged 的含义是「这一行是从哪一组读来的」，不是文件在索引里有没有内容——宿主给每条
+  //   FileEntry 都带 staged/unstaged 两个布尔，两边都有改动的文件同一个条目会同时进两组；若照抄条目上的
+  //   staged，未暂存这一行会被当成「整份已暂存」，行的展开键、主按钮和差异读法全跟着错。所以这里只认分组。
+  //   一个文件两边都有改动时界面只画一行（未暂存那一行带 partial），由视图按两组的路径交集算出来。
   const normOf = function (row: any, inStaged: boolean): any {
     const change: string = String((row && row.change) || 'modified')
     return {
       path: String((row && row.path) || ''),
       origPath: String((row && row.origPath) || ''),
-      staged: inStaged ? true : row && row.staged === true,
+      staged: inStaged === true,
       unstaged: inStaged ? false : true,
       change: change,
       conflict: !!(row && row.conflict === true),

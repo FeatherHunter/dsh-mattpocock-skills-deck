@@ -42,7 +42,9 @@ export const vcChangesConfirmNodeOf = function (h: any, t: any, o: any): any {
     kids.push(h('p', { key: 'wont', className: 'changes-confirm-body', 'data-vc-file-confirm-seg': 'wont' }, t('vc.changes.confirm.wont')))
     kids.push(h('p', { key: 'rev', className: 'changes-confirm-meta', 'data-vc-file-confirm-seg': 'reversible' }, t('vc.changes.confirm.reversible', { answer: meta.reversible ? t('vc.changes.confirm.reversibleYes') : t('vc.changes.confirm.reversibleNo') })))
   }
-  if (metaText !== '') kids.push(h('p', { key: 'meta', className: 'changes-confirm-meta', 'data-vc-file-confirm-seg': 'lost' }, metaText))
+  // 「会丢掉多少行」只在真会丢内容时写：删除已跟踪、丢弃改动是丢；停止跟踪一个字节都不丢，
+  //   那张卡上写「会丢掉 新增 1 行」会让人以为文件内容会没。
+  if (metaText !== '' && !isUntrack) kids.push(h('p', { key: 'meta', className: 'changes-confirm-meta', 'data-vc-file-confirm-seg': 'lost' }, metaText))
   kids.push(h('div', { key: 'acts', className: 'changes-confirm-actions' }, [
     h('button', {
       key: 'cancel', type: 'button', className: 'btn btn-ghost btn-sm', 'data-vc-file-confirm-cancel': '1', 'data-focus-default': 'cancel',

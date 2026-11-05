@@ -158,8 +158,12 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
       const workKey: string = vcChangesSideKeyOf('unstaged', bare)
       const stageKey: string = vcChangesSideKeyOf('staged', bare)
       const openKey: string = String(values.openPath || '')
-      const open: boolean = openKey === workKey || openKey === stageKey
-      handlers.onValue('openPath', open ? '' : (r.staged === true ? stageKey : workKey))
+      // 只认「这一行自己的键」：同一个文件已经被整份暂存、从「未暂存」挪到「已暂存」之后，
+      //   旧的展开键还是未暂存那一行；若把两边都当成「这一行开着」，点新组里的行会被当成收起，
+      //   永远打不开（真机走查里点不出已暂存行那一份逐块差异，就是这里）。
+      const ownKey: string = r.staged === true ? stageKey : workKey
+      const open: boolean = openKey === ownKey
+      handlers.onValue('openPath', open ? '' : ownKey)
       if (open) return
       const have = function (key: string): any { return ((readsApi && readsApi.get && readsApi.get().diffs) || {})[key] }
       const need = function (key: string): boolean {

@@ -57,7 +57,7 @@ export const CHANGES_WRITE_OPS: ChangesOpMeta[] = [
   { op: 'discard-file', capId: '1.6', write: true, dangerous: true, confirm: true, reversible: true, command: 'git restore -- <path>（低于 2.23 用 git checkout -- <path>）' },
   { op: 'discard-all', capId: '1.7', write: true, dangerous: true, confirm: true, reversible: true, command: 'git restore -- .（低于 2.23 用 git checkout -- .）' },
   { op: 'clean-untracked', capId: '1.8', write: true, dangerous: true, confirm: true, reversible: false, command: 'git clean -fd -- <path>' },
-  { op: 'rm-tracked', capId: '1.9', write: true, dangerous: true, confirm: true, reversible: true, command: 'git rm -- <path>' },
+  { op: 'rm-tracked', capId: '1.9', write: true, dangerous: true, confirm: true, reversible: true, command: 'git rm -f -- <path>（连这个文件的未暂存改动一起删掉，确认卡里写明会丢多少行）' },
   // 停止跟踪不是危险动作（文件还在磁盘上，一个 add 就回来），但原型要求它先贴行确认一次：
   // 「危险」与「要确认」是两件事，这里 finally 用 Confirm 这一格说出来。
   { op: 'rm-cached', capId: '1.10', write: true, dangerous: false, confirm: true, reversible: true, command: 'git rm --cached -- <path>' },

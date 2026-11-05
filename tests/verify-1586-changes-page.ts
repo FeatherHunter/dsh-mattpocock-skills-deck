@@ -225,6 +225,16 @@ async function main() {
   check(cRevOk.calls.some(function (a: any) { return a[0] === 'diff' && a.indexOf('--cached') >= 0 }), 'C17 取消暂存的预检真的读了 --cached 那一份差异')
   const cRevNoStaged: any = mkCheck(screenStage, { runRead: cachedRead(DIFF_CACHED) })
   check((await cRevNoStaged.impl.handleChangesCheck({ cwd: REPO, op: 'stage-hunks', path: 'a.txt', hunkIndex: 0, reverse: true })).error.reason === 'nothing-to-do', 'C18 文件没有已暂存的改动时，取消暂存必须回 nothing-to-do')
+  // 删除已跟踪文件：改动页只列有改动的文件，所以「带未暂存改动」必须能删（前面确认卡已经写清会丢多少行）；
+  //   带已暂存改动时仍要拦，免得一次动作同时改索引里的两件事。
+  const screenModified = makeScreen({ unstaged: [{ path: 'a.txt', change: 'M' }], unstagedCount: 1 })
+  const cRmModified: any = mkCheck(screenModified, { indexText: INDEX_ONE, pathIndexText: INDEX_ONE })
+  const rRmModified: any = await cRmModified.impl.handleChangesCheck({ cwd: REPO, op: 'rm-tracked', path: 'a.txt' })
+  check(rRmModified.ok === true && rRmModified.confirmRequired === true, 'C19 删除已跟踪文件：带未暂存改动也应发允许票（确认卡负责写清会丢掉什么）')
+  const screenRmStaged = makeScreen({ staged: [{ path: 'a.txt', change: 'M' }], stagedCount: 1 })
+  const cRmStaged: any = mkCheck(screenRmStaged, { indexText: INDEX_ONE, pathIndexText: INDEX_ONE })
+  const rRmStaged: any = await cRmStaged.impl.handleChangesCheck({ cwd: REPO, op: 'rm-tracked', path: 'a.txt' })
+  check(envelopeShape(rRmStaged) && rRmStaged.error.reason === 'path-modified', 'C20 删除已跟踪文件：还有已暂存改动时仍拦（先撤回暂存再删）')
   const cIgn: any = mkCheck(makeScreen(), { checkIgnoreText: '.gitignore:3:*.log\tx.log\n' })
   const rIgn: any = await cIgn.impl.handleChangesCheck({ cwd: REPO, op: 'explain-ignored', path: 'x.log' })
   check(rIgn.ok === true && rIgn.ignored === true && rIgn.match && rIgn.match.line === 3 && rIgn.match.pattern === '*.log', 'C13 查为什么被忽略：命中时回规则来源与行号')
@@ -318,6 +328,12 @@ async function main() {
   check(rRev.ok === true && revApply.length === 1 && revApply[0].indexOf('--cached') >= 0 && revApply[0].indexOf('--reverse') >= 0 && revApply[0][revApply[0].length - 1] === 'C:/tmp/p.patch', 'D19 取消暂存：临时补丁是独立参数，执行的是 git apply --cached --reverse')
   check(wRev.tempPatches.length === 1 && wRev.tempPatches[0].indexOf('@@ -10,2 +11,2 @@') >= 0 && wRev.deleted.length === 1, 'D20 取消暂存写出的补丁是「索引相对 HEAD」的第 2 块，用完即删')
   check(applyCalls[0].indexOf('--reverse') < 0, 'D21 正向逐块暂存绝不带 --reverse')
+  const preRm: any = await ticketFor('rm-tracked', { path: 'x.txt' }, { indexText: INDEX_ONE.replace('a.txt', 'x.txt'), pathIndexText: INDEX_ONE.replace('a.txt', 'x.txt') }, makeScreen({ unstaged: [{ path: 'x.txt', change: 'M' }], unstagedCount: 1 }))
+  const wRm: any = makeWrite(makeScreen({ unstaged: [{ path: 'x.txt', change: 'M' }], unstagedCount: 1 }), { indexText: INDEX_ONE.replace('a.txt', 'x.txt') }, preRm.tickets)
+  const wImplRm: any = writeMod.createChangesWrite(wRm.deps)
+  const rRm: any = await wImplRm.handleChangesWrite({ cwd: REPO, op: 'rm-tracked', ticketId: preRm.pre.ticket.id, requestId: 'r-rm' })
+  const rmCalls = wRm.calls.filter(function (a: any) { return a[0] === 'rm' })
+  check(rRm.ok === true && rmCalls.length === 1 && JSON.stringify(rmCalls[0]) === JSON.stringify(['rm', '-f', '--', 'x.txt']), 'D22 删除已跟踪文件：执行 argv 带 -f，路径在 -- 之后')
 
 
   // ===== F 逐块暂存与三个行级动作的界面（#1902） =====
@@ -413,6 +429,7 @@ async function main() {
   const confirmRow: any = rowLeaf.vcChangesFileRowNode(hoverH, fakeT2, partialRow, confirmCtx)
   const card: any = findAll(confirmRow, function (n: any) { return n.props && n.props['data-vc-file-confirm'] === 'rm-cached' })[0]
   check(!!card && textOf(card).indexOf('vc.changes.view.confirmUntrackTitle') >= 0 && textOf(card).indexOf('vc.changes.view.confirmUntrackBody') >= 0, 'F16 停止跟踪的确认卡写「停止跟踪 <文件名>？」与「文件还在磁盘上」')
+  check(textOf(card).indexOf('vc.changes.view.confirmLost') < 0 && textOf(card).indexOf('vc.changes.view.lostAdded') < 0, 'F16b 停止跟踪一个字节都不丢，卡上不写「会丢掉几行」（真机走查抓到过这句误导）')
   const goBtn: any = findAll(card, function (n: any) { return n.props && n.props['data-vc-file-confirm-go'] !== undefined })[0]
   goBtn.props.onClick()
   check(rowCalls.filter(function (c: any) { return c.kind === 'run' && c.op === 'rm-cached' && c.ticket.ticketId === 'tk1' }).length === 1, 'F17 确认之后凭票执行，不再重复预检')
@@ -503,6 +520,12 @@ async function main() {
   seedValues.openPath = ''
   await hImpl.onOpen('c.txt', { path: 'c.txt', partial: false })
   check(readCalls.length === singleBefore + 1 && readCalls[singleBefore].side === 'unstaged', 'F32 普通未暂存行只读「索引相对工作区」那一侧')
+  // 同一个文件从「未暂存」挪到「已暂存」以后，旧的展开键还是未暂存那一行的；点新组里的行不能当成「收起」。
+  const switchBefore: number = readCalls.length
+  seedValues.openPath = 'worktree:d.txt'
+  await hImpl.onOpen('d.txt', { path: 'd.txt', staged: true })
+  check(hState.values.openPath === 'staged:d.txt' && readCalls.length === switchBefore + 1 && readCalls[switchBefore].side === 'staged',
+    'F33 点已暂存那一行：展开键换成 staged，并真的去读「索引相对 HEAD」那一份（真机走查抓到的：旧判据把它当成收起，永远打不开）')
 
   // ===== E 登记点与词条 =====
   const leafSrcForOps = sourceText('src/client/views/versionControl/vcChangesPage.ts')
@@ -524,6 +547,7 @@ async function main() {
   check(checkSrc.indexOf('VC_CHANGES_READ_TIMEOUT_MS') >= 0 && writeSrc.indexOf('VC_CHANGES_WRITE_TIMEOUT_MS') >= 0, 'E8 两个叶子各自使用登记过的超时常量')
   const shellSrc = sourceText('src/client/views/versionControl/vcShellPages.ts')
   check(shellSrc.indexOf('vcChangesPageNode') >= 0 && shellSrc.indexOf("page === 'changes'") >= 0 && shellSrc.indexOf("opts.changes !== undefined") >= 0 && shellSrc.indexOf('changes: opts.changes') >= 0, 'E9 页面壳只在传了改动页数据时挂载，旧渲染不受影响')
+  check(proto.CHANGES_WRITE_OPS.filter(function (m: any) { return m.op === 'rm-tracked' })[0].command.indexOf('-f') >= 0, 'E10b 删除已跟踪文件的命令说明写明 -f（改动页只列有改动的文件，不带 -f 会被 git 拒绝）')
   check(proto.CHANGES_WRITE_OPS.every(function (m: any) { return checkSrc.indexOf("'" + m.op + "'") >= 0 }), 'E10 七个登记点之一：预检判定分支覆盖 11 个写动作')
   check(proto.CHANGES_WRITE_OPS.every(function (m: any) { return writeSrc.indexOf("'" + m.op + "'") >= 0 }), 'E11 七个登记点之二：执行叶子覆盖 11 个写动作')
   check(proto.CHANGES_WRITE_OPS.every(function (m: any) { return leafSrcForOps.indexOf("'" + m.op + "'") >= 0 }), 'E12 界面视图名单逐条列出 11 个写动作（不靠协议运行时求值）')
