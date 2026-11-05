@@ -258,7 +258,8 @@ async function main() {
     // #1776 M4b 加了远端预检电话 wf.gitRemoteCheck（远端四条写动作改成预检签票 → 确认卡 → 凭票执行），118 → 119。
     // 2026-11-03：工作区身份记录机制撤掉，四条工作区电话（ensureWorkspaceRecord / markWorkspaceRoot /
     //   workspaceFacts / joinParentWorkspace）一起删除，121 / 123 两笔回退，期望回到 119。
-    check(nPhones === 119, '宿主电话一百一十九条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1903 加了提交备注两条电话 wf.gitNoteCheck / wf.gitNoteWrite（预检签票、凭票执行），119 → 121。
+    check(nPhones === 121, '宿主电话一百二十一条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

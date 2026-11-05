@@ -153,7 +153,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-11-05 #1903：提交历史页补上四条能力（搜索范围、只看单个文件、比较两个引用、提交备注）的
   //   界面断言——范围切换与两种范围的判定、代码范围命中文件、只看标签与结果条、比较表单与结果头、
   //   详情里的文件行菜单与备注段；单跑实测 776 条。
-  'verify-818-version-control-view': 786,
+  'verify-818-version-control-view': 791,
   // 2026-11-01 #1776 M4b：远端写通道改成凭票执行后补一条「不带票直接执行必须判红」的断言，单跑实测 296 条。
   'verify-841-write-phones': 296,
   // 2026-11-01 #1776（规格 #1586 M1）：真实页签在 jsdom 里真挂载的门禁——假宿主记录每次电话，
@@ -187,11 +187,11 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-11-05 #1903：历史页四条能力真挂载一遍——范围切换只改本地筛选、比较两个引用真的打
   //   wf.gitHistoryQuery（kind=compare）、认不出的引用原样说、文件行菜单真的读单文件历史、
   //   备注保存真的走 wf.gitNoteCheck → wf.gitNoteWrite；单跑实测 293 条。
-  'verify-1776-vc-live-tab': 293,
+  'verify-1776-vc-live-tab': 296,
   // 2026-11-05 #1903：历史页四条能力的后端半边——提交改到了哪些文件怎么拼怎么解析、备注的输入口径与 argv、
   //   备注写路径的票据门（票不在 / 过期 / 换仓库 / 备注在确认之后被改过都零写命令）、比较两个引用时
   //   认不出的一端原样报回来；单跑实测 45 条。
-  'verify-1903-history-entries': 45,
+  'verify-1903-history-entries': 50,
   // 2026-11-01 #1763（规格 #1586 T27）：覆盖验收门禁——命令面板搜 162 条全部命中并跳到账本声明页、
   // 计数 119/36/7 与页面分布求和一致、逐页主入口与全量渲染、占位话术清零、五个门禁完成记录可查，
   // 外加 6 条反证；评审后补了 19 条版本限制逐条与替代做法反证。
@@ -226,7 +226,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-11-01 #1745（规格 #1586 T10）：历史高级查询与追溯十条能力（3.4–3.13）——参数口径与输入校验、
   // 真 git 输出样本的解析（截断与坏输入显式失败）、客户端目录与账本同源、四条本地预检、四态读数与
   // 空结果/截断说明、宿主电话十条回包与日志白名单、三条反证，单跑实测 156 条。
-  'verify-1586-history-query': 156,
+  'verify-1586-history-query': 157,
   // 2026-11-01 #1743（规格 #1586 T08）：提交页域 2 八条能力——共享提交计划的 argv 逐元素、计划校验、
   // 宿主只读表单电话（身份/签名配置/commit.template/上一条提交原文）、预检按形态调整判定并绑计划摘要、
   // 危险动作（修订与 fixup/squash）绕不过确认卡、真实 git 执行与失败分类，以及客户端面板渲染
@@ -572,7 +572,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 管理索引卡补上原型里的范围摘要（卡头 vc.shell.gear.summary.<分区>）与本页条数（卡脚 vc.shell.page.caps），
   // 快捷入口的文案要从 label 子节点取（按钮里先画箭头图标），断言增到 67 条。
   // 2026-11-05 #1881：页头加 hideCount 开关，补一条 C6 钉住「true 收起、false 与缺省照旧」；78 涨到 79。
-  'verify-1829-page-head': 79,
+  // 2026-11-05 #1843：页头加 danger 开关，补一条 C7 钉住「维护页挂『含不可逆动作』且计数仍收起」；79 涨到 80。
+  'verify-1829-page-head': 80,
   'verify-1829-manage-index': 67,
   'verify-1829-palette-overlay': 39,
   'verify-1829-branch-popover': 23,

@@ -1099,6 +1099,9 @@ async function scenarioHistoryFourEntries() {
   }
   const queryCalls = []
   const noteCalls = []
+  // 假宿主要记得住「这条提交现在有什么备注」：不记的话，「打开一条已有备注的提交、什么都不改直接点保存」
+  // 这条路径在门禁里根本不成立（真机上它会把备注删掉）。
+  let savedNote = ''
   const host = makeHost({
     reply: {
       'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
@@ -1119,16 +1122,17 @@ async function scenarioHistoryFourEntries() {
         if (String(a.kind) === 'file-history') {
           return { ok: true, kind: 'file-history', path: String((a.params || {}).path || ''), commits: [snap.slices.history.data.commits[0]], count: 1, reason: 'ok' }
         }
-        if (String(a.kind) === 'notes') return { ok: true, kind: 'notes', note: null, reason: 'no-note', rev: String((a.params || {}).rev || '') }
+        if (String(a.kind) === 'notes') return { ok: true, kind: 'notes', note: savedNote === '' ? null : savedNote, reason: savedNote === '' ? 'no-note' : 'ok', rev: String((a.params || {}).rev || '') }
         return { ok: false, error: { kind: 'args', message: 'unexpected' } }
       },
       'wf.gitNoteCheck': function (args) {
         noteCalls.push({ phone: 'check', rev: String((args || {}).rev || ''), text: String((args || {}).text || '') })
+        savedNote = String((args || {}).text || '')
         return { ok: true, ticket: { id: 'tk-note', op: 'note', checkedAtMs: NOW, expiresAtMs: NOW + 120000 }, plan: { rev: A, text: String((args || {}).text || ''), removing: false, hadNote: false } }
       },
       'wf.gitNoteWrite': function (args) {
         noteCalls.push({ phone: 'write', ticketId: String((args || {}).ticketId || ''), requestId: String((args || {}).requestId || '') })
-        return { ok: true, cmd: 'git notes add', rev: A, removing: false, note: '这一版为了兼容旧数据' }
+        return { ok: true, cmd: 'git notes add', rev: A, removing: false, note: savedNote }
       },
     },
   })
@@ -1211,6 +1215,20 @@ async function scenarioHistoryFourEntries() {
   await m.click('[data-vc-history-back]')
   check(m.qa('[data-vc-history-note-tag]').length === 1 && m.q('[data-vc-history-note-tag]') !== null,
     'T41u 回到列表，写过备注的那一条带「备注」标记')
+
+  // 打开一条已经写过备注的提交、什么都不改直接点保存：不许把那条备注当成空草稿删掉。
+  noteCalls.length = 0
+  await m.click('[data-vc-history-open="' + A + '"]')
+  await settle()
+  const noteInput = m.q('[data-vc-history-note-input]')
+  check(!!noteInput && String(noteInput.value) === '这一版为了兼容旧数据',
+    'T41v 打开已有备注的提交，输入框里就是那条备注的原文（实得「' + String((noteInput || {}).value) + '」）')
+  await m.click('[data-vc-history-note-save]')
+  await settle()
+  const recheck = noteCalls.filter(function (one) { return one.phone === 'check' })[0]
+  check(!!recheck && recheck.text === '这一版为了兼容旧数据',
+    'T41w 什么都不改直接点保存，带上去的是原文而不是空串（空串会被当成删除；实得 ' + JSON.stringify(recheck && recheck.text) + '）')
+  check(String(m.text('[data-vc-history-note-result]')).indexOf('已保存') >= 0, 'T41x 这一下照常是「已保存」，不是「已删除」')
   await m.unmount()
 }
 

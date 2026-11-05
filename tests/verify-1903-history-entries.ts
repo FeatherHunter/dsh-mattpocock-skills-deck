@@ -96,9 +96,15 @@ async function main() {
   check(made.writes().length === 0, 'C9 备注被改过时零写命令')
 
   made.advance(ok.ticket.expiresAtMs - made.deps.nowMs() + 1)
+  const spawnsBeforeExpired = made.spawns()
   const expired = await phones.write({ cwd: '/w/repo', ticketId: ok.ticket.id, requestId: 'req-expired' })
   check(expired.ok === false && expired.error.reason === 'ticket-expired', 'C10 票过期：拒绝')
   check(made.writes().length === 0, 'C11 票过期时零写命令')
+  // ADR 20261004 第 5 条：票失效时一个进程都不许起 —— 连 rev-parse 那条只读命令也不许。
+  check(made.spawns() === spawnsBeforeExpired, 'C11b 票过期时连一个进程都没起（纯判定先行，实得多起 ' + String(made.spawns() - spawnsBeforeExpired) + ' 个）')
+  const spawnsBeforeMissing = made.spawns()
+  const missing = await phones.write({ cwd: '/w/repo', ticketId: 'tk-nope', requestId: 'req-missing' })
+  check(missing.ok === false && missing.error.reason === 'ticket-missing' && made.spawns() === spawnsBeforeMissing, 'C11c 票不在时也一个进程都不起')
 
   const ok2 = await phones.check({ cwd: '/w/repo', rev: 'HEAD', text: '这一版为了兼容旧数据' })
   const wrote = await phones.write({ cwd: '/w/repo', ticketId: ok2.ticket.id, requestId: 'req-ok' })
@@ -108,6 +114,13 @@ async function main() {
 
   const replay = await phones.write({ cwd: '/w/repo', ticketId: ok2.ticket.id, requestId: 'req-ok' })
   check(replay.ok === true && made.writes().length === 1, 'C14 同一个 requestId 重放回第一次的结果，不重复写（连点两下不会写两遍）')
+
+  // 读不动 git 时不许说「找不到这个提交 / 这条提交还没有备注」：那是把「读不到」当成「没有」。
+  const broken = makeNoteDeps({ note: '', revKnown: {} })
+  broken.deps.runPinned = async () => ({ kind: 'spawn-failed', message: 'spawn ENOENT' })
+  const brokenCheck = await NOTE.createNotePhones(broken.deps).check({ cwd: '/w/repo', rev: 'HEAD', text: '写一句' })
+  check(brokenCheck.ok === false && brokenCheck.error.reason === 'read-failed',
+    'C16 起不动进程时如实说「读不到」，不冒充「找不到这个提交」（实得 ' + text(brokenCheck.error && brokenCheck.error.reason) + '）')
 
   const removed = makeNoteDeps({ note: '旧的备注', revKnown: { HEAD: OID_A } })
   const rmPhones = NOTE.createNotePhones(removed.deps)
@@ -127,6 +140,13 @@ async function main() {
   const known = await histPhone({ cwd: '/w/repo', kind: 'compare', params: { left: 'HEAD~1', right: 'HEAD' } })
   check(known.ok === true && Array.isArray(known.files) && known.leftOid === OID_B && known.rightOid === OID_A, 'D3 两端都认得出：结果里带上解析后的两个提交号')
   check(histDeps.diffs() === 1, 'D4 正常比较只跑一条 diff')
+
+  // ---------------- ④b 客户端那两个上限与共享层逐条相等 ----------------
+  console.log('D2 客户端的上限与共享层同源')
+  const OPS = await import(modUrl('src/client/views/versionControl/vcHistoryOps.ts'))
+  check(OPS.VC_NOTE_TEXT_MAX === NO.NOTE_TEXT_MAX, 'D2a 客户端备注上限等于共享层 NOTE_TEXT_MAX（客户端 ' + String(OPS.VC_NOTE_TEXT_MAX) + ' / 共享层 ' + String(NO.NOTE_TEXT_MAX) + '）')
+  const HQ = await import(modUrl('src/shared/version-control/src/history-query-commands.ts'))
+  check(OPS.VC_HISTORY_FILE_MAX === HQ.HISTORY_QUERY_COUNT_MAX, 'D2b 客户端单文件历史上限等于共享层 HISTORY_QUERY_COUNT_MAX（客户端 ' + String(OPS.VC_HISTORY_FILE_MAX) + ' / 共享层 ' + String(HQ.HISTORY_QUERY_COUNT_MAX) + '）')
 
   // ---------------- ⑤ 给一批提交补上文件清单与备注标记 ----------------
   console.log('E 给一批提交补上「改到了哪些文件」与「哪几条有备注」')
@@ -179,10 +199,11 @@ async function main() {
  * 每一次写命令都记进 writes()，票据门要求「一格不对就零写命令」，门禁就数这个数组。
  */
 function makeNoteDeps(init) {
-  const s = { note: text(init.note), list: [], now: Date.parse('2026-11-05T10:00:00+08:00') }
+  const s = { note: text(init.note), list: [], spawns: 0, now: Date.parse('2026-11-05T10:00:00+08:00') }
   const deps = {
     failPhone: (kind, message) => ({ ok: false, error: { kind: kind, message: message || '' } }),
     runPinned: async (exe, root, argv) => {
+      s.spawns += 1
       if (argv[0] === 'rev-parse') {
         const rev = String(argv[3] || '').replace('^{commit}', '')
         const oid = init.revKnown[rev]
@@ -208,6 +229,7 @@ function makeNoteDeps(init) {
     writes: () => s.list,
     setNote: (v) => { s.note = text(v) },
     advance: (ms) => { s.now += Number(ms) || 0 },
+    spawns: () => s.spawns,
   }
 }
 

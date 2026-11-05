@@ -2235,14 +2235,10 @@ async function captureHistoryEntries(
   const codeFacts = await readHistoryFacts(page)
   facts.codeSearch = codeFacts
   if (codeFacts === null || String(codeFacts.scopeOn) !== 'code') fail('范围没有停在「代码变化」')
-  // 命中标记画在提交行的小字区里，而那一区只在 460 及更宽的档位才画（原型同一条规矩）：
-  //   窄档只验「列表被筛短了」，宽档再验「命中行写出了是哪份文件」。
-  if (width >= 460) {
-    if (codeFacts === null || codeFacts.hits.length === 0) fail('代码范围没有命中任何文件')
-    if (codeFacts !== null && codeFacts.hitTexts.length > 0 && String(codeFacts.hitTexts[0]).indexOf('命中') < 0) fail('命中标记上没有写「命中」')
-  } else if (codeFacts === null || codeFacts.rows <= 0 || codeFacts.rows >= 50) {
-    fail('代码范围没有把列表筛短（实际 ' + String(codeFacts === null ? '读不到' : codeFacts.rows) + ' 行）')
-  }
+  // 三档宽都要验命中标记：小字区在窄档会整块折掉，那两枚标记单独占一行（未见过的写法会在 300 / 380 漏掉）。
+  if (codeFacts === null || codeFacts.hits.length === 0) fail('代码范围没有命中任何文件')
+  if (codeFacts !== null && codeFacts.hitTexts.length > 0 && String(codeFacts.hitTexts[0]).indexOf('命中') < 0) fail('命中标记上没有写「命中」')
+  if (codeFacts !== null && (codeFacts.rows <= 0 || codeFacts.rows >= 50)) fail('代码范围没有把列表筛短（实际 ' + String(codeFacts.rows) + ' 行）')
   await closeOverlayIfAny(page, raw)
   const shotCode = await captureScreenshot(context, page, subdir, 'history-code-search', '按代码变化搜（' + String(width) + ' 档 / ' + skin + '）')
   evidence.push(...shotCode.paths)
@@ -2280,6 +2276,16 @@ async function captureHistoryEntries(
   if (!(await waitFor(page, HISTORY_FILE_HISTORY, 5000))) fail('菜单里没有「看这个文件的历史」')
   const shotMenu = await captureScreenshot(context, page, subdir, 'history-file-menu', '详情文件行的「⋯」菜单（' + String(width) + ' 档 / ' + skin + '）')
   evidence.push(...shotMenu.paths)
+  // 这一行到底是哪个文件：点完之后要用它核对「只看」标签与列表，光看标签在不在一格太弱。
+  const menuEntry = await evaluateThrough<string>(page, scriptOf([
+    '(function () {',
+    '  var el = document.querySelector(' + JSON.stringify(HISTORY_FILE_HISTORY) + ');',
+    '  return el === null ? ' + JSON.stringify('') + ' : String(el.getAttribute(' + JSON.stringify('data-vc-history-file-history') + ') || ' + JSON.stringify('') + ');',
+    '})()',
+  ]))
+  const wantedFile: string = menuEntry.ok ? String(menuEntry.value) : ''
+  const rowsBefore = await evaluateThrough<number>(page, 'document.querySelectorAll(' + JSON.stringify(HISTORY_ROWS) + ').length')
+  const rowsBeforeCount: number = rowsBefore.ok ? rowsBefore.value : -1
   if (!(await clickPage(page, raw, HISTORY_FILE_HISTORY)).ok) fail('点不动「看这个文件的历史」')
   if (!(await waitFor(page, '[data-vc-history-file-only-strip]', 10000))) fail('点完之后没有出现「只看 …」标签')
   // 标签一挂出来就截，会截到「正在读这个文件的历史……」那一屏；等列表行真的画出来再截。
@@ -2296,17 +2302,21 @@ async function captureHistoryEntries(
       '  };',
       '})()',
     ]))
-    if (probe.ok && (probe.value.rows > 0 || probe.value.empty)) { fileListed = true; break }
+    // 不能只看「有行」：点之前列表就有行，那样会立刻判过。要等行数真的换了，或者给了一句空态。
+    if (probe.ok && ((probe.value.rows > 0 && probe.value.rows !== rowsBeforeCount) || probe.value.empty)) { fileListed = true; break }
     if (probe.ok && probe.value.error !== '') { fail('单文件历史读失败：' + snippet(probe.value.error, 120)); break }
     await sleep(400)
   }
-  if (!fileListed && failures.length === 0) fail('点了之后列表一直没有画出提交行')
+  if (!fileListed && failures.length === 0) fail('点了之后列表一直没有换成这份读数（点之前 ' + String(rowsBeforeCount) + ' 行）')
   await sleep(400)
   const fileFacts = await readHistoryFacts(page)
   facts.fileOnly = fileFacts
   if (fileFacts !== null) {
     if (fileFacts.strip === null) fail('「只看 …」标签上没有写出文件路径')
+    // strip 是「有没有这枚标签」的标记，路径在标签文字里（标签上写的就是完整路径）。
+    if (wantedFile !== '' && String(fileFacts.stripText || '').indexOf(wantedFile) < 0) fail('「只看」标签上的文件不是刚才点的那一个（期望 ' + wantedFile + '，实得 ' + String(fileFacts.stripText) + '）')
     if (String(fileFacts.resultText || '').indexOf('只看') < 0) fail('结果说明没有写明现在只看哪个文件')
+    if (fileFacts.rows <= 0) fail('只看某个文件时列表里没有提交行（这份读数没画出来）')
   }
   await closeOverlayIfAny(page, raw)
   const shotFileOnly = await captureScreenshot(context, page, subdir, 'history-file-only', '只看某个文件的历史（' + String(width) + ' 档 / ' + skin + '）')
@@ -2435,6 +2445,51 @@ async function captureHistoryEntries(
   const backFacts = await readHistoryFacts(page)
   facts.noteTagInList = backFacts === null ? -1 : backFacts.noteTags
   if (backFacts === null || backFacts.noteTags < 1) fail('回到列表之后，写过备注的那一条没有「备注」标记')
+
+  // ⑤c 打开一条已经写过备注的提交、什么都不改直接点保存：不许把这条备注当成空草稿删掉。
+  let headRowAgain = false
+  for (let i = 0; i < 25; i += 1) {
+    const probe = await evaluateThrough<boolean>(page, 'document.querySelector(' + JSON.stringify('[data-vc-history-open="' + headForNote + '"]') + ') !== null')
+    if (probe.ok && probe.value === true) { headRowAgain = true; break }
+    await sleep(400)
+  }
+  if (!headRowAgain) fail('第二次进详情：列表里等不到 HEAD 那一行')
+  await evaluateThrough<boolean>(page, scriptOf([
+    '(function () {',
+    '  var el = document.querySelector(' + JSON.stringify('[data-vc-history-open="' + headForNote + '"]') + ');',
+    '  if (el === null) { return false; }',
+    '  el.click();',
+    '  return true;',
+    '})()',
+  ]))
+  if (!(await waitFor(page, HISTORY_NOTE_SAVE, 10000))) fail('第二次进详情：备注段没有挂出来')
+  // 等输入框里真的出现那条备注原文再点保存：备注还在读的时候点，产品会当成「空草稿」什么也不做。
+  let notePrefilled = false
+  for (let i = 0; i < 25; i += 1) {
+    const probe = await evaluateThrough<string>(page, scriptOf([
+      '(function () {',
+      '  var el = document.querySelector(' + JSON.stringify(HISTORY_NOTE_INPUT) + ');',
+      '  return el === null ? ' + JSON.stringify('') + ' : String(el.value);',
+      '})()',
+    ]))
+    if (probe.ok && String(probe.value) === NOTE_TEXT) { notePrefilled = true; break }
+    await sleep(300)
+  }
+  if (!notePrefilled) fail('打开已有备注的提交时，输入框里没有带出那条备注的原文')
+  if (!(await clickPage(page, raw, HISTORY_NOTE_SAVE)).ok) fail('第二次保存点不动')
+  // 等这一下真的出结论：备注本来就在，直接去数 git 会立刻「通过」，读不到「保存还没回来」这件事。
+  await waitFor(page, '[data-vc-history-note-result]', 20000)
+  await sleep(400)
+  let stillThere = false
+  for (let i = 0; i < 20; i += 1) {
+    if (noteOidsInFixture().indexOf(headForNote) >= 0) { stillThere = true; break }
+    await sleep(300)
+  }
+  const reSaveFacts = await readHistoryFacts(page)
+  facts.noteResave = reSaveFacts
+  if (!stillThere) fail('什么都不改直接点保存，把这条备注删掉了（应当原样保存）')
+  if (reSaveFacts === null || String(reSaveFacts.noteResult || '').indexOf('已保存') < 0) fail('第二次保存的结论行不是「已保存」（实得「' + String(reSaveFacts && reSaveFacts.noteResult) + '」）')
+  await clickPage(page, raw, '[data-vc-history-back]')
 
   const recorded = await recordBoth(context, subdir, 'history-entries.json', Object.assign({ width: width, skin: skin, failures: failures, calibration: calibration }, facts), '四条历史能力 @ ' + String(width) + ' / ' + skin + ' 的取数与判据')
   evidence.push(...recorded)

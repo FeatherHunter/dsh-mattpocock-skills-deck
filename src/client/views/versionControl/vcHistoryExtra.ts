@@ -9,6 +9,8 @@
 // 可见文字一律走 t()，这一叶不写中文字面量。
 
 declare const React: any
+declare const VC_HISTORY_SCOPES: string[]
+declare function vcHistoryNameOf(...args: any[]): string
 declare function vcPageIconOf(...args: any[]): any
 declare function vcOneLine(...args: any[]): any
 declare function vcHistoryScopeOf(...args: any[]): string
@@ -16,14 +18,14 @@ declare function vcHistoryCompareSummaryOf(...args: any[]): string
 declare function vcHistoryReadOf(...args: any[]): any
 declare function vcHistoryDataOf(...args: any[]): any
 declare function vcHistoryDirOf(...args: any[]): string
-declare function vcHistoryFileNameOf(...args: any[]): string
 declare function vcHistoryNameOf(...args: any[]): string
 declare function vcNoteDraftOf(...args: any[]): string
 declare function vcNewNoteWrite(...args: any[]): any
 
+// 两颗按钮的次序就是 VC_HISTORY_SCOPES 的次序：范围名单只有一处，画法与判定都按它排。
 const VC_HISTORY_SCOPE_BTNS: any[] = [
-  { scope: 'message', labelKey: 'vc.shell.history.scopeMessage', hintKey: 'vc.shell.history.scopeMessageHint' },
-  { scope: 'code', labelKey: 'vc.shell.history.scopeCode', hintKey: 'vc.shell.history.scopeCodeHint' },
+  { scope: VC_HISTORY_SCOPES[0], labelKey: 'vc.shell.history.scopeMessage', hintKey: 'vc.shell.history.scopeMessageHint' },
+  { scope: VC_HISTORY_SCOPES[1], labelKey: 'vc.shell.history.scopeCode', hintKey: 'vc.shell.history.scopeCodeHint' },
 ]
 
 /** 搜索框右边的范围切换：两颗小按钮，选中态同时改颜色与 aria-pressed，读屏器也听得出来。 */
@@ -213,8 +215,10 @@ const VC_NOTE_REASON_KEY: Record<string, string> = {
 }
 
 /** 备注这一段的结论行：写成功说保存了还是删了，写失败按稳定理由说，其余情况什么都不说。 */
-const vcNoteResultTextOf = function (t: any, ui: any): string {
+const vcNoteResultTextOf = function (t: any, ui: any, rev: any): string {
   const one: any = ui.historyNote || vcNewNoteWrite()
+  // 结论行跟着它写的那条提交走：换一条提交时，上一条的「已保存 / 已删除」不能挂在这一条的底下。
+  if (String(one.rev || '') !== String(rev || '')) return ''
   if (one.state === 'ok') return one.removing === true ? t('vc.shell.history.noteRemoved') : t('vc.shell.history.noteSavedOk')
   if (one.state === 'err') {
     const reason: string = String((one.error && one.error.reason) || '')
@@ -255,13 +259,14 @@ export const vcHistoryNoteNode = function (h: any, t: any, o: any) {
     'aria-label': t('vc.shell.history.noteTitle'),
     defaultValue: initial,
   }))
-  const result: string = vcNoteResultTextOf(t, ui)
+  const result: string = vcNoteResultTextOf(t, ui, rev)
   if (result !== '') kids.push(h('p', { key: 'res', className: 'detail-notes-hint', 'data-vc-history-note-result': (ui.historyNote || {}).state || '' }, result))
   kids.push(h('div', { key: 'acts', className: 'detail-notes-actions' }, [
     h('button', {
       key: 'save', type: 'button', className: 'btn btn-primary btn-sm',
       'data-vc-history-note-save': '1', 'data-press': 'button', 'data-log': 'vc.history.note.save',
-      disabled: ui.historyNote && ui.historyNote.state === 'saving' ? true : undefined,
+      // 备注还在读的时候不让点：这一刻草稿还是空的，点下去会被当成「空草稿」什么也不做。
+      disabled: (ui.historyNote && ui.historyNote.state === 'saving') || (read && read.state === 'loading' && !sameRev) ? true : undefined,
     }, t('vc.shell.history.noteSave')),
   ]))
   return h('div', { key: 'note', className: 'detail-notes', 'data-vc-history-note': rev }, kids)
@@ -282,7 +287,7 @@ export const vcHistoryMarksNode = function (h: any, t: any, o: any) {
       key: 'hit', className: 'chip chip-sm chip-info',
       'data-vc-history-hit': hitPath,
       'aria-label': t('vc.shell.history.hitTag', { name: hitPath }),
-    }, t('vc.shell.history.hitTag', { name: vcHistoryFileNameOf(hitPath) })))
+    }, t('vc.shell.history.hitTag', { name: vcHistoryNameOf(hitPath) })))
   }
   if (hasNote) {
     kids.push(h('span', {
@@ -315,7 +320,9 @@ export const vcHistoryToolsNode = function (h: any, t: any, o: any) {
       placeholder: placeholder, 'aria-label': placeholder,
       autoComplete: 'off', spellCheck: false, defaultValue: query,
     }),
-    vcHistoryScopeSwitchNode(h, t, { scope: scope }),
+    // 只看某个文件时这份读数里没有文件清单，代码范围那套按路径匹配没有依据，切了也不会有任何变化：
+    //   这一格不画范围按钮，只留搜索框（按说明/作者在结果里筛）。
+    String(ui.historyFileOnly || '') === '' ? vcHistoryScopeSwitchNode(h, t, { scope: scope }) : null,
   ]
   const row: any[] = [
     h('button', {
