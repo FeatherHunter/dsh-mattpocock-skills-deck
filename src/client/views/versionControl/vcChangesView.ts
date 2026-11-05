@@ -48,7 +48,10 @@ const vcChangesResultNodeOf = function (h: any, t: any, result: any): any {
   const op: string = String(r.op || '')
   let text: string = ''
   if (r.ok === true) {
-    if (op === 'stage-hunks') text = t(r.reverse === true ? 'vc.changes.view.resultHunkUnstaged' : 'vc.changes.view.resultHunkStaged', { name: name, n: String(Number(r.hunkIndex) + 1) })
+    if (op === 'stage-hunks') {
+      const n: number = Number(r.displayIndex) > 0 ? Number(r.displayIndex) : Number(r.hunkIndex) + 1
+      text = t(r.reverse === true ? 'vc.changes.view.resultHunkUnstaged' : 'vc.changes.view.resultHunkStaged', { name: name, n: String(n) })
+    }
     else if (op === 'rm-cached') text = t('vc.changes.view.resultUntracked', { name: name })
     else if (op === 'rm-tracked') text = t('vc.changes.view.resultDeleted', { name: name })
     else if (op === 'mv') text = t('vc.changes.view.resultRenamed', { from: name, to: String(r.to || '') })

@@ -117,7 +117,7 @@ const vcChangesHunkNodeOf = function (h: any, t: any, o: any): any {
         'data-vc-hunk-path': String(o.path || ''), disabled: o.busy === true,
         title: t('vc.changes.view.hunkActionTitle', { act: label, total: String(o.total === undefined ? '' : o.total) }),
         'data-press': 'button', 'data-log': 'vc.changes.hunk.' + act,
-        onClick: function () { if (typeof o.onHunk === 'function') o.onHunk(String(o.path || ''), Number(hunk.hunkIndex) || 0, staged) },
+        onClick: function () { if (typeof o.onHunk === 'function') o.onHunk(String(o.path || ''), Number(hunk.hunkIndex) || 0, staged, Number(hunk.order) || 0) },
       }, label),
     ]),
     h('pre', { key: 'lines', className: 'patch', 'data-vc-hunk-lines': String(hunk.order) }, hunk.lines.map(function (line: any, i: number) {
@@ -328,7 +328,7 @@ export const vcChangesFileRowNode = function (h: any, t: any, row: any, ctx: any
   if (open) {
     wrapKids.push(vcChangesHunksNodeOf(h, t, {
       path: path, row: row, diffs: diffs, busy: hunkState.busy === true,
-      onHunk: function (p: string, index: number, reverse: boolean) { if (typeof handlers.onHunk === 'function') handlers.onHunk(p, index, reverse) },
+      onHunk: function (p: string, index: number, reverse: boolean, order: number) { if (typeof handlers.onHunk === 'function') handlers.onHunk(p, index, reverse, order) },
       onRetry: function () { if (typeof handlers.onDiffRetry === 'function') handlers.onDiffRetry(path, row) },
     }))
   }

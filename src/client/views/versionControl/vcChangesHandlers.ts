@@ -139,7 +139,7 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
         if (reply && reply.ok === true) {
           putRow(op, { busy: false, result: { ok: true, cmd: String(reply.cmd || op), ms: reply.ms, n: reply.n, values: effOf(payload) } }, payload)
           // 列表顶部那条结果：行被挪走 / 消失之后，行里的结果就没有落脚点了，所以另存一份给顶部。
-          putResult({ ok: true, op: String(op), path: String(p.path || ''), to: String(p.to || ''), hunkIndex: p.hunkIndex, reverse: p.reverse === true, cmd: String(reply.cmd || op), ms: reply.ms, n: reply.n })
+          putResult({ ok: true, op: String(op), path: String(p.path || ''), to: String(p.to || ''), hunkIndex: p.hunkIndex, displayIndex: p.displayIndex, reverse: p.reverse === true, cmd: String(reply.cmd || op), ms: reply.ms, n: reply.n })
           reloadDiffsOf([String(p.path || ''), String(p.to || '')])
           if (typeof handlers.onDone === 'function') handlers.onDone()
         } else {
@@ -191,8 +191,10 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
       return handlers.diffLoad(path, row, row && row.staged === true ? 'staged' : 'unstaged')
     },
     // 逐块暂存的两个方向：reverse=false 把这一块放进索引，true 把它从索引里退回来。
-    onHunk: function (path: any, hunkIndex: any, reverse: any): any {
-      return handlers.begin('stage-hunks', { path: String(path || ''), hunkIndex: Number(hunkIndex) || 0, reverse: reverse === true })
+    // displayIndex 只是「界面上这是第几块」，给结果条那一句人话用；协议与票据只认 hunkIndex。
+    onHunk: function (path: any, hunkIndex: any, reverse: any, displayIndex?: any): any {
+      const order: number = Number(displayIndex) || 0
+      return handlers.begin('stage-hunks', { path: String(path || ''), hunkIndex: Number(hunkIndex) || 0, reverse: reverse === true, displayIndex: order > 0 ? order : Number(hunkIndex) + 1 })
     },
     renameOpen: function (path: any): void {
       handlers.onValue('renamePath', String(path || ''))
