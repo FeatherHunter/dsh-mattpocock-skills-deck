@@ -14,14 +14,15 @@
  *   3. 返回值就是客户端那三件套 {stdout, stderr, code}，原样交回。本文件不解析 JSON、不判错误档位、
  *      不写失败话术、不记日志：每个调用点的容错与说法都不一样，这些留在调用方。
  *
- * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）与评论写入；其余写端点与操作族按票逐步搬进来，
+ * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）、评论写入，以及票的写端点（建票、
+ * 改票、按名字读里程碑）；其余写端点与操作族按票逐步搬进来，
  * 命名与返回约定照本文件：request 加领域动作，返回原始进程结果。
  */
 
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import { glabClient } from './client.js'
 import type { GlabRunResult } from './client.js'
-import { issuesPath, issuePath, notesPath, linksPath } from './queries.js'
+import { issuesPath, issuePath, notesPath, linksPath, projectPath, milestonesPath } from './queries.js'
 
 // 上下文只取平台与执行器两样，而且允许缺：缺了客户端会按 127 如实回，不抛。
 // 写成与 client.ts 的 GlabCtx 同款的两形交叉，读半边与写半边都能把各自的 effective 原样传进来。
@@ -158,4 +159,79 @@ export function requestCommentCreate(
     ['api', notesPath(refId, iid), '--method', 'POST', '-f', `body=${body}`],
     { timeout: timeoutMs },
   )
+}
+
+/**
+ * 建一张票：POST projects/{仓库}/issues。
+ *
+ * 方法必须明写 `--method POST`：glab 默认 GET，省掉这一对就没有建票这回事。
+ * 表单按 title、description、labels 的原顺序逐项 -f，空值不发：这是建票单写路径既有的形状，
+ * 网关、脱敏与日志里看到的 argv 都按它核对，所以顺序与「空值不发」两条都不能改。
+ * body 只收这三格：归属、里程碑等字段各有自己的写路径，不能从这里混进建票请求。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param body 建票要带的标题、正文与标签（正文与标签为空或省略时不发）
+ * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
+ */
+export function requestIssueCreate(
+  opCtx: MaybeCtx,
+  refId: string,
+  body: { title: string; description?: string; labels?: string },
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  const args = ['api', `${projectPath(refId)}/issues`, '--method', 'POST', '-f', `title=${body.title}`]
+  if (body.description) args.push('-f', `description=${body.description}`)
+  if (body.labels) args.push('-f', `labels=${body.labels}`)
+  return clientOf(opCtx).run(args, { timeout: timeoutMs })
+}
+
+/**
+ * 改一张票：PUT projects/{仓库}/issues/{票号}。
+ *
+ * 表单字段由调用方按领域值给（例如 state_event、title、description、milestone_id），这里只负责
+ * 把它们逐项翻成 -f：null 与 undefined 跳过（「没有这一项」不写成空字符串），数组按逗号连接
+ * （GitLab 的多值字段认这个形状），其余按字符串写。参数的遍历顺序就是调用方对象的插入顺序，
+ * 与搬家前 apiPut 的拼法逐字一致——远端收到的表单内容不变，变的只是这段拼装搬进了请求边界。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param iid 票号
+ * @param fields 这次要写的字段（调用方已经决定要写哪些、值是什么）
+ * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
+ */
+export function requestIssuePatch(
+  opCtx: MaybeCtx,
+  refId: string,
+  iid: string | number,
+  fields: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  const args = ['api', issuePath(refId, iid), '--method', 'PUT']
+  for (const [k, v] of Object.entries(fields || {})) {
+    if (v === null || v === undefined) continue
+    if (Array.isArray(v)) args.push('-f', `${k}=${(v as unknown[]).join(',')}`)
+    else args.push('-f', `${k}=${String(v)}`)
+  }
+  return clientOf(opCtx).run(args, { timeout: timeoutMs })
+}
+
+/**
+ * 读仓库的里程碑：GET projects/{仓库}/milestones?{查询串}。
+ *
+ * 改票要按名字找 milestone_id 时走这一条；查询串由调用方按领域值拼（例如 search=<名字>），
+ * 与列票一样，请求边界不为某一种筛选方式另造接口。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param query 已经拼好的查询串；空串表示不接查询参数
+ * @param timeoutMs 这次请求的时限（毫秒），由调用方按操作选档
+ */
+export function requestMilestones(
+  opCtx: MaybeCtx,
+  refId: string,
+  query: string,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(['api', milestonesPath(refId, query)], { timeout: timeoutMs })
 }
