@@ -57,6 +57,8 @@ const MODULES = [
   // #1896：票详情切片（正文、评论、评审、状态），纯选择器，由接线层作为 issueDetail 端口接上；
   //   「加载更多评论」也由它所在的视图模型记账（命令背后的取数在接线层）。
   { name: 'deckIssueDetail', file: 'deck-issue-detail', exports: ['deckIssueDetailOf'] },
+  // #1897：拉取请求页切片（投影行 + 三态 + 次序 + 四个数），纯选择器，由接线层作为 prList 端口接上。
+  { name: 'deckPrList', file: 'deck-pr-list', exports: ['deckPrListOf', 'deckPrPortOf'] },
   { name: 'deckViewBinding', file: 'deck-view-binding', exports: ['deckViewOf', 'deckViewSliceOf', 'deckViewCountsOf', 'deckProjectionOf', 'deckViewCommand', 'useDeckViewSlice', 'useDeckViewFor', 'deckResolveSessionCwd', 'deckViewForgetFrames'] },
   { name: 'rowActions', file: 'row-actions', exports: ['rowActionKind', 'actionColorOf', 'rowActionText', 'mkRowAction'] },
   // #709（T5）：8 秒自轮询那对排期/取消函数已退役，换成事件驱动入口（四类事件共用一个出口）。

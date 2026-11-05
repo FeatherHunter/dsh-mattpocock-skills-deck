@@ -561,6 +561,9 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1896（规格 #1885 S6）：票详情切片（正文、评论、评审、状态 + 「加载更多评论」命令的数据）。
   //   纯选择器，排在本条之后、接线片之前：接线层的 issueDetail 端口要调它。
   { name: 'deckIssueDetail', file: 'src/client/kernel/deck-issue-detail.ts' },
+  // #1897（规格 #1885 S6）：拉取请求页切片（投影里的 PR 行 + 三态 + 次序 + 四个数）。
+  //   纯选择器，排在本条之后、接线片之前：接线层的 prList 端口要调它。
+  { name: 'deckPrList', file: 'src/client/kernel/deck-pr-list.ts' },
   { name: 'deckViewBinding', file: 'src/client/kernel/deck-view-binding.ts' },
   // 行级动作全家从 store-derived.ts 原样抽出（那份越过每文件 350 有效行的门禁）；
   //   必须排在本条之后：findMapByIdentity 与 isLightHex 由 store-derived 定义。

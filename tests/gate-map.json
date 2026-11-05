@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T01:58:21.517Z",
+  "generatedAt": "2026-11-05T02:26:08.555Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 579,
-  "gateCount": 579,
-  "attributedGates": 523,
+  "chainLength": 580,
+  "gateCount": 580,
+  "attributedGates": 524,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 122,
+  "completionRecordedGates": 123,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 916,
+  "graphFileCount": 917,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6915,6 +6915,27 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
+      "step": "node tests/verify-1897-pr-page-vm.ts",
+      "file": "tests/verify-1897-pr-page-vm.ts",
+      "guards": [
+        "src/client/kernel/deck-issue-detail.ts",
+        "src/client/kernel/deck-pr-list.ts",
+        "src/client/kernel/deck-view-binding.ts",
+        "src/client/kernel/deck-view-model.ts",
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/PrTab.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 38,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -12637,6 +12658,7 @@
         "src/client/floating/SkillFloatList.ts",
         "src/client/kernel/api-handoff.ts",
         "src/client/kernel/api-io.ts",
+        "src/client/kernel/deck-issue-detail.ts",
         "src/client/kernel/deck-view-binding.ts",
         "src/client/kernel/motion.ts",
         "src/client/kernel/router.ts",
@@ -12857,7 +12879,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 174 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 175 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -14091,6 +14113,7 @@
       "node tests/verify-1894-view-model.ts",
       "node tests/verify-1895-map-detail-vm.ts",
       "node tests/verify-1896-issue-detail-vm.ts",
+      "node tests/verify-1897-pr-page-vm.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -14251,6 +14274,7 @@
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-1894-view-model.ts",
       "node tests/verify-1896-issue-detail-vm.ts",
+      "node tests/verify-1897-pr-page-vm.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -15932,9 +15956,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 939,
+    "fileCount": 940,
     "dirCount": 92,
-    "coveredFileCount": 939,
+    "coveredFileCount": 940,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 74,
@@ -15956,6 +15980,7 @@
       "src/client/kernel/ctx.ts",
       "src/client/kernel/deck-issue-detail.ts",
       "src/client/kernel/deck-map-detail.ts",
+      "src/client/kernel/deck-pr-list.ts",
       "src/client/kernel/deck-prompt-filter.ts",
       "src/client/kernel/deck-state.ts",
       "src/client/kernel/deck-view-binding.ts",
