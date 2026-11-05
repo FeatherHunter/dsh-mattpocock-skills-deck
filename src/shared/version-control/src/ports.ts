@@ -190,6 +190,8 @@ export interface ChangesPlan {
   hunkIndex: number | null
   /** 能力 1.2 用：选中那一块补丁文本的摘要；其余动作为 null。 */
   patchDigest: string | null
+  /** 能力 1.2 用：true 表示这次是把索引里的那一块退回工作区（git apply --cached --reverse）。 */
+  reverse: boolean
   /** 能力 1.6 / 1.7 用：restore（git 2.23+）还是降级 checkout；其余动作为 null。 */
   mode: 'restore' | 'checkout' | null
   /** 能力 1.11 用：移动目标；其余动作为 null。 */

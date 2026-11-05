@@ -102,7 +102,7 @@ export const REV_PATTERN = /^[0-9a-fA-F]{4,64}$/
 /** 拼一条采集命令。opts.rev 给的是「看这一次提交改了什么」的提交号：
  *  只许传已经过 REV_PATTERN 校验的十六进制字符串（路径、分支名、选项一律不许从这里进 argv），
  *  校验由唯一的调用方（宿主 wf.gitDiff 电话）在拼之前完成。 */
-export function commandFor(key: CollectionKey, opts: { logCount?: number; logSkip?: number; useNulWorktrees?: boolean; patchPath?: string; rev?: string; logStats?: boolean; staged?: boolean }): CommandSpec {
+export function commandFor(key: CollectionKey, opts: { logCount?: number; logSkip?: number; useNulWorktrees?: boolean; patchPath?: string; rev?: string; logStats?: boolean; logNames?: boolean; staged?: boolean; unstaged?: boolean }): CommandSpec {
   switch (key) {
     case 'status':
       // 注意：status 没有 --no-ext-diff（porcelain 输出不走外部 diff）；重命名显式开。
@@ -119,6 +119,10 @@ export function commandFor(key: CollectionKey, opts: { logCount?: number; logSki
       // logStats 只取「每条提交改了 N 个文件」，用 --shortstat 的普通文本，解析交给 parseLogStats。
       // 单独成一种取法而不是给默认格式再加字段：默认那套的 NUL 分槽口径有门禁锁着，加字段会把它的 stride 弄乱。
       if (opts.logStats === true) return { key, subcommand: 'log', args: ['log', '--no-decorate', '--format=%H', '--shortstat', '-n', String(n), '--skip=' + String(skip)] }
+      // logNames 取「每条提交改了哪些文件」的路径清单，解析交给 parseLogFiles。
+      // 格式串前面那枚 %x01 是记录分隔符：--name-only 的文件名不以 \x01 开头，靠它把提交号与路径分开，
+      // 不靠「路径长什么样」猜——40 位十六进制的文件名与提交号长得一模一样。
+      if (opts.logNames === true) return { key, subcommand: 'log', args: ['log', '--no-decorate', '-z', '--format=%x01%H', '--name-only', '-n', String(n), '--skip=' + String(skip)] }
       return { key, subcommand: 'log', args: ['log', '--no-decorate', '-z', '--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%cI%x00%s%x00%P%x00', '-n', String(n), '--skip=' + String(skip)] }
     }
     case 'diffFiles':
@@ -133,6 +137,9 @@ export function commandFor(key: CollectionKey, opts: { logCount?: number; logSki
       //   默认仍是「工作区相对 HEAD」，与从前一字不差（既有调用与真机字节样本都按这个口径录的）。
       //   为什么现在才分：两组都按 HEAD 取时，同一个文件在「已暂存」与「未暂存」两行里会看到同一份补丁。
       if (opts.staged === true) return { key, subcommand: 'diff', args: ['diff', '--cached', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', 'HEAD', '--', p] }
+      // 逐块暂存那一行读「索引相对工作区」：同一个文件只暂存了一部分时，这一份正好是「还没进索引的块」，
+      //   与宿主预检/执行用的 diffHunksArgs 同一口径，界面上的第 N 块与发给 git 的块号才不会错位。
+      if (opts.unstaged === true) return { key, subcommand: 'diff', args: ['diff', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', '--', p] }
       return { key, subcommand: 'diff', args: ['diff', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', 'HEAD', '--', p] }
     }
   }
@@ -339,6 +346,10 @@ export function stageAllArgs(): string[] { return ['add', '-A'] }
 /** 逐块暂存（能力 1.2）：块补丁由宿主写成普通临时文件，路径作为独立 argv 元素传进来。 */
 export function applyCachedArgs(patchPath: string): string[] { return ['apply', '--cached', '--whitespace=nowarn', String(patchPath)] }
 
+/** 逐块取消暂存（能力 1.2 的反向）：把索引里的那一块退回工作区，工作区内容不变。
+ *  --reverse 表示按补丁反着 apply；目标仍是索引（--cached），所以这一下只动索引、不碰磁盘文件。 */
+export function applyCachedReverseArgs(patchPath: string): string[] { return ['apply', '--cached', '--reverse', '--whitespace=nowarn', String(patchPath)] }
+
 /** 丢弃单文件未暂存改动（能力 1.6）：git 2.23 起用 restore，低于它退回 checkout。 */
 export function discardFileArgs(mode: string, paths: string[]): string[] {
   return (mode === 'restore' ? ['restore', '--'] : ['checkout', '--']).concat(paths)
@@ -366,8 +377,13 @@ export function mvArgs(from: string, to: string): string[] { return ['mv', '--',
 /** 查为什么被忽略（能力 1.13）：-v 让 git 回「规则文件:行号:规则」。 */
 export function checkIgnoreArgs(path: string): string[] { return ['check-ignore', '-v', '--', String(path)] }
 
-/** 逐块暂存读取补丁（能力 1.2）：不开颜色、不走外部 diff、保留重命名检测、上下文三行（与 git add -p 同档）。 */
+/** 逐块暂存读取补丁（能力 1.2）：不开颜色、不走外部 diff、保留重命名检测、上下文三行（与 git add -p 同档）。
+ *  这条读的是「索引相对工作区」（git diff 不带提交号）：块号就是「还没进索引的那几块」里的第几块。
+ *  界面展开未暂存行时用同一条口径（见 commandFor('patch', { unstaged: true })），两边块号才一一对上。 */
 export function diffHunksArgs(path: string): string[] { return ['diff', '--no-color', '--no-ext-diff', '--find-renames', '--unified=3', '--', String(path)] }
+
+/** 逐块取消暂存读取补丁（能力 1.2 的反向）：读「索引相对 HEAD」，块号就是索引里那几块的序号。 */
+export function diffCachedHunksArgs(path: string): string[] { return ['diff', '--cached', '--no-color', '--no-ext-diff', '--find-renames', '--unified=3', '--', String(path)] }
 
 /** 删除未跟踪文件的预演（能力 1.8）：-n 只列「将删除」清单，不动文件。 */
 export function cleanPreviewArgs(paths: string[]): string[] {

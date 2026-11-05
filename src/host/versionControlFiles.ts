@@ -120,8 +120,12 @@ export function createGitDiffPhone(deps: any): (args: any) => Promise<any> {
     const hasHead: any = await readHasHead(exe, base.root)
     if (hasHead === null) return failPhone('env', '问不出这个仓库有没有第一次提交，取差异这一步做不了')
     if (hasHead === false) return { ok: true, path: path, lines: [], truncated: false, reason: 'no-commit-baseline' }
-    // #1860 D17：已暂存那一组读「索引相对 HEAD」，与默认的「工作区相对 HEAD」分开取。
-    const res: any = await runPinned(exe, base.root, (commandFor('patch', { patchPath: path, staged: args && args.staged === true }) as any).args, { stdoutLimit: patchLimit })
+    // 三份读法各回答一件事，不能混：
+    //   默认   工作区相对 HEAD（一行文件的全部改动）；
+    //   staged 索引相对 HEAD（已暂存的那一份）；
+    //   unstaged 索引相对工作区（还没进索引的那一份，逐块暂存用的正是这一份）。
+    if (args && args.staged === true && args.unstaged === true) return failPhone('args', 'staged 与 unstaged 只能选一个：这两份差异看的是不同的两边')
+    const res: any = await runPinned(exe, base.root, (commandFor('patch', { patchPath: path, staged: args && args.staged === true, unstaged: args && args.unstaged === true }) as any).args, { stdoutLimit: patchLimit })
     return patchEnvelope(res, path, '', '取这个文件的差异这一步')
   }
 

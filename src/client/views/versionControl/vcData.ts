@@ -113,7 +113,9 @@ export const vcReadStatus = function (reads: any, call: any, cwd: any) {
 // #1860 D17：同一个文件可能同时出现在「已暂存」与「未暂存」两组里，两行的补丁是两回事。
 //   staged=true 时向宿主读「索引相对 HEAD」，并把这一位带进缓存键（由调用方拼好 key 传进来）。
 // cacheKey（#1860 D17）：缓存里的键可以带分组前缀，但发给宿主的仍是裸路径 —— 两者不能混。
-export const vcReadDiff = function (reads: any, call: any, cwd: any, path: any, untracked: any, staged?: any, cacheKey?: any) {
+// side（#1902）：'head' 是默认的「工作区相对 HEAD」，'staged' 是「索引相对 HEAD」，'unstaged' 是
+//   「索引相对工作区」（逐块暂存看的就是这一份）。staged 这一位还兼着旧调用方的布尔用法：side 没给时按它算。
+export const vcReadDiff = function (reads: any, call: any, cwd: any, path: any, untracked: any, staged?: any, cacheKey?: any, side?: any) {
   const base = reads || vcNewReads()
   const bare = String(path || '')
   const key = String(cacheKey === undefined || cacheKey === null ? bare : cacheKey)
@@ -123,7 +125,13 @@ export const vcReadDiff = function (reads: any, call: any, cwd: any, path: any, 
   diffs[key] = { state: 'loading', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: prev.error, seq: seq }
   const t0 = Date.now()
   return Promise.resolve()
-    .then(function () { return call(VC_PHONES.diff, { cwd: String(cwd || ''), path: bare, untracked: untracked === true, staged: staged === true }) })
+    .then(function () {
+      const mode: string = String(side === undefined || side === null || side === '' ? (staged === true ? 'staged' : 'head') : side)
+      return call(VC_PHONES.diff, {
+        cwd: String(cwd || ''), path: bare, untracked: untracked === true,
+        staged: mode === 'staged', unstaged: mode === 'unstaged',
+      })
+    })
     .then(function (reply: any) {
       if (reply && reply.ok === true && Array.isArray(reply.lines)) {
         vcOkLog(VC_PHONES.diff, 'git-diff', t0)

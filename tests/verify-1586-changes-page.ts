@@ -55,6 +55,8 @@ function makeScreen(over?: any) {
 }
 const INDEX_ONE = '100644 ' + 'a'.repeat(40) + ' 0\t' + 'a.txt' + '\u0000'
 const DIFF_ONE = ['diff --git a/a.txt b/a.txt', '--- a/a.txt', '+++ b/a.txt', '@@ -1,2 +1,3 @@', ' a', '+b', ' c', ''].join('\n')
+// 已暂存那一份（索引相对 HEAD）：两块，用来验反向（取消暂存）挑的是第几块。
+const DIFF_CACHED = ['diff --git a/a.txt b/a.txt', '--- a/a.txt', '+++ b/a.txt', '@@ -1,2 +1,3 @@', ' a', '+b', ' c', '@@ -10,2 +11,2 @@', ' d', '-e', '+f', ''].join('\n')
 
 /** 预检夹具：读屏、只读命令、文件读取都是注入的；写命令一条都不许起。 */
 function makeCheck(screen: any, over?: any) {
@@ -158,6 +160,9 @@ async function main() {
   const planA: any = proto.makeChangesPlan({ op: 'stage-hunks', paths: ['a.txt'], hunkIndex: 0, patchDigest: 'x' })
   const planB: any = proto.makeChangesPlan({ op: 'stage-hunks', paths: ['a.txt'], hunkIndex: 1, patchDigest: 'x' })
   check(proto.changesPlanInput(planA) !== proto.changesPlanInput(planB), 'A15 逐块暂存换一块，票据绑定输入必须跟着变')
+  const planReverse: any = proto.makeChangesPlan({ op: 'stage-hunks', paths: ['a.txt'], hunkIndex: 0, patchDigest: 'x', reverse: true })
+  check(planReverse.reverse === true && planA.reverse === false && proto.changesPlanInput(planReverse) !== proto.changesPlanInput(planA), 'A16 逐块取消暂存与逐块暂存是两份不同的计划：计划摘要把方向也绑进票据')
+  check(proto.CHANGES_WRITE_OPS.filter(function (x: any) { return x.confirm === true }).map(function (x: any) { return x.op }).join(',') === 'discard-file,discard-all,clean-untracked,rm-tracked,rm-cached', 'A17 要贴行确认的动作：丢弃、删未跟踪、删已跟踪，加「停止跟踪」——它不是危险动作，但仍要人点一下')
 
   // ===== B 路径守卫与参数形状 =====
   check(proto.pathArgProblem('dir/a.txt') === null, 'B1 普通相对路径必须放行')
@@ -207,6 +212,19 @@ async function main() {
   const cHunkOk: any = mkCheck(screenStage, { diffText: DIFF_ONE })
   const rHunkOk: any = await cHunkOk.impl.handleChangesCheck({ cwd: REPO, op: 'stage-hunks', path: 'a.txt', hunkIndex: 0 })
   check(rHunkOk.ok === true && typeof rHunkOk.plan.patchDigest === 'string' && rHunkOk.plan.patchDigest.length === 16, 'C12 逐块暂存的票据绑定到那一块补丁的摘要')
+  const screenStaged = makeScreen({ staged: [{ path: 'a.txt', change: 'M' }], stagedCount: 1 })
+  const cachedRead = function (text: string) {
+    return function (args: any) { return (args[0] === 'diff' && args.indexOf('--cached') >= 0) ? { kind: 'ok', stdout: text } : null }
+  }
+  const cRev: any = mkCheck(screenStaged, { runRead: cachedRead(DIFF_CACHED) })
+  const rRevOut: any = await cRev.impl.handleChangesCheck({ cwd: REPO, op: 'stage-hunks', path: 'a.txt', hunkIndex: 9, reverse: true })
+  check(envelopeShape(rRevOut) && rRevOut.error.reason === 'hunk-out-of-range' && rRevOut.hunkCount === 2, 'C15 取消暂存：块号越界必须拒，并报出这一份差异共有几块')
+  const cRevOk: any = mkCheck(screenStaged, { runRead: cachedRead(DIFF_CACHED) })
+  const rRevOk: any = await cRevOk.impl.handleChangesCheck({ cwd: REPO, op: 'stage-hunks', path: 'a.txt', hunkIndex: 1, reverse: true })
+  check(rRevOk.ok === true && rRevOk.plan.reverse === true && rRevOk.plan.hunkIndex === 1 && typeof rRevOk.plan.patchDigest === 'string', 'C16 取消暂存：读的是「索引相对 HEAD」那一份，挑第几块与补丁摘要都写进计划')
+  check(cRevOk.calls.some(function (a: any) { return a[0] === 'diff' && a.indexOf('--cached') >= 0 }), 'C17 取消暂存的预检真的读了 --cached 那一份差异')
+  const cRevNoStaged: any = mkCheck(screenStage, { runRead: cachedRead(DIFF_CACHED) })
+  check((await cRevNoStaged.impl.handleChangesCheck({ cwd: REPO, op: 'stage-hunks', path: 'a.txt', hunkIndex: 0, reverse: true })).error.reason === 'nothing-to-do', 'C18 文件没有已暂存的改动时，取消暂存必须回 nothing-to-do')
   const cIgn: any = mkCheck(makeScreen(), { checkIgnoreText: '.gitignore:3:*.log\tx.log\n' })
   const rIgn: any = await cIgn.impl.handleChangesCheck({ cwd: REPO, op: 'explain-ignored', path: 'x.log' })
   check(rIgn.ok === true && rIgn.ignored === true && rIgn.match && rIgn.match.line === 3 && rIgn.match.pattern === '*.log', 'C13 查为什么被忽略：命中时回规则来源与行号')
@@ -291,6 +309,15 @@ async function main() {
   const rMv: any = await wImplMv.handleChangesWrite({ cwd: REPO, op: 'mv', ticketId: preMv.pre.ticket.id, requestId: 'r-mv' })
   const mvCalls = wMv.calls.filter(function (a: any) { return a[0] === 'mv' })
   check(rMv.ok === true && mvCalls.length === 1 && JSON.stringify(mvCalls[0]) === JSON.stringify(['mv', '--', 'x.txt', 'y.txt']), 'D18 重命名 argv：两端各自独立参数')
+  const preRev: any = await ticketFor('stage-hunks', { path: 'a.txt', hunkIndex: 1, reverse: true }, { runRead: cachedRead(DIFF_CACHED) }, screenStaged)
+  const revDiff = function (argv: any) { return (argv[0] === 'diff' && argv.indexOf('--cached') >= 0) ? { kind: 'ok', stdout: DIFF_CACHED } : null }
+  const wRev: any = makeWrite(screenStaged, { indexText: INDEX_ONE, runCommand: revDiff }, preRev.tickets)
+  const wImplRev: any = writeMod.createChangesWrite(wRev.deps)
+  const rRev: any = await wImplRev.handleChangesWrite({ cwd: REPO, op: 'stage-hunks', ticketId: preRev.pre.ticket.id, requestId: 'r-rev' })
+  const revApply = wRev.calls.filter(function (a: any) { return a[0] === 'apply' })
+  check(rRev.ok === true && revApply.length === 1 && revApply[0].indexOf('--cached') >= 0 && revApply[0].indexOf('--reverse') >= 0 && revApply[0][revApply[0].length - 1] === 'C:/tmp/p.patch', 'D19 取消暂存：临时补丁是独立参数，执行的是 git apply --cached --reverse')
+  check(wRev.tempPatches.length === 1 && wRev.tempPatches[0].indexOf('@@ -10,2 +11,2 @@') >= 0 && wRev.deleted.length === 1, 'D20 取消暂存写出的补丁是「索引相对 HEAD」的第 2 块，用完即删')
+  check(applyCalls[0].indexOf('--reverse') < 0, 'D21 正向逐块暂存绝不带 --reverse')
 
   // ===== E 登记点与词条 =====
   const leafSrcForOps = sourceText('src/client/views/versionControl/vcChangesPage.ts')
