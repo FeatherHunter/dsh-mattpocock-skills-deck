@@ -159,6 +159,10 @@ export function previousSnapshotFor(previousSnapshot: unknown, backendId: string
 
 interface ComposeOpts {
   force?: boolean
+  /**
+   * @deprecated #1885 评审修复：304 的判据已经改成库版本（电话层用 wf.snapshotVersion 的版本比对），
+   * 本编排器不再看内容散列。这一格只为老调用方的签名兼容保留，传什么都不影响 304。
+   */
   ifNoneMatch?: string
   /**
    * #1774：调用方手上那份「上一趟构建出来的快照」，来源不完整时用它补回上次已知的容器与子票。
@@ -268,19 +272,15 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       //   它同时供补回与计数沿用两处使用，只在这两处生效：缓存命中 / 304 / TTL 的语义一个字不动（仍然只看 snapCache）。
       const passedPrev: any = previousSnapshotFor(o && o.previousSnapshot, backendId, ref)
       const prevSnapshot: any = passedPrev || (cachedEntry && cachedEntry.snapshot) || null
-      if (!o.force && (o as any).ifNoneMatch && cachedEntry && cachedEntry.version && cachedEntry.version===(o as any).ifNoneMatch) {
-        try { if (fire && snapLogCtx.isEnabled('debug') && ((++snapHitSampleN % 100) === 0)) fire('debug', 'snapshot.cache.hit', { kind: 'snapshot-lru', ageMs: Date.now() - cachedEntry.at }) } catch (eL) {}
-        touchSnapLRU(sk, cachedEntry) // 命中刷新 LRU 顺序（只动顺序，不改 at；TTL 照原创建时间过期）
-        return { ok: true, notModified:true, status:304, version:cachedEntry.version, snapshot:cachedEntry.snapshot, cached:true };
-      }
       if (!o.force && fresh(cachedEntry, snapshotTtl)) {
         try { if (fire && snapLogCtx.isEnabled('debug') && ((++snapHitSampleN % 100) === 0)) fire('debug', 'snapshot.cache.hit', { kind: 'snapshot-lru', ageMs: Date.now() - cachedEntry.at }) } catch (eL) {}
         touchSnapLRU(sk, cachedEntry) // 命中刷新 LRU 顺序（同上；否则退化成先进先出）
-        if(o && (o as any).ifNoneMatch && cachedEntry.version===(o as any).ifNoneMatch) return { ok:true, notModified:true, status:304, version:cachedEntry.version, cached:true };
+        // #1885 评审修复（规格 §9）：304 的判据改成库版本，在电话层比对；这里只回整份与内容版号。
         return { ok: true, snapshot: cachedEntry.snapshot, version:cachedEntry.version, cached: true }
       }
       // 走到这里一定重建：原因只记枚举（版本号对不上记版本不一致，不记版本号原文）。
-      const missReason = o.force ? 'force' : (!cachedEntry ? 'empty' : (((o as any).ifNoneMatch && cachedEntry.version && cachedEntry.version !== (o as any).ifNoneMatch) ? 'version-mismatch' : 'expired'))
+      // #1885 评审修复：内容散列不再参与新鲜度判断，miss 原因只剩「强制 / 没缓存 / 缓存过期」三档。
+      const missReason = o.force ? 'force' : (!cachedEntry ? 'empty' : 'expired')
       try { if (fire) fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
 
       // #715：这一趟 list 到底走的 GraphQL 还是掉到了 REST —— 后端真的降级时才往上报（见 github/issues.js 的 REST 通道）。
@@ -382,7 +382,7 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       try{ const ver=snapshotVersionOf(snapshot); snapshot.version=ver; snapshot.etag=ver; }catch(e){}
       const ent={snapshot, version:snapshot.version||'', at:Date.now()};
       touchSnapLRU(sk, ent);
-      if(!o.force && (o as any).ifNoneMatch && ent.version===(o as any).ifNoneMatch) return {ok:true, notModified:true, status:304, version:ent.version, snapshot};
+      // #1885 评审修复（规格 §9）：304 不在本层判（改由电话层按库版本比），本层只回整份与内容版号。
       return { ok: true, snapshot, version:ent.version }
     },
 

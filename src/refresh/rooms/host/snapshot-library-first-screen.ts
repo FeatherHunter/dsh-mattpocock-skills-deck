@@ -68,6 +68,15 @@ export interface FirstScreenLibrary {
     backend: string
     repoIdentity: string
   }): Promise<SnapshotCounts | null> | SnapshotCounts | null
+  /**
+   * #1885 评审修复：库当前版本。读回包（wf.snapshot / wf.refresh）的 304 判据与version 字段都靠它；
+   * 老假库没有这一口时按「不知道」处理（不拿 0 冒充）。
+   */
+  readLibraryVersion?(input: {
+    workspaceRoot: string
+    backend: string
+    repoIdentity: string
+  }): Promise<number | null> | number | null
 }
 
 /** 造首屏要的输入：库门面（可能是异步取到的）、库身份三格、仓库引用、这一趟是不是强制重建。 */
@@ -102,6 +111,11 @@ export interface FirstScreen {
    * 库门面没接或读失败时回 null（界面按「不知道」处理，不补 0）。
    */
   readCounts: () => Promise<SnapshotCounts | null>
+  /**
+   * 库这一刻的版本（#1885 评审修复）。有回放时先用手上这份回放带的 mergeVersion（同一次取数的版本），
+   * 没有回放或刚写完在线重建的行时读库；读不到回 null（不知道版本，不拿 0 冒充）。
+   */
+  readVersion: () => Promise<number | null>
   /** 开库诊断：损坏重建、退回只读等；不论有没有回放都要随回包交给界面。 */
   diagnostics: SnapshotDiagnostic[]
   /** 给回包盖上「来自库」的注记：fromCache 与 diskReplay（与在线重建区分开），并带上开库诊断。 */
@@ -178,6 +192,17 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
       return null
     }
   }
+  // #1885 评审修复：库版本。回放里带着读出那一刻的版本，先用它；没有回放（库空 / 刚重建）
+  // 或调用方要求最新版本时读库。只认非负整数，别的形状都按「不知道」。
+  const readVersion = async function (): Promise<number | null> {
+    if (typeof lib!.readLibraryVersion !== 'function') return null
+    try {
+      const version = await Promise.resolve(lib!.readLibraryVersion(key))
+      return (typeof version === 'number' && Number.isInteger(version) && version >= 0) ? version : null
+    } catch (e) {
+      return null
+    }
+  }
   // #1887：库这一侧单读一次六个数字；门面没接这一口就回 null（老假库与不接库的世界）。
   const readCounts = async function (): Promise<SnapshotCounts | null> {
     if (typeof lib!.readSnapshotCounts !== 'function') return null
@@ -193,6 +218,7 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
     writeRows: writeRows,
     commitRows: commitRows,
     readCounts: readCounts,
+    readVersion: readVersion,
     diagnostics: diagnostics,
     decorate: function (snap: any): void {
       if (diagnostics.length) snap.snapshotDiagnostics = diagnostics

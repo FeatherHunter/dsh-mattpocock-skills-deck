@@ -1,19 +1,31 @@
 /**
- * src/refresh/rooms/client/snapshot-change-merge.ts —— 变化集并进手上那份快照（#1891，规格 #1885 S4）
+ * src/refresh/rooms/client/snapshot-change-merge.ts —— 变化集并进手上那份快照（#1891，规格 #1885 S4；#1885 评审修复）
  *
  * 为什么单列一片：同步引擎（snapshot-version-sync.ts）管「什么时候取」，这一片只管「取回来怎么并」。
  * 两件事的变化原因不同 —— 信号源换了引擎要动，行的形状变了这一片才动 —— 合在一份会让彼此互相牵制，
  * 也会把两片的有效行一起顶到 350 行的上限。
  *
- * 三条不能改的约定：
+ * 四条不能改的约定：
  *  1. 按行并、不整份重拼：没变的行连对象引用都不换，界面据此只重画变化的那几行；
  *     容器（maps）只在真有子票变动时才换对象。
- *  2. 只写这一趟真正表达了的字段组：组记录缺席（null）表示「没取过」，不写、不补空数组 ——
+ *  2. 只写这一趟真正表达了的字段组：换算只此一份（src/shared/snapshot-row-fields.ts，构建时把同一份
+ *     文本拼进闭包）。组记录缺席 / unknown / truncated + 空一律不写，不补空数组、不补 null ——
  *     并进已有行时不拿「不知道」去盖「已知」（规格 I6 三态）。
- *  3. 墓碑行从四处一起拿掉（未挂图票、容器子票、容器本身、瘦身行）；容器自己被判不存在时整个拿掉。
+ *  3. 「这一行该放在哪里」由宿主的回包说了算（item.placement，见快照库变化集投影）：
+ *     map = 这一行自己是容器，child = 挂到哪个容器的子票里，thin = 已关闭容器里已关闭子票的瘦身行，
+ *     issue = 未挂图票。客户端不查 parentKey、不自己判容器归属（规格 D1「领域规则一处实现」）。
+ *     老回包没有这一格时按 issue（未挂图票）机械落位，不重新实现一遍规则。
+ *  4. 墓碑行从四处一起拿掉（未挂图票、容器子票、容器本身、瘦身行）；容器自己被判不存在时整个拿掉。
+ *     删除与否是宿主回包（missing）的决定，这里只照单执行，不猜「没出现就是删了」。
  *
- * 反例：不要在这里按时间判新旧、不要在这里发任何电话；合并结果只依赖入参与 options.idOf。
+ * 反例：不要在这里按时间判新旧、不要在这里发任何电话；合并结果只依赖入参、options.idOf 与
+ * options.rowFieldsOf（缺省用闭包里拼进来的那一份）。
  */
+
+// 客户端半边不能运行时 import：这一份换算由 scripts/build.mts 的 SHARED_SPLICE 把同一份源码
+// （src/shared/snapshot-row-fields.ts）拼进闭包。门禁单独求值本文件时，调用方经 options.rowFieldsOf
+// 把同一份函数递进来；两边跑的是同一个实现，不是第二份拷贝。
+declare function snapshotRowFieldsOf(item: any): any
 
 /** 变化集并进之后的结果：新的手上那份 + 这次真正换了内容 / 被拿掉的那些行（界面按这份名单重画）。 */
 export interface SnapshotChangeMerge {
@@ -40,59 +52,52 @@ function changeIsoOf(value: any): string | null {
   return (typeof value === 'number' && Number.isFinite(value)) ? new Date(value).toISOString() : null
 }
 
-/** 界面的状态口径是大写 OPEN / CLOSED（电话层 upcaseSnapStates 的约定）；认不出的状态不写。 */
-function changeStateWord(value: any): string {
-  const text = String(value === null || value === undefined ? '' : value).toUpperCase()
-  return text === 'CLOSED' ? 'CLOSED' : (text === 'OPEN' ? 'OPEN' : '')
+/** 这一行该落在哪里；老回包没有 placement 时按未挂图票机械兜底（不重算领域规则）。 */
+interface ChangePlacement {
+  place: 'map' | 'child' | 'thin' | 'issue'
+  containerEffortId?: string
+  containerKey?: string
 }
 
-function changeLabelOf(item: any): any {
-  const out: any = { name: String((item && item.name) || '') }
-  if (item && typeof item.color === 'string') out.color = item.color
-  if (item && typeof item.description === 'string' && item.description) out.description = item.description
-  return out
-}
-
-function changePersonOf(item: any): any {
-  const out: any = { login: String((item && item.login) || '') }
-  if (item && item.name) out.name = item.name
-  if (item && item.avatarUrl) out.avatarUrl = item.avatarUrl
-  return out
+function changePlacementOf(item: any): ChangePlacement {
+  const p = item && item.placement
+  if (p && p.place === 'map') return p
+  if (p && p.place === 'child') return p
+  if (p && p.place === 'thin') return p
+  return { place: 'issue' }
 }
 
 /**
- * 库列表投影的一行 → 能并进界面行的那几格。
- *
- * 界面自己算出来的列（progress / claimedBy / level 之类）不在这里出现，原样留着：
- * 变化集只表达「这一行的这一组是什么」，没表达的那些组一个字节都不许动。
+ * 库列表投影的一行 → 能并进界面行的那几格。换算是共享的那一份（snapshotRowFieldsOf），
+ * 这一层只做形状收窄：界面行状态大写、时间 ISO；不知道的字段一律不出现。
  */
-export function changeRowPatch(item: any): any {
-  const row = (item && item.row) || {}
-  const groups = (item && item.groups) || {}
-  const rawKey = (item && item.key) === null || (item && item.key) === undefined ? '' : item.key
-  const patch: any = { key: String(rawKey) }
-  if (/^[0-9]+$/.test(patch.key)) patch.number = Number(patch.key)
-  patch.effortId = String((item && item.effortId) || '')
-  patch.type = (row.type === 'map' || row.type === 'spec') ? row.type : 'issue'
-  if (row.title !== null && row.title !== undefined) patch.title = String(row.title)
-  const state = changeStateWord(row.state)
-  if (state) patch.state = state
-  if (typeof row.url === 'string' && row.url) patch.url = row.url
-  const created = changeIsoOf(row.createdAtMs)
-  if (created) patch.createdAt = created
-  const updated = changeIsoOf(row.updatedAtMs)
-  if (updated) patch.updatedAt = updated
-  if (row.closedAtMs !== undefined) patch.closedAt = changeIsoOf(row.closedAtMs)
-  if (typeof row.isPullRequest === 'boolean') patch.isPullRequest = row.isPullRequest
-  if (typeof row.commentCount === 'number') patch.commentCount = row.commentCount
-  if (row.stateReason) patch.reason = row.stateReason
-  if (row.status) patch.status = row.status
-  if (row.statusVisible) patch.statusVisible = row.statusVisible
-  if (row.statusSource) patch.statusSource = row.statusSource
-  if (groups.labels) patch.labels = Array.isArray(item.labels) ? item.labels.map(changeLabelOf) : []
-  if (groups.assignees) patch.assignees = Array.isArray(item.assignees) ? item.assignees.map(changePersonOf) : []
-  if (groups.parents) patch.parentKey = (Array.isArray(item.parents) && item.parents.length) ? String(item.parents[0]) : null
-  if (groups.mergeInfo) patch.mergedAt = typeof item.mergedAtMs === 'number' ? changeIsoOf(item.mergedAtMs) : null
+export function changeRowPatch(item: any, rowFieldsOf?: ((row: any) => any) | null): any {
+  const fieldsOf = (typeof rowFieldsOf === 'function')
+    ? rowFieldsOf
+    : (typeof snapshotRowFieldsOf === 'function' ? snapshotRowFieldsOf : null)
+  if (!fieldsOf) throw new Error('变化集合并没有行换算：客户端闭包里没有 snapshotRowFieldsOf，调用方也没交 options.rowFieldsOf')
+  const f = fieldsOf(item)
+  const patch: any = { key: f.key }
+  if (f.number !== null) patch.number = f.number
+  patch.effortId = f.effortId
+  if (f.type.known) patch.type = f.type.value
+  if (f.title.known) patch.title = f.title.value
+  if (f.state.known) patch.state = f.state.value === 'closed' ? 'CLOSED' : 'OPEN'
+  if (f.url.known) patch.url = f.url.value
+  if (f.createdAtMs.known) patch.createdAt = changeIsoOf(f.createdAtMs.value)
+  if (f.updatedAtMs.known) patch.updatedAt = changeIsoOf(f.updatedAtMs.value)
+  if (f.closedAtMs.known) patch.closedAt = changeIsoOf(f.closedAtMs.value)
+  if (f.isPullRequest.known) patch.isPullRequest = f.isPullRequest.value
+  if (f.commentCount.known) patch.commentCount = f.commentCount.value
+  if (f.reason.known) patch.reason = f.reason.value
+  if (f.status.known) patch.status = f.status.value
+  if (f.statusVisible.known) patch.statusVisible = f.statusVisible.value
+  if (f.statusSource.known) patch.statusSource = f.statusSource.value
+  if (f.labels.known) patch.labels = f.labels.value
+  if (f.assignees.known) patch.assignees = f.assignees.value
+  if (f.parentKey.known) patch.parentKey = f.parentKey.value
+  if (f.blockedBy.known) patch.blockedBy = f.blockedBy.value
+  if (f.mergedAtMs.known) patch.mergedAt = changeIsoOf(f.mergedAtMs.value)
   return patch
 }
 
@@ -108,11 +113,18 @@ function changeSameValue(a: any, b: any): boolean {
  *
  * options.idOf 是票身份算法（(effortId, key) 现算一把），由调用方从闭包里的那一份传进来：
  * 这一片不能运行时 import，也不该自己再写一份身份算法。
+ * options.rowFieldsOf 只给门禁直接 import 本文件时用；生产闭包里用拼进来的共享换算。
  */
-export function applySnapshotChangeSet(snapshot: any, changes: any, missing: any, options: { idOf: (row: any) => string, counts?: any }): SnapshotChangeMerge | null {
+export function applySnapshotChangeSet(
+  snapshot: any,
+  changes: any,
+  missing: any,
+  options: { idOf: (row: any) => string, counts?: any, rowFieldsOf?: ((row: any) => any) | null },
+): SnapshotChangeMerge | null {
   if (!snapshot || snapshot.ok !== true || !Array.isArray(snapshot.maps) || !Array.isArray(snapshot.issues)) return null
   if (!options || typeof options.idOf !== 'function') return null
   const identity = options.idOf
+  const fieldsOf = (typeof options.rowFieldsOf === 'function') ? options.rowFieldsOf : null
   const maps: any[] = snapshot.maps.slice()
   const issues: any[] = snapshot.issues.slice()
   const thin: any[] = Array.isArray(snapshot.thinTickets) ? snapshot.thinTickets.slice() : []
@@ -124,83 +136,116 @@ export function applySnapshotChangeSet(snapshot: any, changes: any, missing: any
     if (!clonedMaps[index]) { maps[index] = Object.assign({}, maps[index], { tickets: (maps[index].tickets || []).slice() }); clonedMaps[index] = true }
     return maps[index]
   }
-  const placeOf = function (id: string): any {
-    for (let i = 0; i < issues.length; i++) if (identity(issues[i]) === id) return { kind: 'issue', index: i }
-    for (let mi = 0; mi < maps.length; mi++) {
-      const tickets = maps[mi].tickets || []
-      for (let ti = 0; ti < tickets.length; ti++) if (identity(tickets[ti]) === id) return { kind: 'ticket', mapIndex: mi, index: ti }
-    }
-    return null
+  const mapIndexOf = function (effortId: any, key: any): number {
+    const want = identity({ effortId: String(effortId === null || effortId === undefined ? '' : effortId), key: String(key === null || key === undefined ? '' : key) })
+    for (let mi = 0; mi < maps.length; mi++) if (identity(maps[mi]) === want) return mi
+    return -1
   }
-  const putRow = function (patch: any): void {
-    const parentKey = patch.parentKey
-    if (parentKey) {
-      const want = identity({ effortId: patch.effortId, key: parentKey })
-      for (let mi = 0; mi < maps.length; mi++) {
-        if (identity(maps[mi]) !== want) continue
-        if (String(maps[mi].state || '').toUpperCase() === 'CLOSED' && patch.state === 'CLOSED') {
-          thin.push({ key: patch.key, number: patch.number || 0, effortId: patch.effortId, type: patch.type, state: 'CLOSED', title: patch.title || '' })
-          return
-        }
-        writableMap(mi).tickets.push(Object.assign({}, patch))
-        return
-      }
-    }
-    issues.push(Object.assign({}, patch))
+  const issueIndexOf = function (id: string): number {
+    for (let i = 0; i < issues.length; i++) if (identity(issues[i]) === id) return i
+    return -1
+  }
+  const thinIndexOf = function (id: string): number {
+    for (let i = 0; i < thin.length; i++) if (identity(thin[i]) === id) return i
+    return -1
   }
   const differs = function (held: any, patch: any): boolean {
     const keys = Object.keys(patch)
     for (let i = 0; i < keys.length; i++) if (!changeSameValue(held[keys[i]], patch[keys[i]])) return true
     return false
   }
+  /** 把这一行从所有「票所在的位置」拿掉（容器本身不在内）：换位置、或墓碑都走这一句。 */
+  const detachFromPlaces = function (id: string): boolean {
+    let hit = false
+    const at = issueIndexOf(id)
+    if (at >= 0) { issues.splice(at, 1); hit = true }
+    const thinAt = thinIndexOf(id)
+    if (thinAt >= 0) { thin.splice(thinAt, 1); hit = true }
+    for (let mi = 0; mi < maps.length; mi++) {
+      const tickets = maps[mi].tickets || []
+      for (let ti = tickets.length - 1; ti >= 0; ti--) if (identity(tickets[ti]) === id) { writableMap(mi).tickets.splice(ti, 1); hit = true }
+    }
+    return hit
+  }
+  const putIssue = function (id: string, patch: any): void {
+    const at = issueIndexOf(id)
+    if (at >= 0) {
+      if (!differs(issues[at], patch)) return
+      issues[at] = Object.assign({}, issues[at], patch)
+      redrawn.push(id)
+      return
+    }
+    issues.push(Object.assign({}, patch))
+    redrawn.push(id)
+  }
+  const putMap = function (id: string, patch: any): void {
+    for (let mi = 0; mi < maps.length; mi++) {
+      if (identity(maps[mi]) !== id) continue
+      if (!differs(maps[mi], patch)) return
+      // 更新容器头时保留它已经拼好的 tickets / stats 等派生格（补丁只表达这一行知道的字段）。
+      maps[mi] = Object.assign({}, maps[mi], patch)
+      redrawn.push(id)
+      return
+    }
+    detachFromPlaces(id)
+    maps.push(Object.assign({ tickets: [] }, patch))
+    redrawn.push(id)
+  }
+  const putChild = function (id: string, patch: any, placement: ChangePlacement): void {
+    const mi = mapIndexOf(placement.containerEffortId, placement.containerKey)
+    if (mi < 0) { putIssue(id, patch); return }
+    const map = writableMap(mi)
+    for (let ti = 0; ti < map.tickets.length; ti++) {
+      if (identity(map.tickets[ti]) !== id) continue
+      if (!differs(map.tickets[ti], patch)) return
+      map.tickets[ti] = Object.assign({}, map.tickets[ti], patch)
+      redrawn.push(id)
+      return
+    }
+    detachFromPlaces(id)
+    map.tickets.push(Object.assign({}, patch))
+    redrawn.push(id)
+  }
+  const putThin = function (id: string, patch: any, placement: ChangePlacement): void {
+    // 瘦身行只留查标题要用的四样（标题目录、状态、类型、身份），与组装层 thinRowOf 同口径。
+    const next = Object.assign({}, (thinIndexOf(id) >= 0 ? thin[thinIndexOf(id)] : {}), {
+      key: patch.key,
+      number: patch.number || 0,
+      effortId: patch.effortId,
+      type: patch.type || 'issue',
+      state: 'CLOSED',
+      title: patch.title || '',
+    })
+    const at = thinIndexOf(id)
+    if (at >= 0) {
+      if (!differs(thin[at], next)) return
+      thin[at] = next
+      redrawn.push(id)
+      return
+    }
+    detachFromPlaces(id)
+    thin.push(next)
+    redrawn.push(id)
+  }
+  const placeRow = function (id: string, patch: any, placement: ChangePlacement): void {
+    if (placement.place === 'map') { putMap(id, patch); return }
+    if (placement.place === 'thin') { putThin(id, patch, placement); return }
+    if (placement.place === 'child') { putChild(id, patch, placement); return }
+    putIssue(id, patch)
+  }
 
   ;(Array.isArray(changes) ? changes : []).forEach(function (item: any): void {
-    const patch = changeRowPatch(item)
+    const patch = changeRowPatch(item, fieldsOf)
     const id = identity(patch)
     if (!id) return
-    const place = placeOf(id)
-    if (place && place.kind === 'issue') {
-      if (!differs(issues[place.index], patch)) return
-      issues[place.index] = Object.assign({}, issues[place.index], patch)
-      redrawn.push(id)
-      return
-    }
-    if (place && place.kind === 'ticket') {
-      const held = maps[place.mapIndex].tickets[place.index]
-      if (!differs(held, patch)) return
-      writableMap(place.mapIndex).tickets[place.index] = Object.assign({}, held, patch)
-      redrawn.push(id)
-      return
-    }
-    const thinAt = thin.findIndex(function (x: any): boolean { return identity(x) === id })
-    if (thinAt >= 0) {
-      if (patch.state !== 'CLOSED') {
-        thin.splice(thinAt, 1)
-        putRow(patch)
-        redrawn.push(id)
-        return
-      }
-      if (differs(thin[thinAt], patch)) {
-        thin[thinAt] = Object.assign({}, thin[thinAt], { title: patch.title, state: 'CLOSED', type: patch.type, key: patch.key })
-        redrawn.push(id)
-      }
-      return
-    }
-    putRow(patch)
-    redrawn.push(id)
+    placeRow(id, patch, changePlacementOf(item))
   })
 
   ;(Array.isArray(missing) ? missing : []).forEach(function (tomb: any): void {
     const id = identity({ effortId: String((tomb && tomb.effortId) || ''), key: (tomb && tomb.key) })
     if (!id) return
-    let hit = false
-    for (let i = issues.length - 1; i >= 0; i--) if (identity(issues[i]) === id) { issues.splice(i, 1); hit = true }
-    for (let mi = maps.length - 1; mi >= 0; mi--) {
-      const tickets = maps[mi].tickets || []
-      for (let ti = tickets.length - 1; ti >= 0; ti--) if (identity(tickets[ti]) === id) { writableMap(mi).tickets.splice(ti, 1); hit = true }
-      if (identity(maps[mi]) === id) { maps.splice(mi, 1); hit = true }
-    }
-    for (let i = thin.length - 1; i >= 0; i--) if (identity(thin[i]) === id) { thin.splice(i, 1); hit = true }
+    let hit = detachFromPlaces(id)
+    for (let mi = maps.length - 1; mi >= 0; mi--) if (identity(maps[mi]) === id) { maps.splice(mi, 1); hit = true }
     if (hit) removed.push(id)
   })
 

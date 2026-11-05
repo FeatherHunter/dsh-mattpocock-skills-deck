@@ -132,6 +132,26 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 一拍一次数据读取都没有；304 与水合胜负按库版本判、探测回包里的整份快照退场，内核 declare 的
   // 六个名字必须真是新那两片的导出（名字对不上时 typeof 守卫会让整条路静默不走）。单跑实测 55 条。
   'verify-1891-version-sync': 55,
+  // 2026-11-05 #1885 评审修复（标准轴第 1 条 + 规格 D / F）：库行 → 界面行只有一份换算
+  // （src/shared/snapshot-row-fields.ts，宿主投影与客户端变化集共用同一份文本）。同一份库行夹具喂
+  // issueOfRow 与 changeRowPatch：标签 / 指派 / 父票 / 阻塞边 / 合并信息「写不写、写什么」逐项相等，
+  // unknown / 组缺席 / truncated + 空在两边都不写；状态与类型不知道时不兜成 open / issue；变化集的
+  // 落点由宿主 placement 给（map / child / thin / issue 各走一遍），客户端不再按 parentKey 判容器归属，
+  // 不知道的组并进已有行不抹掉已知值。单跑实测 38 条。
+  'verify-1885-review-row-merge': 38,
+  // 2026-11-05 #1885 评审修复（规格 §6 / I7）：删除只走墓碑——真 SQLite 里 confirm-不存在（row=complete+null）
+  // 之后行还在（只读打开文件数一行）、列表投影没有它、变化集 missing 有它、关库重开结论不变；
+  // 票重新出现时墓碑被清掉、变化集改说「变了」；另一条入口 markMissing 仍然可用。单跑实测 19 条。
+  'verify-1885-review-tombstone': 19,
+  // 2026-11-05 #1885 评审修复（规格 §4 / I2、§9；B / C）：四个既有读回包（wf.snapshot / wf.probe /
+  // wf.issueDetail / wf.issueComments）都带库版本且等于同一时刻库里的合并版本；304 按库版本判
+  // （同一版本回 304 并带工作区根，对不上回整份），编排器拿内容散列不再判 304。单跑实测 17 条。
+  'verify-1885-review-read-versions': 17,
+  // 2026-11-05 #1885 评审修复（标准轴第 2 / 3 / 4 / 5 / 6 条）：切片名清单只有 deck-view-model 一份且含
+  // prList；行级增量要求 readSnapshotReplay 齐（缺它 ready() 为假）；仓库身份解析两个调用方都走
+  // resolveRepoRefForCwd；同步簿记类型只从契约导入、结果类型保留三档；计数清单两个常量真被校验读。
+  // 单跑实测 25 条。
+  'verify-1885-review-seams': 25,
   // 2026-11-05 #1899（规格 #1885「可诊断性」）：五种退化各跑一遍（真 SQLite 临时库 + 假后端），
   // 从真日志回调里断言五个原因值两两不同、每条都能回答「这一趟为什么退成整份」（whyFullOf 只看
   // 日志行还原原因）；库没接/库空/库坏/数据太旧/落后太多都真的交出了整份而不是半份；每次快照与
@@ -157,8 +177,10 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   //   切片里的正文、评论、评审就是投影里那一份（连对象引用都相同），状态优先取投影行，同一版本下
   //   与列表逐张票一致；命令只喊一次读取（生产接线里恰好一条 wf.issueComments 电话，上一页在途时
   //   不重复喊），失败时切片保留上次已知、页面照常画出来（详情取数失败与加载更多失败各一组）；
-  //   两个迁移过的视图文件不直连宿主、也不再自己发评论取数（带三条反证）。单跑实测 41 条。
-  'verify-1896-issue-detail-vm': 41,
+  //   两个迁移过的视图文件不直连宿主、也不再自己发评论取数（带三条反证）。#1885 评审修复追加：
+  //   详情页首取与重试也走视图模型命令 loadIssueDetail，静态判据补上 fetchIssueDetail 这个名字
+  //   （连同反证）。单跑实测 42 条。
+  'verify-1896-issue-detail-vm': 42,
   // 2026-11-05 #1897（规格 #1885 S6「视图模型收敛」）：拉取请求页接到同一个视图模型——纯选择器
   //   kernel/deck-pr-list.ts + 视图模型 prList 切片 + 生产接线 + 「选中 / 重试」两条命令。
   //   切片里的行与三态（打开 / 已关闭 / 已合并）从投影来，判据仍是共享的 prStateKind；同一版本复用不重算、

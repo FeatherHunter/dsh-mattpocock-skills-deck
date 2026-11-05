@@ -18,6 +18,8 @@ import { createFailureSegmentNotes } from './failure-segment-notes.js'
 import { createSnapshotDecoration } from './snapshot-decoration.js'
 // #1867：首屏先读本地快照库这件事收在 ./snapshot-library-first-screen.ts（GitHub 与 GitLab 两支路共用）。
 import { firstScreenFromLibrary, type FirstScreenLibrary } from './snapshot-library-first-screen.js'
+// #1885 评审修复（规格 I2 / §9）：库版本读数与 304 回包形状从电话体里搬出来（本文件贴着 350 行上限）。
+import { libraryVersionOf, notModifiedForVersion } from './snapshot-reply-version.js'
 // #1887：六个数字由快照库一次查询算出；电话层只负责在库写到最新之后把它挂到 deck 上。
 import { applyDeckCounts } from '../../../tracker/deck-counts.js'
 // #1899：首屏回包的读数（行数/字节数/耗时/版本）与退化原因落在这里记，口径只此一份。
@@ -202,6 +204,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           // （来源不完整时补回上次已知的容器与子票）。交付要不要用回放，下面单独判 isForce。
           const first = (libraryBackend && identityResolved) ? await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId, repoIdentity: String((repoRef && repoRef.refId) || ''), repo: repoRef, force: false }) : null
           applySnapshotReadout(readout, first, isForce) // #1899：这一趟从库出还是在线重建、没有回放时是哪种退化
+          // 规格 §9：304 按库版本判（内容散列退场）。版本一致时连组装都不做。
+          const notModified = await notModifiedForVersion(first, args, cwd, _selEarly, _layEarly, isForce); if (notModified) return notModified
           // #1893：库里有数据就只读库；库空则走在线重建（取数 → 写库 → 再交付），没有内存副本兜底。
           // #1869：开库诊断（损坏重建、只读租约）仍随在线重建的回包一起交给界面——库坏了重建完，
           // 界面得能看出本机数据被清过。
@@ -215,18 +219,6 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           const composer: Composer = createSnapshotComposer(reg, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
           const res: Composed = (!isForce && first && first.replay) ? { ok: true, snapshot: first.replay.snapshot } : await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (first && first.replay) ? first.replay.snapshot : null, onRows: first ? first.writeRows : undefined })
           if (!res.ok) { const _e1: Error & { fail?: unknown } = new Error((res.error && res.error.message) || 'composeSnapshot failed'); if (res.fail) _e1.fail = res.fail; throw _e1 }
-          // #683（F1 · ADR 的 R4）：后端说「没变」（304）时也要把权威选择带上 —— 那正是「只换了后端、 快照内容一个字没变」这个现场：不带的话客户端收到 304 就什么都不做，面板头继续显示旧后端。
-          // #1440：304 回包必须带上工作区根（与下面重建分支的 workspaceRoot: cwd 同一个值）。
-          //   后面挂工作路线表那一步（withWorkRouteTable → work-route-readout）只认 reply.workspaceRoot，
-          //   拿不到根就挂一张 {ok:false, reason:'host.work-route.no-workspace'} 的坏表；客户端在本地
-          //   没表时又会照收，于是面板一直显示「读不出来」、自己不会好。304 是「内容没变」的合法结果，
-          //   不是失败，回包照样要自含解释这张表所需的全部信息，不能指望调用现场再补根。
-          if (res.notModified === true || res.status === 304) {
-            const _pair: { selection?: Sel | null; rev?: unknown; setupLayout?: Layout | null } = (_selEarly && _selEarly.backendId) ? { selection: _selEarly, rev: (Number.isInteger(_selEarly.rev) ? _selEarly.rev : 0) } : {}
-            // #1449：布局无条件带上（含 null）—— 客户端删掉浏览器那份布局表以后，只能靠这条回包清空旧答案。
-            _pair.setupLayout = _layEarly
-            return Object.assign({ ok: true, workspaceRoot: cwd, notModified: true, status: 304, version: res.version || '', cached: true, generatedMs: Date.now() }, _pair)
-          }
           // #1869：首屏取回来的行先收在内存里，等编排器成功返回后整批一个事务写库；
           // 进程在这之前被杀，库仍是上一轮完整数据（不会留下半批）。
           // #1893：取回来的行整批写库，行数进回包（在线重建的进度）。
@@ -234,6 +226,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           // #1887：库写到最新之后再读一次六个数字，挂到 deck 上；读不到就不挂（不补 0）。
           const libCounts = await readLibraryCounts(first)
           if (libCounts) { const deck: any = (inner.deck && typeof inner.deck === 'object') ? inner.deck : {}; applyDeckCounts(deck, libCounts); inner.deck = deck }
+          // #1885 评审修复（规格 I2）：这一份回包对应的库版本（在线重建写完库之后读，才是这一份的版本）。
+          const replyVersion = await libraryVersionOf(first)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
           let allForList: Row[] = []
           ;(inner.maps || []).forEach(function(m){
@@ -333,6 +327,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
             repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck, fallback: inner.fallback, fallbackAt: inner.fallbackAt, fallbackReason: inner.fallbackReason, refresh: inner.refresh,
             // #1893：有回放时这一格是 null；在线重建时把「取到几行、什么时候取完」交给界面。
             snapshotFetch: (!isForce && first && first.replay) ? null : { source: 'online-rebuild', rows: fetchedRows, at: Date.now() },
+            version: replyVersion,
           })
           // #1867：真正交付库回放时才盖上「来自库」的注记；在线重建（含 force）不冒充缓存。
           if (!isForce && first && first.replay) first.decorate(snap)
@@ -393,6 +388,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         // #1893：与 composer 支路同一口径——force 也读一次回放，只把它交给 previousSnapshot，不用于交付。
         const first = await firstScreenFromLibrary({ getSnapshotLibrary: getSnapshotLibrary, workspaceRoot: cwd, backend: backendId2, repoIdentity: String((repoRef2 && repoRef2.refId) || ''), repo: repoRef2, force: false })
         applySnapshotReadout(readout, first, isForce) // #1899：与 composer 支路同一口径
+        // 规格 §9：304 按库版本判（内容散列退场）；与 composer 支路同一口径。
+        const notModified2 = await notModifiedForVersion(first, args, cwd, _selEarly, _layEarly, isForce); if (notModified2) return notModified2
         // #1893：库里有数据就只读库；库空则走在线重建，没有内存副本兜底（与 composer 支路同一口径）。
         // #1869：开库诊断随在线重建的回包一起交给界面（见 composer 支路同一处的说明）。
         if (isForce || !(first && first.replay)) noteMiss()
@@ -407,6 +404,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         // #1887：与 composer 支路同一口径：写库之后再读一次六个数字，挂到 deck 上。
         const libCounts2 = await readLibraryCounts(first)
         if (libCounts2) { const deck2: any = (inner2.deck && typeof inner2.deck === 'object') ? inner2.deck : {}; applyDeckCounts(deck2, libCounts2); inner2.deck = deck2 }
+        // #1885 评审修复（规格 I2）：与 composer 支路同一口径，回包带这一份对应的库版本。
+        const replyVersion2 = await libraryVersionOf(first)
         ;(inner2.maps || []).forEach(function(m){ 
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {
@@ -470,6 +469,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           repository: repoRef2, backendModules: backendModules2, selection: _sel, setupLayout: _layEarly,
           viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, fallbackAt: inner2.fallbackAt, fallbackReason: inner2.fallbackReason, refresh: inner2.refresh,
           snapshotFetch: (!isForce && first && first.replay) ? null : { source: 'online-rebuild', rows: fetchedRows2, at: Date.now() },
+          version: replyVersion2,
         })
         if (!isForce && first && first.replay) first.decorate(snap2)
         return adoptSnapLog(snap2, cwd)

@@ -16,9 +16,12 @@
  *  - 只认三个数、把可接/阻塞/已认领当可选 —— 那又回到「同一屏上几个数字来源不同」的老问题。
  */
 
-/** 六个数字的字段名（顺序固定；门禁与界面都按这份清单逐项对）。 */
+/**
+ * 六个数字的字段名（顺序固定）。校验就按这份清单逐项收：加一个数字只改这里与 DeckCounts，
+ * 不在 normalizeDeckCounts 里再手写一遍六个名字。
+ */
 export const DECK_COUNT_FIELDS = Object.freeze(['total', 'open', 'closed', 'takeable', 'blocked', 'claimed'] as const)
-/** 一读数的完整度：整仓完整枚举过就是 complete，否则是 known（诚实的下界）。 */
+/** 一读数的完整度：整仓完整枚举过就是 complete，否则是 known（诚实的下界）。校验按这份清单认值。 */
 export const DECK_COUNT_COMPLETENESS = Object.freeze(['complete', 'known'] as const)
 export type DeckCountsCompleteness = (typeof DECK_COUNT_COMPLETENESS)[number]
 
@@ -47,16 +50,23 @@ function countOf(value: unknown): number | null {
 export function normalizeDeckCounts(value: unknown): DeckCounts | null {
   if (!value || typeof value !== 'object') return null
   const raw = value as Record<string, unknown>
-  const total = countOf(raw.total)
-  const open = countOf(raw.open)
-  const closed = countOf(raw.closed)
-  const takeable = countOf(raw.takeable)
-  const blocked = countOf(raw.blocked)
-  const claimed = countOf(raw.claimed)
-  if (total === null || open === null || closed === null || takeable === null || blocked === null || claimed === null) return null
-  const completeness = raw.completeness === 'complete' ? 'complete' : (raw.completeness === 'known' ? 'known' : null)
-  if (completeness === null) return null
-  return { total, open, closed, takeable, blocked, claimed, completeness }
+  const counts: Record<string, number> = {}
+  for (const field of DECK_COUNT_FIELDS) {
+    const count = countOf(raw[field])
+    if (count === null) return null
+    counts[field] = count
+  }
+  const completeness = DECK_COUNT_COMPLETENESS.find(function (item: DeckCountsCompleteness): boolean { return item === raw.completeness })
+  if (!completeness) return null
+  return {
+    total: counts.total,
+    open: counts.open,
+    closed: counts.closed,
+    takeable: counts.takeable,
+    blocked: counts.blocked,
+    claimed: counts.claimed,
+    completeness: completeness,
+  }
 }
 
 /**

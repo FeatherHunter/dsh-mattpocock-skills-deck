@@ -697,6 +697,8 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
   // 所以按同一套拼接做法把这一份真源拼进界面闭包 —— 界面只许消费这些名字，不许再写一份数字。
   { marker: '// ==== shared:refreshBudget (spliced by build) ====', file: 'src/refresh/kernel/host-budget.ts' },
+  // #1885 评审修复：库行 → 界面行的三态换算只有一份（宿主投影与客户端变化集合共用同一份源码文本）。
+  { marker: '// ==== shared:snapshotRowFields (spliced by build) ====', file: 'src/shared/snapshot-row-fields.ts' },
   // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 src/shared/version-control/src/rules.ts，
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/src/rules.ts' },

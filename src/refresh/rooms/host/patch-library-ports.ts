@@ -15,7 +15,11 @@
 //   2. 库门面没注入时整条口是 null（老调用方与旧门禁的假世界照旧只写内存）。
 //   3. 这一层不判断版本、不做重试、不看结果内容：版本门与「要不要丢」在库与 row-patch 两侧，
 //      这里只搬运。
+import type { RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { SyncBookkeeping, SyncBookkeepingWrite } from '../../../workspace-snapshot/contract/types.js'
+// #1885 评审修复：仓库身份补齐只有一份实现（describe → 本地 git 远程 → Markdown 目录 → 会话），
+// 这一道口与两条读口都问它，不再各自重拼解析步骤。
+import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
 
 /** 差分基线：票号 → '状态|更新时间'（与 kernel/index-window-rules 的索引同一口径）。 */
 export type PatchBaselineIndex = Record<string, string>
@@ -48,7 +52,7 @@ export interface PatchLibraryCommitResult {
  */
 export interface PatchLibraryPorts {
   /**
-   * 这一趟能不能按库走：门面在、四个新口齐、库身份解析得出来。
+   * 这一趟能不能按库走：门面在、五个口齐（含 readSnapshotReplay）、库身份解析得出来。
    * 回 false 时 row-patch 照旧按「库不可用」处理（回 rebuild / failed），不再回落到宿主内存副本。
    */
   ready(cwd: string): Promise<boolean>
@@ -74,6 +78,8 @@ export interface PatchLibraryPortsDeps {
   getRepoKey?: ((cwd: string) => Promise<any> | any) | null
   /** #1893：GitLab / 自有实例没有 owner/name 远端时，refId 只能问注册表 describe。 */
   getTrackerRegistry?: (() => Promise<any> | any) | null
+  /** #1885 评审修复：本地证据都答不上时，身份真源是宿主注入的只读会话口。 */
+  openSession?: ((cwd: string, options?: { write?: boolean }) => Promise<any>) | null
   backendIdOf?: (() => string) | null
 }
 
@@ -91,8 +97,9 @@ export function createPatchLibraryPorts(deps: PatchLibraryPortsDeps | null | und
   const getSnapshotLibrary = d.getSnapshotLibrary
   const getRepoKey = d.getRepoKey
   const getTrackerRegistry = d.getTrackerRegistry
+  const openSession = d.openSession
   const backendIdOf = d.backendIdOf
-  // 同一趟里四个口都要身份：按目录记住解析成功的那一份，别把 getRepoKey 问四遍。
+  // 同一趟里五个口都要身份：按目录记住解析成功的那一份，别把仓库身份问五遍。
   const keyByCwd = new Map<string, LibraryKey>()
 
   async function libraryOf(): Promise<any | null> {
@@ -113,27 +120,24 @@ export function createPatchLibraryPorts(deps: PatchLibraryPortsDeps | null | und
     if (!workspaceRoot) return null
     const backend = (typeof backendIdOf === 'function') ? String(backendIdOf() || '') : ''
     if (!backend) return null
-    // ① 宿主本地 git 远程（GitHub 最常见，纯本地读，不联网）。
-    let repoIdentity = ''
-    if (typeof getRepoKey === 'function') {
-      let repo: any = null
-      try { repo = await Promise.resolve(getRepoKey(workspaceRoot)) } catch (e) { repo = null }
-      const owner = repo && String(repo.owner || '')
-      const name = repo && String(repo.name || '')
-      if (owner && name) repoIdentity = owner + '/' + name
+    let reg: any = null
+    if (typeof getTrackerRegistry === 'function') {
+      try { reg = await Promise.resolve(getTrackerRegistry()) } catch (e) { reg = null }
     }
-    // ② 注册表 describe（GitLab / 自有实例的 refId 只有它知道）。空 refId 的壳不算身份。
-    if (!repoIdentity && typeof getTrackerRegistry === 'function') {
-      try {
-        const reg: any = await Promise.resolve(getTrackerRegistry())
-        if (reg && typeof reg.describe === 'function') {
-          const ref: any = reg.describe({ cwd: workspaceRoot }, backend)
-          if (ref && typeof ref.refId === 'string' && ref.refId) repoIdentity = ref.refId
-        }
-      } catch (e) { repoIdentity = '' }
+    // 身份补齐只有一份实现：与两条读口（wf.snapshotVersion / wf.snapshotChanges）问的是同一条链。
+    let repoRef: RepositoryRef | null = null
+    try {
+      repoRef = await resolveRepoRefForCwd({
+        cwd: workspaceRoot,
+        backendId: backend,
+        describe: (reg && typeof reg.describe === 'function') ? reg.describe : null,
+        getRepoKey: typeof getRepoKey === 'function' ? getRepoKey : null,
+        openSession: typeof openSession === 'function' ? openSession : null,
+      })
+    } catch (e) {
+      repoRef = null
     }
-    // ③ 本地 Markdown 的仓库身份就是工作区目录本身（与 #1868 的判定同一口径）。
-    if (!repoIdentity && backend === 'markdown') repoIdentity = workspaceRoot
+    const repoIdentity = String((repoRef && repoRef.refId) || '')
     if (!repoIdentity) return null
     const key: LibraryKey = {
       workspaceRoot: workspaceRoot,
@@ -145,7 +149,9 @@ export function createPatchLibraryPorts(deps: PatchLibraryPortsDeps | null | und
     return key
   }
 
-  const REQUIRED_METHODS = ['readSyncState', 'writeSyncState', 'readIssueIndex', 'commitChangeRows']
+  // 五个口缺一不可：前四个管簿记 / 基线 / 变化行，最后一个管「读回放」——row-patch 的基线只能来自它，
+  // 漏了它时 ready() 会回真、readReplay 却拿不到东西，行级增量就永远按「没有基线」整池。
+  const REQUIRED_METHODS = ['readSyncState', 'writeSyncState', 'readIssueIndex', 'commitChangeRows', 'readSnapshotReplay']
 
   return {
     async ready(cwd: string): Promise<boolean> {

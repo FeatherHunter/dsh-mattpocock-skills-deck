@@ -176,7 +176,11 @@ export function ingestWrites(
         // 这一批写过哪张票，就把它的「最后变化版本」推到这个版本：变化集靠它回答「v12 之后变了哪几行」。
         bumpChangeVersion.run(nextVersion, write.effortId, write.key)
         // 重新出现的票把墓碑清掉——墓碑只表达「这一版里它不在」，不是永久判决。
-        clearTombstone.run(write.effortId, write.key)
+        // #1885 评审修复：这一笔本身就是「确认不存在」时不能清（刚写进去的墓碑会被自己抹掉）。
+        const expressesRemoval = write.groups.row !== undefined
+          && write.groups.row.completeness === 'complete'
+          && (write.groups.row.value === null || write.groups.row.value === undefined)
+        if (!expressesRemoval) clearTombstone.run(write.effortId, write.key)
       }
       db.prepare('UPDATE meta SET merge_version = ?, last_write_ms = ? WHERE id = 1')
         .run(nextVersion, nowMs)
@@ -277,7 +281,8 @@ interface AppliedIssueWrite {
 }
 
 /**
- * 落一张票表达的所有组。row 组 complete+null 是「确认不存在」，删掉后不再处理同批的其它组。
+ * 落一张票表达的所有组。row 组 complete+null 是「确认不存在」：写墓碑、行留着，不再处理同批的其它组
+ * （规格 I7：删除只走墓碑，不物理删行；票重新出现时由普通写入清墓碑）。
  *
  * 被回执优先窗口挡下的组整组跳过（不写值、也不盖章）：盖章会把「这次取过」的时刻推新，
  * 让界面以为这一组刚被重新确认过。
@@ -306,7 +311,17 @@ function applyIssueWrite(
     const decision = decideRowMerge(null, row)
     if (decision.kind === 'remove') {
       const existingId = findIssueId(db, write.effortId, write.key)
-      if (existingId !== null) { db.prepare('DELETE FROM issue WHERE issue_id = ?').run(existingId); applied() }
+      if (existingId !== null) {
+        // #1885 评审修复（规格 I7）：确认不存在的 row=complete+null 原先会物理删行，墓碑从来没写过，
+        // 变化集的 missing 因此恒为空。现在行原样留在库里（审计与复活都靠它），只写一条墓碑：
+        // 列表/计数投影按墓碑排除，变化集把它当作删除交出去。
+        // 内容组按物理删行时的级联口径清掉（组章、正文、标签、指派、边、评论、评审、游标）：
+        // 行只留身份，票重新出现时不会捡到上一辈子的成员关系与关系边（与改造前的级联语义一致）。
+        clearIssueContent(db, existingId)
+        db.prepare('INSERT OR REPLACE INTO issue_tombstone (issue_id, version, deleted_at_ms) VALUES (?, ?, ?)')
+          .run(existingId, version, nowMs)
+        applied()
+      }
       return { receiptPosition, appliedGroups }
     }
     const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
@@ -435,6 +450,22 @@ function stampGroup(
     version,
     receiptMs,
   )
+}
+
+/**
+ * 确认不存在的票：清掉它的内容组与关系边，但保留 issue 行本身与墓碑（#1885 评审修复）。
+ * 表清单与 schema 里 ON DELETE CASCADE 的那几张一一对应；等价于原先物理删行时的级联，
+ * 差别只在 issue 行不再消失。
+ */
+function clearIssueContent(db: DatabaseSync, issueId: number): void {
+  db.prepare('DELETE FROM issue_group WHERE issue_id = ?').run(issueId)
+  db.prepare('DELETE FROM issue_body WHERE issue_id = ?').run(issueId)
+  db.prepare('DELETE FROM issue_label WHERE issue_id = ?').run(issueId)
+  db.prepare('DELETE FROM issue_assignee WHERE issue_id = ?').run(issueId)
+  db.prepare('DELETE FROM issue_edge WHERE subject_id = ? OR object_id = ?').run(issueId, issueId)
+  db.prepare('DELETE FROM comment WHERE issue_id = ?').run(issueId)
+  db.prepare('DELETE FROM review WHERE issue_id = ?').run(issueId)
+  db.prepare('DELETE FROM fetch_cursor WHERE issue_id = ?').run(issueId)
 }
 
 /** 给上层与门禁用：一张票一组都没表达时算空批。 */

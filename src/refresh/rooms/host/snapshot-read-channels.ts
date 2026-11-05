@@ -85,16 +85,6 @@ function textOf(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
-/** 从描述符里取非空 refId；空串、只带显示名的壳都算「没答上来」。 */
-function refOf(value: unknown): RepositoryRef | null {
-  try {
-    const ref = value as { refId?: unknown } | null | undefined
-    return ref && typeof ref.refId === 'string' && ref.refId ? (ref as RepositoryRef) : null
-  } catch (e) {
-    return null
-  }
-}
-
 /**
  * 造出两条读口的处理体。两条共用同一套身份解析：同一份工作区在同一个后端上必须指向同一个库文件，
  * 少一格或换一种兜底就会读成另一个库（版本看起来对不上，变化集永远是整份）。
@@ -135,33 +125,21 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
       reg = null
     }
     if (!reg || typeof reg.describe !== 'function') return failureOf('认不出这个工作区的仓库身份，读不到本地快照库。', 'env')
+    // 身份补齐只有一份实现（#1885 评审修复）：describe → 宿主本地 git 远程 → 本地 Markdown 目录 →
+    // 会话。版本查询是五秒一拍的轮询，所以本地证据都排在开会话之前。
     let repoRef: RepositoryRef | null = null
-    try { repoRef = refOf(reg.describe({ cwd }, backend)) } catch (e) { repoRef = null }
-    // 先走本地证据：版本查询是五秒一拍的轮询，不能每拍都去开会话问身份。
-    // 宿主本地 git 远程只读本地，不联网（与 wf.snapshot 的 GitHub 支路同一口径）。
-    if (!repoRef && typeof getRepoKey === 'function') {
-      try {
-        const rk: any = await getRepoKey(cwd)
-        if (rk && typeof rk.owner === 'string' && rk.owner && typeof rk.name === 'string' && rk.name) {
-          repoRef = { backend, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: '' } as RepositoryRef
-        }
-      } catch (e) {
-        repoRef = null
-      }
+    try {
+      repoRef = await resolveRepoRefForCwd({
+        cwd,
+        backendId: backend,
+        describe: reg.describe,
+        getRepoKey: getRepoKey || null,
+        openSession,
+      })
+    } catch (e) {
+      repoRef = null
     }
-    // 本地 Markdown 的仓库身份就是工作区目录本身（与 #1868 的判定同一口径）：只有它允许拿 cwd 当 refId。
-    if (!repoRef && backend === 'markdown') {
-      repoRef = { backend, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backend, url: '' } as RepositoryRef
-    }
-    // 本地证据都答不上来时才问会话（可能起进程、花钱）；它也答不上才如实失败。
-    if (!repoRef) {
-      try {
-        repoRef = await resolveRepoRefForCwd({ cwd, backendId: backend, describe: reg.describe, openSession })
-      } catch (e) {
-        repoRef = null
-      }
-    }
-    if (!repoRef) return failureOf('认不出这个工作区的仓库身份，读不到本地快照库。', 'env')
+    if (!repoRef || !repoRef.refId) return failureOf('认不出这个工作区的仓库身份，读不到本地快照库。', 'env')
     if (typeof getSnapshotLibrary !== 'function') {
       return failureOf('本地快照库没有接上，读不到版本与变化集。', 'library', SNAPSHOT_DEGRADE.libraryNotWired)
     }

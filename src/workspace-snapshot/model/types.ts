@@ -211,6 +211,25 @@ export interface ListQuery {
 }
 
 /**
+ * 变化集里一行的落点（#1885 评审修复）。由宿主变化集投影按库里的容器树一次算好，
+ * 客户端只照单落位，不再自己按 parentKey 判容器归属（规格 D1：领域规则一处实现）。
+ *
+ *  - map：这一行自己是容器（地图或规格），更新 maps 里那一项；
+ *  - child：挂到 containerEffortId + containerKey 那个容器的子票里；
+ *  - thin：容器已关闭、子票也关闭，只留一条查标题用的瘦身行；
+ *  - issue：未挂图票（根票、破链票、非容器行）。
+ */
+export interface ChangeRowPlacement {
+  place: 'map' | 'child' | 'thin' | 'issue'
+  /** child / thin 才给：所属容器的身份（与票身份同一套坐标）。 */
+  containerEffortId?: string
+  containerKey?: string
+}
+
+/** 变化集里的一次行变更：列表投影的行 + 它该落在哪里。 */
+export type ChangeSetChangedRow = ListIssue & { placement: ChangeRowPlacement }
+
+/**
  * 变化集里的墓碑行：某张票在第几个版本被确认不存在。
  *
  * 只带身份与删除时刻：界面拿它把对应的行拿掉，不需要墓碑自己的行字段（行还在库里，
@@ -256,7 +275,7 @@ export interface ChangeSetProjection {
   generatedAtMs: number
   full: boolean
   reason: ChangeSetFullReason | null
-  changes: ListIssue[]
+  changes: ChangeSetChangedRow[]
   missing: ChangeSetTombstone[]
 }
 

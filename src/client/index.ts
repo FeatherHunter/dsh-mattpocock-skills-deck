@@ -267,6 +267,9 @@ export default {
     // 只有一份真源（src/refresh/kernel/host-budget.ts，#1425 起从 src/shared/refresh/src/budget.ts 搬来），拼进来给界面读；
     // 判据与渲染见 views/shared/truthLines.js 与 views/ListTab.js。
     // ==== shared:refreshBudget (spliced by build) ====
+    // #1885 评审修复：库行 → 界面行的三态换算只有一份（src/shared/snapshot-row-fields.ts）：
+    // 宿主快照投影与客户端变化集合同读这一份，客户端不在闭包里再写第二套判法。
+    // ==== shared:snapshotRowFields (spliced by build) ====
     // #842 写操作：能不能暂存/提交/拉取/推送的判定只有一份真源（src/shared/version-control/src/rules.ts →
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。

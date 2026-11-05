@@ -15,11 +15,15 @@
 //   5. 本层不读配置：maxRows / maxAgeMs 由调用方（宿主电话）从中央时间参数传进来。
 import type { DatabaseSync } from 'node:sqlite'
 import type {
+  ChangeRowPlacement,
+  ChangeSetChangedRow,
   ChangeSetProjection,
   ChangeSetQuery,
   ChangeSetTombstone,
+  ListIssue,
 } from '../model/types.js'
 import { readMergeVersion } from '../persistence/schema.js'
+import { readFirstParents, type FirstParentInfo } from './edges.js'
 import { LIST_ROW_COLUMNS, projectListRows, type ListRow } from './list.js'
 
 interface TombstoneRow {
@@ -95,14 +99,40 @@ export function readChangeSetProjection(
     key: row.key,
     deletedAtMs: Number(row.deleted_at_ms),
   }))
+  // #1885 评审修复：一行该落在哪由宿主算好（map / child / thin / issue），客户端只照单落位，
+  // 不再按 parentKey 自己判容器归属。父票信息与列表投影读同一张边表、同一套「第一个父票」口径。
+  const rows = projectListRows(db, changedRows)
+  const parents = readFirstParents(db, changedRows.map((row) => Number(row.issue_id)))
+  const changes: ChangeSetChangedRow[] = rows.map((row, index) => Object.assign({}, row, {
+    placement: changePlacementOf(row, parents.get(Number(changedRows[index].issue_id)) || null),
+  }))
   return {
     mergeVersion: current,
     generatedAtMs: nowMs,
     full: false,
     reason: null,
-    changes: projectListRows(db, changedRows),
+    changes,
     missing,
   }
+}
+
+/**
+ * 这一行在界面上的落点（与 assembleSnapshot 的容器树同一口径）：
+ *  - 自己就是地图/规格 → maps 里那一项；
+ *  - 父票是地图/规格 → 挂到它下面；父容器已关闭且子票也关闭 → 只留瘦身行（首屏不画它）；
+ *  - 其余（根票、破链票、父票不是容器）→ 未挂图票。
+ */
+function changePlacementOf(row: ListIssue, parent: FirstParentInfo | null): ChangeRowPlacement {
+  const type = String(row.row.type === null || row.row.type === undefined ? '' : row.row.type)
+  if (type === 'map' || type === 'spec') return { place: 'map' }
+  if (parent && (parent.type === 'map' || parent.type === 'spec')) {
+    const parentClosed = String(parent.state === null || parent.state === undefined ? '' : parent.state).toLowerCase() === 'closed'
+    const rowClosed = String(row.row.state === null || row.row.state === undefined ? '' : row.row.state).toLowerCase() === 'closed'
+    return parentClosed && rowClosed
+      ? { place: 'thin', containerEffortId: parent.effortId, containerKey: parent.key }
+      : { place: 'child', containerEffortId: parent.effortId, containerKey: parent.key }
+  }
+  return { place: 'issue' }
 }
 
 /** 正整数；不合法时回 fallback（调用方给 0 表示「这一档不设上限」）。 */

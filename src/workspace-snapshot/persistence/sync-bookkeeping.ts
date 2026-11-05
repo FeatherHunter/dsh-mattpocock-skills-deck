@@ -14,41 +14,14 @@
 //   3. expectedGeneration 是「迟到的结果不许覆盖更新的结果」在库这一侧的落点：给了它、而库里
 //      当前的世代号与它不等，整笔写入一个字都不动。
 import type { DatabaseSync } from 'node:sqlite'
-
-/** 同步簿记的三样，外加「整仓最近一次完整枚举」的时刻（0 = 从没完整取过，给后面的完整度用）。 */
-export interface SyncBookkeeping {
-  /** 上一次次探测的起点毫秒；0 = 还没有可用水印。 */
-  watermarkMs: number
-  /** 本工作区的世代号：每收下一份结果加一，迟到的结果拿发起时的旧值来比就会被挡住。 */
-  generation: number
-  /** 没并进去的变化票号（去重、按字符串排序）。 */
-  pending: string[]
-  /** 最近一次记待办的时刻毫秒；没有待办时是 0。 */
-  pendingAtMs: number
-  /** 最近一次记待办的原因代号（例如 thin-query-failed）；没有待办时是空串。 */
-  pendingReason: string
-  /** 整仓最近一次完整枚举完成的时刻毫秒；0 = 从没完整取过。 */
-  fullEnumerationMs: number
-}
-
-/** 一次簿记写入。只给要改的那几格；没给的保持库里的值。 */
-export interface SyncBookkeepingWrite {
-  watermarkMs?: number
-  generation?: number
-  pending?: readonly string[]
-  pendingAtMs?: number
-  pendingReason?: string
-  fullEnumerationMs?: number
-  /** 只在库里世代号等于它时才写；不相等整笔拒绝（返回 stale）。 */
-  expectedGeneration?: number
-}
-
-/** 写簿记的回执：committed 为假表示被门挡下或写失败，state 仍是读到的当前值。 */
-export interface SyncBookkeepingApplyResult {
-  committed: boolean
-  state: SyncBookkeeping
-  reason?: 'stale'
-}
+// #1885 评审修复：簿记的类型只有契约一处（README 说过「上层只应该 import contract/ 里的东西」）。
+// 这里从前另写一份，结果类型的 reason 已经漂成只有 'stale'——库侧只读 / 写失败那两档在类型上消失。
+// 现在两样都从契约导入，persistence 不再声明同名类型。
+import type {
+  SyncBookkeeping,
+  SyncBookkeepingResult,
+  SyncBookkeepingWrite,
+} from '../contract/types.js'
 
 /** 空簿记：新库、或夹具还没写过时的读数。 */
 export function emptySyncBookkeeping(): SyncBookkeeping {
@@ -99,7 +72,7 @@ export function applySyncBookkeepingRow(
   db: DatabaseSync,
   write: SyncBookkeepingWrite | null | undefined,
   current: SyncBookkeeping,
-): SyncBookkeepingApplyResult {
+): SyncBookkeepingResult {
   if (!write) return { committed: true, state: current }
   if (write.expectedGeneration !== undefined && Number(write.expectedGeneration) !== current.generation) {
     return { committed: false, state: current, reason: 'stale' }

@@ -374,6 +374,14 @@ const partD = async function (): Promise<void> {
     describe: function (): any { return REF },
     get: function (): any { return tracker },
   }
+  // #1885 评审修复：304 的判据改成库版本（规格 §9）。给这一趟配一个最小库门面：
+  // 回放为空（第一次照旧走重建），但版本读得出来；第二次带同一个版本就会被电话层判 304。
+  const libraryVersion = 7
+  const libraryStub: any = {
+    readSnapshotReplay: async function (): Promise<any> { return null },
+    readLibraryVersion: async function (): Promise<number> { return libraryVersion },
+    recordIssueRows: async function (): Promise<any> { return { ok: true, rows: 0, mergeVersion: null } },
+  }
   const deps: any = {
     envelope: envelope,
     canonicalKey: async function (s: string): Promise<string> { return s },
@@ -401,18 +409,17 @@ const partD = async function (): Promise<void> {
     DEFAULT_CWD: ROOT,
     logCtx: quiet,
     getChoiceStore: async function (): Promise<any> { return null },
+    getSnapshotLibrary: async function (): Promise<any> { return libraryStub },
   }
   const phone: any = createSessionSnapshot(deps)
   const first: any = await phone.handleSnapshot({ cwd: ROOT, sessionId: SID })
   check(!!first && first.ok === true && first.notModified !== true, '前置：第一次取快照走重建，回的是整份快照（实得 ' + JSON.stringify(first && { ok: first.ok, notModified: first.notModified }) + '）')
   check(!!first && first.workspaceRoot === ROOT, '前置：整份快照自带工作区根')
   check(!!first && !!first.workRouteTable && first.workRouteTable.ok === true, '前置：整份快照挂的是读得到的那张表')
-  // 版号是快照内容的纯函数（snapshotVersionOf），同样内容再组一次就得到同一个号。
-  // 用它当 ifNoneMatch，真宿主会走「重建后版号对上」那条 304 出口 —— 不是伪造回包。
-  const probe: any = createSnapshotComposer(registry, { snapshotTtl: 60000 })
-  const replay: any = await probe.composeSnapshot('markdown', REF, { cwd: ROOT }, { ifNoneMatch: '' })
-  const version = String((replay && replay.version) || '')
-  check(!!replay && replay.ok === true && replay.notModified !== true && version !== '', '探针自己组一次，拿到宿主内部那枚内容版号（实得 ' + JSON.stringify(version) + '）')
+  // #1885 评审修复：304 按库版本判（规格 §9），不再按内容散列。第一次回包里带的库版本就是第二趟的
+  // ifNoneMatch；版本一致时电话层直接回 304 —— 不是伪造回包。
+  const version = String((first && first.version) || '')
+  check(version === String(libraryVersion), '第一次快照回包带的版本就是库当前版本（实得 ' + JSON.stringify(version) + '）')
   const second: any = await phone.handleSnapshot({ cwd: ROOT, sessionId: SID, ifNoneMatch: version })
   check(!!second && second.notModified === true && second.status === 304, '第二次带同一个版号取快照，宿主回 304（实得 ' + JSON.stringify({ notModified: second && second.notModified, status: second && second.status }) + '）')
   check(!!second && second.workspaceRoot === ROOT, '304 回包自带工作区根（实得 ' + JSON.stringify(second && second.workspaceRoot) + '）')

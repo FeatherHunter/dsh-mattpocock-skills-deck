@@ -557,6 +557,10 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
   // #1888：行级增量的同步簿记搬进库之后，待办里记的「什么时候记下这条待办」是状态字段，调 YAML 改不了它。
   { file: 'src/refresh/rooms/host/row-patch-state.ts', name: 'pendingAtMs', reason: '待办里记下的时刻（什么时候记下这条待办），随状态一起读写，不是可调参数' },
+  // #1885 评审修复：库行换算里这三个时刻都来自后端给的库行，只用于格式化与排序，调 YAML 改不了它们。
+  { file: 'src/shared/snapshot-row-fields.ts', name: 'createdAtMs', reason: '库行里的创建时刻（后端给的原始毫秒），只用于格式化与排序，不是可调参数' },
+  { file: 'src/shared/snapshot-row-fields.ts', name: 'updatedAtMs', reason: '库行里的更新时刻（后端给的原始毫秒），只用于格式化与排序，不是可调参数' },
+  { file: 'src/shared/snapshot-row-fields.ts', name: 'closedAtMs', reason: '库行里的关闭时刻（后端给的原始毫秒），只用于格式化，不是可调参数' },
   { file: 'src/host/versionControlFirstScreen.ts', name: 'readAtMs', reason: '读钟时刻（这一趟首屏聚合读取是什么时候开始的），不是可调参数' },
   { file: 'src/host/versionControlSyncCheck.ts', name: 'readAtMs', reason: '读钟时刻（这一趟同步预检是什么时候读的现场），不是可调参数' },
   // #1756：克隆预检与执行的回包都带自己那一刻的读钟时刻，用来和票据过期对上，不是可调参数。

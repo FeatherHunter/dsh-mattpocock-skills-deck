@@ -105,7 +105,11 @@ console.log('== ⑤ 静态面：读函数只认工作区文件、304 无条件�
   const decoration = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/snapshot-decoration.ts'), 'utf8')
   check(decoration.includes('WORKSPACE_FILE_REL'), '读函数认工作区文件的位置（接线仍在）')
   check(!/getChoiceStore\s*\(/.test(text) && !/getLayout\s*\(/.test(text), '读函数不再查本机记忆里的布局')
-  check(text.includes('_pair.setupLayout = _layEarly'), '304 回包无条件带布局（含 null，客户端才能清空旧答案）')
+  // #1885 评审修复：304 的形状搬进 snapshot-reply-version.ts（电话体贴着 350 行上限），
+  // 判据不变：回包里无条件带布局（含 null，客户端才能清空旧答案）。
+  const replyVersion = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/snapshot-reply-version.ts'), 'utf8')
+  check(replyVersion.includes('pair.setupLayout = layout') && text.includes('notModifiedForVersion'),
+    '304 回包无条件带布局（含 null，客户端才能清空旧答案）')
   check(!text.includes('sameLayout || !_layEarly'), '旧的「没答案就留旧值」条件已删')
 }
 
