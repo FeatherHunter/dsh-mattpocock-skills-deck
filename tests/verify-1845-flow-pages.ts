@@ -188,7 +188,7 @@ async function main() {
   const hardPage = undo.vcUndoPageNode(h, trZh, { state: Object.assign(undo.vcUndoStateNew(), { inputs: hardInputs }) })
   const hardSections: any[] = findAll(hardPage, function (n: any) { return classHas(n, 'page-section') })
   check(classHas(hardSections[2], 'is-danger') && hardSections[2].props['data-vc-danger-section'] === '1', 'D12 危险动作的第三段带危险标记（data-vc-danger-section=1）')
-  check(textOf(pick(hardSections[2], 'section-danger')) === trZh('vc.shell.page.danger'), 'D13 危险标记文字走 vc.shell.page.danger 词条')
+  check(textOf(pick(hardSections[2], 'section-danger')) === trZh('vc.shell.page.dangerZone'), 'D13 危险标记文字走 vc.shell.page.dangerZone 词条（#1843：分区旁说「危险区」，页头才说「含不可逆动作」）')
 
   const checkReply = { ok: true, contract: 'version-control.undo-check', version: 1, ticket: { id: 'un-abc123' }, plan: { target: 'HEAD~1', stepCount: 1 }, scene: { head: 'ffffffffffff' }, danger: false, steps: [] }
   const readyState = undo.vcUndoApplyCheck(idle, 1, checkReply)

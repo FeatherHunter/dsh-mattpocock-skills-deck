@@ -42,6 +42,9 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell] .section-count{flex:0 0 auto;font-family:var(--vcs-mono);font-size:9.5px;color:var(--vcs-faint)}',
   '[data-vc-shell] .section-danger{flex:0 0 auto;display:inline-flex;align-items:center;min-height:16px;padding:0 4px;border:1px solid color-mix(in srgb,var(--vcs-danger) 40%,transparent);border-radius:var(--vcs-r-sm);background:var(--vcs-danger-soft);color:var(--vcs-danger);font-size:9.5px;line-height:1.5;white-space:nowrap}',
   '[data-vc-shell] .section-note{margin:0 0 2px;color:var(--vcs-faint);font-size:10px;line-height:1.6;overflow-wrap:anywhere}',
+  // 危险分区的标题按原型 42 写成警示色：读者先看见「危险区」三个字变红，再看到旁边的红 chip；
+  //   分区本体不整圈描红，红边留给里面每一张危险动作卡（.page-card.is-danger 的左侧竖线），两层红色不叠。
+  '[data-vc-shell] .page-section.is-danger .section-title{color:var(--vcs-danger)}',
   // 折叠段：原型是一个带描边的圆角盒子，标题行里 chevron 收起时朝右、展开时朝下；
   //   不存在原生的 details 三角（marker 一律收起），点击整行切换。
   '[data-vc-shell] .fold{margin:0;border:1px solid var(--vcs-line-2);border-radius:var(--vcs-r-md);background:var(--vcs-inset);overflow:hidden;min-width:0}',
@@ -232,14 +235,21 @@ export const VC_PAGE_STYLE_TEXT = [
   // 命令行条：git 命令原样显示，等宽字体、允许在词内断行，窄档也不会撑出横向滚动。
   '[data-vc-shell] .cmd-line{display:block;margin:0;padding:1px 4px;border-radius:3px;background:var(--vcs-bg);color:var(--vcs-dim);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}',
   // 类型徽章：读 / 写 / 毁 / 警告 / 正常五种语气，靠令牌换肤，不在规则里写颜色。
-  '[data-vc-shell] .badge{flex:0 0 auto;display:inline-block;padding:0 5px;border:1px solid var(--vcs-line);border-radius:999px;font-size:10.5px;line-height:1.6;white-space:nowrap}',
-  '[data-vc-shell] .badge.is-read{color:var(--vcs-dim)}',
-  '[data-vc-shell] .badge.is-write{color:var(--vcs-accent);border-color:var(--vcs-accent)}',
-  '[data-vc-shell] .badge.is-danger{color:var(--vcs-danger);border-color:var(--vcs-danger)}',
-  '[data-vc-shell] .badge.is-warn{color:var(--vcs-warn);border-color:var(--vcs-warn)}',
-  '[data-vc-shell] .badge.is-ok{color:var(--vcs-accent);border-color:var(--vcs-accent)}',
+  // 页内徽章统一用 .vcs-badge：不能叫 .badge——改动页文件行从原型带过来的 .badge 是 17×17 的字母方块，
+  //   它的规则排在页面样式之后，会把子模块与维护页的整句徽章压成一块裁掉文字的小方块（#1843 重新贴壳时实测）。
+  '[data-vc-shell] .vcs-badge{flex:0 0 auto;display:inline-block;padding:0 5px;border:1px solid var(--vcs-line);border-radius:999px;font-size:10.5px;line-height:1.6;white-space:nowrap}',
+  '[data-vc-shell] .vcs-badge.is-read{color:var(--vcs-dim)}',
+  '[data-vc-shell] .vcs-badge.is-write{color:var(--vcs-accent);border-color:var(--vcs-accent)}',
+  '[data-vc-shell] .vcs-badge.is-danger{color:var(--vcs-danger);border-color:var(--vcs-danger)}',
+  '[data-vc-shell] .vcs-badge.is-warn{color:var(--vcs-warn);border-color:var(--vcs-warn)}',
+  '[data-vc-shell] .vcs-badge.is-ok{color:var(--vcs-accent);border-color:var(--vcs-accent)}',
   // 一行里的动作组：靠右排，窄档由外层 obj-side 统一换行到左。
   '[data-vc-shell] .page-row-actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;min-width:0}',
+  // 子模块页的行在 300 / 380 两档改成上下两段：右上角的动作组（最多七颗按钮）若与路径并排，
+  //   主体只剩不到一半宽度，路径与差异说明会被压成一条细缝（#1843 真机前的静态渲染实测）。
+  //   这条只作用于本页根 .vcs-sub-page 下的对象行，其它页的同名原语不受影响。
+  '[data-vc-shell][data-vc-width="300"] .vcs-sub-page .obj-row,[data-vc-shell][data-vc-width="380"] .vcs-sub-page .obj-row{flex-direction:column;align-items:stretch}',
+  '[data-vc-shell][data-vc-width="300"] .vcs-sub-page .obj-side,[data-vc-shell][data-vc-width="380"] .vcs-sub-page .obj-side{max-width:100%;justify-content:flex-start}',
   // 行内表单：路径与地址两栏并排，窄档各占一整行；输入框宽度只受容器约束，不写固定像素。
   '[data-vc-shell] .inline-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px;min-width:0;margin-top:4px}',
   '[data-vc-shell] .inline-field{display:flex;flex:1 1 140px;flex-direction:column;gap:2px;min-width:0}',

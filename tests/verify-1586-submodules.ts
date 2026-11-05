@@ -245,7 +245,7 @@ async function main() {
   check(V.VC_SUBMODULE_MODES.indexOf('confirm') >= 0 && V.VC_SUBMODULE_MODES.indexOf('running') >= 0, 'D10 界面十态表里有确认与执行两态')
   const page = V.vcSubmodulesPageNode(fakeH, function (k) { return String(k) }, { board: { state: 'ok', rows: bd }, ui: V.vcSubmodulesUiOf(null), ops: null })
   const entryAttrs = attrsOf(page, 'data-vc-sub-entry')
-  check(entryAttrs.length === 8 && entryAttrs.join(',') === '10.1,10.2,10.3,10.4,10.5,10.6,10.7,10.8', 'D11 页面画了八条能力入口')
+  check(entryAttrs.length === 0, 'D11 页尾能力清单已随 #1860 退役，页面不再画八条能力入口（实得 ' + entryAttrs.length + ' 条）')
   const batchAttrs = attrsOf(page, 'data-vc-sub-batch')
   check(batchAttrs.join(',') === 'init,fetch,recorded,status', 'D12 批量固定四项菜单在页面上真实渲染（没有第五项）')
   check(attrsOf(page, 'data-cap-primary').length === 0, 'D13 页面自己不许写 data-cap-primary（能力行由面板壳出）')

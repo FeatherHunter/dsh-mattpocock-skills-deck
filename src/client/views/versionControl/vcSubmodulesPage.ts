@@ -1,7 +1,9 @@
 // vcSubmodulesPage.ts —— 子模块页的正文（#1757 T21 起；#1843 阶段 4 按定稿原型重做）
 //
-// 页面只画正文，页头（标题、导语、数量与返回键）由 vcShellPages 统一画；正文从 page-stack 纵向栈开始，
-// 按原型 40 的顺序排三段：子模组清单 → 批量动作 → 本页能力入口。清单段里每一行只回答三件事：
+// 页面只画正文，页头（标题、导语与返回键）由 vcShellPages 统一画；正文从 page-stack 纵向栈开始，
+// 按原型 40 的顺序排两段：子模组清单 → 批量动作。页尾的「本页负责的能力」清单已随 #1860 整块退役，
+// 八条能力的逐条入口仍可在命令面板与管理索引里到达，本页不再画第二份清单（#1843 重新贴壳时按票面确认）。
+// 清单段里每一行只回答三件事：
 // 路径、当前提交、与父仓记录的差异；逐行可用动作靠右。确认卡、被拦理由、结果回执沿用原有结构与
 // data-vc-sub-* 锚点，另起一套会让外壳的事件委托与门禁同时失配。
 //
@@ -22,12 +24,10 @@ declare function vcPageObjRowNode(h: any, t: any, o: any): any
 declare function vcShellConfirmCardNode(h: any, t: any, o: any): any
 declare function vcShellResultNode(h: any, t: any, o: any): any
 declare function vcShellStateNode(h: any, t: any, o: any): any
-declare const VC_SUBMODULE_ENTRIES: any[]
 declare function vcSubmodulesUiOf(ui: any): any
 declare function vcSubmoduleBatchOf(): any[]
 declare function vcSubmoduleRowActionsOf(): any[]
 declare function vcSubmoduleWhyKeyOf(reason: any): string
-declare function vcSubmoduleCapOf(capId: any): any
 declare function vcSubmodulesStateOf(board: any): string
 declare function vcSubmoduleRowsOf(board: any): any[]
 // 悬停提示统一走全局薄预设 Tip（真实构建里它排在所有视图叶子之前，由调用方注入）。
@@ -53,7 +53,7 @@ function vcSubCallOf(ops: any, name: string, args: any[]): any {
 
 /** 一个状态徽章：语气（is-ok / is-warn / is-danger / is-read）由调用方按读数给，徽章只管显示词条。 */
 function vcSubBadgeNode(h: any, t: any, tone: string, key: string, vars: any): any {
-  return h('span', { key: 'badge-' + key, className: 'badge ' + tone }, t(key, vars))
+  return h('span', { key: 'badge-' + key, className: 'vcs-badge ' + tone }, t(key, vars))
 }
 
 /** 状态读数到徽章语气的映射：冲突是红，未初始化与不一致是黄，正常是绿。 */
@@ -179,25 +179,6 @@ function vcSubAddSubmitOf(ops: any, ui: any): any {
   }
 }
 
-/** 一条能力入口：编号徽章、能力名、一个「去做这一步」按钮；点按钮走 ops.start(动作名)。 */
-function vcSubEntryNode(h: any, t: any, entry: any, ops: any): any {
-  const cap: any = vcSubmoduleCapOf(entry.capId)
-  return h('div', {
-    key: 'entry-' + String(entry.capId), className: 'page-card',
-    'data-vc-sub-entry': String(entry.capId), 'data-vc-sub-cap-name': String(cap.name || ''),
-  }, [
-    h('div', { key: 'head', className: 'page-card-head' }, [
-      h('span', { key: 'cap', className: 'badge is-read' }, String(entry.capId)),
-      h('span', { key: 'label', className: 'page-card-title' }, t(String(entry.labelKey))),
-      h('button', {
-        key: 'go', type: 'button', className: 'vcs-sub-entry-go', 'data-vc-sub-enter': String(entry.actionId),
-        'data-sub-cap': String(entry.capId), 'data-press': 'button', 'data-log': 'vc.sub.entry',
-        disabled: !ops, onClick: vcSubStartOf(ops, entry.actionId, null),
-      }, t('vc.sub.entry.go')),
-    ]),
-  ])
-}
-
 /** 批量动作段：四个固定菜单项。看状态只重读清单，其余三项各自起步并由宿主签票。 */
 function vcSubBatchGoOf(ops: any, menuId: string): any {
   return function (): void {
@@ -234,6 +215,7 @@ function vcSubListSectionNode(h: any, t: any, state: string, board: any, ui: any
   if (!rows.length) {
     return vcPageSectionNode(h, t, {
       title: 'vc.sub.listSectionTitle', note: 'vc.sub.listSectionNote',
+      countText: 'vc.sub.listCount', countVars: { n: 0 },
       children: [h('div', { key: 'empty', className: 'empty-block', 'data-vc-sub-list': 'empty' }, [
         h('p', { key: 'title', className: 'empty-title' }, t('vc.sub.emptyTitle')),
         h('p', { key: 'hint', className: 'empty-hint' }, t('vc.sub.emptyHint')),
@@ -244,7 +226,8 @@ function vcSubListSectionNode(h: any, t: any, state: string, board: any, ui: any
   const items: any[] = []
   for (let i = 0; i < rows.length; i += 1) items.push(vcSubRowNode(h, t, rows[i], ui, ops, i))
   return vcPageSectionNode(h, t, {
-    title: 'vc.sub.listSectionTitle', note: 'vc.sub.listSectionNote', count: rows.length,
+    title: 'vc.sub.listSectionTitle', note: 'vc.sub.listSectionNote',
+    countText: 'vc.sub.listCount', countVars: { n: rows.length },
     children: [
       h('div', { key: 'rows', className: 'vcs-sub-rows', 'data-vc-sub-list': 'rows' }, items),
       vcSubAddFormNode(h, t, ui, ops, 'rows-form'),
@@ -353,7 +336,7 @@ function vcSubRowsOf(board: any): any[] {
 }
 
 /**
- * 页面根：三段正文 + 当前一态（确认/被拦/结果）。页头由外壳统一画，这里不再画标题行、导语与数量：
+ * 页面根：两段正文 + 当前一态（确认/被拦/结果）。页头由外壳统一画，这里不再画标题行、导语与数量：
  * 数量放进清单段头（vcPageSectionNode 的 count 参数），刷新动作留在清单段里。
  */
 export function vcSubmodulesPageNode(h: any, t: any, o: any): any {
@@ -377,9 +360,6 @@ export function vcSubmodulesPageNode(h: any, t: any, o: any): any {
       h('p', { key: 'foot', className: 'page-note' }, t('vc.sub.batchSectionFoot')),
     ],
   }))
-  const entries: any[] = []
-  for (let i = 0; i < VC_SUBMODULE_ENTRIES.length; i += 1) entries.push(vcSubEntryNode(h, t, VC_SUBMODULE_ENTRIES[i], ops))
-  stack.push(vcPageSectionNode(h, t, { title: 'vc.sub.entriesTitle', children: entries }))
   return h('section', {
     key: 'vc-submodules-page', id: 'vc-submodules-page', className: 'vcs-sub-page', role: 'region',
     'data-vc-sub-page': '1', 'data-vc-sub-mode': String(ui.mode), 'data-vc-sub-state': String(state),

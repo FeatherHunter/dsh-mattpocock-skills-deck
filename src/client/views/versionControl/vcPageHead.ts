@@ -59,6 +59,8 @@ export const vcPageIconOf = function (h: any, kind: string, size: number) {
 // #1840 两处补充：① 顶栏返回键退役后，页头返回键是唯一一颗，data-log 由调用方按来源页给
 //   （opts.backLog），缺省不挂——独立渲染页头的门禁不需要日志词条；② 返回键按原型画成
 //   图标 +「返回」，标题属性与 aria-label 都把「回上一页」说全。
+// #1843：opts.danger === true 时标题行多一枚「含不可逆动作」红 chip（原型 41 的维护页页头）。
+//   它与分区标题旁的「危险区」chip 不是同一句话：前者说整页含不可逆动作，后者说这一段是危险区。
 export const vcPageHeadNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const page = String(opts.page || 'changes')
@@ -77,6 +79,8 @@ export const vcPageHeadNode = function (h: any, t: any, o: any) {
   // 任务页与未知页没有账本条目（undefined 经 Number 得 NaN），一律按 0 处理，不画空计数。
   // hideCount 是 #1881 的退出开关：只有显式 true 才收起，缺省与 false 都照旧画。
   if (count > 0 && opts.hideCount !== true) titleRow.push(h('span', { key: 'count', className: 'vcs-page-count' }, t('vc.shell.page.caps', { n: count })))
+  // #1843：危险页的标记排在计数之后；维护页两处都收起了计数，标题行只剩返回、标题与这枚红 chip。
+  if (opts.danger === true) titleRow.push(h('span', { key: 'danger', className: 'section-danger' }, t('vc.shell.page.danger')))
   return h('div', { className: 'vcs-page-meta vcs-page-head', 'data-vc-page-head': page }, [
     h('div', { key: 'title-row', className: 'vcs-page-title-row' }, titleRow),
     h('p', { key: 'lede', className: 'vcs-page-lede' }, t('vc.shell.page.note.' + page)),
@@ -84,20 +88,22 @@ export const vcPageHeadNode = function (h: any, t: any, o: any) {
 }
 
 // 分区：section.page-section 是「一段有标题的内容」，标题行可以带条数；危险区在类名上加 is-danger，
-// 并给 data-vc-danger-section=1，同时把 vc.shell.page.danger 写在标题旁——读者在展开之前就知道这段不安全。
+// 并给 data-vc-danger-section=1，同时把 vc.shell.page.dangerZone 写在标题旁——读者在展开之前就知道这段不安全。
 // 条数有两种给法，画在同一个位置：
 //   ① count：只给数字（原型里的 section-count 是纯数字时用它），0 与负数不画；
-//   ② countText：给已经带量词的一整句（例如「3 条本地分支」「2 个标签」），#1858 按原型 38 需要量词就用这一种。
-//      两种都传时以 countText 为准——它已经是读者要看到的那句话，数字不再拼一遍。
+//   ② countText：给带量词的词条键（例如 vc.branch.count 产出「3 条本地分支」），#1858 按原型 38 需要量词就用这一种。
+//      countText 里的 {n} 等占位符由同一次调用里的 countVars 填；两种都传时以 countText 为准，
+//      它已经是读者要看到的那句话，数字不再拼一遍。
 export const vcPageSectionNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const danger = opts.danger === true
   const head: any[] = [h('h3', { key: 'title', className: 'section-title' }, t(String(opts.title || '')))]
   const countText = opts.countText === undefined || opts.countText === null ? '' : String(opts.countText)
+  const countVars = opts.countVars === undefined || opts.countVars === null ? null : opts.countVars
   const count = Number(opts.count || 0)
-  if (countText !== '') head.push(h('span', { key: 'count', className: 'section-count' }, t(countText)))
+  if (countText !== '') head.push(h('span', { key: 'count', className: 'section-count' }, countVars ? t(countText, countVars) : t(countText)))
   else if (count > 0) head.push(h('span', { key: 'count', className: 'section-count' }, String(count)))
-  if (danger) head.push(h('span', { key: 'danger', className: 'section-danger' }, t('vc.shell.page.danger')))
+  if (danger) head.push(h('span', { key: 'danger', className: 'section-danger' }, t('vc.shell.page.dangerZone')))
   const kids: any[] = [h('div', { key: 'head', className: 'section-head' }, head)]
   if (opts.note) kids.push(h('p', { key: 'note', className: 'section-note' }, t(String(opts.note))))
   const body = vcPageKidsOf(opts.children)

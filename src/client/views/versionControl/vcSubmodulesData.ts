@@ -31,8 +31,10 @@ export const VC_SUBMODULES_PHONES = {
 export const VC_SUBMODULE_MODES = ['idle', 'reading', 'board', 'confirm', 'running', 'done', 'failed', 'blocked', 'empty', 'stale']
 
 /**
- * 八条能力在页面上的主入口。capId 顺序照能力账本 10.1–10.8；actionId 是点下去要预览的动作，
+ * 八条能力的编号与动作映射。capId 顺序照能力账本 10.1–10.8；actionId 是点下去要预览的动作，
  * 批量入口（10.4）不进逐条动作表（actionId 为 batch 标记，页面另画四项固定菜单）。
+ * #1860 起页尾的「本页负责的能力」清单整块退役，八条能力的主入口在命令面板与管理索引；
+ * 这张表仍作为页面动作映射与门禁逐条核对的依据，不再直接画成一段入口卡片。
  */
 export const VC_SUBMODULE_ENTRIES = [
   { capId: '10.1', actionId: 'status', labelKey: 'vc.sub.entry.10.1' },
