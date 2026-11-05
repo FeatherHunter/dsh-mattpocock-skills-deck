@@ -37,13 +37,14 @@ import { setLabels } from './labels.js'
 import { getDependencies, setBlockedBy } from './graph-blocking.js'
 import { setParent, setAssignees } from './graph-membership.js'
 import { getRepoKey, gitlabOriginOf } from './repo.js'
-import { counts } from './counts.js'
-import { listPage } from './pages.js'
+import { counts } from './issues/counts.js'
+import { listPage } from './issues/pages.js'
 import { listLabels, setLabelColors } from './labels-ops.js'
 import { getCurrentUser, getRepoPermissions } from './identity-ops.js'
-import { listSubIssues } from './sub-issues.js'
+import { listSubIssues } from './issues/sub-issues.js'
 import { initProject } from './init-project.js'
 // #1605：地图薄查真实现（此前 planned，注册表补桩；今天起走真实现）。
+// #1914 起真实现在 issues/maps.ts；入口仍按旧路径从根目录 maps.ts 取，那份文件只做纯转发。
 import { listMaps } from './maps.js'
 // #1446：读额度读数与「每次 glab 调用记一条请求」的用量信封。
 import { readGitlabBudget } from './budget.js'
