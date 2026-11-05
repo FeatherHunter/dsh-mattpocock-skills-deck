@@ -42,6 +42,11 @@ interface SnapshotReadLibrary {
   readSnapshotCounts?(input: SnapshotLibraryKeyLike): Promise<any> | any
   /** 按容器读一次（#1923）：已关闭容器的子票、层级与统计只在打开它时取，不进首屏投影。 */
   readContainerProjection?(input: SnapshotLibraryKeyLike & { key: string, effortId?: string }): Promise<any> | any
+  /**
+   * 库的占用读数（#1922）：库文件字节数与票行数。只在环境检查页的诊断读数里用；
+   * 老门面没有这一口时这条电话如实失败（不清理、不猜数）。
+   */
+  readLibraryStorageStats?(input: SnapshotLibraryKeyLike): Promise<any> | any
 }
 
 interface SnapshotLibraryKeyLike {
@@ -95,6 +100,7 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
   handleSnapshotVersion: (args: any) => Promise<any>
   handleSnapshotChanges: (args: any) => Promise<any>
   handleContainerProjection: (args: any) => Promise<any>
+  handleSnapshotStoreStats: (args: any) => Promise<any>
 } {
   const canonicalKey = deps.canonicalKey
   const selectEarly = deps.selectEarly
@@ -293,5 +299,37 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
     return reply
   }
 
-  return { handleSnapshotVersion, handleSnapshotChanges, handleContainerProjection }
+  /**
+   * 库占用读数（#1922）：诊断用。回包多带版本（规格 I2：读回包都带版本），
+   * 字节数与票行数与库里同一次读数一致；读不到就如实失败，不编 0。
+   *
+   * 这条电话不清理任何东西：2026-11-05 起按需细节不设上限、不淘汰，
+   * 报数只是为了「不淘汰也要看得见增长」。
+   */
+  async function handleSnapshotStoreStats(args: any): Promise<any> {
+    const ctx = await resolveContext(args)
+    if ((ctx as ReadFailure).ok === false) return ctx
+    const resolved = ctx as ResolvedContext
+    if (typeof resolved.lib.readLibraryStorageStats !== 'function') {
+      return failureOf('本地快照库没有接上，读不到库文件大小与行数。', 'library', SNAPSHOT_DEGRADE.libraryNotWired)
+    }
+    let stats: any = null
+    try { stats = await Promise.resolve(resolved.lib.readLibraryStorageStats(keyOf(resolved))) } catch (e) { stats = null }
+    const bytes = stats && typeof stats.bytes === 'number' ? stats.bytes : NaN
+    const rows = stats && typeof stats.rows === 'number' ? stats.rows : NaN
+    const version = stats && typeof stats.version === 'number' ? stats.version : NaN
+    if (!Number.isFinite(bytes) || bytes < 0 || !Number.isFinite(rows) || rows < 0
+      || !Number.isFinite(version) || version < 0) {
+      return failureOf('本地快照库开不出来，读不到库文件大小与行数。', 'library', SNAPSHOT_DEGRADE.libraryCorrupt)
+    }
+    return {
+      version: Math.floor(version),
+      bytes: Math.floor(bytes),
+      rows: Math.floor(rows),
+      workspaceKey: resolved.workspaceKey,
+      backend: resolved.backend,
+    }
+  }
+
+  return { handleSnapshotVersion, handleSnapshotChanges, handleContainerProjection, handleSnapshotStoreStats }
 }

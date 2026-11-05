@@ -18,6 +18,7 @@ import type {
   OpenWorkspaceSnapshotOptions,
   OpenWorkspaceSnapshotResult,
   SnapshotMode,
+  SnapshotStorageStats,
   SyncBookkeeping,
   SyncBookkeepingResult,
   SyncBookkeepingWrite,
@@ -54,6 +55,7 @@ import { readContainerProjection, readListProjection } from '../projection/list.
 import { readIssueDetailProjection } from '../projection/detail.js'
 import { readChangeSetProjection } from '../projection/changes.js'
 import { readCountsProjection } from '../projection/counts.js'
+import { readStorageStats } from './storage-stats.js'
 import { ingestWrites } from './ingest.js'
 import { markMissingTickets } from './tombstone-write.js'
 import {
@@ -273,6 +275,10 @@ export function openWorkspaceSnapshot(
     readCounts(): SnapshotCounts {
       ensureOpen()
       return readCountsProjection(db)
+    },
+    readStorageStats(): SnapshotStorageStats {
+      ensureOpen()
+      return readStorageStats(db, dbPath)
     },
     readList(query?: ListQuery): ListProjection {
       ensureOpen()

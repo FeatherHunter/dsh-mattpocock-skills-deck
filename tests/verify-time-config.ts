@@ -448,10 +448,8 @@ const EXEMPTS: ExemptRow[] = [
   // #1829：改动页同步事实行的「远端跟踪分支更新于」，值来自首屏聚合读的快照，不是本文件决定的可调时长。
   { file: 'src/client/views/versionControl/vcRealModel.ts', name: 'basisMs', reason: '读数快照里的远端跟踪分支时刻（宿主首屏聚合读给），不是本文件决定的可调时长' },
   { file: 'src/client/views/ListTab.ts', name: 'atMs', reason: '透传 KPI 投影里的上次校准时刻（只用于格式化成 HH:mm），不是可调参数' },
-  // #1864：详情投影里的「上次已知时刻」与「按需细节被淘汰时的上次已知时刻」都是读钟记下来的值，
-  //   只用于格式化成 HH:mm 给界面看，调 YAML 改不了它们。
+  // #1864：详情投影里的「上次已知时刻」是读钟记下来的值，只用于格式化成 HH:mm 给界面看，调 YAML 改不了它。
   { file: 'src/client/views/shared/detailProjection.ts', name: 'atMs', reason: '详情回包里的上次已知时刻（读钟记下的值），只用于格式化成 HH:mm，不是可调参数' },
-  { file: 'src/client/views/shared/detailProjection.ts', name: 'evictedAtMs', reason: '按需细节被淘汰时行上记号里的上次已知时刻，只用于格式化成 HH:mm，不是可调参数' },
   // #1896：票详情切片里的「上次已知时刻」是读钟记下来的值，只用于告诉界面这份详情有多旧，
   //   调 YAML 改不了它。
   { file: 'src/client/kernel/deck-issue-detail.ts', name: 'lastKnownAtMs', reason: '详情切片里的上次已知时刻（读钟记下的值），随切片交回，不是可调参数' },
@@ -503,9 +501,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（verdict 的输出），不是输入参数' },
   // #1690：合并版本门记「上一轮合并开始时刻」，是读钟记下来的状态字段，调 YAML 改不了它。
   { file: 'src/refresh/kernel/snapshot-merge.ts', name: 'lastStartMs', reason: '状态字段：上一轮合并开始时刻（读钟记下来的时刻），不是可调时长' },
-  // #1692：磁盘回放的「上次已知」时刻与按需细节淘汰用的时间戳，都是读钟记下来的时刻。
-  { file: 'src/refresh/kernel/detail-eviction.ts', name: 'nowMs', reason: '读钟时刻（调用方传入的 Date.now），给淘汰记号与行时间戳用，不是可调参数' },
-  { file: 'src/client/views/IssueDetail.ts', name: 'evictedAtMs', reason: '算出来的时刻（淘汰记号里的上次已知时刻，界面格式化成人看的 HH:mm），不是可调参数' },
+  // #1692/#1922：磁盘回放的「上次已知」时刻是读钟记下来的时刻（淘汰用的时间戳随淘汰机制一起退役）。
   // #1693：通知事件库的去重窗口由调用方注入（上游是已登记的 notificationEventDedupeMs），读钟函数是测试注钟口。
   { file: 'src/refresh/kernel/notification-events.ts', name: 'windowMs', reason: '透传变量，接的是 store 注入的去重窗口（上游是已登记的 notificationEventDedupeMs），不是新参数' },
   { file: 'src/refresh/rooms/host/notification-store.ts', name: 'nowMs', reason: '读钟函数（Date.now 的包法，测试可注入），不是可调参数' },

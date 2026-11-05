@@ -17,6 +17,11 @@ export function existsSync(path: string): boolean {
   return nodeFs.existsSync(path)
 }
 
+/** 读文件元信息（库占用读数要 size 这一格；文件不存在时调用方自己先问 existsSync）。 */
+export function statSync(path: string): { size: number } {
+  return nodeFs.statSync(path)
+}
+
 export function mkdirSync(path: string, options?: { recursive?: boolean }): void {
   nodeFs.mkdirSync(path, options)
 }
