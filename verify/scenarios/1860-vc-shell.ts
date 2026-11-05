@@ -1029,7 +1029,33 @@ async function ensureSkin(page: PageHandle, raw: RawBrowserPage, skin: Skin, tok
   }
   const last = await measureUi(page)
   facts.lastMeasure = last.ok ? last.value : { error: last.error.message }
-  return { ok: false, blocked: false, detail: '重新挂载后 data-vc-skin 仍不是 ' + skin, facts: facts }
+  // 兜底：宿主这一版会把启动前写进 patch 的偏好按设置库回写，dark→light 的运行时切换也可能被回滚
+  //   （见文件头那段说明）。插件的皮肤就是按宿主 body 上的主题属性走的（#1860 D15 实测过），
+  //   所以直接把那个属性设成目标值：壳根的 data-vc-skin 会在下一帧跟着变。这条兜底只改页面表现、
+  //   不动任何设置，取证时 via 会如实记成 body-attribute。
+  const bodySkinScript = scriptOf([
+    '(function () {',
+    '  var b = document.body;',
+    '  if (!b) return null;',
+    '  if (' + JSON.stringify(skin === 'dark') + ') { b.setAttribute(' + JSON.stringify('data-ds-dark-theme') + ', ' + JSON.stringify('') + '); }',
+    '  else { b.removeAttribute(' + JSON.stringify('data-ds-dark-theme') + '); }',
+    '  return ' + JSON.stringify(skin) + ';',
+    '})()',
+  ])
+  const bodyFlip = await evaluateThrough<string>(page, bodySkinScript)
+  facts.bodyAttributeFlip = bodyFlip.ok ? bodyFlip.value : bodyFlip.error.message
+  for (let i = 0; i < 25; i += 1) {
+    const probe = await measureUi(page)
+    if (probe.ok && probe.value.attrSkin === skin) {
+      facts.after = probe.value
+      facts.via = 'body-attribute'
+      return { ok: true, blocked: false, detail: '按宿主主题属性切到 ' + skin + ' 皮肤', facts: facts }
+    }
+    await sleep(300)
+  }
+  const lastBodyFlip = await measureUi(page)
+  facts.lastBodyFlipMeasure = lastBodyFlip.ok ? lastBodyFlip.value : { error: lastBodyFlip.error.message }
+  return { ok: false, blocked: false, detail: '重新挂载后 data-vc-skin 仍不是 ' + skin + '（按宿主主题属性兜底后也不是）', facts: facts }
 }
 
 /** 切到四个一级页签之一，并等壳根与页体的 data-vc-page 都写对。 */
