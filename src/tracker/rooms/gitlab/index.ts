@@ -32,7 +32,7 @@ import { remoteUrlsOfGitConfig } from '../../kernel/git-remote.js'
 // 旧的整篇 /gitlab/i 扫描会把 GitHub / Local Markdown 的工作区也拉进多命中，详情与评论因此读不到。
 import { normalizeTrackerText, parseIssueTracker } from '../../kernel/issue-tracker-declaration.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } from './issues.js'
-import { addComment } from './comments.js'
+import { addComment } from './comments/write.js'
 import { setLabels } from './labels.js'
 import { getDependencies, setBlockedBy } from './graph-blocking.js'
 import { setParent, setAssignees } from './graph-membership.js'
