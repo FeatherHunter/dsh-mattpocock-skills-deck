@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T13:44:59.119Z",
+  "generatedAt": "2026-11-05T15:40:39.347Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 592,
-  "gateCount": 592,
-  "attributedGates": 536,
+  "chainLength": 593,
+  "gateCount": 593,
+  "attributedGates": 537,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 136,
+  "completionRecordedGates": 137,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
   "graphFileCount": 949,
@@ -6333,6 +6333,26 @@
       "completionRecord": true,
       "expectedAssertions": 51,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1846-dual-theme.ts",
+      "file": "tests/verify-1846-dual-theme.ts",
+      "guards": [
+        "src/client/views/versionControl/vcBranchPopover.ts",
+        "src/client/views/versionControl/vcBranchStyles.ts",
+        "src/client/views/versionControl/vcPageStyles.ts",
+        "src/client/views/versionControl/vcPalette.ts",
+        "src/client/views/versionControl/vcSearchPage.ts",
+        "src/client/views/versionControl/vcShellStyles.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 16,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
       "step": "node tests/verify-1846-search-page.ts",
@@ -14774,6 +14794,7 @@
       "node tests/verify-1829-page-head.ts",
       "node tests/verify-1829-palette-overlay.ts",
       "node tests/verify-1845-flow-pages.ts",
+      "node tests/verify-1846-dual-theme.ts",
       "node tests/verify-1846-search-page.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
