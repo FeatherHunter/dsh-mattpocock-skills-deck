@@ -8,7 +8,9 @@ import type { DepsOpts, SetOpts } from '../../contract/inputs.js'
 import { TRACKER_ERROR_STAGE, type Dependencies, type OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
-import { normalizeIssue, parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from './normalize.js'
+import { normalizeIssue } from './normalize.js'
+// 正文阻塞的回退读与成对写只在 model/description-markers.ts 一处，本文件直接用那个出处。
+import { parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from './model/description-markers.js'
 import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -42,7 +44,7 @@ export function repoId(repo: RepoLike): string {
   return ''
 }
 
-// 正文阻塞读写不自立认法：回退读（机器表优先、可见行兜底）与成对写的形状都在 description-markers.ts 一处，
+// 正文阻塞读写不自立认法：回退读（机器表优先、可见行兜底）与成对写的形状都在 model/description-markers.ts 一处，
 // 读回退、环检快照、回退写三处都调同一份，避免认法分叉。
 
 /**

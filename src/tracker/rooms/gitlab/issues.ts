@@ -14,7 +14,9 @@ import { LIST_TRUNCATED_REASON, TRACKER_ERROR_STAGE } from '../../contract/resul
 import { PAGINATION } from '../../contract/pagination.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
-import { normalizeIssue, rewriteDescriptionWithHiddenParent } from './normalize.js'
+import { normalizeIssue } from './normalize.js'
+// 正文标记的规则只在 model/description-markers.ts 一处，本文件直接用那个出处。
+import { rewriteDescriptionWithHiddenParent } from './model/description-markers.js'
 import { failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'
 import { issuesPath, issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
