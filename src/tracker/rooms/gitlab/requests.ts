@@ -14,7 +14,7 @@
  *   3. 返回值就是客户端那三件套 {stdout, stderr, code}，原样交回。本文件不解析 JSON、不判错误档位、
  *      不写失败话术、不记日志：每个调用点的容错与说法都不一样，这些留在调用方。
  *
- * 今天先收票的读端点（列票、读单票、评论单次与翻页、读链接）。写端点与其余操作族按票逐步搬进来，
+ * 今天收的是票的读端点（列票、读单票、评论单次与翻页、读链接）与评论写入；其余写端点与操作族按票逐步搬进来，
  * 命名与返回约定照本文件：request 加领域动作，返回原始进程结果。
  */
 
@@ -132,4 +132,30 @@ export function requestIssueLinks(
   timeoutMs: number,
 ): Promise<GlabRunResult> {
   return clientOf(opCtx).run(['api', linksPath(refId, iid)], { timeout: timeoutMs })
+}
+
+/**
+ * 写一条评论：POST projects/{仓库}/issues/{票号}/notes，表单字段 body。
+ *
+ * 这是本文件收下的第一个写端点。method、路径与表单字段从前由 comments.ts 自己拼；搬进这里之后，
+ * 评论 endpoints 的形状与本房其它端点一样只有一个出处。调用方（comments/write.ts 的 addComment）
+ * 仍负责判断仓库与正文是否齐全、解析回包、按失败档位挑话术 —— 那些都是操作上下文，不住在请求边界里。
+ *
+ * @param opCtx 调用上下文（平台与执行器从这里取）
+ * @param refId 仓库标识
+ * @param iid 票号（远端认字符串或数字，拼路径前统一转成字符串）
+ * @param body 评论正文（调用方已确认非空）
+ * @param timeoutMs 这次请求的时限（毫秒）；当前调用方传的是 GITLAB_READ_TIMEOUT_MS，与搬来之前逐字相同
+ */
+export function requestCommentCreate(
+  opCtx: MaybeCtx,
+  refId: string,
+  iid: string | number,
+  body: string,
+  timeoutMs: number,
+): Promise<GlabRunResult> {
+  return clientOf(opCtx).run(
+    ['api', notesPath(refId, iid), '--method', 'POST', '-f', `body=${body}`],
+    { timeout: timeoutMs },
+  )
 }

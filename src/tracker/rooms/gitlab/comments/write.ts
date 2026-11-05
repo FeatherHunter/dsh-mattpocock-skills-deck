@@ -1,26 +1,33 @@
 /**
- * backends/gitlab/comments.ts — comment 操作。
+ * src/tracker/rooms/gitlab/comments/write.ts —— 评论的写路径：一次 POST 往票的 notes 里加一条评论。
  *
- * 按 #144 归一：POST /projects/:id/issues/:iid/notes；get 聚合由 issues.fetchAugment 完成，此处提供 comment 单条写入。
+ * 为什么住在 comments/ 子树（#1915）：评论是一个概念，写入是它的操作之一。评论翻页归票的读路径
+ * （issues/read.ts 的 fetchNotes），因为唯一的读者是单票详情；本文件因此只剩下写入，不再保留
+ * 第二份翻页实现。
+ *
+ * 请求的形状不在这里：method、路径与表单字段都交给根目录 requests.ts 的 requestCommentCreate，
+ * 那里才是本房所有远端端点形状的唯一出处。本文件只做请求前后属于操作上下文的事：判仓库与正文
+ * 是否齐全、解析回包、按失败档位挑话术。行为与搬进子树之前逐字一致，包括 Comment 形状、
+ * createdAt/updatedAt 的兜底、失败判档与话术、以及 GITLAB_READ_TIMEOUT_MS 这一档超时。
  */
 
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { ErrorKind } from '../../contract/identity.js'
-import type { BackendContext, OpContext } from '../../contract/contexts.js'
-import type { Comment, RepositoryRef } from '../../contract/entities.js'
-import { TRACKER_ERROR_STAGE, type OpResult } from '../../contract/results.js'
-import { fail } from '../../kernel/preflight.js'
-import { glabClient } from './client.js'
-import { failGlab } from './errors.js'
-import { notesPath } from './queries.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { ErrorKind } from '../../../contract/identity.js'
+import type { BackendContext, OpContext } from '../../../contract/contexts.js'
+import type { Comment, RepositoryRef } from '../../../contract/entities.js'
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../../contract/results.js'
+import { fail } from '../../../kernel/preflight.js'
+import { failGlab } from '../errors.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
-import { repoRefId } from './model/repo-identity.js'
+import { repoRefId } from '../model/repo-identity.js'
+// 请求的形状住在房间根目录的 requests.ts（#1915）：写评论的端点在那里收口。
+import { requestCommentCreate } from '../requests.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { GITLAB_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 
-// 仓库身份只取 refId/name 两格，是因为评论读写只认这两样，拿全量 RepositoryRef 反而把 effortId 搅进来。
+// 仓库身份只取 refId/name 两格，是因为评论写入只认这两样，拿全量 RepositoryRef 反而把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
-// 上下文两形都收，是因为调用方有时把执行器放在 ctx、有时放在 opCtx，缺了就让 glabClient 按 127 回。
+// 上下文两形都收，是因为调用方有时把执行器放在 ctx、有时放在 opCtx，缺了就让请求函数里的 glabClient 按 127 回。
 type CtxLike = Partial<OpContext> & Partial<BackendContext>
 
 function errMsg(err: unknown): string {
@@ -56,8 +63,7 @@ export async function addComment(
     return fail(ERROR_KIND.PARSE as ErrorKind, 'comment: body required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   }
   try {
-    const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-    const res = await c.run(['api', notesPath(id, k), '--method', 'POST', '-f', `body=${body}`], { timeout: GITLAB_READ_TIMEOUT_MS })
+    const res = await requestCommentCreate(effective, id, k, body, GITLAB_READ_TIMEOUT_MS)
     if (res.code !== 0) {
       // 原文 = glab 这一趟的进程结果（stderr/stdout/退出码都在里面），判档与给人看的原文用同一份。
       return failGlab(res, res.stderr || res.stdout || 'comment failed', res, effective)
