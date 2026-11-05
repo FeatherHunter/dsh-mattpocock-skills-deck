@@ -53,6 +53,8 @@ export const vcRealManageNew = function (): any {
     branchConfirm: null,
     branchResult: null,
     branchPending: null,
+    // #1846 分支浮层自己的三项：确认卡、结果与在途目标；与分支页那三格分开，互不覆盖。
+    branchPopoverConfirm: null, branchPopoverResult: null, branchPopoverPending: null,
     remoteConfirm: '',
     confirm: null,
     rebaseConfirm: null,
@@ -156,6 +158,8 @@ export const vcRealManagePropsOf = function (reads: any, ui: any, m: any): any {
     branchError: (mm.branch && mm.branch.error) || null,
     branchConfirm: mm.branchConfirm || null,
     branchResult: mm.branchResult || null,
+    branchPopoverConfirm: mm.branchPopoverConfirm || null,
+    branchPopoverResult: mm.branchPopoverResult || null,
     platform: mm.platform || vcNewPlatformReads(),
     platformUi: ui || {},
     config: mm.config || vcConfigStateNew(),

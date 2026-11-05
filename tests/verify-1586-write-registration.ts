@@ -23,7 +23,7 @@
 // 反证至少四条（删一行宿主注册 / 改一个客户端电话名 / 少一个超时键 / 改一处白名单），
 // 每条只改一份副本、只期望一条缺，改完的副本跑同一个判据必须报红——判据太松时这几条会先红。
 // 电话总数不写死：从宿主源码数出实际条数，再核对它覆盖了本表登记的电话；总数登记在
-// tests/verify-settings-phones.ts 的 E9（nPhones === 121：2026-11-03 撤掉 #1806 的四条工作区电话后回到 119，#1890 又加了两条；
+// tests/verify-settings-phones.ts 的 E9（nPhones === 125：2026-11-03 撤掉 #1806 的四条工作区电话后回到 119，#1903、#1890、#1923、#1922 又各添了几条；
 // #1776 M4b 给远端族补的预检电话算在里面）。
 // 本文件是 CommonJS：判据工具用 require 取 .ts 需要钩子，跑法见文件末尾注释。
 const fs = require('fs')
@@ -281,14 +281,14 @@ for (const f of FAMILIES) {
   for (const [ok, label] of familyAssertions(f)) check(ok, f.name + '：' + label)
 }
 
-// 电话总数：从源码数，不与本表登记数脱节；E9 那扇门禁钉 121 条（#1776 M4b 加了远端预检 wf.gitRemoteCheck；
-// #1806 的四条工作区电话 2026-11-03 已随身份记录机制撤掉；#1890 又加了版本查询与变化集两条）。
+// 电话总数：从源码数，不与本表登记数脱节；E9 那扇门禁钉 125 条（#1776 M4b 加了远端预检 wf.gitRemoteCheck；
+// #1806 的四条工作区电话 2026-11-03 已随身份记录机制撤掉；#1903、#1890、#1923、#1922 各添的几条都算进去了）。
 const hostPhones = registeredPhoneCount(SOURCES.hostIndex)
 const listedPhones = new Set()
 for (const f of FAMILIES) { if (f.check) listedPhones.add(f.check); for (const p of f.exec) listedPhones.add(p) }
 for (const p of ['wf.gitWriteCheck', 'wf.gitStage', 'wf.gitUnstage', 'wf.gitCommit', 'wf.gitPull', 'wf.gitFetch', 'wf.gitPush']) listedPhones.add(p)
 check(hostPhones >= listedPhones.size, '宿主注册的 wf.git* 电话从源码数出 ' + hostPhones + ' 条，覆盖本门禁登记的 ' + listedPhones.size + ' 条')
-check(read('tests/verify-settings-phones.ts').indexOf('nPhones === 121') >= 0, 'E9 宿主电话总数仍由 tests/verify-settings-phones.ts 钉在 121 条（#1776 M4b 的远端预检电话算进去了；#1806 的四条工作区电话 2026-11-03 已撤；#1890 又加了两条，几处一起改）')
+check(read('tests/verify-settings-phones.ts').indexOf('nPhones === 125') >= 0, 'E9 宿主电话总数仍由 tests/verify-settings-phones.ts 钉在 125 条（#1776 M4b 的远端预检电话算进去了；#1806 的四条工作区电话 2026-11-03 已撤；#1903、#1890、#1923、#1922 各添的几条都算进去了，几处一起改）')
 
 console.log('')
 console.log('反证：各改一份副本的一处，同一判据必须只报出那一处缺')

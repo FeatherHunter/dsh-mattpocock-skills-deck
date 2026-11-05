@@ -23,6 +23,8 @@ export const VC_NOTE_PHONES: Record<string, string> = { check: 'wf.gitNoteCheck'
 
 /** 备注最长多少个字：与共享层 note-ops.ts 的 NOTE_TEXT_MAX 逐条相等（客户端运行时不许 import 宿主侧），门禁逐条比对。 */
 export const VC_NOTE_TEXT_MAX = 2000
+/** 单文件历史一次最多读多少条：与共享层 history-query-commands.ts 的 HISTORY_QUERY_COUNT_MAX 相等（门禁比对）。 */
+export const VC_HISTORY_FILE_MAX = 200
 
 /** 一份全新的备注写状态（还没按过保存）。 */
 export const vcNewNoteWrite = function () { return { state: 'idle', rev: '', text: '', removing: false, error: null } }
@@ -52,7 +54,7 @@ const vcNoteRequestIdOf = function (rev: any, nowMs: any): string {
   return 'n' + String(Number(nowMs) || 0) + '-' + String(rev || '').slice(0, 8) + '-' + Math.random().toString(36).slice(2, 8)
 }
 
-    /** 「这个文件的历史」这一份读数：还没读过、读到的是别的文件，都回 null。 */
+/** 「这个文件的历史」这一份读数：还没读过、读到的是别的文件，都回 null。 */
 export const vcHistoryFileSourceOf = function (ui: any, reads: any): any {
   const fileOnly: string = String((ui || {}).historyFileOnly || '')
   if (fileOnly === '') return null
@@ -137,8 +139,8 @@ export const vcHistoryOpsOf = function (deps: any): any {
       setUi({ historyFileOnly: want, historyFileMenu: '', openCommit: '', openFile: '', historyCompare: null, historyCompareOpen: false, historyNote: vcNewNoteWrite() })
       const cur: any = vcHistoryDataOf(readsNow(), 'file-history')
       if (cur && String(cur.path || '') === want) return Promise.resolve(cur)
-      // 一次要满上限：单文件历史没有第二页，能给多少就给多少（200 是共享层 HISTORY_QUERY_COUNT_MAX）。
-      return readInto('file-history', { path: want, count: 200 })
+      // 一次要满上限：单文件历史没有第二页，能给多少就给多少（VC_HISTORY_FILE_MAX 与共享层同一个数）。
+      return readInto('file-history', { path: want, count: VC_HISTORY_FILE_MAX })
     },
     /** 点掉「只看 …」那枚标签：回到全部历史，读数留着（下次再看同一个文件不必重读）。 */
     fileOnlyClear: function (): void { setUi({ historyFileOnly: '', historyFileMenu: '' }) },
@@ -220,7 +222,14 @@ export const vcHistoryOpsOf = function (deps: any): any {
       const data: any = have && have.state === 'ok' ? have.data : null
       if (data && String(data.rev || '') === want) return Promise.resolve(data)
       if (have && have.state === 'loading' && String((have.data || {}).rev || '') === want) return Promise.resolve(null)
-      return readInto('notes', { rev: want })
+      return readInto('notes', { rev: want }).then(function (one: any) {
+        // 读回来就把原文放进输入框的起点：不然「打开一条已有备注的提交、什么都不改直接点保存」会把空草稿当删除。
+        if (one && one.state === 'ok' && one.data && String(one.data.rev || '') === want) {
+          const cur: any = uiNow()
+          if (String(cur.historyNoteFor || '') !== want) setUi({ historyNoteDraft: String(one.data.note === undefined || one.data.note === null ? '' : one.data.note), historyNoteFor: want })
+        }
+        return one
+      })
     },
     /** 某条提交有没有备注：见 vcHistoryHasNoteOf（纯判定住在外面，列表与详情共用）。 */
     hasNoteOf: function (commit: any): boolean { return vcHistoryHasNoteOf(uiNow(), commit) },

@@ -201,9 +201,12 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   //   二级页（管理九分区、搜索页等）仍是原来的页头 + 正文两段式，本票不动它们。
   const isTabPage = VC_TAB_PAGES.indexOf(page) >= 0
   // #1881：分支与标签页的页头不画「N 条能力」计数——那枚数字指向一份已经退役、不在页面上的清单。
+  //   #1843：子模块页与维护页同样收起计数（原型 40 / 41 的页头只有标题与导语），维护页另挂危险页标记。
   //   其余页照旧；九张分区页要不要一起去留给 #1848，所以这里还留了一个可透传的开关。
   const head = Object.assign({}, vcPageHeadNode(h, t, {
-    page: page, back: opts.back === true, backLog: opts.backLog, hideCount: opts.hideCount === true || page === 'branch-tags',
+    page: page, back: opts.back === true, backLog: opts.backLog,
+    hideCount: opts.hideCount === true || page === 'branch-tags' || page === 'submodules' || page === 'maintenance',
+    danger: page === 'maintenance',
   }), { key: 'meta' })
   if (!isTabPage) children.push.apply(children, vcPageNotesOf(h, t, page))
   // #1840 管理索引屏：页头之后整屏都是索引（说明句、九张卡、两条跨区入口、覆盖口径），
@@ -277,7 +280,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   //   上面那条骨架判断链里，被『迁移页有读数就画正文』的分支挡成永远不可达，M2 改成独立的判断）。
   if (page === 'migrate' && typeof vcMigrateExportNode === 'function' && opts.migrate !== undefined) children.push(Object.assign({}, vcMigrateExportNode(h, t, { state: opts.migrate, reads: opts.migrateReads, width: opts.width, nowMs: opts.nowMs, onEdit: opts.onMigrateEdit, onCheck: opts.onMigrateCheck, onRun: opts.onMigrateRun, onRescan: opts.onMigrateRescan, onCancel: opts.onMigrateCancel }), { key: 'migrate-body' }))
   // #1756 T20 克隆向导（能力 8.16）：迁移与备份页的正文；组件自己保存表单与进度，壳只把取词、工作区与发电话的函数递进去。
-  if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcMaintenancePageNode, { key: 'maintenance-cards', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1750 T15 维护页整仓重写（能力 5.11）正文；#1758 T22 维护页 11.4–11.11 正文；三块同一物理行：本文件贴着 350 有效行上限
+  if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcMaintenancePageNode, { key: 'maintenance-cards', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1843：维护页的三个分区（仓库体量 / 整理动作 / 危险区）先画完，再画 5.11 整仓重写的执行表单（#1750 T15）——执行表单是危险区的落点，原型 41 的三段顺序不能被它顶到前面。三块同一物理行：本文件贴着 350 有效行上限
   // 分支与标签页（#1746 T11；#1829 阶段 3 换成有状态组件叶子）：调用方把一份读数传进来才画，
   //   没传整块不出现，其它页渲染不变；筛选与搜索的组件状态在叶子内部，壳只往下递读数与处理函数。
   if (page === 'branch-tags' && opts.branchBoard !== undefined) children.push(h(vcBranchPageOf, { key: 'branch-board', t: t, board: opts.branchBoard, state: opts.branchState, error: opts.branchError, confirm: opts.branchConfirm, result: opts.branchResult, onRetry: opts.onBranchRetry, nowMs: opts.nowMs }))
@@ -366,7 +369,9 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     paletteOpen: paletteOpen, paletteId: paletteId, gearOpen: gearOpen, gearId: gearId, onOpenHandoff: opts.onOpenHandoff,
     secondary: secondary,
   }), 'identity'))
-  if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch }), 'branch'))
+  // #1846：浮层的本地分支清单直接读首屏快照（seed.slices.workspace.branches），不另发读命令；
+  //   确认卡与结果由管理动作层放在浮层自己的两格上（不挤占分支页那两格）。
+  if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch, seed: seed, confirm: opts.branchPopoverConfirm, result: opts.branchPopoverResult }), 'branch'))
   // 受控渲染里只剩「旧形状」这一路会画齿轮索引面板（#1840 起真实入口改成打开独立索引屏）：
   //   身份行下面那块浮层仍按 open.gear 或「管理分区页未开次级版式」渲染，供全页自检与 Z 组断言使用。
   if (gearOverlay) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))

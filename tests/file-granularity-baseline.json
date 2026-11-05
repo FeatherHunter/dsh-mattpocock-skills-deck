@@ -8,7 +8,6 @@
     "src/client/kernel/entry-card.ts": 357,
     "src/deck/tools/map-plan-create.ts": 367,
     "src/host/namingGuardian.ts": 374,
-    "src/tracker/detection/backendDecision.ts": 642,
-    "src/tracker/rooms/gitlab/graph-blocking.ts": 402
+    "src/tracker/detection/backendDecision.ts": 642
   }
 }

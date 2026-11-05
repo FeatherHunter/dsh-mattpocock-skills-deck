@@ -1,5 +1,9 @@
 /**
- * src/tracker/rooms/gitlab/index.ts — GitLab 后端适配器（主缝实现），本文件是这个房间的 TypeScript 真源。
+ * src/tracker/rooms/gitlab/index.ts — GitLab 后端适配器（主缝实现），本文件是这个房间的入口真源。
+ *
+ * 入口只留三件事：模块对象、工厂与识别（matches / describe）。链接与地址在 room/links.ts，
+ * 修复指引在 room/fixes.ts；提示文案留在入口（房外门禁按本文件原文词法扫描 prompts 块），
+ * 搬走的名字在下面显式再导出，房外的 import 路径与名字不变。
  *
  * 定版：#135（labels/milestone分流）+ #144 一页纸（数据归一8文件表 + blocking双路径 + preflight + parentKey归一 + 三底座）
  * 严格对照契约名录（`../../contract/operations-catalog.ts` 的 23 条操作 + 3 条定位口）与实体形状；
@@ -21,33 +25,49 @@ import type { BackendId } from '../../contract/identity.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { BackendContext, OpContext, RepoHandle } from '../../contract/contexts.js'
 import { glabPreflight } from './preflight.js'
-import { emitReadDegraded } from './read-log.js'
+import { emitReadDegraded } from './support/read-log.js'
 // #1533：认领只看 `.git/config` 里的远端地址，不扫整份文本（分支名带 gitlab 不再误认领）。
 import { remoteUrlsOfGitConfig } from '../../kernel/git-remote.js'
 // #1555：声明文件用判定层同一套解析器，只认「声明」不认「正文里提了一句」。
 // 旧的整篇 /gitlab/i 扫描会把 GitHub / Local Markdown 的工作区也拉进多命中，详情与评论因此读不到。
 import { normalizeTrackerText, parseIssueTracker } from '../../kernel/issue-tracker-declaration.js'
-import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } from './issues.js'
-import { addComment } from './comments.js'
-import { setLabels } from './labels.js'
-import { getDependencies, setBlockedBy, setParent, setAssignees } from './graph.js'
-import { getRepoKey, gitlabOriginOf } from './repo.js'
-import { counts } from './counts.js'
-import { listPage } from './pages.js'
-import { listLabels, setLabelColors } from './labels-ops.js'
-import { getCurrentUser, getRepoPermissions } from './identity-ops.js'
-import { listSubIssues } from './sub-issues.js'
-import { initProject } from './init-project.js'
+import { listIssues, getIssue } from './issues/read.js'
+import { createIssue, closeIssue, reopenIssue, updateIssue } from './issues/write.js'
+import { addComment } from './comments/write.js'
+import { setLabels } from './labels/assign.js'
+import { getDependencies } from './graph/read.js'
+import { setBlockedBy } from './graph/write.js'
+import { setParent, setAssignees } from './graph/membership.js'
+import { getRepoKey, gitlabOriginOf } from './repo/identity.js'
+import { counts } from './issues/counts.js'
+import { listPage } from './issues/pages.js'
+import { listLabels } from './labels/list.js'
+import { setLabelColors } from './labels/colors.js'
+// 两条单点读搬进 repo/ 子树（#1918）：登录人与仓库权限各占一个 module，各自从请求边界取数。
+import { getCurrentUser } from './repo/current-user.js'
+import { getRepoPermissions } from './repo/permissions.js'
+import { listSubIssues } from './issues/sub-issues.js'
+// 开仓发布搬进 project/ 子树（#1919）：它不在 9 个旧路径转发名单里，入口直接按新路径取。
+import { initProject } from './project/init-project.js'
 // #1605：地图薄查真实现（此前 planned，注册表补桩；今天起走真实现）。
-import { listMaps } from './maps.js'
+// #1914 起真实现在 issues/maps.ts；入口直接按新路径取，根目录 maps.ts 只留给房外读者做纯转发。
+import { listMaps } from './issues/maps.js'
 // #1446：读额度读数与「每次 glab 调用记一条请求」的用量信封。
 import { readGitlabBudget } from './budget.js'
 import { attachGlabOpUsage } from './client.js'
 import type { PartiallyProvidedCapability, ProvidedCapability } from '../../contract/capability-answer.js'
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/room/backend.ts）。
-import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
+import type { GITLAB_CAPABILITY_REGISTER } from './support/capability-register.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_FALLBACK_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+// 链接与地址、修复指引搬进 room/；提示文案留在入口（房外门禁按本文件原文扫描 prompts 块）。
+import { issueAddress, repoSearchAddress, issueRefPattern, links, DEFAULT_GITLAB_WEB_ORIGIN } from './room/links.js'
+import { fixes } from './room/fixes.js'
+
+// 房外仍按旧路径从入口 import 这些公开名字：搬进 room/ 之后在这里显式转发，保证 import 路径与名字不变。
+// DEFAULT_GITLAB_WEB_ORIGIN 与 refOrigin 本来就不是导出，不在此列；openRepository 也不是导出（见下面的说明）。
+export { issueAddress, repoSearchAddress, issueRefPattern, links }
+export { fixes }
 
 // —— GitLab 交出来的成员：26 条能力 + id（23 条操作 + describe/issueAddress/getRepoKey 三条定位口）——
 // 这份集合不再手写，从本房的登记数据推出来：「明确提供功能」的名字才是实例成员；登记里那 1 条
@@ -62,16 +82,6 @@ export type GitlabBackendMembers = 'id' | (ProvidedCapability<typeof GITLAB_CAPA
 
 /** 交出来的字面量形状：工厂用 `satisfies` 挂它（缺一条、多一条都在编译期红）。 */
 export type GitlabBackendShape = { [K in GitlabBackendMembers]: Tracker[K] }
-
-// 入参只取识别要用的两格，是因为 matches 只读工作区目录与仓库标识，拿全量会把无关字段搅进来。
-function repoId(handle: RepoHandle | Partial<RepositoryRef> | null | undefined): string {
-  if (!handle) return ''
-  if (typeof handle.refId === 'string' && handle.refId) return handle.refId
-  if (typeof (handle as RepoHandle).cwd === 'string' && (handle as RepoHandle).cwd) {
-    return (handle as RepoHandle).cwd as string
-  }
-  return ''
-}
 
 /**
  * 兜底问一次 git remote 的时间上限（毫秒）。
@@ -190,28 +200,6 @@ async function matches(
   }
 }
 
-/** GitLab 官方站点的网页端地址：只有没从远端学到主机时，链接才用它兜底。 */
-const DEFAULT_GITLAB_WEB_ORIGIN = 'https://gitlab.com'
-
-/**
- * 拼链接时该用的网页端 origin：仓库引用上带 host 就用它，否则用服务商默认域名。
- *
- * host 来自两处（都不保证有）：
- *   1. 调用方传进来的 RepositoryRef.host（例如快照里已经补齐的身份）；
- *   2. describe 在本进程里先收到过的「这台工作区的远端在哪」——由 getRepoKey 认仓库时学住
- *      （见 repo.ts 的 learnGitlabOrigin）。
- */
-function refOrigin(ref: Partial<RepositoryRef> | null | undefined): string {
-  const declared = ref && typeof ref.host === 'string' ? ref.host.trim().replace(/\/+$/, '') : ''
-  if (declared) return declared
-  // 有些调用方只拿得到仓库地址（快照里的 repository.url），原样是 https://host/owner/name：
-  // 从它身上取 origin，比一律退回服务商默认域名更接近事实。
-  const url = ref && typeof ref.url === 'string' ? ref.url.trim() : ''
-  const m = url.match(/^([a-z][a-z0-9+.-]*):\/\/([^/\s]+)\//i)
-  if (m) return m[1].toLowerCase() + '://' + m[2].replace(/^[^@]*@/, '')
-  return DEFAULT_GITLAB_WEB_ORIGIN
-}
-
 /**
  * 产出仓库身份：refId 优先用传入的标识，缺了才拿目录名顶上，远端地址按 GitLab 规则拼。
  *
@@ -244,26 +232,6 @@ export function describe(
   return ref
 }
 
-// 链接三件（#1110 实现决定第 14 条 / #1135 改名 / #1141 删旧名）：名字讲的是「地址」而不是「网址」，
-// 因为本地 Markdown 后端给的是票文件的绝对路径；网址口吻的旧名字已按 #1141 删净。
-// 票地址只认 refId，是因为 GitLab 的票链完全由仓库标识决定，拿不到就如实给空串不猜。
-export function issueAddress(ref: Partial<RepositoryRef> | null | undefined, key: string | number): string {
-  const refId = ref && typeof ref.refId === 'string' ? ref.refId : ''
-  if (!refId) return ''
-  return refOrigin(ref) + '/' + refId + '/-/issues/' + String(key)
-}
-
-// 按名搜仓库的地址只做编码拼串，是因为全站搜索页不需要鉴权，拼不出就等调用方自己处理空串。
-// 第二格是可选的仓库引用：给了且带 host（自托管）就搜那台实例，否则搜默认站点。
-export function repoSearchAddress(
-  name: string | null | undefined,
-  ref?: Partial<RepositoryRef> | null,
-): string {
-  return refOrigin(ref) + '/search?search=' + encodeURIComponent(String(name || ''))
-}
-
-export const issueRefPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
-
 /**
  * #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。
  *
@@ -275,16 +243,6 @@ export const issueRefPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+
  */
 const openRepository = 'url'
 
-// #231：client 渲染模板数据（UI-lane 只读）。
-// 这三条模板只是**最后兜底**：快照里的 repository.url 与票自己的 url（GitLab API 的 web_url）
-// 才是权威地址，客户端优先用它们；模板拼不了自托管主机，所以只在两者都缺时才用。
-export const links = {
-  issueUrlTemplate: 'https://gitlab.com/{refId}/-/issues/{key}',
-  repoUrlTemplate: 'https://gitlab.com/{refId}',
-  searchUrlTemplate: 'https://gitlab.com/search?search={q}',
-  linkPatternSource: 'gitlab\\.com\\/[^\\/\\s]+\\/[^\\/\\s]+\\/-\\/issues\\/(\\d+)',
-}
-
 /**
  * 创建 GitLab 后端适配器（今天交 26 条：23 条操作 + 3 条定位口；剩下配色文件那 1 条按设计由注册表补桩）。
  *
@@ -293,12 +251,13 @@ export const links = {
  * 本后端今天的边界是「23 条操作 + describe / issueAddress / getRepoKey 三条定位口」——
  * 唯一没实现的是 `ensureLabelColorsFile`，而且它**不是欠账**：这一条在本后端上形态不成立
  * （颜色真源在远端仓库标签，工作区里那份文件没有读者，改了不算数），登记为「明确不支持」，
- * 理由见 `./capability-register.ts` 那一行的注释与 `docs/tracker/capability-gitlab.md`。
+ * 理由见 `./support/capability-register.ts` 那一行的注释与 `docs/tracker/capability-gitlab.md`。
  *
  * 地图 10（`#1062`）本轮补的九条在这里各占一行，实现在房内各自的文件：
- * 计数 `./counts.ts`、分页 `./pages.ts`、列标签与批量改色 `./labels-ops.ts`、
- * 当前登录人与仓库写权限 `./identity-ops.ts`、子票 `./sub-issues.ts`、开仓发布 `./init-project.ts`、
- * 仓库坐标 `./repo.ts`。接手的人先读 `./README.md`（这一房与另外两房不一样的地方）。
+ * 计数与分页 `./issues/counts.ts`、`./issues/pages.ts`、列标签 `./labels/list.ts` 与批量改色 `./labels/colors.ts`、
+ * 当前登录人与仓库写权限 `./repo/current-user.ts` 与 `./repo/permissions.ts`、子票 `./issues/sub-issues.ts`、
+ * 开仓发布 `./project/init-project.ts`（#1919）、仓库坐标 `./repo/identity.ts`（旧路径 `./repo.ts` 只剩纯转发，#1918）。
+ * 接手的人先读 `./README.md`（这一房与另外两房不一样的地方）。
  */
 export function createGitlabBackend(ctx: BackendContext) {
   // 先按形状装配，再在操作表外层统一包一层用量：包的是同一个对象，成员集合与形状断言都不变。
@@ -373,7 +332,7 @@ export const prompts = {
     // #716 两处改正：
     //   ① 建边与校验已经搬进契约层的 deck_map_link / deck_map_snapshot，所以这里只讲用哪个工具，不留裸命令；
     //   ② 原先这段写「建原生父子边」，与本后端的实现不符 —— setParent 落下去的是票文件头的
-    //      隐藏标记 `<!-- DSH-PARENT: <地图> -->`（见 graph-membership.ts），不是原生父子边。以契约为准，文案同步改正。
+    //      隐藏标记 `<!-- DSH-PARENT: <地图> -->`（见 graph/membership.ts），不是原生父子边。以契约为准，文案同步改正。
     // #1176 之后补正（2026-10-15，来自对抗式审查）：原先这里写「GitLab 上没有原生父子关系」，这句是错的
     //   —— 平台有原生的父子层级（官方有整页在讲「Child items」，免费档就有），只是它在 work items 那条路上，
     //   入口是界面与 GraphQL；本房取数一律走 glab api 的 REST issue links，而那个接口的 link_type 只有
@@ -395,59 +354,6 @@ export const prompts = {
     en: '**How "orphaned open ticket" lands on this backend**: the ticket is **not closed**, it is **not itself a map**, and it is **not inside any map as a sub-ticket** — the same rules as the other remote backend (both backends share one ticket-store shape: maps + sub-tickets + blocking edges).\n\n**When acting, only two structural actions**, both through the tools:\n1. Wire the edge that attaches the ticket under a suitable map: deck_map_link with parentKey;\n2. Open a new map for a ticket the human has nodded on: deck_map_plan_create, writing only the minimal Destination draft.\n\n**State plainly what this backend cannot do**: the parent-child edge lands as a Part of #<map> declaration line at the top of the ticket body (the native hierarchy lives on the work-items path, which this backend does not use); its resolution rate has not been measured against a real repository yet — measure once before acting, write both the measurement and any reason it fails into the report, and **do not force it**.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, delete comments, change source code, publish a release, or commit.',
   },
 }
-
-/** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。 */
-export const fixes = Object.freeze({
-  'glab:installed': {
-    hint: {
-      zh: 'glab CLI 未安装。点「安装指引」按官方文档安装，完成后重查。',
-      en: 'glab CLI is not installed. Use the install guide (official docs), then re-check.',
-    },
-    actions: [
-      { type: 'inject-prompt', prompt: 'glabInstallFix', label: { zh: '安装指引', en: 'Install guide' } },
-      { type: 'refresh', target: 'chain' },
-    ],
-  },
-  'glab:authed': {
-    hint: {
-      zh: 'glab 尚未登录。点「登录指引」注入 glab auth login 操作步骤，完成后重查。',
-      en: 'glab is not logged in. Use the login guide, then re-check.',
-    },
-    actions: [
-      { type: 'inject-prompt', prompt: 'glabLoginFix', label: { zh: '登录指引', en: 'Login guide' } },
-      { type: 'refresh', target: 'chain' },
-    ],
-  },
-  'glab:repoAccess': {
-    hint: {
-      zh: '此目录未关联 GitLab 仓库。先点「创建并发布」完成建仓推送，再执行初始化；想用本地 Markdown，可在顶端切换后端后再查。',
-      en: 'This directory is not linked to a GitLab repo. First click "Create & publish" to finish creating and pushing the repo, then run initialization. To use local Markdown, switch the backend at the top and re-check.',
-    },
-    // 修复动作（#1191：与 GitHub 房同形的两步向导；提交走 contract-op 按当前后端分发，不再直调 wf.initPublish）。
-    actions: [
-      {
-        type: 'wizard',
-        label: { zh: '创建并发布', en: 'Create & publish' },
-        steps: [
-          {
-            title: { zh: '仓库信息', en: 'Repository info' },
-            schema: [
-              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', defaultFrom: 'cwd-basename', preview: { zh: '将创建 https://gitlab.com/{owner}/{name}', en: 'Will create https://gitlab.com/{owner}/{name}' } },
-            ],
-          },
-          {
-            title: { zh: '可见性', en: 'Visibility' },
-            schema: [
-              { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], optionSubs: { private: { zh: '仅自己', en: 'Only you' }, public: { zh: '所有人', en: 'Everyone' } }, defaultValue: 'private' },
-            ],
-          },
-        ],
-        submitAction: { type: 'contract-op', op: 'initProject', params: {} },
-      },
-      { type: 'refresh', target: 'chain' },
-    ],
-  },
-})
 
 /** BackendModule（registry可插拔） */
 export const gitlabBackend = {

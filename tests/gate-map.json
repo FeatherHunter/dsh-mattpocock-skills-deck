@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T10:35:42.769Z",
+  "generatedAt": "2026-11-05T12:02:22.584Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 592,
   "gateCount": 592,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 136,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 938,
+  "graphFileCount": 957,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4319,7 +4319,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 439,
+      "expectedAssertions": 440,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
@@ -4390,7 +4390,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 156,
+      "expectedAssertions": 157,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
@@ -4628,7 +4628,10 @@
         "src/client/views/versionControl/vcFlowParts.ts",
         "src/client/views/versionControl/vcHistory.ts",
         "src/client/views/versionControl/vcHistoryDetail.ts",
+        "src/client/views/versionControl/vcHistoryExtra.ts",
         "src/client/views/versionControl/vcHistoryGraph.ts",
+        "src/client/views/versionControl/vcHistoryOps.ts",
+        "src/client/views/versionControl/vcHistoryQuery.ts",
         "src/client/views/versionControl/vcHooksPage.ts",
         "src/client/views/versionControl/vcMaintenanceData.ts",
         "src/client/views/versionControl/vcMaintenanceDiag.ts",
@@ -4666,7 +4669,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 537,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 39 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 42 条"
     },
     {
       "step": "node tests/verify-1586-worktrees.ts",
@@ -5676,7 +5679,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 293,
+      "expectedAssertions": 305,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 21 条"
     },
     {
@@ -6074,7 +6077,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 23,
+      "expectedAssertions": 43,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -6122,7 +6125,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 79,
+      "expectedAssertions": 80,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -7170,7 +7173,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 45,
+      "expectedAssertions": 50,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
@@ -8650,7 +8653,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 786,
+      "expectedAssertions": 791,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 125 条"
     },
     {
@@ -8770,7 +8773,10 @@
         "src/client/views/versionControl/vcFold.ts",
         "src/client/views/versionControl/vcHistory.ts",
         "src/client/views/versionControl/vcHistoryDetail.ts",
+        "src/client/views/versionControl/vcHistoryExtra.ts",
         "src/client/views/versionControl/vcHistoryGraph.ts",
+        "src/client/views/versionControl/vcHistoryOps.ts",
+        "src/client/views/versionControl/vcHistoryQuery.ts",
         "src/client/views/versionControl/vcHooksPage.ts",
         "src/client/views/versionControl/vcInView.ts",
         "src/client/views/versionControl/vcMaintenanceData.ts",
@@ -8872,7 +8878,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 118 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 121 条"
     },
     {
       "step": "node tests/verify-847-stall-watch.ts",
@@ -13010,6 +13016,7 @@
         "src/client/views/versionControl/vcClonePage.ts",
         "src/client/views/versionControl/vcCommitOps.ts",
         "src/client/views/versionControl/vcConfigOps.ts",
+        "src/client/views/versionControl/vcHistoryOps.ts",
         "src/client/views/versionControl/vcRealActions.ts",
         "src/client/views/versionControl/vcRealManageActions.ts",
         "src/client/views/versionControl/vcRealManageActions2.ts",
@@ -13060,6 +13067,7 @@
         "src/host/versionControlMaintenanceWrite.ts",
         "src/host/versionControlMigrateCheck.ts",
         "src/host/versionControlMigrateWrite.ts",
+        "src/host/versionControlNote.ts",
         "src/host/versionControlPlatform.ts",
         "src/host/versionControlPlatformRead.ts",
         "src/host/versionControlRebaseScene.ts",
@@ -13197,7 +13205,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 177 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 179 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -16327,9 +16335,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 961,
-    "dirCount": 92,
-    "coveredFileCount": 961,
+    "fileCount": 980,
+    "dirCount": 101,
+    "coveredFileCount": 980,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 75,
@@ -17170,30 +17178,49 @@
       "src/tracker/rooms/gitlab/budget.ts",
       "src/tracker/rooms/gitlab/capability-register.ts",
       "src/tracker/rooms/gitlab/client.ts",
-      "src/tracker/rooms/gitlab/comments.ts",
-      "src/tracker/rooms/gitlab/counts.ts",
-      "src/tracker/rooms/gitlab/create-write.ts",
-      "src/tracker/rooms/gitlab/description-markers.ts",
+      "src/tracker/rooms/gitlab/comments/write.ts",
       "src/tracker/rooms/gitlab/errors.ts",
-      "src/tracker/rooms/gitlab/graph-blocking.ts",
       "src/tracker/rooms/gitlab/graph-membership.ts",
-      "src/tracker/rooms/gitlab/graph.ts",
+      "src/tracker/rooms/gitlab/graph/membership.ts",
+      "src/tracker/rooms/gitlab/graph/read.ts",
+      "src/tracker/rooms/gitlab/graph/write.ts",
       "src/tracker/rooms/gitlab/idempotency.ts",
-      "src/tracker/rooms/gitlab/identity-ops.ts",
       "src/tracker/rooms/gitlab/index.ts",
-      "src/tracker/rooms/gitlab/init-project.ts",
       "src/tracker/rooms/gitlab/issues.ts",
-      "src/tracker/rooms/gitlab/labels-ops.ts",
-      "src/tracker/rooms/gitlab/labels.ts",
+      "src/tracker/rooms/gitlab/issues/counts.ts",
+      "src/tracker/rooms/gitlab/issues/create-write.ts",
+      "src/tracker/rooms/gitlab/issues/idempotency.ts",
+      "src/tracker/rooms/gitlab/issues/index.ts",
+      "src/tracker/rooms/gitlab/issues/maps.ts",
+      "src/tracker/rooms/gitlab/issues/pages.ts",
+      "src/tracker/rooms/gitlab/issues/read.ts",
+      "src/tracker/rooms/gitlab/issues/shared.ts",
+      "src/tracker/rooms/gitlab/issues/sub-issues.ts",
+      "src/tracker/rooms/gitlab/issues/write.ts",
+      "src/tracker/rooms/gitlab/labels/assign.ts",
+      "src/tracker/rooms/gitlab/labels/colors.ts",
+      "src/tracker/rooms/gitlab/labels/list.ts",
+      "src/tracker/rooms/gitlab/labels/shared.ts",
       "src/tracker/rooms/gitlab/maps.ts",
+      "src/tracker/rooms/gitlab/model/description-markers.ts",
+      "src/tracker/rooms/gitlab/model/normalize.ts",
+      "src/tracker/rooms/gitlab/model/repo-identity.ts",
       "src/tracker/rooms/gitlab/normalize.ts",
-      "src/tracker/rooms/gitlab/pages.ts",
       "src/tracker/rooms/gitlab/preflight.ts",
+      "src/tracker/rooms/gitlab/project/init-project.ts",
       "src/tracker/rooms/gitlab/queries.ts",
       "src/tracker/rooms/gitlab/read-log.ts",
       "src/tracker/rooms/gitlab/read-sources.ts",
       "src/tracker/rooms/gitlab/repo.ts",
-      "src/tracker/rooms/gitlab/sub-issues.ts",
+      "src/tracker/rooms/gitlab/repo/current-user.ts",
+      "src/tracker/rooms/gitlab/repo/identity.ts",
+      "src/tracker/rooms/gitlab/repo/permissions.ts",
+      "src/tracker/rooms/gitlab/requests.ts",
+      "src/tracker/rooms/gitlab/room/fixes.ts",
+      "src/tracker/rooms/gitlab/room/links.ts",
+      "src/tracker/rooms/gitlab/support/capability-register.ts",
+      "src/tracker/rooms/gitlab/support/read-log.ts",
+      "src/tracker/rooms/gitlab/support/read-sources.ts",
       "src/tracker/rooms/markdown/budget.ts",
       "src/tracker/rooms/markdown/capability-register.ts",
       "src/tracker/rooms/markdown/comment-format.ts",
@@ -17378,6 +17405,15 @@
       "src/tracker/rooms/github/transport",
       "src/tracker/rooms/github/write",
       "src/tracker/rooms/gitlab",
+      "src/tracker/rooms/gitlab/comments",
+      "src/tracker/rooms/gitlab/graph",
+      "src/tracker/rooms/gitlab/issues",
+      "src/tracker/rooms/gitlab/labels",
+      "src/tracker/rooms/gitlab/model",
+      "src/tracker/rooms/gitlab/project",
+      "src/tracker/rooms/gitlab/repo",
+      "src/tracker/rooms/gitlab/room",
+      "src/tracker/rooms/gitlab/support",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
       "src/tracker/session",
@@ -17531,6 +17567,42 @@
       {
         "path": "src/tracker/rooms/github/channels",
         "fileCount": 7
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/comments",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/graph",
+        "fileCount": 3
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/issues",
+        "fileCount": 10
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/labels",
+        "fileCount": 4
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/model",
+        "fileCount": 3
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/project",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/repo",
+        "fileCount": 3
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/room",
+        "fileCount": 2
+      },
+      {
+        "path": "src/tracker/rooms/gitlab/support",
+        "fileCount": 3
       },
       {
         "path": "src/workspace-snapshot/sources",

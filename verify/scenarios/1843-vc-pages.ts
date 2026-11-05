@@ -58,8 +58,14 @@ const SKINS = String(process.env.DSH_1843_SKINS || 'dark,light')
   .map((piece) => piece.trim())
   .filter((skin): skin is Skin => skin === 'dark' || skin === 'light')
 const WINDOW_HEIGHT = Number(process.env.DSH_1843_WINDOW_HEIGHT || '900')
-const PAGES = ['submodules', 'maintenance'] as const
-type PageName = (typeof PAGES)[number]
+type PageName = 'submodules' | 'maintenance'
+const PAGES: PageName[] = (function (): PageName[] {
+  const wanted = String(process.env.DSH_1843_PAGES || 'submodules,maintenance')
+    .split(',')
+    .map((piece) => piece.trim())
+    .filter((piece): piece is PageName => piece === 'submodules' || piece === 'maintenance')
+  return wanted.length > 0 ? wanted : ['submodules', 'maintenance']
+})()
 type Status = 'pass' | 'fail' | 'skip' | 'blocked'
 type Result<T> = { ok: true; value: T } | { ok: false; error: { code: string; message: string } }
 
@@ -309,8 +315,8 @@ interface TextClip { text: string; scrollW: number; clientW: number; clipped: bo
 interface OverflowFacts { scrollW: number; clientW: number; scrollH: number; clientH: number }
 interface AttrMap { [name: string]: string }
 interface RootFacts { attrs: AttrMap; box: Box; overflow: OverflowFacts; overflowX: string; bg: string; color: string }
-interface HeadFacts { box: Box; title: string; count: string; sub: TextClip | null; lede: TextClip | null; back: boolean }
-interface SectionFacts { title: string; className: string; dangerAttr: string | null; borderLeftColor: string; borderTopColor: string; badge: string; note: TextClip | null }
+interface HeadFacts { box: Box; title: string; count: string; countChips: number; danger: string; sub: TextClip | null; lede: TextClip | null; back: boolean }
+interface SectionFacts { title: string; className: string; dangerAttr: string | null; borderLeftColor: string; borderTopColor: string; count: string; badge: string; titleColor: string; note: TextClip | null }
 interface SubActionFacts { action: string; path: string | null; danger: string | null; box: Box }
 interface SubRowFacts { path: string; initialized: string | null; actions: SubActionFacts[] }
 interface SubFacts {
@@ -325,12 +331,12 @@ interface SubFacts {
   confirm: boolean
   blocked: boolean
 }
-interface DangerSectionFacts { attrs: AttrMap; box: Box; radius: string; borderLeftColor: string; borderTopColor: string; badge: string; badgeBox: Box | null; title: string; note: TextClip | null }
+interface DangerSectionFacts { attrs: AttrMap; className: string; box: Box; radius: string; borderLeftColor: string; borderTopColor: string; badge: string; badgeBox: Box | null; title: string; titleColor: string; note: TextClip | null }
 interface MaintFacts {
   dangerCount: string | null
   wrapper: { attrs: AttrMap; box: Box } | null
   dangerSection: DangerSectionFacts | null
-  prune: { attrs: AttrMap; box: Box; danger: string | null; facts: { key: string | null; text: string }[] } | null
+  prune: { attrs: AttrMap; box: Box; danger: string | null; borderLeftColor: string; facts: { key: string | null; text: string }[] } | null
   formCards: { form: string | null; title: string; box: Box }[]
   jump: { href: string | null; text: string } | null
   writeCards: { action: string | null; kind: string | null; danger: string | null }[]
@@ -406,13 +412,19 @@ function inspectScript(pageName: PageName): string {
     `      box: box(el),`,
     `      title: textOf(el.querySelector(".vcs-page-title")),`,
     `      count: textOf(el.querySelector(".vcs-page-count")),`,
+    `      countChips: el.querySelectorAll(".vcs-page-count").length,`,
+    `      danger: textOf(el.querySelector(".section-danger")),`,
     `      sub: clipOf(el.querySelector(".vcs-page-sub")),`,
     `      lede: clipOf(el.querySelector(".vcs-page-lede")),`,
     `      back: el.querySelector("[data-vc-back]") !== null,`,
     `    };`,
     `  }`,
     `  function sectionFacts() {`,
-    `    return all("section.page-section").map(function (el) {`,
+    `    // 只数这一页根节点里的分区：任务长条等宿主面板也画 section.page-section，`,
+    `    // 文档级查询会把它们混进来（#1843 真机实测：子模块页多出「选一种长任务」等四段）。`,
+    `    var pageEl = q(pageSelector);`,
+    `    var nodes = pageEl === null ? [] : Array.prototype.slice.call(pageEl.querySelectorAll("section.page-section"));`,
+    `    return nodes.map(function (el) {`,
     `      var style = getComputedStyle(el);`,
     `      return {`,
     `        title: textOf(el.querySelector(".section-title")),`,
@@ -420,7 +432,9 @@ function inspectScript(pageName: PageName): string {
     `        dangerAttr: el.getAttribute("data-vc-danger-section"),`,
     `        borderLeftColor: String(style.borderLeftColor),`,
     `        borderTopColor: String(style.borderTopColor),`,
+    `        count: textOf(el.querySelector(".section-count")),`,
     `        badge: textOf(el.querySelector(".section-danger")),`,
+    `        titleColor: (function () { var t = el.querySelector(".section-title"); return t === null ? "" : String(getComputedStyle(t).color) })(),`,
     `        note: clipOf(el.querySelector(".section-note")),`,
     `      };`,
     `    });`,
@@ -473,6 +487,7 @@ function inspectScript(pageName: PageName): string {
     `      var style = getComputedStyle(sectionNode);`,
     `      dangerSection = {`,
     `        attrs: attrMap(sectionNode),`,
+    `        className: String(sectionNode.className),`,
     `        box: box(sectionNode),`,
     `        radius: String(style.borderTopLeftRadius),`,
     `        borderLeftColor: String(style.borderLeftColor),`,
@@ -480,6 +495,7 @@ function inspectScript(pageName: PageName): string {
     `        badge: textOf(sectionNode.querySelector(".section-danger")),`,
     `        badgeBox: box(sectionNode.querySelector(".section-danger")),`,
     `        title: textOf(sectionNode.querySelector(".section-title")),`,
+    `        titleColor: String(getComputedStyle(sectionNode.querySelector(".section-title")).color),`,
     `        note: clipOf(sectionNode.querySelector(".section-note")),`,
     `      };`,
     `    }`,
@@ -490,6 +506,7 @@ function inspectScript(pageName: PageName): string {
     `        attrs: attrMap(pruneNode),`,
     `        box: box(pruneNode),`,
     `        danger: pruneNode.getAttribute("data-vc-maint-danger"),`,
+    `        borderLeftColor: String(getComputedStyle(pruneNode).borderLeftColor),`,
     `        facts: all("[data-vc-maint-danger-fact]").filter(function (el) { return pruneNode.contains(el); }).map(function (el) {`,
     `          return { key: el.getAttribute("data-vc-maint-danger-fact"), text: textOf(el).slice(0, 160) };`,
     `        }),`,
@@ -582,8 +599,11 @@ function checkStructure(pageName: PageName, facts: InspectFacts): Check[] {
     checks.push(actual === undefined ? { id: id, ok: ok, detail: detail } : { id: id, ok: ok, detail: detail, actual: actual })
   }
   const head = facts.head
-  push('page-head', head !== null && head.title.length > 0, '页头已画出且标题非空', head === null ? '没有 data-vc-page-head 匹配当前页' : '标题：' + snippet(head.title, 60))
+  push('page-head', head !== null && head.title === (pageName === 'submodules' ? '子模块' : '维护'), '页头已画出且标题按原型写', head === null ? '没有 data-vc-page-head 匹配当前页' : '标题：' + snippet(head.title, 60))
   push('head-back', head !== null && head.back, '页头有返回键（二级页）', head === null ? '没有页头' : head.back ? '有 [data-vc-back]' : '没有返回键')
+  // #1843：两页页头都收起「N 条能力」计数——那枚数字指向 #1860 已退役的能力清单；维护页另有一枚危险页标记。
+  push('head-count-clean', head !== null && head.countChips === 0, '页头不画「N 条能力」计数', head === null ? '没有页头' : '计数 chip ' + String(head.countChips) + ' 个')
+  push('head-danger-chip', pageName === 'submodules' ? head !== null && head.danger === '' : head !== null && head.danger === '含不可逆动作', pageName === 'submodules' ? '子模块页页头不带危险标记' : '维护页页头挂「含不可逆动作」', head === null ? '没有页头' : '危险标记：' + snippet(head.danger, 30))
   push('head-lede', head !== null && head.lede !== null && head.lede.text.length > 0, '页头导语非空', head === null || head.lede === null ? '没有导语' : snippet(head.lede.text, 100))
   push('head-lede-clip', !(head !== null && head.lede !== null && head.lede.clipped), '页头导语没有被横向截断', head !== null && head.lede !== null && head.lede.clipped ? '导语 scrollWidth 大于 clientWidth' : 'ok')
   const pageRoot = facts.pageRoot
@@ -601,6 +621,11 @@ function checkStructure(pageName: PageName, facts: InspectFacts): Check[] {
   const clippedSections = facts.sections.filter((section) => section.note !== null && section.note.clipped)
   push('section-notes-clip', clippedSections.length === 0, '分区说明文字没有被横向截断', clippedSections.length === 0 ? 'ok' : clippedSections.map((section) => section.title).join('、'))
   if (pageName === 'submodules') {
+    // 原型 40 的正文顺序：子模块清单 → 批量动作；页尾能力清单已随 #1860 退役，本页不再画。
+    const sectionTitles = facts.sections.map((section) => section.title)
+    push('sub-sections', sectionTitles.length === 2 && sectionTitles.join(',') === '子模块清单,批量动作', '子模块页正文两段按原型顺序排（清单 → 批量动作）', sectionTitles.join('、'))
+    const listCount = facts.sections.length > 0 ? facts.sections[0].count : ''
+    push('sub-list-count', /^\d+ 个$/.test(listCount), '清单标题上的条数带「个」量词', '实得「' + listCount + '」')
     const sub = facts.sub
     const knownStates = sub !== null && (sub.listState === 'rows' || sub.listState === 'empty' || sub.listState === 'loading' || sub.listState === 'error')
     push('sub-list-state', knownStates, '子模块清单有合法状态（loading/error/empty/rows）', sub === null ? '没有清单容器' : String(sub.listState))
@@ -614,21 +639,28 @@ function checkStructure(pageName: PageName, facts: InspectFacts): Check[] {
     push('sub-batch-buttons', batchOk, '批量动作至少有四个按钮', sub === null ? '没有清单' : String(sub.batchButtons.length) + ' 个')
     const clippedBatch = sub === null ? [] : sub.batchButtons.filter((button) => button.clipped)
     push('sub-batch-clip', clippedBatch.length === 0, '批量按钮文字没有被横向截断', clippedBatch.length === 0 ? 'ok' : '截断 ' + String(clippedBatch.length) + ' 个')
-    const entriesOk = sub !== null && sub.entries.length > 0
-    push('sub-entries', entriesOk, '能力入口卡片有内容', sub === null ? '没有清单' : String(sub.entries.length) + ' 张')
+    const entriesOk = sub !== null && sub.entries.length === 0
+    push('sub-entries', entriesOk, '页尾不再画能力清单', sub === null ? '没有清单' : String(sub.entries.length) + ' 张')
   } else {
+    // 原型 41 的正文顺序：仓库体量 → 整理动作 → 危险区；原型 42 的危险区标题是警示色。
+    const sectionTitles = facts.sections.map((section) => section.title)
+    push('maint-sections', sectionTitles.length === 3 && sectionTitles.join(',') === '仓库体量,整理动作,危险区', '维护页正文三段按原型顺序排（仓库体量 → 整理动作 → 危险区）', sectionTitles.join('、'))
+    const actionCount = facts.sections.length > 1 ? facts.sections[1].count : ''
+    const dangerCountText = facts.sections.length > 2 ? facts.sections[2].count : ''
+    push('maint-section-counts', /^\d+ 条$/.test(actionCount) && /^\d+ 条$/.test(dangerCountText), '整理动作与危险区的条数都带「条」量词', '整理动作「' + actionCount + '」/ 危险区「' + dangerCountText + '」')
     const maint = facts.maint
     const wrapper = maint === null ? null : maint.wrapper
     push('maint-danger-wrapper', wrapper !== null, '危险区外层包装存在（[data-vc-maint-danger-section]）', wrapper === null ? '没有危险区包装' : JSON.stringify(wrapper.attrs))
     const danger = maint === null ? null : maint.dangerSection
     push('maint-danger-section', danger !== null && danger.className.indexOf('is-danger') >= 0, '危险区是 section.page-section.is-danger', danger === null ? '没有危险区 section' : danger.className)
-    const redLeft = danger !== null && isReddish(danger.borderLeftColor)
-    const redTop = danger !== null && isReddish(danger.borderTopColor)
-    push('maint-danger-red-edge', redLeft || redTop, '危险区有红色边（左边框或上边框）', danger === null ? '没有危险区' : '左边框 ' + danger.borderLeftColor + '；上边框 ' + danger.borderTopColor)
-    push('maint-danger-badge', danger !== null && danger.badge.length > 0, '危险区有红色徽章且文字非空', danger === null ? '没有危险区' : '徽章：' + snippet(danger.badge, 20))
+    // 危险区标题按原型 42 写成警示色；红边框落在每一张危险动作卡上（prune 卡的左侧竖线）。
+    const titleRed = danger !== null && isReddish(danger.titleColor)
+    push('maint-danger-title-red', titleRed, '危险区标题用警示色（原型 42）', danger === null ? '没有危险区' : '标题色 ' + danger.titleColor)
+    push('maint-danger-badge', danger !== null && danger.badge === '危险区', '危险区标题旁的红 chip 写「危险区」', danger === null ? '没有危险区' : '徽章：' + snippet(danger.badge, 20))
     push('maint-danger-count', maint !== null && maint.dangerCount !== null, '维护页带危险动作计数（data-vc-maint-danger-count）', maint === null ? '没有维护页' : String(maint.dangerCount))
     const prune = maint === null ? null : maint.prune
     push('maint-prune-card', prune !== null && prune.danger !== null, '危险动作卡存在（prune，且 data-vc-maint-danger=1）', prune === null ? '没有 prune 危险卡' : 'data-vc-maint-danger=' + String(prune.danger))
+    push('maint-prune-red-edge', prune !== null && isReddish(prune.borderLeftColor), '危险动作卡有红色左边框（原型 42）', prune === null ? '没有 prune 危险卡' : '左边框 ' + prune.borderLeftColor)
     const factKeys = prune === null ? [] : prune.facts.map((fact) => fact.key)
     const factsOk = ['loss', 'reversible', 'recovery', 'backup'].every((key) => factKeys.indexOf(key) >= 0)
     push('maint-prune-consequences', factsOk, '危险卡有四段后果（loss/reversible/recovery/backup）', prune === null ? '没有 prune 危险卡' : factKeys.join('、'))
@@ -902,9 +934,38 @@ async function clickDataAttr(page: PageHandle, raw: RawBrowserPage, attr: string
   return { ok: false, detail: '点不到 [' + attr + '=' + value + ']：' + real.detail }
 }
 
+
+/** 关掉宿主随手弹出来的浮层（登录提示、首开遮罩等）；没有遮罩时什么都不按，免得 Esc 把面板关掉。 */
+async function dismissOverlays(page: PageHandle, raw: RawBrowserPage): Promise<boolean> {
+  const overlayClose = '[class*="_mask_"] button[aria-label=' + QUOTE + '关闭' + QUOTE + ']'
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const masks = await evaluateThrough<number>(page, MASK_COUNT_SCRIPT)
+    if (!masks.ok || masks.value === 0) return true
+    // 有遮罩才按 Esc；再优先点遮罩里的关闭键。面板自己的关闭键不在 _mask_ 里，不会被误点。
+    if (typeof raw.press === 'function') await raw.press('Escape')
+    if (await exists(page, overlayClose)) await clickSelector(page, raw, overlayClose)
+    await sleep(300)
+  }
+  const masks = await evaluateThrough<number>(page, MASK_COUNT_SCRIPT)
+  return masks.ok && masks.value === 0
+}
+
 async function bodyDarkOf(page: PageHandle): Promise<boolean | null> {
   const probe = await evaluateThrough<boolean>(page, BODY_DARK_SCRIPT)
   return probe.ok ? probe.value === true : null
+}
+
+/** 只改页面表现的主题属性：宿主设置通道把偏好转了，但插件壳根仍读旧值时用它兜底。 */
+function bodySkinScriptOf(skin: Skin): string {
+  return scriptOf([
+    '(function () {',
+    '  var b = document.body;',
+    '  if (!b) return null;',
+    '  if (' + JSON.stringify(skin === 'dark') + ') { b.setAttribute(' + JSON.stringify('data-ds-dark-theme') + ', ' + JSON.stringify('') + '); }',
+    '  else { b.removeAttribute(' + JSON.stringify('data-ds-dark-theme') + '); }',
+    '  return ' + JSON.stringify(skin) + ';',
+    '})()',
+  ])
 }
 
 async function openMainView(page: PageHandle, raw: RawBrowserPage, tokenUrl: string): Promise<MainViewResult> {
@@ -1017,64 +1078,89 @@ async function openVersionControlPanel(page: PageHandle, raw: RawBrowserPage): P
   return { ok: true, detail: '版本管理页签已打开，壳根与页面已挂出', facts: facts }
 }
 
-async function ensureSkin(page: PageHandle, raw: RawBrowserPage, skin: Skin): Promise<SkinResult> {
+async function ensureSkin(page: PageHandle, raw: RawBrowserPage, skin: Skin, tokenUrl: string): Promise<SkinResult> {
   const facts: Record<string, unknown> = {}
   const desiredDark = skin === 'dark'
-  let current = await bodyDarkOf(page)
-  facts.bodyDarkBefore = current
   const before = await measureUi(page)
+  const current = await bodyDarkOf(page)
+  facts.bodyDarkBefore = current
   facts.skinBefore = before.ok ? before.value.attrSkin : null
-  if (current === desiredDark) {
-    const remounted = await remountVersionControlTab(page, raw)
-    facts.remount = remounted
-    const after = await measureUi(page)
-    facts.skinAfter = after.ok ? after.value.attrSkin : null
-    if (after.ok && after.value.attrSkin === skin) {
-      facts.strategy = 'already-' + skin
-      return { ok: true, blocked: false, detail: '页面已经是 ' + skin + ' 皮肤（body 主题属性一致）', facts: facts }
-    }
-    return { ok: false, blocked: true, detail: 'body 主题属性已经是 ' + skin + '，但壳根 data-vc-skin=' + String(after.ok ? after.value.attrSkin : null) + '，重挂载后仍不一致', facts: facts }
+  // 已经一致就不要动：卸页签会在 460/520 两档碰上一次「壳根还没重新挂出」的窗口，
+  // 把本来通过的组合记成 blocked（#1843 第一次全量真机实测就撞到）。
+  if (current === desiredDark && before.ok && before.value.attrSkin === skin) {
+    facts.strategy = 'already-' + skin
+    return { ok: true, blocked: false, detail: '页面已经是 ' + skin + ' 皮肤（body 与壳根一致）', facts: facts }
   }
   const locked = String(process.env.DSH_1843_SKIN || '')
   if (locked !== '' && locked !== skin) {
     return { ok: false, blocked: true, detail: 'DSH_1843_SKIN 锁定了 ' + locked + '，不切到 ' + skin + '；body 当前 bodyDark=' + String(current), facts: facts }
   }
-  const args = '[' + JSON.stringify('ui-theme') + ', [{ op: ' + JSON.stringify('set') + ', path: [' + JSON.stringify('preference') + '], value: ' + JSON.stringify(skin) + ' }]]'
-  const probe = await evaluateThrough<RpcProbe>(page, rpcScript('settings/mutate', args))
+  // settings/mutate 的 args 必须是「恰好一个普通对象」{ ns, ops }；传数组会被网关拒
+  // （gateway/internal「Remote payload must contain exactly one plain-object args field」），
+  // 这也是 #1843 第一次浅色批次整批 blocked 的真实原因。
+  const argsExpression = JSON.stringify({ ns: 'ui-theme', ops: [{ op: 'set', path: ['preference'], value: skin }] })
+  const probe = await evaluateThrough<RpcProbe>(page, rpcScript('settings/mutate', argsExpression))
   facts.settingsMutate = {
     ok: probe.ok,
     status: probe.ok ? probe.value.status : null,
     value: probe.ok ? rpcValue(probe.value) : null,
     text: probe.ok ? snippet(probe.value.text, 400) : probe.error.message,
   }
-  if (!probe.ok || probe.value.status >= 300) {
-    return { ok: false, blocked: true, detail: 'settings/mutate 切 ' + skin + ' 失败（不是页面功能问题，是主题设置通道）；原始回包见证据', facts: facts }
-  }
   let flipped = false
   for (let attempt = 0; attempt < 30; attempt += 1) {
-    current = await bodyDarkOf(page)
-    if (current === desiredDark) {
-      flipped = true
-      break
-    }
+    if ((await bodyDarkOf(page)) === desiredDark) { flipped = true; break }
     await sleep(400)
   }
   facts.bodyDarkFlipped = flipped
-  if (!flipped) return { ok: false, blocked: true, detail: 'settings/mutate 返回成功，但 12 秒内 body 主题属性没有翻转', facts: facts }
-  const remounted = await remountVersionControlTab(page, raw)
-  facts.remount = remounted
-  let skinOk = false
+  let via = 'settings'
+  if (!flipped) {
+    // 兜底：插件的皮肤跟着宿主 body 上的主题属性走（#1860 D15 实测过）。这一条只改页面表现，
+    // 不动任何设置；证据里的 via 会如实记成 body-attribute。
+    const bodyFlip = await evaluateThrough<string>(page, bodySkinScriptOf(skin))
+    facts.bodyAttributeFlip = bodyFlip.ok ? bodyFlip.value : bodyFlip.error.message
+    via = 'body-attribute'
+  }
+  facts.via = via
+  // 切偏好会让宿主重载客户端，重载后版本管理页签会回到空壳；按启动时的同一套路径重新接一遍。
+  if (typeof raw.goto === 'function') {
+    await raw.goto(tokenUrl)
+    await sleep(3000)
+  }
+  const reentered = await openMainView(page, raw, tokenUrl)
+  facts.reenterMainView = { ok: reentered.ok, detail: reentered.detail }
+  if (!reentered.ok) return { ok: false, blocked: false, detail: '换皮肤后回不到主视图：' + reentered.detail, facts: facts }
+  const reopened = await openVersionControlPanel(page, raw)
+  facts.reopenPanel = { ok: reopened.ok, detail: reopened.detail }
+  if (!reopened.ok) return { ok: false, blocked: false, detail: '换皮肤后版本管理首屏没重新挂上：' + reopened.detail, facts: facts }
+  // 换皮肤后宿主可能补弹一次登录/首开浮层；不关掉会把面板整块盖住，截图与结构判据都会失真。
+  facts.overlayClosed = await dismissOverlays(page, raw)
   for (let attempt = 0; attempt < 25; attempt += 1) {
     const state = await measureUi(page)
     if (state.ok && state.value.attrSkin === skin) {
-      skinOk = true
-      break
+      facts.skinAfter = state.value.attrSkin
+      return { ok: true, blocked: false, detail: '已切到 ' + skin + ' 皮肤（via ' + via + '）', facts: facts }
     }
     await sleep(400)
   }
-  facts.skinOk = skinOk
-  if (!skinOk) return { ok: false, blocked: true, detail: 'body 主题已切到 ' + skin + '，但壳根 data-vc-skin 没有跟上（重挂载后仍不对）', facts: facts }
-  return { ok: true, blocked: false, detail: '已切到 ' + skin + ' 皮肤并重挂载版本管理页签', facts: facts }
+  const last = await measureUi(page)
+  facts.skinAfter = last.ok ? last.value.attrSkin : null
+  // 最后一道兜底：设置通道把偏好写成了 light，但插件壳根仍读重载前的旧值（#1843 浅色实测：
+  // body 已经 light，data-vc-skin 还是 dark）。插件的皮肤跟着宿主 body 上的主题属性走，
+  // 所以直接把属性设成目标值；这条只改页面表现，不动任何设置，证据里 via 会记成 body-attribute。
+  const fallback = await evaluateThrough<string>(page, bodySkinScriptOf(skin))
+  facts.bodyAttributeFlip = fallback.ok ? fallback.value : fallback.error.message
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const state = await measureUi(page)
+    if (state.ok && state.value.attrSkin === skin) {
+      facts.skinAfter = state.value.attrSkin
+      facts.via = 'body-attribute'
+      return { ok: true, blocked: false, detail: '按宿主主题属性切到 ' + skin + ' 皮肤（设置通道已接受，插件壳根读回旧值）', facts: facts }
+    }
+    await sleep(300)
+  }
+  const lastBody = await measureUi(page)
+  facts.skinAfter = lastBody.ok ? lastBody.value.attrSkin : null
+  return { ok: false, blocked: true, detail: 'body 主题已切到 ' + skin + '，但按宿主主题属性兜底后壳根 data-vc-skin=' + String(facts.skinAfter) + ' 仍不对', facts: facts }
 }
 
 async function remountVersionControlTab(page: PageHandle, raw: RawBrowserPage): Promise<Record<string, unknown>> {
@@ -1091,6 +1177,9 @@ async function remountVersionControlTab(page: PageHandle, raw: RawBrowserPage): 
 
 async function openManagePage(page: PageHandle, raw: RawBrowserPage, pageName: PageName): Promise<PageOpenResult> {
   const facts: Record<string, unknown> = {}
+  // 上一档拍危险区时滚过页面；打开新页前统一回顶，整页截图的起点才一致。
+  await evaluateThrough<unknown>(page, '(function () { var d = document.querySelector(".vcs-page-scroll"); if (d !== null) d.scrollTop = 0; window.scrollTo(0, 0); return true; })()')
+  facts.overlayClosed = await dismissOverlays(page, raw)
   if (await exists(page, BACK_BUTTON)) {
     facts.backClick = await clickSelector(page, raw, BACK_BUTTON)
     await sleep(800)
@@ -1111,10 +1200,23 @@ async function openManagePage(page: PageHandle, raw: RawBrowserPage, pageName: P
     await sleep(400)
   }
   facts.headSeen = headSeen
+  // 页头出现不等于这一页的进入读已经落地：子模块页先画一帧 idle 空壳，读回包（submodule status 那条）
+  // 要等宿主起进程再回来。判据在读完之前跑会量到「0 个」的假空态，截图也会拍在空壳上。
+  // 这里只等页面的可见状态离开 idle，不替页面判成功还是失败：error / empty / ok 都由页面自己画。
+  let subState: string | null = null
+  if (pageName === 'submodules') {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const probe = await evaluateThrough<string>(page, "(function(){ var el=document.querySelector('[data-vc-sub-page]'); return el===null ? '' : String(el.getAttribute('data-vc-sub-state')||'') })()")
+      subState = probe.ok ? probe.value : null
+      if (subState !== null && subState !== '' && subState !== 'idle') break
+      await sleep(300)
+    }
+  }
+  facts.subState = subState
   const measure = await measureUi(page)
   facts.measure = measure.ok ? measure.value : summarizeResult(measure)
   if (!headSeen) return { ok: false, detail: '点开「' + pageName + '」后 16 秒内没有出现页头；分区卡点击：' + itemClick.detail, facts: facts }
-  return { ok: true, detail: '已打开「' + pageName + '」页（页头已出现）', facts: facts }
+  return { ok: true, detail: '已打开「' + pageName + '」页（页头已出现' + (pageName === 'submodules' ? '，子模块状态 ' + String(subState) : '') + '）', facts: facts }
 }
 
 
@@ -1389,6 +1491,78 @@ async function captureScreenshot(
   return { path: filed.value.path, problem: null }
 }
 
+/**
+ * 再拍一张只裁版本管理根的图：整页截图里右边栏、工作区列表都占着位置，
+ * 与原型同宽同皮肤并排时真正要对的是插件面板本身。适配器没暴露原始 Playwright 页面时返回说明，不伪造。
+ */
+async function capturePanelScreenshot(
+  context: ScenarioContext,
+  page: PageHandle,
+  name: string,
+): Promise<{ path: string | null; problem: string | null }> {
+  // PageHandle.page 是适配器对象，适配器对象.page 才是原始 Playwright 页面；两层的名字一样，
+  //   少取一层就拿不到 locator（#1843 第一次真机跑就是在这里记了「适配器没有暴露」）。
+  const raw = (page as unknown as { page?: { page?: unknown } }).page
+  const playwrightPage = raw === undefined || raw === null ? undefined : raw.page as { locator?: unknown } | undefined
+  if (playwrightPage === undefined || playwrightPage === null || typeof playwrightPage.locator !== 'function') {
+    return { path: null, problem: '浏览器适配器没有暴露原始 Playwright 页面，拍不了只裁面板的截图' }
+  }
+  const target = path.join(context.evidence.root, name + '-panel.png')
+  try {
+    await (playwrightPage.locator as (selector: string) => any)('[data-vc-root]').first().screenshot({ path: target })
+  } catch (error) {
+    return { path: null, problem: '裁面板截图失败：' + messageOf(error) }
+  }
+  const filed = await context.evidence.recordFile(target, { kind: 'screenshot', note: '1843 真机面板截图：' + name })
+  if (!filed.ok) return { path: target, problem: '面板截图写出了，但没登记进证据：' + filed.error.message }
+  return { path: filed.value.path, problem: null }
+}
+
+
+/**
+ * 维护页危险区单独拍一张：整页面板截图会展开成整页高度，而浏览器只画了当前视口，
+ * 危险区落在黑色区域里（#1843 第一次拼图就是黑块）。这里先滚到危险区，再按壳根的可见矩形裁一张。
+ */
+async function captureDangerPanelScreenshot(
+  context: ScenarioContext,
+  page: PageHandle,
+  name: string,
+): Promise<{ path: string | null; problem: string | null }> {
+  const raw = (page as unknown as { page?: { page?: unknown } }).page
+  const playwrightPage = raw === undefined || raw === null ? undefined : raw.page as { screenshot?: unknown } | undefined
+  if (playwrightPage === undefined || playwrightPage === null || typeof playwrightPage.screenshot !== 'function') {
+    return { path: null, problem: '浏览器适配器没有暴露原始 Playwright 页面，拍不了危险区截图' }
+  }
+  const rectScript = scriptOf([
+    '(function () {',
+    '  var danger = document.querySelector("[data-vc-maint-danger-section]");',
+    '  var root = document.querySelector("[data-vc-root]");',
+    '  if (danger === null || root === null) return null;',
+    '  danger.scrollIntoView({ block: "start" });',
+    '  var r = root.getBoundingClientRect();',
+    '  var x = Math.max(0, Math.round(r.left));',
+    '  var y = Math.max(0, Math.round(r.top));',
+    '  var width = Math.round(Math.min(window.innerWidth, r.right)) - x;',
+    '  var height = Math.round(Math.min(window.innerHeight, r.bottom)) - y;',
+    '  return { x: x, y: y, width: width, height: height };',
+    '})()',
+  ])
+  const rect = await evaluateThrough<{ x: number; y: number; width: number; height: number }>(page, rectScript)
+  if (!rect.ok || rect.value === null || rect.value.width <= 0 || rect.value.height <= 0) {
+    return { path: null, problem: '滚到危险区后量不到壳根可见矩形：' + (rect.ok ? '矩形为空' : rect.error.message) }
+  }
+  await sleep(400)
+  const target = path.join(context.evidence.root, name + '-danger-panel.png')
+  try {
+    await (playwrightPage.screenshot as (options: any) => Promise<unknown>)({ path: target, clip: rect.value })
+  } catch (error) {
+    return { path: null, problem: '危险区截图失败：' + messageOf(error) }
+  }
+  const filed = await context.evidence.recordFile(target, { kind: 'screenshot', note: '1843 真机危险区截图：' + name })
+  if (!filed.ok) return { path: target, problem: '危险区截图写出了，但没登记进证据：' + filed.error.message }
+  return { path: filed.value.path, problem: null }
+}
+
 function describeChecks(checks: readonly Check[]): string {
   const failed = checks.filter((check) => !check.ok)
   if (failed.length === 0) return '结构判据全部通过（' + String(checks.length) + ' 项）'
@@ -1404,13 +1578,14 @@ async function captureAt(
   width: number,
   skin: Skin,
   windowByWidth: Map<number, number>,
+  tokenUrl: string,
 ): Promise<ScenarioObservation[]> {
   const checkId = 'vc-1843-' + pageName + '-w' + String(width) + '-' + skin
   const label = pageTitleOf(pageName) + '页 / ' + String(width) + 'px / ' + skin
   const title = '「' + pageTitleOf(pageName) + '」页在 ' + String(width) + 'px 宽、' + skin + ' 皮肤下的真机实测'
   const facts: Record<string, unknown> = { checkId: checkId, page: pageName, width: width, skin: skin }
   const paths: string[] = []
-  const skinResult = await ensureSkin(page, raw, skin)
+  const skinResult = await ensureSkin(page, raw, skin, tokenUrl)
   facts.skinResult = skinResult
   if (!skinResult.ok) {
     const shot = await captureScreenshot(context, page, '1843-' + pageName + '-w' + String(width) + '-' + skin + '-skin-blocked')
@@ -1464,6 +1639,17 @@ async function captureAt(
   const shot = await captureScreenshot(context, page, '1843-' + pageName + '-w' + String(width) + '-' + skin)
   if (shot.path !== null) paths.push(shot.path)
   if (shot.problem !== null) facts.screenshotProblem = shot.problem
+  const panelShot = await capturePanelScreenshot(context, page, '1843-' + pageName + '-w' + String(width) + '-' + skin)
+  if (panelShot.path !== null) paths.push(panelShot.path)
+  if (panelShot.problem !== null) facts.panelScreenshotProblem = panelShot.problem
+  if (pageName === 'maintenance') {
+    const dangerShot = await captureDangerPanelScreenshot(context, page, '1843-' + pageName + '-w' + String(width) + '-' + skin)
+    if (dangerShot.path !== null) paths.push(dangerShot.path)
+    if (dangerShot.problem !== null) facts.dangerScreenshotProblem = dangerShot.problem
+    // 拍完危险区把滚动位置复位，免得下一档的整页截图从半页开始。
+    await evaluateThrough<unknown>(page, '(function () { var d = document.querySelector(".vcs-page-scroll"); if (d !== null) d.scrollTop = 0; window.scrollTo(0, 0); return true; })()')
+    await sleep(250)
+  }
   const attrWidth = inspect.ok && inspect.value.root !== null ? inspect.value.root.attrs['data-vc-width'] : null
   const attrSkin = inspect.ok && inspect.value.root !== null ? inspect.value.root.attrs['data-vc-skin'] : null
   const widthOk = calibration.ok && attrWidth === String(width)
@@ -1656,14 +1842,29 @@ async function runSweep(context: ScenarioContext): Promise<ScenarioObservation[]
   if (!panel.ok) return observations
   const windowByWidth = new Map<number, number>()
   const combos: ScenarioObservation[] = []
-  for (const skin of SKINS) {
-    for (const pageName of PAGES) {
-      for (const width of WIDTHS) {
-        if (QUICK && (width !== WIDTHS[0] || skin !== SKINS[0])) continue
-        const at = await captureAt(context, page, raw, pageName, width, skin, windowByWidth)
-        for (const observation of at) combos.push(observation)
+  try {
+    for (const skin of SKINS) {
+      for (const pageName of PAGES) {
+        for (const width of WIDTHS) {
+          if (QUICK && (width !== WIDTHS[0] || skin !== SKINS[0])) continue
+          const at = await captureAt(context, page, raw, pageName, width, skin, windowByWidth, instance.record.tokenUrl)
+          for (const observation of at) combos.push(observation)
+        }
       }
     }
+  } catch (error) {
+    // 扫描中途抛错时把堆栈留在回执里：只写一句「custom step threw」无法定位到是哪个页面的哪段判据。
+    observations.push(observe({
+      checkId: 'vc-1843-sweep-crash',
+      title: '扫描过程没有抛错',
+      ok: false,
+      status: 'fail',
+      hard: true,
+      detail: '扫描在组合中途抛错：' + messageOf(error),
+      expected: '每个页面 × 宽档 × 皮肤都返回观察项',
+      actual: String((error as Error)?.stack || error).slice(0, 1200),
+      hint: '看 actual 的堆栈；修好抛错点后重跑',
+    }))
   }
   observations.push(...combos)
   const passed = combos.filter((item) => item.ok).length
@@ -1701,8 +1902,8 @@ export default defineScenario<ScenarioContext>({
   title: '版本管理页「子模块」「维护」两个分区页在四档宽与深浅皮肤下的真机核对（#1843）',
   description:
     '在装好候选包的隔离 web 实例里，用有头浏览器打开版本管理页签，逐个点开「子模块」「维护」两个管理分区页：' +
-    '在 300/380/460/520 四档面板宽与深浅两种皮肤下各截一张图，并直接读 DOM 判页头、分区结构、危险区的红边与红色徽章、' +
-    '横向溢出与文字截断；宽度靠反解窗口宽去命中，命中不了就记 blocked 并写实际面板宽，不伪造。',
+    '在 300/380/460/520 四档面板宽与深浅两种皮肤下各截整页与只裁面板两张图，并直接读 DOM 判页头、分区顺序、危险区标题的警示色、危险卡红边、' +
+    '横向溢出与文字截断；宽度靠拖右栏把手或反解窗口宽去命中，命中不了就记 blocked 并写实际面板宽，不伪造。',
   hooks: hooks,
   steps: [
     {

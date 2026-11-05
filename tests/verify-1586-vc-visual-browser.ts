@@ -67,6 +67,10 @@ const VC_FILES = [
   'src/client/views/versionControl/vcCapabilityPages.js',
   'src/client/views/versionControl/vcShellPrimitives.js',
   'src/client/views/versionControl/vcPalette.js',
+  // #1903：历史页四条能力的纯判定、动作层与多出来的画法，排在历史页之前。
+  'src/client/views/versionControl/vcHistoryQuery.js',
+  'src/client/views/versionControl/vcHistoryOps.js',
+  'src/client/views/versionControl/vcHistoryExtra.js',
   'src/client/views/versionControl/vcHistory.js',
   // #1829 阶段 3：图形视图与提交详情从历史页拆成独立叶子；它们在 vcHistory 之后、页面壳之前拼接。
   'src/client/views/versionControl/vcHistoryGraph.js',
@@ -266,7 +270,7 @@ function entryOf(closureSrc: string): string {
     "    hooksInstall: root.querySelectorAll('[data-vc-hooks-install-note]').length,",
     "    hooksDirAttr: (function () { const e = root.querySelector('[data-vc-hooks-dir]'); return e ? e.getAttribute('data-vc-hooks-dir') : null; })(),",
     "    hooksClipped: (function () { const out = []; const sel = ['.vcs-hook-note', '.vcs-hook-name', '.vcs-hooks-install-note', '.vcs-hooks-run-note', '.vcs-hooks-gate']; root.querySelectorAll(sel.join(',')).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.push(String(el.className)) }); return out; })(),",
-    // #1843 阶段 4 子模块页：根读数、清单四态、行与差异、八条能力入口、四个批量按钮、添加表单。
+    // #1843 阶段 4 子模块页：根读数、清单四态、行与差异、四个批量按钮、添加表单；页尾能力清单已随 #1860 退役。
     "    subPage: !!root.querySelector('[data-vc-sub-page]'),",
     "    subMode: (function () { const e = root.querySelector('[data-vc-sub-page]'); return e ? e.getAttribute('data-vc-sub-mode') : null })(),",
     "    subState: (function () { const e = root.querySelector('[data-vc-sub-page]'); return e ? e.getAttribute('data-vc-sub-state') : null })(),",
@@ -516,7 +520,7 @@ async function run(browser: any, env: any) {
     }
     check(!!bgOf.dark && !!bgOf.light && bgOf.dark !== bgOf.light && bgOf.dark !== 'rgba(0, 0, 0, 0)', '两套皮肤各有自己的底色（深 ' + bgOf.dark + ' / 浅 ' + bgOf.light + '）')
     // ---- H 组：子模块页（#1843 阶段 4）—— 四档宽 × 两皮肤 ----
-    // 判据只看结构与读数：三段正文都在、清单两行各带路径/提交/差异、八条能力入口与四个批量按钮
+    // 判据只看结构与读数：两段正文都在、清单两行各带路径/提交/差异、四个批量按钮
     // 一个不少、添加表单两栏都在，且各档都不横向溢出、关键句子不截断。
     const subBoard = subBoardOf()
     for (let s = 0; s < SKINS.length; s += 1) {
@@ -535,7 +539,7 @@ async function run(browser: any, env: any) {
         check(!!m && m.subInitialized.join(',') === '1,1' && m.subDiffs.join(',') === 'clean,different', tag + '：每行都带「是否已检出」与差异读数（' + (m && m.subDiffs.join(',')) + '）')
         check(!!m && m.subRowTexts.length === 2 && m.subRowTexts[0].indexOf('third_party/native-kit') >= 0 && m.subRowTexts[0].indexOf('1'.repeat(10)) >= 0 && m.subRowTexts[1].indexOf('vendor/legacy') >= 0 && m.subRowTexts[1].indexOf('2'.repeat(10)) >= 0, tag + '：每行的路径与当前提交都画在行里')
         check(!!m && m.subDiffTexts.length === 2 && m.subDiffTexts[0].length > 0 && m.subDiffTexts[1].length > 0, tag + '：每行的差异说明都有正文（不是空行）')
-        check(!!m && m.subEntries.join(',') === '10.1,10.2,10.3,10.4,10.5,10.6,10.7,10.8', tag + '：八条能力入口按 10.1–10.8 排（实得 ' + (m && m.subEntries.join(',')) + '）')
+        check(!!m && m.subEntries.length === 0, tag + '：页尾不再画能力清单（实得 ' + (m && m.subEntries.length) + ' 条）')
         check(!!m && m.subBatch.join(',') === 'init,fetch,recorded,status', tag + '：四个批量按钮按固定菜单顺序排（实得 ' + (m && m.subBatch.join(',')) + '）')
         check(!!m && m.subForm === 'add' && m.subFields.join(',') === 'path,url', tag + '：添加表单收路径与地址两栏（实得 ' + (m && m.subFields.join(',')) + '）')
         check(!!m && m.subClipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.subClipped.join(',') || '无') + '）')
@@ -548,7 +552,7 @@ async function run(browser: any, env: any) {
     const subEmpty = await renderAt(page, { page: 'submodules', width: 460, skin: 'dark', open: { gear: true }, submodules: { state: 'empty', board: null }, submoduleOps: {} })
     check(!!subEmpty && subEmpty.subState === 'empty' && subEmpty.subList === 'empty' && subEmpty.subRows.length === 0, '子模块页空态：没有子模块时画空态（data-vc-sub-list=empty）')
     check(!!subEmpty && subEmpty.subEmptyTitle === 1 && subEmpty.subEmptyHint === 1 && subEmpty.subForm === 'add', '子模块页空态：空态块里有标题、说明与添加表单')
-    check(!!subEmpty && subEmpty.subEntries.length === 8 && subEmpty.subBatch.length === 4, '子模块页空态：八条能力入口与四个批量按钮仍在（空态只换清单段）')
+    check(!!subEmpty && subEmpty.subEntries.length === 0 && subEmpty.subBatch.length === 4, '子模块页空态：页尾能力清单仍然不画，四个批量按钮仍在（空态只换清单段）')
     await page.screenshot({ path: path.join(shotDir, 'submodules-empty-dark-460.png') })
     const subErr = await renderAt(page, { page: 'submodules', width: 460, skin: 'dark', open: { gear: true }, submodules: { state: 'error', board: null, error: { kind: 'env', message: 'wf.gitSubmodules 失败' } }, submoduleOps: {} })
     check(!!subErr && subErr.subState === 'error' && subErr.subList === 'error', '子模块页错误态：读数失败时画错误态（data-vc-sub-list=error）')

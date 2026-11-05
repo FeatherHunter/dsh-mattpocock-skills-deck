@@ -64,6 +64,22 @@ export const VC_SHELL_STYLE_TEXT = [
   '[data-vc-shell] .vcs-branch-overlay{margin:6px 8px;padding:6px;border:1px solid var(--vcs-line);background:var(--vcs-panel)}',
   '[data-vc-shell] .vcs-branch-list{margin:4px 0;padding:0;list-style:none;display:grid;gap:4px}',
   '[data-vc-shell] .vcs-branch-pointer{color:var(--vcs-dim);font-size:12px;margin:2px 0 0}',
+  // #1846 分支浮层的本地分支清单：一行一条分支，行本身就是按钮；当前分支那一行置灰并带徽章。
+  //   清单给一个最高高度并自己滚动（本机夹具就有 60 多条分支），免得浮层把下面整页顶走；
+  //   300 宽时名字与上游事实都在行内换行，不做横向滚动。
+  '[data-vc-shell] .vcs-branch-branches{display:flex;flex-direction:column;gap:2px;margin:4px 0;min-width:0}',
+  '[data-vc-shell] .vcs-branch-branches-hint{margin:0;color:var(--vcs-dim);font-size:11px;overflow-wrap:anywhere}',
+  '[data-vc-shell] .vcs-branch-count{margin:0;color:var(--vcs-dim);font-size:11px}',
+  '[data-vc-shell] .vcs-branch-branches-list{display:flex;flex-direction:column;gap:3px;max-height:180px;margin:2px 0 0;padding:0;list-style:none;overflow-y:auto;overflow-x:hidden;min-width:0}',
+  '[data-vc-shell] .vcs-branch-li{min-width:0}',
+  '[data-vc-shell] .vcs-branch-branch{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;width:100%;min-width:0;padding:2px 6px;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-panel);color:var(--vcs-fg);font:inherit;font-size:12px;text-align:left;white-space:normal;overflow:visible;text-overflow:clip;cursor:pointer}',
+  '[data-vc-shell] .vcs-branch-branch:hover:not(:disabled){border-color:var(--vcs-accent)}',
+  '[data-vc-shell] .vcs-branch-branch[aria-current="true"]{border-color:var(--vcs-accent)}',
+  '[data-vc-shell] .vcs-branch-branch:disabled{color:var(--vcs-dim);cursor:default}',
+  '[data-vc-shell] .vcs-branch-branch-name{flex:0 1 auto;min-width:0;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}',
+  '[data-vc-shell] .vcs-branch-branch-badge{flex:0 0 auto;padding:0 5px;border:1px solid var(--vcs-accent);border-radius:999px;color:var(--vcs-accent);font-size:11px}',
+  '[data-vc-shell] .vcs-branch-branch-meta{flex:1 1 100%;min-width:0;color:var(--vcs-dim);font-size:11px;overflow-wrap:anywhere}',
+  '[data-vc-shell] .vcs-branch-empty{margin:2px 0;color:var(--vcs-dim);font-size:12px;overflow-wrap:anywhere}',
   '[data-vc-shell] .vcs-page-body{padding:8px}',
   '[data-vc-shell] .vcs-page-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;margin-bottom:6px}',
   '[data-vc-shell] .vcs-page-title{font-weight:600}',

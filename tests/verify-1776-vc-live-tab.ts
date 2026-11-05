@@ -96,7 +96,13 @@ function snapshotOf(opts) {
     workspace: ok({
       identity: { worktreeDisplay: 'dsh-plugin', worktreePath: 'D:/w/repo', branch: 'main', detached: false, oid: 'abcdef1234567890', sync: '', ahead: 0, behind: 0, basisMs: NOW },
       repo: { merging: false, rebasing: false, cherryPicking: false, reverting: false, hasCommits: true, bare: false, tier: 'full', autocrlf: 'false' },
-      branches: [{ name: 'main', current: true, remote: 'origin' }],
+      // #1846：分支浮层的清单读的就是这一片；键用真机回包的 short（BranchInfo），当前分支不在第一条，
+      //   这样「当前排第一」与「当前不可点」两件事都能在这一份夹具上验到。
+      branches: [
+        { short: 'main', current: false, upstream: 'origin/main', ahead: 0, behind: 0 },
+        { short: 'feat/x', current: true, upstream: '', ahead: 2, behind: 1 },
+        { short: 'old/topic', current: false, upstream: 'origin/old/topic', upstreamGone: true },
+      ],
     }),
     changes: ok({ staged: [], unstaged: [{ path: 'a.txt', status: ' M', staged: false, untracked: false }], stagedCount: 0, unstagedCount: 1, conflictCount: 0, lineCountsKnown: true }),
     history: ok({ commits: [{ oid: 'aaaa1111222233334444', short: 'aaaa111', author: '某甲', email: 'a@b.c', authorDateMs: NOW - 3600000, commitDateMs: NOW - 3600000, subject: '首条提交', parents: [] }], hasMore: false }),
@@ -736,11 +742,11 @@ async function scenarioManage() {
   if (branchCapRow) await m.click(branchCapRow)
   check(m.page() === 'branch-tags' && !m.q('[data-vc-palette]'), 'T28c 点面板行落到分支与标签页并关面板')
   await m.click('[data-vc-back]')
-  // ---- #1846：分支浮层五个动作各自落到真正做这件事的入口，不是只到页顶 ----
+  // ---- #1846：分支浮层四个指路动作各自落到真正做这件事的入口，不是只到页顶 ----
   // 分支页只拥有 4.1–4.13；合并属域 6（落冲突页 6.1）、变基属域 6（落变基页 5.7 换基座），
-  // 所以「新建/删除/列表」去分支页、「合并」去冲突页、「变基」去变基页——都是那条能力的真入口，不造假按钮。
+  // 所以「新建/删除」去分支页、「合并」去冲突页、「变基」去变基页——都是那条能力的真入口，不造假按钮。
+  // 「分支列表」不再是一行指路文案：浮层里现在就是真的本地分支清单（下面单独验切换）。
   const landingCases = [
-    { action: 'list', page: 'branch-tags', sel: '[data-vc-branch-query]' },
     { action: 'create', page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="create"]' },
     // #1881：删除分支不再平铺在页尾，它收在每条分支行的「⋯」菜单里。落点是「不是当前分支的那一行」
     //   菜单里的删除项：当前分支通常删不掉，vcRealFocusLandingOf 又会先展开菜单再聚焦，落到删除项上
@@ -764,6 +770,74 @@ async function scenarioManage() {
     }
     if (m.depth() === '2') await m.click('[data-vc-back]')
   }
+  // ---- #1846：浮层里点一条分支就真的切（4.3 的既有通路：预检 → 需要时确认 → 凭票执行 → 结果贴回浮层） ----
+  await m.click('[data-vc-branch-btn]')
+  const popRows = m.qa('[data-vc-branch-overlay] [data-vc-branch-pick]').map(function (el) { return String(el.getAttribute('data-vc-branch-pick')) })
+  check(popRows.join(',') === 'feat/x,main,old/topic', 'T27g 浮层列出首屏读到的本地分支，当前分支排第一（实得 ' + popRows.join(',') + '）')
+  const popCurrent = m.q('[data-vc-branch-overlay] [data-vc-branch-current]')
+  check(!!popCurrent && popCurrent.hasAttribute('disabled') && String(popCurrent.getAttribute('data-vc-branch-pick')) === 'feat/x', 'T27h 当前分支那一行带当前标记且不可点（disabled）')
+  const popCheckBefore = countKin(host, 'wf.gitBranchCheck')
+  const popRow = m.q('[data-vc-branch-overlay] [data-vc-branch-pick="main"]')
+  if (popRow) await m.click(popRow)
+  const popCheckLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitBranchCheck' })
+  const popCheckArgs = (popCheckLog[popCheckLog.length - 1] || {}).args || {}
+  check(countKin(host, 'wf.gitBranchCheck') === popCheckBefore + 1 && String(popCheckArgs.op || '') === 'switch' && String(popCheckArgs.name || '') === 'main', 'T27i 点一条分支先发预检电话（op=switch、name=main），不直接执行')
+  const popWritesBefore = countKin(host, 'wf.gitBranchWrite')
+  check(!!m.q('[data-vc-branch-overlay] [data-vc-confirm]') && countKin(host, 'wf.gitBranchWrite') === popWritesBefore, 'T27j 预检要求确认时，确认卡停在浮层里，执行电话一条都没发')
+  const popFirstScreenBefore = countKin(host, 'wf.gitFirstScreen')
+  await m.click('[data-vc-branch-overlay] .vcs-confirm-go')
+  const popWriteLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitBranchWrite' })
+  const popWriteArgs = (popWriteLog[popWriteLog.length - 1] || {}).args || {}
+  check(countKin(host, 'wf.gitBranchWrite') === popWritesBefore + 1 && String(popWriteArgs.ticketId || '') === 'br-ticket' && popWriteArgs.confirmed === true && String(popWriteArgs.name || '') === 'main', 'T27k 确认后凭票发执行电话（票号取自预检、confirmed=true、name=main）')
+  check(!!m.q('[data-vc-branch-overlay] [data-vc-result="ok"]') && !!m.q('[data-vc-branch-overlay]'), 'T27l 结果贴在浮层里，浮层不自动关')
+  check(countKin(host, 'wf.gitFirstScreen') > popFirstScreenBefore, 'T27m 切换成功后重读首屏（身份行与清单里的当前分支标记跟着更新）')
+  const activeAfterSwitch = document.activeElement
+  check(!!activeAfterSwitch && String(activeAfterSwitch.getAttribute('data-vc-branch-close') || '') === '1', 'T27n 切完焦点送回浮层的关闭键（被点的那行变成当前分支并置灰，焦点不能掉到页面外）')
+  await m.click('[data-vc-branch-close]')
+
+  // 取消：确认卡收起来，一条执行电话都不发。
+  await m.click('[data-vc-branch-btn]')
+  await m.click('[data-vc-branch-overlay] [data-vc-branch-pick="old/topic"]')
+  check(!!m.q('[data-vc-branch-overlay] [data-vc-confirm]'), 'T27o 另一条分支同样先停在确认卡上')
+  const cancelWritesBefore = countKin(host, 'wf.gitBranchWrite')
+  await m.click('[data-vc-branch-overlay] .vcs-confirm-cancel')
+  check(!m.q('[data-vc-branch-overlay] [data-vc-confirm]') && countKin(host, 'wf.gitBranchWrite') === cancelWritesBefore, 'T27p 取消确认卡后不执行（执行电话数不变），卡片收起来')
+  await m.click('[data-vc-branch-close]')
+
+  // 预检不要求确认（工作区干净）时不在浮层里多停一张卡：签完票直接执行。
+  const host4 = makeHost({
+    reply: {
+      'wf.gitBranchCheck': function (args: any) {
+        const a: any = args || {}
+        return { ok: true, contract: 'version-control.branch-check', version: 1, readAtMs: NOW, op: String(a.op || 'switch'), decision: { verdict: 'allow', reasons: ['ok'] }, confirmRequired: false, confirm: { verb: '切换到分支', target: String(a.name || ''), kind: 'switch' }, ticket: { id: 'br-ticket', op: 'switch', checkedAtMs: NOW, expiresAtMs: NOW + 120000 } }
+      },
+    },
+  })
+  const view4 = buildView(host4, null)
+  const m4 = mountOf(view4, { st: { cwd: CWD } })
+  await React.act(async function () { m4.root.render(React.createElement(view4.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await m4.click('[data-vc-branch-btn]')
+  const fastRow = m4.q('[data-vc-branch-overlay] [data-vc-branch-pick="main"]')
+  if (fastRow) await m4.click(fastRow)
+  const fastWrites = host4.calls.filter(function (one: any) { return one.phone === 'wf.gitBranchWrite' })
+  const fastArgs = (fastWrites[0] || {}).args || {}
+  check(fastWrites.length === 1 && String(fastArgs.ticketId || '') === 'br-ticket' && fastArgs.confirmed === true && !m4.q('[data-vc-branch-overlay] [data-vc-confirm]'), 'T27q 预检不要求确认时签完票直接执行，浮层不再多停一张确认卡')
+  check(!!m4.q('[data-vc-branch-overlay] [data-vc-result="ok"]'), 'T27r 直接执行的结果同样贴在浮层里')
+  await m4.unmount()
+
+  // ---- #1846：浮层动作落在「当前这一页」时也要把浮层收起来 ----
+  // 跳页那条路靠 vcRealNavTo 清 open；落在同一个页名时它原样返回，不补一下就会留着一个盖在当前页上的浮层。
+  // 真机复验时正是这样抓到一次（已经在分支页上点浮层里的「新建」，浮层没关）。
+  if (!m.q('[data-vc-gear-index]')) await m.click('[data-vc-gear-btn]')
+  await m.click('[data-vc-gear-item="branch-tags"]')
+  await m.click('[data-vc-branch-btn]')
+  const samePageItem = m.q('[data-vc-branch-overlay] [data-vc-branch-action="create"]')
+  if (samePageItem) await m.click(samePageItem)
+  check(!!samePageItem && m.page() === 'branch-tags' && !m.q('[data-vc-branch-overlay]'), 'T27c2 浮层动作落在当前这一页时同样收起来（同页跳转不会自己清 open）')
+  if (m.depth() === '2') await m.click('[data-vc-back]')
+  if (m.depth() === '2') await m.click('[data-vc-back]')
+
   check(countKin(host, 'wf.gitTaskQuery') >= 1, 'T29 容器轮询任务通道（wf.gitTaskQuery 至少一次）')
   await m.unmount()
 
@@ -1099,6 +1173,9 @@ async function scenarioHistoryFourEntries() {
   }
   const queryCalls = []
   const noteCalls = []
+  // 假宿主要记得住「这条提交现在有什么备注」：不记的话，「打开一条已有备注的提交、什么都不改直接点保存」
+  // 这条路径在门禁里根本不成立（真机上它会把备注删掉）。
+  let savedNote = ''
   const host = makeHost({
     reply: {
       'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
@@ -1119,16 +1196,17 @@ async function scenarioHistoryFourEntries() {
         if (String(a.kind) === 'file-history') {
           return { ok: true, kind: 'file-history', path: String((a.params || {}).path || ''), commits: [snap.slices.history.data.commits[0]], count: 1, reason: 'ok' }
         }
-        if (String(a.kind) === 'notes') return { ok: true, kind: 'notes', note: null, reason: 'no-note', rev: String((a.params || {}).rev || '') }
+        if (String(a.kind) === 'notes') return { ok: true, kind: 'notes', note: savedNote === '' ? null : savedNote, reason: savedNote === '' ? 'no-note' : 'ok', rev: String((a.params || {}).rev || '') }
         return { ok: false, error: { kind: 'args', message: 'unexpected' } }
       },
       'wf.gitNoteCheck': function (args) {
         noteCalls.push({ phone: 'check', rev: String((args || {}).rev || ''), text: String((args || {}).text || '') })
+        savedNote = String((args || {}).text || '')
         return { ok: true, ticket: { id: 'tk-note', op: 'note', checkedAtMs: NOW, expiresAtMs: NOW + 120000 }, plan: { rev: A, text: String((args || {}).text || ''), removing: false, hadNote: false } }
       },
       'wf.gitNoteWrite': function (args) {
         noteCalls.push({ phone: 'write', ticketId: String((args || {}).ticketId || ''), requestId: String((args || {}).requestId || '') })
-        return { ok: true, cmd: 'git notes add', rev: A, removing: false, note: '这一版为了兼容旧数据' }
+        return { ok: true, cmd: 'git notes add', rev: A, removing: false, note: savedNote }
       },
     },
   })
@@ -1211,6 +1289,20 @@ async function scenarioHistoryFourEntries() {
   await m.click('[data-vc-history-back]')
   check(m.qa('[data-vc-history-note-tag]').length === 1 && m.q('[data-vc-history-note-tag]') !== null,
     'T41u 回到列表，写过备注的那一条带「备注」标记')
+
+  // 打开一条已经写过备注的提交、什么都不改直接点保存：不许把那条备注当成空草稿删掉。
+  noteCalls.length = 0
+  await m.click('[data-vc-history-open="' + A + '"]')
+  await settle()
+  const noteInput = m.q('[data-vc-history-note-input]')
+  check(!!noteInput && String(noteInput.value) === '这一版为了兼容旧数据',
+    'T41v 打开已有备注的提交，输入框里就是那条备注的原文（实得「' + String((noteInput || {}).value) + '」）')
+  await m.click('[data-vc-history-note-save]')
+  await settle()
+  const recheck = noteCalls.filter(function (one) { return one.phone === 'check' })[0]
+  check(!!recheck && recheck.text === '这一版为了兼容旧数据',
+    'T41w 什么都不改直接点保存，带上去的是原文而不是空串（空串会被当成删除；实得 ' + JSON.stringify(recheck && recheck.text) + '）')
+  check(String(m.text('[data-vc-history-note-result]')).indexOf('已保存') >= 0, 'T41x 这一下照常是「已保存」，不是「已删除」')
   await m.unmount()
 }
 

@@ -276,7 +276,8 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'VC_HISTORY_BATCH', 'VC_HISTORY_LANES_MAX', 'VC_HISTORY_DIFF_LINES_WIDE', 'VC_HISTORY_DIFF_LINES_NARROW',
   'vcHistoryFirstPageOf', 'vcHistoryModelOf', 'vcHistoryGraphOf', 'vcHistoryDiffContextOf', 'vcHistoryPageNode', 'vcHistoryListOf', 'vcHistoryRowNode', 'vcHistoryDetailOf', 'vcHistoryGraphNode',
   // #1903 历史页四条能力：纯判定、动作层与多出来的四块画法（门禁逐块断言）。
-  'vcHistoryScopeOf', 'vcHistoryHitPathOf', 'vcHistoryIsMergeCommitOf', 'vcHistoryEmptyKeyOf', 'vcHistoryCompareSummaryOf', 'vcHistoryFileNameOf', 'vcHistoryFilterOf',
+  'vcHistoryScopeOf', 'vcHistoryHitPathOf', 'vcHistoryIsMergeCommitOf', 'vcHistoryEmptyKeyOf', 'vcHistoryCompareSummaryOf', 'vcHistoryFilterOf',
+  'VC_HISTORY_FILE_MAX', 'VC_NOTE_TEXT_MAX',
   'vcHistoryMarksNode', 'vcHistoryScopeSwitchNode', 'vcHistoryCompareFormNode', 'vcHistoryCompareHeadNode', 'vcHistoryCompareFilesNode', 'vcHistoryFileOnlyNode',
   'vcHistoryNoteNode', 'vcHistoryFileMenuNode', 'vcHistoryToolsNode', 'vcHistoryCommitsOf', 'vcHistoryHasNoteOf', 'vcHistoryFileStateOf', 'vcHistoryFileSourceOf',
   'VC_NOTE_PHONES', 'vcHistoryOpsOf', 'vcNoteDraftOf', 'vcNewNoteWrite',
@@ -1362,7 +1363,8 @@ async function main() {
   check(darkHtml.indexOf('data-vc-identity="1"') >= 0 && darkHtml.indexOf('data-vc-sync="1"') >= 0 && darkHtml.indexOf('data-vc-search-entry="1"') >= 0, 'Z12a 身份行、同步带、全局搜索入口都在壳上')
   const branchHtml = shellHtmlOf({ page: 'changes', width: 460, skin: 'dark', open: { branch: true } })
   const branchActions = attrValuesOf(branchHtml, 'data-vc-branch-action')
-  check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchActions.join(',') === 'list,create,delete,merge,rebase', 'Z12b 分支悬浮层画出五个动作（列表 / 新建 / 删除 / 合并 / 变基）')
+  // #1846：分支浮层的「分支列表」那一行由真的本地分支清单取代；其余四个动作仍是名字与指路。
+  check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchHtml.indexOf('data-vc-branch-branches') >= 0 && branchActions.join(',') === 'create,delete,merge,rebase', 'Z12b 分支悬浮层画本地分支清单与四个指路动作（新建 / 删除 / 合并 / 变基）')
   let deepOk = true
   const deepKeys = Object.keys(VIEW.VC_DEEP_LINKS)
   const deepPageIds = VIEW.PAGE_SURFACES.map(function (p2) { return p2.id })
@@ -2184,7 +2186,7 @@ async function main() {
   check(subRows.length === 2 && subRows[0].path === 'libs/lib' && subRows[1].initialized === false && subRows[0].absorbFrom.indexOf('.git') >= 0, 'W37 行模型带齐清单要用的字段（路径 / 是否已初始化 / 吸收前后的 .git 目录）')
   const subPageBoard = { state: 'ok', board: subBoard, rows: subRows }
   const subHtml = renderToStaticMarkup(VIEW.vcSubmodulesPageNode(h, tZh, { board: subPageBoard, ui: VIEW.vcSubmodulesUiOf(null), ops: {} }))
-  check(subHtml.indexOf('data-vc-sub-page="1"') >= 0 && attrValuesOf(subHtml, 'data-vc-sub-entry').join(',') === '10.1,10.2,10.3,10.4,10.5,10.6,10.7,10.8', 'W38 子模块页真的渲染出八条入口（实得 ' + attrValuesOf(subHtml, 'data-vc-sub-entry').length + ' 条）')
+  check(subHtml.indexOf('data-vc-sub-page="1"') >= 0 && attrValuesOf(subHtml, 'data-vc-sub-entry').length === 0, 'W38 子模块页不再画页尾能力清单（八条能力的主入口在命令面板与管理索引，实得 ' + attrValuesOf(subHtml, 'data-vc-sub-entry').length + ' 条）')
   check(attrValuesOf(subHtml, 'data-vc-sub-batch').join(',') === 'init,fetch,recorded,status' && attrValuesOf(subHtml, 'data-vc-sub-row').length === 2, 'W39 批量四项与逐行清单都画出来（两行子模块各占一行）')
   check(subHtml.indexOf('data-cap-primary') < 0, 'W40 子模块页不用主入口标记 data-cap-primary（每条能力的唯一主入口仍由能力行负责，Z1d 不会被抢）')
   const subConfirmUi = VIEW.vcSubmodulesUiOf({ mode: 'confirm', op: 'absorb', plan: { action: 'absorb', path: 'libs/lib', moves: [{ from: 'D:/w/repo/libs/lib/.git', to: 'D:/w/repo/.git/modules/libs/lib' }] }, ticket: { id: 'tk-sub' } })
@@ -2510,6 +2512,23 @@ async function main() {
   check(z12Lists.every(function (list) { return list.length === 1 && list[0].primaryEntry === '提交历史页' && list[0].page === 'commits' }),
     'Z12a 四条能力在账本里各恰好一条，主入口都还是「提交历史页」（实际 ' + JSON.stringify(z12Lists.map(function (l) { return l.length + ':' + (l[0] && l[0].primaryEntry) })) + '）')
   check(z1Html.indexOf('data-cap-primary') < 0, 'Z12b 历史页正文里不另挂主入口标记：入口在面板里只算一处，不在页面上再算一处')
+
+  // Z13 只看某个文件时切「代码变化」不会把列表筛空：这份读数里没有文件清单，代码范围那套没有依据。
+  const z13Reads = hcReadsOf({ commits: zqCommits, reads: { queries: { 'file-history': { state: 'ok', seq: 1, error: null, data: { ok: true, kind: 'file-history', path: 'src/client/views/IssueDetail.ts', commits: [zqCommits[0]], count: 1, reason: 'ok' } } } } })
+  // 搜的是这条提交说明里真有的词：老做法在代码范围里按路径匹配，这份读数没有路径，会把唯一一行筛掉。
+  const z13Html = hcHtmlOf({ reads: z13Reads, width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts', historyScope: 'code', historyQuery: '建议' } })
+  check(attrValuesOf(z13Html, 'data-vc-history-row').length === 1, 'Z13a 只看某个文件时切到代码范围、再搜一个说明里有的词，列表不会被筛空（实际 ' + attrValuesOf(z13Html, 'data-vc-history-row').length + ' 行）')
+  check(attrValuesOf(z13Html, 'data-vc-history-scope-btn').length === 0, 'Z13b 只看某个文件时不画范围按钮：这时候切范围不会有任何变化')
+  const z13Empty = hcHtmlOf({ reads: z13Reads, width: 460, ui: { historyFileOnly: 'src/client/views/IssueDetail.ts', historyQuery: '没有这个词' } })
+  check(z13Empty.indexOf(tZh('vc.shell.history.filterEmpty')) >= 0 && z13Empty.indexOf(tZh('vc.shell.history.fileOnlyEmpty').replace('{name}', 'IssueDetail.ts')) < 0,
+    'Z13c 只看某个文件又搜不到时，说的是「已被搜索词筛掉」，不说「没有提交改过它」')
+
+  // Z14 备注的结论行跟着它写的那条提交走：换一条提交时不能把上一条的「已保存」挂过来。
+  const z14Reads = hcReadsOf({ commits: zqCommits, reads: { commit: { rev: zqCommits[1].oid, seq: 1, state: 'ok', files: [], truncated: false, reason: 'ok', error: null } } })
+  const z14Html = hcHtmlOf({ reads: z14Reads, width: 460, ui: { openCommit: zqCommits[1].oid, historyNote: { state: 'ok', rev: zqCommits[0].oid, text: 'x', removing: false, error: null } } })
+  check(z14Html.indexOf('data-vc-history-note-result') < 0, 'Z14 在 A 上保存的结论不会出现在 B 的备注段里')
+  const z14Same = hcHtmlOf({ reads: z14Reads, width: 460, ui: { openCommit: zqCommits[1].oid, historyNote: { state: 'ok', rev: zqCommits[1].oid, text: 'x', removing: false, error: null } } })
+  check(z14Same.indexOf('data-vc-history-note-result') >= 0, 'Z14b 是同一条提交时结论行照常画')
 
   // ---- R 组：远端与同步页（#1754 T18，域 8 的 8.1–8.4）----
   // 三种读数分开验：本地读数（git remote -v + 本地跟踪分支，不联网）、用户点「联网查看」后才走的

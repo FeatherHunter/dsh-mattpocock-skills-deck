@@ -45,9 +45,15 @@ export const vcRealClickIntentOf = function (el: any): any {
   if (vcRealClosestOf(el, 'data-vc-branch-btn')) return { kind: 'branchToggle' }
   if (vcRealClosestOf(el, 'data-vc-branch-close')) return { kind: 'branchClose' }
   if (vcRealClosestOf(el, 'data-vc-sync')) return { kind: 'sync' }
-  // 分支浮层里的五项动作：跳分支页并聚焦，不在这里执行；分支板行里的同名属性要先按浮层辨别。
+  // #1846 分支浮层里有三种可点物：四个指路文案（span）、本地分支行（真按钮，点了就切）、
+  //   切换需要确认时的那张确认卡。顺序要紧——确认卡与分支行都要先于指路文案认掉，
+  //   否则点分支行会被当成「跳分支页」；分支板行里的同名属性仍由下面分支板那一段按行辨别。
   hit = vcRealClosestOf(el, 'data-vc-branch-overlay')
   if (hit) {
+    if (vcRealConfirmGoOf(el, 'data-vc-branch-overlay')) return { kind: 'branchOverlayGo' }
+    if (vcRealClosestOf(el, 'data-vc-confirm-cancel')) return { kind: 'branchOverlayCancel' }
+    const pick: any = vcRealClosestOf(el, 'data-vc-branch-pick')
+    if (pick) return { kind: 'branchOverlaySwitch', name: vcRealAttrOf(pick, 'data-vc-branch-pick') }
     const act: any = vcRealClosestOf(el, 'data-vc-branch-action')
     if (act) return { kind: 'branchOverlay', action: vcRealAttrOf(act, 'data-vc-branch-action') }
   }
@@ -215,6 +221,7 @@ export const vcRealKeyIntentOf = function (el: any, key: any): any {
 const VC_REAL_ACTION_OF: any = {
     gear: 'page', manageOpen: 'manageOpen', searchEntry: 'searchEntry', branchToggle: 'branchToggle',
     branchClose: 'branchClose', sync: 'sync', branchOverlay: 'branchOverlay', palettePick: 'palettePick',
+    branchOverlaySwitch: 'branchOverlaySwitch', branchOverlayGo: 'branchOverlayGo', branchOverlayCancel: 'branchOverlayCancel',
     tab: 'tab', refresh: 'refresh', sliceRetry: 'sliceRetry', retryAll: 'retryAll', back: 'back', page: 'page',
     remoteTrigger: 'remoteTrigger', remoteSubmit: 'remoteSubmit', remoteCancel: 'remoteCancel',
     remoteOnline: 'remoteOnline', remoteBack: 'remoteBack', remoteOnlineRetry: 'remoteOnlineRetry',

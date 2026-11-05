@@ -132,6 +132,17 @@ const vcRealFocusSearchInputOf = function (root: any): void {
   const box: any = root && typeof root.querySelector === 'function' ? root.querySelector('[data-vc-search-input]') : null
   if (box && typeof box.focus === 'function') box.focus({ preventScroll: true })
 }
+// #1846 浮层里点一条分支切完，那一行会变成「当前分支」并被置灰；焦点留在它身上的话会掉到页面外，
+//   而 Esc 的事件委托挂在页面根节点上，收不到就成了「浮层关不掉」。所以切完把焦点送回关闭键：
+//   浮层没关，键盘用户仍能 Tab 到清单与指路文案，也能按 Esc 收起来。
+const vcRealFocusBranchCloseOf = function (rootRef: any): void {
+  if (typeof setTimeout !== 'function') return
+  setTimeout(function () {
+    const root: any = rootRef && rootRef.current
+    const btn: any = root && typeof root.querySelector === 'function' ? root.querySelector('[data-vc-branch-overlay] [data-vc-branch-close]') : null
+    if (btn && typeof btn.focus === 'function') btn.focus({ preventScroll: true })
+  }, 0)
+}
 
 // 全部事件回调的名字（与 vcRealDelegate 的意图名一一对应）。容器把它们交给委托层，自己不逐颗按钮接 onClick。
 // deps：getNav/getManage 读当前导航与管理页状态；setNav 落导航；rootRef 用来在跳转后把焦点送到目标按钮；
@@ -161,7 +172,8 @@ export const vcRealCallbacksOf = function (deps: any): any {
       if (cur && String(cur.page) === String(VC_SEARCH_PAGE)) { vcRealFocusSearchInputOf(rootRef.current); return }
       setNav(vcRealNavToggle(cur, 'palette'))
     },
-    branchToggle: function () { setNav(vcRealNavToggle(getNav(), 'branch')) },
+    // #1846：打开浮层时清掉上一次留下的确认卡与结果——重开就是一次新的选择，旧卡不该再出现。
+    branchToggle: function () { const cur: any = getNav(); if (!(cur && cur.open && cur.open.branch === true)) manageActions.branch.popoverReset(); setNav(vcRealNavToggle(cur, 'branch')) },
     branchClose: function () { setNav(vcRealNavCloseAll(getNav())) },
     sync: function () { goPage('remote', true) },
     palettePick: function (intent: any) { selectCap(intent && intent.capId) },
@@ -242,8 +254,29 @@ export const vcRealCallbacksOf = function (deps: any): any {
       //   不在这里执行任何 git 写（#1846 的边界）。
       if (String(target.page) === 'branch-tags') manageActions.branch.overlay(action)
       else goPage(target.page, true)
+      // 浮层动作落地后浮层必须收起来。落在别的页时上面那次跳页已经清掉 open；
+      //   落在「当前这一页」（例如已经在分支页上点「新建」）时 vcRealNavTo 认页名相同、原样返回，
+      //   不补这一下就会留着一个盖在当前页上的浮层——真机 #1846 复验时正是这样抓到的。
+      setNav(function (cur: any) { return vcRealNavCloseAll(cur) })
       vcRealFocusLandingOf(rootRef, target, 0)
     },
+    // #1846：浮层的本地分支清单——点一条按 4.3 的既有通路切换（预检签票 → 需要时确认 → 凭票执行）。
+    //   成功后才重读首屏（身份行与清单里的当前分支标记才是新的），浮层不自动关，结果就贴在浮层里。
+    branchOverlaySwitch: function (intent: any) {
+      return Promise.resolve(manageActions.branch.popoverSwitch(intent && intent.name)).then(function (ok: any) {
+        if (ok !== true) return
+        actionsRef.current.refresh('task-done')
+        vcRealFocusBranchCloseOf(rootRef)
+      })
+    },
+    branchOverlayGo: function () {
+      return Promise.resolve(manageActions.branch.popoverConfirmGo()).then(function (ok: any) {
+        if (ok !== true) return
+        actionsRef.current.refresh('task-done')
+        vcRealFocusBranchCloseOf(rootRef)
+      })
+    },
+    branchOverlayCancel: function () { manageActions.branch.popoverConfirmCancel() },
     remoteTrigger: function (intent: any) { manageActions.remote.trigger(intent && intent.form, intent && intent.name) },
     remoteSubmit: function (intent: any) { manageActions.remote.submit(intent && intent.form, vcRealRemoteValuesOf(intent && intent.el)) },
     remoteCancel: function () { manageActions.remote.cancel() },

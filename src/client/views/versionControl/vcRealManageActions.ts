@@ -100,9 +100,65 @@ export const vcRealManageActionsOf = function (deps: any): any {
     setManage(function (cur: any) { return Object.assign({}, cur, { branchConfirm: null, branchPending: null }) })
     return Promise.resolve(null)
   }
-  // 分支浮层里的五项只有文字：点它们跳到分支标签板并高亮（不改壳里那五个 span）。
+  // 分支浮层里的四个动作只指路：点它们跳到分支标签板并高亮（不改壳里那四个 span）。
   const branchOverlayAction = function (key: any): void {
     onJump('branch-tags', String(key || ''))
+  }
+
+  // ———— 分支浮层里的切换（#1846 并入 #1884）：走 4.3 的既有通路，确认卡摆到浮层里 ————
+  // 与分支页那一条的差别只有一处：这里只在这份预检真的要求确认（工作区有未提交改动）时停，
+  // 其余情况签完票就直接执行——浮层是「点了就切」的地方，多停一张卡只是多一次点击。
+  // 确认卡与结果都落在浮层自己的槽里，不挤占分支页的 branchConfirm / branchResult。
+  const popoverPatch = function (patch: any): void {
+    setManage(function (cur: any) { return Object.assign({}, cur, patch || {}) })
+  }
+  // 凭票执行那一段：票号取自刚签下的那份预检（与分支页同一个 vcBranchTicketOf 读数口径）。
+  const popoverWrite = function (branchRead: any, name: string): any {
+    const ticket: any = (function () { try { return vcBranchTicketOf({ branch: branchRead }) } catch (e) { return null } })()
+    const fields: any = { name: name, ticketId: ticket ? ticket.id : '', requestId: vcRealRequestIdOf(nowMs(), 'switch'), confirmed: true }
+    popoverPatch({ branchPopoverPending: null, branchPopoverConfirm: null })
+    return Promise.resolve(vcBranchWrite({ branch: branchRead }, callHost, cwd, '4.3', fields)).then(function (next: any) {
+      const write: any = next && next.branch && next.branch.write
+      const reply: any = write && write.data
+      popoverPatch({ branch: next && next.branch, branchPopoverResult: vcBranchResultOf(reply) })
+      // 写成功后重读分支板：用户随后打开「分支与标签」页时，当前分支标记才是新的。
+      if (reply && reply.ok === true) onRefresh('branch-tags')
+      return reply && reply.ok === true
+    })
+  }
+  // 点一条分支：预检 → （要确认时）停在浮层确认卡）→ 凭票执行。返回值只用来告诉壳要不要重读首屏。
+  const popoverSwitch = function (name: any): any {
+    const target: string = String(name || '')
+    if (target === '') return Promise.resolve(false)
+    const m: any = getManage() || {}
+    popoverPatch({ branchPopoverConfirm: null, branchPopoverResult: null, branchPopoverPending: { name: target } })
+    return Promise.resolve(vcBranchCheck({ branch: m.branch }, callHost, cwd, '4.3', { name: target })).then(function (next: any) {
+      const check: any = next && next.branch && next.branch.check
+      const reply: any = check && check.data
+      // block 与读不回现场都照原话贴结果：浮层不假装能切，也不自己编一句理由。
+      if (vcBranchCheckKindOf(reply) !== 'checked') {
+        popoverPatch({ branch: next && next.branch, branchPopoverResult: vcBranchResultOf(reply), branchPopoverPending: null })
+        return false
+      }
+      if (reply.confirmRequired === true) {
+        popoverPatch({ branch: next && next.branch, branchPopoverConfirm: vcBranchConfirmOf(reply) })
+        return false
+      }
+      return popoverWrite(next && next.branch, target)
+    })
+  }
+  const popoverConfirmGo = function (): any {
+    const m: any = getManage() || {}
+    const pending: any = m.branchPopoverPending
+    if (!pending || !m.branchPopoverConfirm) return Promise.resolve(false)
+    return popoverWrite(m.branch, String(pending.name || ''))
+  }
+  const popoverConfirmCancel = function (): void {
+    popoverPatch({ branchPopoverConfirm: null, branchPopoverPending: null })
+  }
+  // 每次重新打开浮层都从干净的第一屏开始：上一次没走完的确认卡与上一次的结果不带到下一次。
+  const popoverReset = function (): void {
+    popoverPatch({ branchPopoverConfirm: null, branchPopoverResult: null, branchPopoverPending: null })
   }
 
   // ———— 远端与同步页 ————
@@ -253,7 +309,7 @@ export const vcRealManageActionsOf = function (deps: any): any {
   }
 
   return {
-    branch: { action: branchAction, confirmGo: branchConfirmGo, confirmCancel: branchConfirmCancel, overlay: branchOverlayAction },
+    branch: { action: branchAction, confirmGo: branchConfirmGo, confirmCancel: branchConfirmCancel, overlay: branchOverlayAction, popoverSwitch: popoverSwitch, popoverConfirmGo: popoverConfirmGo, popoverConfirmCancel: popoverConfirmCancel, popoverReset: popoverReset },
     remote: { trigger: remoteTrigger, submit: remoteSubmit, confirmGo: remoteConfirmGo, cancel: remoteCancel, online: remoteOnline, onlineBack: remoteOnlineBack, onlineRetry: remoteOnlineRetry, retry: remoteRetry, retryList: remoteRetry },
     sync: { expand: syncExpand, check: syncCheck, confirmGo: syncConfirmGo, confirmCancel: syncConfirmCancel, kind: syncKind, taskCancel: syncTaskCancel, retry: syncRetry },
   }

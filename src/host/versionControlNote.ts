@@ -14,7 +14,7 @@
  */
 import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'
 import { hash16, requestIdProblem } from '../shared/version-control/src/write-ticket.js'
-import { noteArgvOf, notePlanInputOf, noteRemovingOf, noteRevProblem, noteTextProblem } from '../shared/version-control/src/note-ops.js'
+import { noteArgvOf, notePlanInputOf, noteRemovingOf, noteRevProblem, noteTextProblem, NOTE_TEXT_MAX } from '../shared/version-control/src/note-ops.js'
 import { TICKET_TTL_MS } from '../shared/time-config/src/values.js'
 
 /** 备注原文的读取上限：一段注解远小于它，超了就是不正常，按「读不到」处理，不拿半份原文当现状。 */
@@ -38,26 +38,39 @@ export function createNotePhones(deps: any): any {
   const tickets: Map<string, any> = deps.tickets || new Map()
   const results: Map<string, any> = deps.results || new Map()
 
-  /** 跑一条只读命令：起不来 / 超时都当「读不到」，不外抛。 */
+  /** 跑一条只读命令：起不来 / 超时 / 非零退出都原样交回，由调用方分清楚「没有」与「读不到」。 */
   async function read(exe: any, root: any, argv: string[], limit: number): Promise<any> {
     try { return await deps.runPinned(exe, root, argv, { stdoutLimit: limit }) } catch (e) { return { kind: 'spawn-failed', message: String((e && (e as any).message) || e) } }
   }
 
-  /** 把用户写的引用解析成完整提交号；解析不出来回 null（界面照原话告诉用户「找不到这个提交」）。 */
-  async function resolveCommit(exe: any, root: any, rev: string): Promise<string | null> {
+  /**
+   * 把用户写的引用解析成完整提交号。
+   * 三种结果分开回，不合并成 null：找到（ok:true）、认不出（reason:'unknown-rev'）、读失败（reason:'read-failed'）。
+   * 「读失败」与「没有这个提交」是两件事——前者要如实说「读不到」，不能替 git 说「没有」。
+   */
+  async function resolveCommit(exe: any, root: any, rev: string): Promise<any> {
     const res: any = await read(exe, root, ['rev-parse', '--verify', '--quiet', rev + '^{commit}'], REV_LIMIT)
-    if (!res || res.kind !== 'ok') return null
+    if (!res || res.kind === 'spawn-failed' || res.kind === 'timeout') return { ok: false, reason: 'read-failed' }
+    if (res.kind !== 'ok') return { ok: false, reason: 'unknown-rev' }
     const oid: string = String(res.stdout || '').trim()
-    return /^[0-9a-f]{40}$/.test(oid) || /^[0-9a-f]{64}$/.test(oid) ? oid : null
+    if (!/^[0-9a-f]{40}$/.test(oid) && !/^[0-9a-f]{64}$/.test(oid)) return { ok: false, reason: 'read-failed' }
+    return { ok: true, oid: oid }
   }
 
-  /** 这条提交此刻的备注原文；没有备注回空串（git notes show 在没备注时退出码是 1，不是错误）。 */
-  async function currentNoteOf(exe: any, root: any, oid: string): Promise<string> {
+  /**
+   * 这条提交此刻的备注原文。
+   * 「没有备注」是 git 的退出码 1（不是错误，回空串）；起不来 / 超时 / 别的非零退出都是「读不到」，要如实报，
+   * 否则票里会拿一份读失败得来的空底稿去比摘要，把「读不到」当成「原来是空的」。
+   */
+  async function currentNoteOf(exe: any, root: any, oid: string): Promise<any> {
     const res: any = await read(exe, root, ['notes', 'show', oid], NOTE_LIMIT)
-    if (!res) return ''
-    if (res.kind === 'ok') return String(res.stdout === undefined || res.stdout === null ? '' : res.stdout).replace(/\r?\n$/, '')
-    return ''
+    if (!res) return { ok: false, reason: 'read-failed' }
+    if (res.kind === 'spawn-failed' || res.kind === 'timeout') return { ok: false, reason: 'read-failed' }
+    if (res.kind === 'non-zero') return res.exitCode === 1 ? { ok: true, text: '' } : { ok: false, reason: 'read-failed' }
+    if (res.kind !== 'ok') return { ok: false, reason: 'read-failed' }
+    return { ok: true, text: String(res.stdout === undefined || res.stdout === null ? '' : res.stdout).replace(/\r?\n$/, '') }
   }
+
 
   /** 一次预检：判输入、解析提交号、量下此刻的备注原文、签票。 */
   async function check(args: any): Promise<any> {
@@ -68,15 +81,21 @@ export function createNotePhones(deps: any): any {
     if (revProblem) return fail('args', revProblem, '提交号写的不像一个提交：' + revText)
     const text: string = String(a.text === undefined || a.text === null ? '' : a.text)
     const textProblem: string | null = noteTextProblem(text)
-    if (textProblem === 'too-long') return fail('args', textProblem, '备注太长了，请写到 2000 字以内')
+    if (textProblem === 'too-long') return fail('args', textProblem, '备注太长了，请写到 ' + String(NOTE_TEXT_MAX) + ' 字以内')
     if (textProblem) return fail('args', textProblem, '备注里有不能保存的字符')
     const exe: any = await deps.resolveGitExecutable()
     if (!exe) return fail('env', 'no-git', '找不到 git 命令，备注写不了')
     const base: any = await deps.resolveRepoRoot(exe, deps.cwdOf(a))
     if (base.ok !== true) return base
-    const oid: string | null = await resolveCommit(exe, base.root, revText)
-    if (oid === null) return fail('args', 'unknown-rev', '找不到「' + revText + '」这个提交')
-    const noteNow: string = await currentNoteOf(exe, base.root, oid)
+    const resolved: any = await resolveCommit(exe, base.root, revText)
+    if (resolved.ok !== true) {
+      if (String(resolved.reason) === 'unknown-rev') return fail('args', 'unknown-rev', '找不到「' + revText + '」这个提交')
+      return fail('env', 'read-failed', '认不出这条提交的时候 git 读不动了，先不写')
+    }
+    const oid: string = String(resolved.oid)
+    const noteNowRes: any = await currentNoteOf(exe, base.root, oid)
+    if (noteNowRes.ok !== true) return fail('env', 'read-failed', '读不到这条提交现在的备注，先不写')
+    const noteNow: string = String(noteNowRes.text)
     if (noteRemovingOf(text) && noteNow === '') return fail('args', 'note-empty', '这条提交还没有备注，没有可删除的内容')
     const id: string = 'note-' + String(typeof deps.randomId === 'function' ? deps.randomId() : Math.random().toString(36).slice(2))
     const nowMs: number = now()
@@ -86,6 +105,7 @@ export function createNotePhones(deps: any): any {
       oid: oid, text: text, oldDigest: hash16(notePlanInputOf(oid, noteNow)),
     }
     tickets.set(id, ticket)
+    keepBounded(tickets)
     return {
       ok: true,
       ticket: { id: id, op: 'note', checkedAtMs: nowMs, expiresAtMs: ticket.expiresAtMs },
@@ -93,13 +113,27 @@ export function createNotePhones(deps: any): any {
     }
   }
 
-  /** 一条票的纯判定：票在不在、动作对不对、过期没有、是不是同一个仓库。一格不对就一条写命令都不起。 */
-  function ticketProblem(ticket: any, nowMs: number, root: any): string | null {
+  /**
+   * 票据门的第一段：纯判定——票在不在、动作对不对、过期没有。
+   * 这一段必须在起任何进程之前跑完（ADR 20261004 第 5 条：票据失效时一个进程都不许起），
+   * 所以它不碰仓库根、不读现场；「是不是同一个仓库」那一格要等 root 解析出来才能判，放在第二段。
+   */
+  function ticketPureProblem(ticket: any, nowMs: number): string | null {
     if (!ticket || !ticket.id) return 'ticket-missing'
     if (ticket.op !== 'note') return 'ticket-op-mismatch'
     if (!(nowMs < ticket.expiresAtMs)) return 'ticket-expired'
-    if (String(root || '') !== String(ticket.repoRoot || '')) return 'stale-repo'
     return null
+  }
+
+  /** 票据门的第二段：票是给哪个工作树发的，就只许在哪个工作树里执行（这一格要拿到解析后的 root 才判得了）。 */
+  function ticketRepoProblem(ticket: any, root: any): string | null {
+    return String(root || '') !== String(ticket.repoRoot || '') ? 'stale-repo' : null
+  }
+
+  /** 票表与结果表的条数上限：只留最近 200 条，超了删最旧（与 #1741 / #1742 那几张表同一条口径）。 */
+  const TABLE_MAX: number = 200
+  function keepBounded(map: Map<string, any>): void {
+    while (map.size > TABLE_MAX) { const oldest: any = map.keys().next().value; map.delete(oldest) }
   }
 
   /** 凭票执行：复核票 → 重算此刻的备注原文 → 一条写命令 → 如实包回结局。 */
@@ -114,21 +148,26 @@ export function createNotePhones(deps: any): any {
     if (seen) return seen
     const ticket: any = tickets.get(ticketId) || null
     const nowMs: number = now()
+    // 第一段：纯判定先行。票不在、动作不对、过期了都在这里结束，下面一条 git 命令（连只读的）都不会起。
+    const pure: string | null = ticketPureProblem(ticket, nowMs)
+    if (pure) return fail('args', pure, '这张票已经不能用了，请重新点一次保存')
     const exe: any = await deps.resolveGitExecutable()
     if (!exe) return fail('env', 'no-git', '找不到 git 命令，备注写不了')
     const base: any = await deps.resolveRepoRoot(exe, deps.cwdOf(a))
     if (base.ok !== true) return base
-    // 票据门：任何一格对不上都在这里结束，下面一条 git 写命令都不会起。
-    const problem: string | null = ticketProblem(ticket, nowMs, base.root)
+    // 第二段：票是给哪个工作树发的，就只许在哪个工作树里执行。
+    const problem: string | null = ticketRepoProblem(ticket, base.root)
     if (problem) return fail('args', problem, '这张票已经不能用了，请重新点一次保存')
-    const noteNow: string = await currentNoteOf(exe, base.root, ticket.oid)
-    if (hash16(notePlanInputOf(ticket.oid, noteNow)) !== ticket.oldDigest) return fail('args', 'note-changed', '这条提交的备注在确认之后被改过了，请重新写一次')
+    const noteNowRes: any = await currentNoteOf(exe, base.root, ticket.oid)
+    if (noteNowRes.ok !== true) return fail('env', 'read-failed', '读不到这条提交现在的备注，先不写')
+    if (hash16(notePlanInputOf(ticket.oid, String(noteNowRes.text))) !== ticket.oldDigest) return fail('args', 'note-changed', '这条提交的备注在确认之后被改过了，请重新写一次')
     const res: any = await read(exe, base.root, noteArgvOf(ticket.oid, ticket.text), NOTE_LIMIT)
     const bad: any = failureFromExec(res, '写提交备注')
     if (bad) {
       tickets.delete(ticketId)
       const env: any = fail('exit', String((bad.error && bad.error.kind) || 'exit'), String((bad.error && bad.error.message) || '写备注这一步没有成功结束'))
       results.set(requestId, env)
+      keepBounded(results)
       return env
     }
     tickets.delete(ticketId)
@@ -141,6 +180,7 @@ export function createNotePhones(deps: any): any {
       message: firstLine(res && res.stdout),
     }
     results.set(requestId, out)
+    keepBounded(results)
     return out
   }
 

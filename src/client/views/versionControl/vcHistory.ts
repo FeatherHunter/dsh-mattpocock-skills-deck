@@ -41,6 +41,7 @@ declare function vcHistoryCommitsOf(...args: any[]): any[]
 declare function vcHistoryFileStateOf(...args: any[]): string
 declare function vcHistoryFileSourceOf(...args: any[]): any
 declare function vcHistoryHasNoteOf(...args: any[]): boolean
+declare const VC_HISTORY_FILE_MAX: number
 declare function vcHistoryFilterOf(...args: any[]): any[]
 declare function vcHistoryIsMergeCommitOf(...args: any[]): boolean
 declare function vcHistoryGraphOf(...args: any[]): any
@@ -266,7 +267,10 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
   // 只看某个文件时，行来自那条「这个文件的历史」的读数本身（已经由 git log --follow 筛过），
   //   客户端再按路径筛一次会把这些行全筛掉——它们的路径清单不是在这里读的。
   const fromFileRead: boolean = fileOnly !== '' && vcHistoryFileSourceOf(ui, opts.reads) !== null
-  const visible: any[] = vcHistoryFilterOf(commits, query, mergeOnly, scope, fromFileRead ? '' : fileOnly)
+  // 只看某个文件时这份读数里没有「改到了哪些文件」的清单，代码范围那套按路径匹配在这里没有依据：
+  //   按说明那一套在结果里再筛一次，既不凭空筛空、也不会冒出一句「没有提交改过它」。
+  const effScope: string = fromFileRead ? 'message' : scope
+  const visible: any[] = vcHistoryFilterOf(commits, query, mergeOnly, effScope, fromFileRead ? '' : fileOnly)
   const menu: string = String(ui.historyMenu || '')
   const hasMore: boolean = model.hasMore === true
   const rows: any[] = []
@@ -331,7 +335,7 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
     ]))
   } else if (!visible.length) {
     // 空态各说各的：只看某个文件时是「没有提交改过它」，代码范围是「没有提交改到匹配这些文字的文件」。
-    const emptyKey: string = vcHistoryEmptyKeyOf({ scope: scope, query: query, fileOnly: fileOnly })
+    const emptyKey: string = vcHistoryEmptyKeyOf({ scope: effScope, query: query, fileOnly: query.trim() !== '' ? '' : fileOnly })
     const emptyText: string = emptyKey === 'vc.shell.history.fileOnlyEmpty'
       ? t(emptyKey, { name: vcHistoryNameOf(fileOnly) })
       : t(emptyKey)
@@ -353,7 +357,7 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
   // 单文件历史的读法本身有上限（git log --follow 一次最多给 200 条）：到顶就明说，不让人以为这就是全部。
   if (fileOnly !== '' && fileState === 'ok') {
     const fileData: any = vcHistoryDataOf(opts.reads, 'file-history')
-    if (fileData && Number(fileData.count) >= 200) scroll.push(h('span', { key: 'capped', className: 'note', 'data-vc-history-file-capped': '1' }, t('vc.shell.history.fileOnlyCapped', { n: '200' })))
+    if (fileData && Number(fileData.count) >= VC_HISTORY_FILE_MAX) scroll.push(h('span', { key: 'capped', className: 'note', 'data-vc-history-file-capped': '1' }, t('vc.shell.history.fileOnlyCapped', { n: String(VC_HISTORY_FILE_MAX) })))
   }
   if (model.logState === 'loading' && paging) {
     scroll.push(h('span', { key: 'moreLoading', className: 'note vcs-hist-more-state', 'data-vc-history-more-state': 'loading' }, t('vc.shell.history.loadingMore')))
