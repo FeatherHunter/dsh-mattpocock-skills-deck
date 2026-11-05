@@ -72,7 +72,7 @@ import { failGlab } from '../errors.js'
 // 两条 REST 请求的形状住在房间根目录的 requests.ts（#1919）：当前登录人、建仓后的项目回查。
 // 本文件只给领域值与超时，method/路径/表单字段都由请求边界从领域值拼出来。
 import { requestCurrentUser, requestProject } from '../requests.js'
-import { parseGitlabRepo } from '../repo.js'
+import { parseGitlabRepo } from '../repo/identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_CREATE_PROJECT_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 

@@ -56,8 +56,8 @@ import { fail } from '../../../kernel/preflight.js'
 // 总数不自己拼：直接调同房 counts 那一条读（同一份口径、同一处归一）。
 import { counts } from './counts.js'
 import { failGlab } from '../errors.js'
-import { normalizeIssue } from '../normalize.js'
-import { emitReadDegraded } from '../read-log.js'
+import { normalizeIssue } from '../model/normalize.js'
+import { emitReadDegraded } from '../support/read-log.js'
 // 项目全路径的形状校验只在 model/repo-identity.ts 一处（#1910）：改口径时计数与分页一起变。
 import { repoFullPath } from '../model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。

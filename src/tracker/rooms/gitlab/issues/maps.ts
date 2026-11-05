@@ -28,7 +28,7 @@ import type { BackendContext, OpContext } from '../../../contract/contexts.js'
 import type { RepositoryRef } from '../../../contract/entities.js'
 import type { MapListResult, MapRow, OpResult } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
-import { normalizeIssue } from '../normalize.js'
+import { normalizeIssue } from '../model/normalize.js'
 import { failGlab } from '../errors.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml（与 listIssues 同一慢读档）。
 import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'

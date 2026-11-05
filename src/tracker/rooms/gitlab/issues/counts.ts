@@ -50,7 +50,7 @@ import type { ListFilter } from '../../../contract/inputs.js'
 import type { Counts, OpResult } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
 import { failGlab } from '../errors.js'
-import { emitReadDegraded } from '../read-log.js'
+import { emitReadDegraded } from '../support/read-log.js'
 // 仓库标识的两个口径（refId 优先回落 name；项目全路径的形状校验）只在 model/repo-identity.ts 一处（#1910）。
 // refId 的原文仍在这里用于失败消息：人一眼能看出差在哪一格。
 import { repoFullPath, repoRefId } from '../model/repo-identity.js'

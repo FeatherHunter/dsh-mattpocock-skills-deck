@@ -25,7 +25,7 @@ import type { RepositoryRef } from '../../../contract/entities.js'
 import type { OpResult } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
 import { failGlab } from '../errors.js'
-import { emitReadDegraded } from '../read-log.js'
+import { emitReadDegraded } from '../support/read-log.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
 import { repoRefId } from '../model/repo-identity.js'
 // 入口检查的判据与仓库坐标解析同一口径，住在仓库身份 module 一处（#1918）。

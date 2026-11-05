@@ -32,7 +32,7 @@ import { TRACKER_ERROR_STAGE } from '../../../contract/results.js'
 import type { OpResult, TrackerError } from '../../../contract/results.js'
 import { classifyGlabError, hintFor } from '../errors.js'
 import type { GlabVerdict } from '../errors.js'
-import { normalizeIssue } from '../normalize.js'
+import { normalizeIssue } from '../model/normalize.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
 import { repoRefId } from '../model/repo-identity.js'
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
