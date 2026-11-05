@@ -62,7 +62,7 @@ GitHub 那种「背景色 + 前景色」的双色在 GitLab 不存在：一条�
 
 | 文件 | 管什么 |
 |---|---|
-| `index.ts` | 工厂：把各文件的操作拼成 `Tracker` 成员，并把能力登记表挂上去 |
+| `index.ts` | 入口：模块对象、工厂与识别；链接/文案/修复指引在 `room/`，搬走的公开名字在这里显式再导出 |
 | `capability-register.ts` | 26 条能力的数据化回答（纯数据，不许有分支） |
 | `client.ts` | 唯一跑 `glab` 的地方 |
 | `queries.ts` | 拼 API 地址与查询参数 |
@@ -73,10 +73,9 @@ GitHub 那种「背景色 + 前景色」的双色在 GitLab 不存在：一条�
 | `issues.ts` | 列票、取单张、建票、关票、重开、改票 |
 | `create-write.ts` | 建票收敛成单条写路径 |
 | `idempotency.ts` | 建票的幂等锚 |
-| `comments.ts` | 写评论 |
-| `labels.ts` | 给票改标签 |
+| `comments.ts` | 写评论（评论翻页只在 `issues.ts` 的单票读路径里） |
+| `labels.ts` | 给票改标签（只留契约操作 `setLabels`） |
 | `labels-ops.ts` | 仓库标签的列全与批量改色（`listLabels` / `setLabelColors`） |
-| `graph.ts` | 关系操作的入口转发 |
 | `graph-blocking.ts` | 阻塞语义、原生探测与正文行回落、环检 |
 | `graph-membership.ts` | 亲缘挂载与指派 |
 | `counts.ts` | 计数 |
@@ -85,6 +84,9 @@ GitHub 那种「背景色 + 前景色」的双色在 GitLab 不存在：一条�
 | `init-project.ts` | 开仓发布 |
 | `sub-issues.ts` | 取一张地图的子票 |
 | `read-log.ts` | 读路径的日志出口 |
+| `room/links.ts` | 票与仓库的链接、地址，以及识别用的默认站点 |
+| `room/prompts.ts` | 提示文案：CLI 安装与登录各一份共享文本（`healthCheck` / `subIssue` 因房外门禁按入口原文读取而留在入口） |
+| `room/fixes.ts` | 修复指引：检查失败时界面上的提示与动作 |
 
 ## 四、改这一房之前先跑什么
 
