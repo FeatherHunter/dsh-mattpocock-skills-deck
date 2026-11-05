@@ -354,7 +354,7 @@ async function main() {
   check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchHtml.indexOf('data-vc-branch-branches') >= 0, '五 分支悬浮层带本地分支清单（data-vc-branch-branches）')
   check(branchActions.join(',') === 'create,delete,merge,rebase', '五 分支悬浮层列出四个指路动作（新建 / 删除 / 合并 / 变基，顺序不变）')
   check(/<span[^>]*data-vc-branch-action="create"/.test(branchHtml) && !/<button[^>]*data-vc-branch-action=/.test(branchHtml), '五 四个指路动作是标签不是按钮（没有假按钮；分支行按钮另带 data-vc-branch-pick）')
-  check(branchHtml.indexOf(tZh('vc.shell.branch.pointer')) >= 0, '五 分支悬浮层给出指路说明（这四个动作在「管理 › 分支与标签」页做）')
+  check(branchHtml.indexOf(tZh('vc.shell.branch.pointer')) >= 0, '五 分支悬浮层给出指路说明（四个动作各自去哪一页，与落点表一一对上）')
   const copyEntries = COPY_FILES.map(function (file) { return { name: 'config/copy/' + file, text: COPY_RAW[file] } })
   const copyProblems = placeholderProblemsOf(copyEntries)
   check(copyProblems.length === 0, '五 config/copy 全部词表不再出现「后续票 / later ticket」' + (copyProblems.length ? '：' + copyProblems.join('；') : ''))

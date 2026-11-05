@@ -755,6 +755,18 @@ async function scenarioManage() {
     { action: 'merge', page: 'conflicts', sel: '[data-vc-conflicts-op="merge"]' },
     { action: 'rebase', page: 'rebase', sel: '[data-vc-rebase-op="rebase-onto"]' },
   ]
+  // #1846 任务一：指路文案必须与上面这张落点表一一对上。改之前文案写着「四个动作都在分支与标签页」，
+  //   而合并与变基的真入口在冲突向导页与变基待办页——说假话的指路比不说更糟。
+  //   这里不另抄一份页名：页标题从词表读（vc.shell.page.<页>），目标页从落点表读，两边对不上就判红。
+  await m.click('[data-vc-branch-btn]')
+  const ptrEl = m.q('[data-vc-branch-overlay] .vcs-branch-pointer')
+  const ptrText = ptrEl ? String(ptrEl.textContent || '') : ''
+  const landingPageNames = landingCases
+    .map(function (one) { return tZh('vc.shell.page.' + one.page) })
+    .filter(function (name, i, all) { return all.indexOf(name) === i })
+  const missingPageNames = landingPageNames.filter(function (name) { return ptrText.indexOf(name) < 0 })
+  check(!!ptrText && missingPageNames.length === 0, 'T27c0 指路文案点名的页与四个落点一一对上（缺：' + (missingPageNames.length ? missingPageNames.join('、') : '无') + '；实得「' + ptrText + '」）')
+  await m.click('[data-vc-branch-close]')
   for (const one of landingCases) {
     await m.click('[data-vc-branch-btn]')
     const item = m.q('[data-vc-branch-overlay] [data-vc-branch-action="' + one.action + '"]')

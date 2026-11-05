@@ -196,7 +196,8 @@ async function main() {
   const pickButtons = buttons.filter((n: any) => n.props['data-vc-branch-pick'] !== undefined)
   check(buttons.length === 4 && pickButtons.length === 3, '整棵树里的按钮恰好是关闭键 + 三行分支（实得 ' + buttons.length + ' 颗，其中分支行 ' + pickButtons.length + ' 颗）')
 
-  // 七、指路文字：说清这四个动作在「分支与标签」页做。
+  // 七、指路文字：说清四个动作各自去哪一页（分支与标签 / 冲突向导 / 变基待办）。
+  //   这里只验它读真词表；「文案点名的页与真实落点一致」由 verify-1776 按落点表核对。
   const ptr = tree && tree.children ? tree.children[4] : null
   check(ptr && ptr.type === 'p' && ptr.props.className === 'vcs-branch-pointer' && ptr.children[0] === trZh('vc.shell.branch.pointer'), '指路文字读真词表（实得「' + textOf(ptr) + '」）')
 
