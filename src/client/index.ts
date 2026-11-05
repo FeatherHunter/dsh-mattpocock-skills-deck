@@ -328,6 +328,10 @@ export default {
     // #1355：本会话自己的工作路线读数（剥表、补拉、三处接线共用的请求决策）单独一片，理由见 kernel/work-route-own.ts 文件头。
     // ==== kernel:workRouteOwn (spliced by build) ====
     // ==== kernel:storeDerived (spliced by build) ====
+    // #1894（规格 #1885 S6）：视图模型基座 —— 一份投影 + 会话私有阅读态（筛选/草稿/当前打开的票），
+    //   对外只有状态与命令，视图按切片订阅。纯模型在前、生产接线在后：接线要调纯模型的 createDeckView。
+    // ==== kernel:deckViewModel (spliced by build) ====
+    // ==== kernel:deckViewBinding (spliced by build) ====
     // 行级动作全家（诊断/接手/…/执行八选一、容器三态按钮）从 store-derived 原样抽出，
     // 排在其后：它们要用 findMapByIdentity 与 isLightHex。
     // ==== kernel:rowActions (spliced by build) ====

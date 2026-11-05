@@ -21,6 +21,8 @@
 // 读数口径：开/关/各状态票数与探测时刻，由读数叶子提供。
 declare function bugCount(...args: any[]): any;
 declare function deckCountsOf(...args: any[]): any;
+// #1894：全局读数从视图模型取（与列表页 KPI 同一份 counts 切片）；门禁单独求值本文件时没有这一片，退回下面旧函数。
+declare function deckViewCountsOf(...args: any[]): any;
 declare function freshnessToneColor(...args: any[]): any;
 declare function frontierCount(...args: any[]): any;
 declare function h(...args: any[]): any;
@@ -31,15 +33,18 @@ declare function tr(...args: any[]): any;
 declare function triageCount(...args: any[]): any;
 declare function truthFreshnessBox(...args: any[]): any;
 
-export const checksumsOf = function (s: any) {
+export const checksumsOf = function (s: any, deckCounts?: any) {
   // v18-30：可接/占用 = 列表 open issue 口径（与面板列表一致）
   // #689：口径收成「工单口径」（拉取请求不算工单，判断住在 store-derived 的 isTicketRow，与主列表、KPI 共用）；
   //   「可接」再优先用宿主给的后端计数（deck.counts.open）减去本地数出来的阻塞 —— 数字与 KPI 那一行同源。
-  const occ = occCount(s)
-  const counts = deckCountsOf(s, false)
-  const fr = counts ? Math.max(0, counts.open - occ) : frontierCount(s)
-  const bugN = bugCount(s)
-  const triageN = triageCount(s)
+  // #1894：这几个数字改从视图模型的 counts 切片取 —— 列表页顶上的 KPI 读的是同一份，两处不会再各算一遍。
+  //   视图模型不在时（单文件门禁/旧闭包）退回原来那几个函数，数字口径不变。
+  const fromView = deckCounts || ((typeof deckViewCountsOf === 'function') ? deckViewCountsOf(s) : null)
+  const occ = fromView ? fromView.occupied : occCount(s)
+  const counts = fromView ? fromView.backend : deckCountsOf(s, false)
+  const fr = fromView ? fromView.takeable : (counts ? Math.max(0, counts.open - occ) : frontierCount(s))
+  const bugN = fromView ? fromView.bug : bugCount(s)
+  const triageN = fromView ? fromView.triage : triageCount(s)
   const n = readyCount(s)
   // 2026-10-24 维护者定：胶囊上常驻的这个时刻，与右侧面板头部那条「N 分钟前」是同一个来源 ——
   //   都取快照的取数时刻（snapshot.generatedMs），格式仍是 MM-DD HH:MM。
