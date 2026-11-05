@@ -446,6 +446,9 @@ const EXEMPTS: ExemptRow[] = [
   //   只用于格式化成 HH:mm 给界面看，调 YAML 改不了它们。
   { file: 'src/client/views/shared/detailProjection.ts', name: 'atMs', reason: '详情回包里的上次已知时刻（读钟记下的值），只用于格式化成 HH:mm，不是可调参数' },
   { file: 'src/client/views/shared/detailProjection.ts', name: 'evictedAtMs', reason: '按需细节被淘汰时行上记号里的上次已知时刻，只用于格式化成 HH:mm，不是可调参数' },
+  // #1896：票详情切片里的「上次已知时刻」是读钟记下来的值，只用于告诉界面这份详情有多旧，
+  //   调 YAML 改不了它。
+  { file: 'src/client/kernel/deck-issue-detail.ts', name: 'lastKnownAtMs', reason: '详情切片里的上次已知时刻（读钟记下的值），随切片交回，不是可调参数' },
   // #1698：计数判定读钟、企业版能力探测时刻，都是读钟记下来的值，不是可调参数。
   { file: 'src/tracker/deck-counts.ts', name: 'nowMs', reason: '读钟时刻（Date.now 的注入口），用来标计数「什么时候校准的」，不是可调参数' },
   { file: 'src/tracker/rooms/github/routing/runtime-capability.ts', name: 'probedAtMs', reason: '探测发生的时刻（读钟记录，只用于在答案里标「何时探的」），不是可调参数' },

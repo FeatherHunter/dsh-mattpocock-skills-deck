@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T01:28:15.945Z",
+  "generatedAt": "2026-11-05T01:58:21.517Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 578,
-  "gateCount": 578,
-  "attributedGates": 522,
+  "chainLength": 579,
+  "gateCount": 579,
+  "attributedGates": 523,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 121,
+  "completionRecordedGates": 122,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 915,
+  "graphFileCount": 916,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6893,6 +6893,26 @@
       "completionRecord": true,
       "expectedAssertions": 36,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1896-issue-detail-vm.ts",
+      "file": "tests/verify-1896-issue-detail-vm.ts",
+      "guards": [
+        "src/client/kernel/deck-issue-detail.ts",
+        "src/client/kernel/deck-view-binding.ts",
+        "src/client/kernel/deck-view-model.ts",
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/IssueDetailComments.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 41,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -14070,6 +14090,7 @@
       "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-1894-view-model.ts",
       "node tests/verify-1895-map-detail-vm.ts",
+      "node tests/verify-1896-issue-detail-vm.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -14229,6 +14250,7 @@
       "node tests/verify-1879-suggest-deck-gate.ts",
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-1894-view-model.ts",
+      "node tests/verify-1896-issue-detail-vm.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -15910,9 +15932,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 938,
+    "fileCount": 939,
     "dirCount": 92,
-    "coveredFileCount": 938,
+    "coveredFileCount": 939,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 74,
@@ -15932,6 +15954,7 @@
       "src/client/kernel/config.ts",
       "src/client/kernel/container-view.ts",
       "src/client/kernel/ctx.ts",
+      "src/client/kernel/deck-issue-detail.ts",
       "src/client/kernel/deck-map-detail.ts",
       "src/client/kernel/deck-prompt-filter.ts",
       "src/client/kernel/deck-state.ts",
