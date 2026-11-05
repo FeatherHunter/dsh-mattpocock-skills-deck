@@ -333,6 +333,8 @@ export default {
     // ==== kernel:deckViewModel (spliced by build) ====
     // #1895：地图详情这一屏的视图模型切片（容器树、子票、层级、统计都从投影取）。
     // ==== kernel:deckMapDetail (spliced by build) ====
+    // #1896：票详情这一屏的视图模型切片（正文、评论、评审、状态；「加载更多」也在这里）。
+    // ==== kernel:deckIssueDetail (spliced by build) ====
     // ==== kernel:deckViewBinding (spliced by build) ====
     // 行级动作全家（诊断/接手/…/执行八选一、容器三态按钮）从 store-derived 原样抽出，
     // 排在其后：它们要用 findMapByIdentity 与 isLightHex。

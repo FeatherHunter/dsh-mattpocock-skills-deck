@@ -183,7 +183,8 @@ async function main(): Promise<void> {
     const hits = track(view, ['projection', 'filters', 'rows', 'counts', 'readout', 'reading'])
     const before = versionsOf(view)
     const out = view.adopt({ frame: f6 })
-    check(out.outcome === 'updated' && JSON.stringify(out.changed) === JSON.stringify(['projection', 'counts', 'readout', 'rows', 'mapDetail']), 'D1 换版本只重算投影相关的片（#1895 起地图详情切片跟着投影一起换）', out.changed)
+    // #1895 / #1896：地图详情与票详情这两片都从投影里取数据，换版本时要跟着投影一起换（各片的名字按契约写全）。
+    check(out.outcome === 'updated' && JSON.stringify(out.changed) === JSON.stringify(['projection', 'counts', 'readout', 'rows', 'mapDetail', 'issueDetail']), 'D1 换版本只重算投影相关的片（#1895 起地图详情、#1896 起票详情跟着投影一起换）', out.changed)
     check(versionsOf(view).filters === before.filters && versionsOf(view).reading === before.reading, 'D2 换版本不动会话私有筛选与阅读态')
     check(hits.filters === 0 && hits.reading === 0, 'D3 换版本不通知 filters/reading 的订阅者', hits)
     check(view.slice('counts') === f6.counts && view.slice('projection').snapshot === f6.projection, 'D4 切片换成新帧的数据')

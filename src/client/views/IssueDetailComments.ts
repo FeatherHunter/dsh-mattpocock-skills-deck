@@ -11,7 +11,9 @@
 // 本文件由 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
 declare function submitIssueComment(...args: any[]): any;
 declare function fetchIssueDetail(...args: any[]): any;
-declare function fetchIssueComments(...args: any[]): any;
+// #1896：「加载更多评论」是视图模型的一条命令 —— 视图只喊命令，取数与电话都在接线层里，
+// 本文件不再认识取数函数（自己也就不再发请求）。
+declare function deckViewCommand(...args: any[]): any;
 declare function probeNow(...args: any[]): any;
 declare function mdToHtml(...args: any[]): any;
 declare function idOfParts(...args: any[]): any;
@@ -158,8 +160,9 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
                 if (st.issueCommentsMoreLoading) return
                 // 节流：600ms 内禁用由 st.issueCommentsMoreLoading 保障，api 侧同样节流
                 const after = (detail.comments && detail.comments.pageInfo && detail.comments.pageInfo.endCursor) ? detail.comments.pageInfo.endCursor : String(commentsNodes.length)
-                if (typeof fetchIssueComments === 'function') fetchIssueComments(st, issueNumber, after, { effortId: _eff })
-                // 「加载更多」至少转这么久的兜底：这条分支没有真的去取数（取数通路不在），
+                // #1896：只喊命令，取数与电话在接线层（视图模型命令 loadMoreComments）。
+                if (typeof deckViewCommand === 'function') deckViewCommand(st, 'loadMoreComments', { number: issueNumber, effortId: _eff, after: after })
+                // 没有视图模型接线的单文件求值环境：这条分支没有真的去取数（取数通路不在），
                 // 转圈也要停够时间再收，否则一闪而过，人以为自己没点着。
                 else { st.issueCommentsMoreLoading = true; emit(st); setTimeout(function(){ st.issueCommentsMoreLoading=false; emit(st); },COMMENTS_MORE_LOADING_MIN_MS) }
               },

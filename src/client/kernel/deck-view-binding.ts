@@ -3,8 +3,9 @@
  *
  * 这一片只做三件事，把纯视图模型（deck-view-model.ts）接到真实会话存储上：
  *  1. 投影帧按「工作区 + 库版本」共享：同一版本切会话拿到同一个帧，counts / readout 不重算；
- *  2. 把会话存储里的筛选与阅读态交给视图模型，命令改完只通知相关切片，不整棵界面 emit；
- *  3. 把状态栏原来直接打的那条宿主电话（wf.cwd）收进这一层 —— 视图层不再直连宿主。
+ *  2. 把会话存储里的筛选、阅读态与按需详情状态交给视图模型，命令改完只通知相关切片，不整棵界面 emit；
+ *  3. 把视图层原来直接打的宿主电话（状态栏的 wf.cwd、票详情的「加载更多评论」）收进这一层 ——
+ *     视图层不再直连宿主，也不再自己发取数（#1896）。
  *
  * 为什么不能直接 import：客户端闭包是构建时把各片拼进同一个函数作用域（scripts/build.mts），
  * 所以跨片名字一律写模块级 declare，运行时由拼接后的闭包提供。写成 declare 的另一个好处是
@@ -28,6 +29,9 @@ declare const triageCount: any;
 declare const kpiCountsOf: any;
 declare const listPrefs: any;
 declare const saveListPrefs: any;
+declare const peekNav: any;
+declare const fetchIssueComments: any;
+declare const idOfParts: any;
 
 // 纯视图模型那一片由构建排在本片之前拼进同一个闭包（scripts/build.mts 的 kernel 清单），所以这里只声明形状、
 // 不写运行时 import（构建侧 toSpliceableFragment 会拒收残留的 import）。门禁单独加载本文件时，先挂上
@@ -37,9 +41,16 @@ declare function deckFiltersOf(value: any): any
 declare function deckReadingOf(value: any): any
 // #1895：地图详情切片（kernel/deck-map-detail.ts，构建时排在本片之前拼进同一个闭包）。
 declare function deckMapDetailOf(input: any): any
+// #1896：票详情切片（kernel/deck-issue-detail.ts，构建时排在本片之前拼进同一个闭包）。
+declare function deckIssueDetailOf(input: any): any
+// #1896：详情投影（views/shared/detailProjection.ts）与导航栈顶（store-prefs.ts）都是同一闭包里的邻居：
+//   票详情切片的输入从这里取，视图与接线用同一把尺子回答「现在打开的是哪张票」。
+declare function detailViewFor(...args: any[]): any
+declare function snapshotRowFor(...args: any[]): any
+declare function projectionUsesSnapshot(...args: any[]): any
 // #1895：容器身份查找的真源仍住 store-derived.ts（与列表、详情页同一把尺子）。
 declare function findMapByIdentity(...args: any[]): any
-type DeckViewSliceName = 'projection' | 'filters' | 'rows' | 'counts' | 'readout' | 'reading' | 'mapDetail'
+type DeckViewSliceName = 'projection' | 'filters' | 'rows' | 'counts' | 'readout' | 'reading' | 'mapDetail' | 'issueDetail'
 
 /** 接线用到的闭包邻居；门禁传第二参时整份换掉（宿主电话与全部派生函数都可替换）。 */
 export interface DeckViewScope {
@@ -58,6 +69,13 @@ export interface DeckViewScope {
   kpiCountsOf?: any
   listPrefs?: any
   saveListPrefs?: any
+  // #1896：票详情切片与「加载更多评论」命令要用到的四个邻居（都可换掉，门禁据此注入假实现）。
+  peekNav?: any
+  detailViewFor?: any
+  snapshotRowFor?: any
+  projectionUsesSnapshot?: any
+  fetchIssueComments?: any
+  idOfParts?: any
 }
 
 function deckScope(): DeckViewScope {
@@ -77,6 +95,12 @@ function deckScope(): DeckViewScope {
     kpiCountsOf: (typeof kpiCountsOf === 'function' ? kpiCountsOf : null),
     listPrefs: (typeof listPrefs !== 'undefined' ? listPrefs : null),
     saveListPrefs: (typeof saveListPrefs === 'function' ? saveListPrefs : null),
+    peekNav: (typeof peekNav !== 'undefined' ? peekNav : null),
+    detailViewFor: (typeof detailViewFor !== 'undefined' ? detailViewFor : null),
+    snapshotRowFor: (typeof snapshotRowFor !== 'undefined' ? snapshotRowFor : null),
+    projectionUsesSnapshot: (typeof projectionUsesSnapshot !== 'undefined' ? projectionUsesSnapshot : null),
+    fetchIssueComments: (typeof fetchIssueComments !== 'undefined' ? fetchIssueComments : null),
+    idOfParts: (typeof idOfParts !== 'undefined' ? idOfParts : null),
   }
 }
 
@@ -179,9 +203,51 @@ function deckFiltersFromStore(st: any): any {
   })
 }
 
-function deckReadingFromStore(scope: DeckViewScope, st: any): any {
+/**
+ * 当前打开的是哪张票：判据与详情页完全相同 —— 导航栈顶是票就用栈顶（没有栈的旧状态由 peekNav
+ * 从镜像回推），否则退回会话存储上的镜像。视图模型与页面用同一把尺子，切片里的票与页面画的票不会错位。
+ */
+function deckOpenIssueOf(scope: DeckViewScope, st: any): any {
+  try {
+    const top: any = scope.peekNav ? scope.peekNav(st) : null
+    if (top && top.kind === 'issue') return { number: top.n, effort: (top.effortId === undefined || top.effortId === null) ? '' : String(top.effortId) }
+  } catch (e) {}
+  return { number: (st && st.activeIssue !== undefined) ? st.activeIssue : null, effort: (st && st.activeEffortId !== undefined && st.activeEffortId !== null) ? String(st.activeEffortId) : '' }
+}
+
+/**
+ * 按需详情状态（#1896）：这一趟取回的详情、取数模式、错误、评论加载态与两个簿记对象。
+ * 视图模型不比对象引用，只逐格比这几个字段；这里每次渲染都新造一个对象，所以两边的字段必须对得上。
+ */
+function deckDetailFromStore(scope: DeckViewScope, st: any, openIssue: any): any {
+  const s: any = st || {}
+  let readMode: string = 'snapshot'
+  try { if (typeof scope.projectionUsesSnapshot === 'function' && !scope.projectionUsesSnapshot()) readMode = 'legacy' } catch (e) {}
+  // 取回时刻：评论是**原地追加**到同一个详情对象上的，只看详情对象引用会发现不了这次变化；
+  // 取回时刻（与取数层同一把键）一变就说明这一次真的取回了东西，切片据此重算。
+  let seenAt: number = 0
+  try {
+    const n = openIssue ? openIssue.number : null
+    const seen = (n !== null && n !== undefined && typeof scope.idOfParts === 'function' && s.detailSeenAt) ? s.detailSeenAt[scope.idOfParts(openIssue.effort || '', Number(n))] : 0
+    seenAt = (typeof seen === 'number' && isFinite(seen)) ? seen : 0
+  } catch (e) {}
+  return {
+    issue: s.issueDetail || null,
+    mode: s.issueMode || 'idle',
+    error: s.issueError || null,
+    loading: s.issueCommentsMoreLoading === true,
+    failCount: Number(s.issueCommentsFailCount || 0),
+    seenAt: seenAt,
+    seenBook: s.detailSeenAt || null,
+    cacheBook: s.issueCache || null,
+    readMode: readMode,
+  }
+}
+
+function deckReadingFromStore(scope: DeckViewScope, st: any, openIssue: any): any {
   return deckReadingOf({
-    activeIssue: (st && st.activeIssue !== undefined) ? st.activeIssue : null,
+    activeIssue: openIssue.number,
+    activeIssueEffort: openIssue.effort,
     activeMap: (st && st.activeMap !== undefined) ? st.activeMap : null,
     // #1895：当前容器属于哪个工作单元（导航栈的 effort 镜像）；同号不同工作单元的容器靠它分开。
     activeMapEffort: (st && st.activeEffortId !== undefined && st.activeEffortId !== null) ? String(st.activeEffortId) : '',
@@ -190,7 +256,7 @@ function deckReadingFromStore(scope: DeckViewScope, st: any): any {
   })
 }
 
-function deckPortsOf(scope: DeckViewScope, frame: any): any {
+function deckPortsOf(scope: DeckViewScope, frame: any, st: any): any {
   const projection = frame.projection
   return {
     rowsSource: function (f: any, reading: any): any[] {
@@ -219,6 +285,38 @@ function deckPortsOf(scope: DeckViewScope, frame: any): any {
         mapOf: scope.findMapByIdentity,
       })
     },
+    // #1896：票详情这一屏的数据全部从投影与这一趟取回的详情里取；这里只把输入交给选择器，
+    // 页面进详情不再自己挑字段，也不再自己发「加载更多」的请求。
+    issueDetailOf: function (f: any, reading: any, detail: any): any {
+      if (typeof deckIssueDetailOf !== 'function') return null
+      const raw: any = (reading && reading.activeIssue !== undefined) ? reading.activeIssue : null
+      // 没有打开任何票时如实交一个「不知道」的空形状（与地图详情同一口径），不拿上一张票的详情冒充。
+      const openNumber: any = (raw === null || raw === undefined || raw === '') ? null : raw
+      const effortId: string = (reading && reading.activeIssueEffort !== undefined && reading.activeIssueEffort !== null) ? String(reading.activeIssueEffort) : ''
+      const input: any = detail || {}
+      // 交给投影函数的是一份最小会话状态：投影只读这几格，视图模型不把整个会话存储传进来。
+      const stLike: any = {
+        snapshot: f.projection, issueDetail: input.issue || null, issueMode: input.mode || 'idle',
+        issueError: input.error || null, detailSeenAt: input.seenBook || null, issueCache: input.cacheBook || null,
+      }
+      const view: any = (openNumber !== null && typeof scope.detailViewFor === 'function') ? scope.detailViewFor(stLike, openNumber, effortId) : null
+      const row: any = (openNumber !== null && typeof scope.snapshotRowFor === 'function') ? scope.snapshotRowFor(stLike, openNumber, effortId) : null
+      return deckIssueDetailOf({
+        number: openNumber,
+        effortId: effortId,
+        view: view,
+        row: row,
+        comments: { loading: input.loading === true, failCount: Number(input.failCount || 0) },
+      })
+    },
+    // #1896：「加载更多评论」命令背后那趟读取。视图只喊命令，电话在这里；取数函数缺席时什么都不做，
+    // 视图那边按「这一趟没有取数通路」处理（与改造前同一口径）。
+    loadMoreComments: function (payload: any): any {
+      const fn = scope.fetchIssueComments
+      const input: any = payload || {}
+      if (typeof fn !== 'function' || !st || typeof st !== 'object') return null
+      return fn(st, input.number, input.after, { effortId: input.effortId })
+    },
   }
 }
 
@@ -229,13 +327,14 @@ const deckViewsByStore: WeakMap<object, any> = new WeakMap()
 export function deckViewOf(st: any, scopeOverride?: DeckViewScope): any {
   const scope = scopeOverride || deckScope()
   let view = (st && typeof st === 'object') ? deckViewsByStore.get(st) : undefined
+  const openIssue: any = deckOpenIssueOf(scope, st)
   if (!view) {
     const frame = deckFrameOf(scope, st)
-    view = createDeckView({ frame: frame, filters: deckFiltersFromStore(st), reading: deckReadingFromStore(scope, st), ports: deckPortsOf(scope, frame) })
+    view = createDeckView({ frame: frame, filters: deckFiltersFromStore(st), reading: deckReadingFromStore(scope, st, openIssue), detail: deckDetailFromStore(scope, st, openIssue), ports: deckPortsOf(scope, frame, st) })
     if (st && typeof st === 'object') deckViewsByStore.set(st, view)
     return view
   }
-  view.adopt({ frame: deckFrameOf(scope, st), filters: deckFiltersFromStore(st), reading: deckReadingFromStore(scope, st) }, { silent: true })
+  view.adopt({ frame: deckFrameOf(scope, st), filters: deckFiltersFromStore(st), reading: deckReadingFromStore(scope, st, openIssue), detail: deckDetailFromStore(scope, st, openIssue) }, { silent: true })
   return view
 }
 
@@ -284,7 +383,7 @@ export function deckViewCommand(st: any, name: string, payload?: any, scopeOverr
   const result = view.command(name, payload)
   if (result.changed.indexOf('filters') >= 0) deckMirrorFilters(st, result.filters, name, scope)
   try {
-    if (name === 'openIssue') st.activeIssue = result.reading.activeIssue
+    if (name === 'openIssue') { st.activeIssue = result.reading.activeIssue; st.activeEffortId = result.reading.activeIssueEffort }
     if (name === 'openMap') {
       // #1895：容器身份是 (effort, 编号) 两段；镜像回会话存储时两段一起写，读方（导航与视图模型）才对得上。
       st.activeMap = result.reading.activeMap

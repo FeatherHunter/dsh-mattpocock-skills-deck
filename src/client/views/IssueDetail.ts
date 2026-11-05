@@ -11,6 +11,8 @@ declare function peekNav(...args: any[]): any;
 declare function repoStr(...args: any[]): any;
 declare function buildColorOf(...args: any[]): any;
 declare function fetchIssueDetail(...args: any[]): any;
+// #1896：票详情这一屏的视图模型切片（正文、评论、评审、状态都从这里取）；「加载更多」是它的命令。
+declare function useDeckViewSlice(...args: any[]): any;
 // #1694：详情读快照投影（这一趟取回的详情优先，没有就读快照行）住在 views/shared/detailProjection.ts，本文件只消费。
 declare function detailViewFor(...args: any[]): any;
 declare function knownBlockedNodes(...args: any[]): any;
@@ -68,9 +70,12 @@ export const IssueDetail = function (props: any): any {
       // T4 #554：当前工单编号读栈顶（栈顶是工单才取，旧镜像兜底保证旧状态不崩）。
       // 平时镜像与栈顶一致，取值与原来一样；取数与评论通路不动。
       const navTop0 = (typeof peekNav === 'function') ? peekNav(st) : null
-      const issueNumber = (navTop0 && navTop0.kind === 'issue') ? navTop0.n : st.activeIssue
+      // #1896：正文、评论、评审与状态都从视图模型的 issueDetail 切片取；没有这一片时（单文件求值的门禁）
+      //   退回改造前那份投影，行为与改造前一致。
+      const deckIssue = (typeof useDeckViewSlice === 'function') ? useDeckViewSlice(st, 'issueDetail') : null
+      const issueNumber = (deckIssue && deckIssue.number !== null) ? deckIssue.number : ((navTop0 && navTop0.kind === 'issue') ? navTop0.n : st.activeIssue)
       // effort 维度：本票所属 effort（同号票在不同 effort 里是两张票，取数/评论/外链都要带上）
-      const issueEffort = (navTop0 && navTop0.kind === 'issue') ? ((navTop0.effortId !== undefined && navTop0.effortId !== null) ? String(navTop0.effortId) : '') : (st.activeEffortId ? String(st.activeEffortId) : '')
+      const issueEffort = (deckIssue && deckIssue.number !== null) ? deckIssue.effortId : ((navTop0 && navTop0.kind === 'issue') ? ((navTop0.effortId !== undefined && navTop0.effortId !== null) ? String(navTop0.effortId) : '') : (st.activeEffortId ? String(st.activeEffortId) : ''))
       const repoStrLocal = repoStr(st)
       const colorOf = (typeof buildColorOf === 'function') ? buildColorOf(st) : {}
       // 本地容器的编号是 0（key 00），是合法坐标：只拦缺席、空串与非数字，不拦 0。
@@ -91,7 +96,7 @@ export const IssueDetail = function (props: any): any {
       const topBarRef = useIssueDetailFold(st, issueNumber, issueEffort)
       // #1694 读投影：这一趟取回的详情优先（live）；没有就先读面板快照投影（上次取到的正文/评论），
       // 把「进入详情先等网络」变成「先把上次内容画出来」。投影的判据与开关住在 views/shared/detailProjection.ts。
-      const proj = detailViewFor(st, issueNumber, issueEffort)
+      const proj = deckIssue || detailViewFor(st, issueNumber, issueEffort)
       const detail = proj.issue
       const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
       const snapIssue = issues.find(function (x: any) { return x.number === issueNumber && effortOf(x) === issueEffort }) || issues.find(function (x: any) { return x.number === issueNumber })
@@ -203,11 +208,12 @@ export const IssueDetail = function (props: any): any {
       const labelArr = Array.isArray(labels) ? labels : []
       const assigneesRaw = (src.assignees && src.assignees.nodes) ? src.assignees.nodes : (src.assignees || [])
       const assignees = Array.isArray(assigneesRaw) ? assigneesRaw : []
-      const stateRaw = src.state || 'OPEN'
+      // #1896：状态以视图模型为准（切片里优先取投影里同一张票的那一行，与列表同一个来源）。
+      const stateRaw = proj.state || src.state || 'OPEN'
       // #599：状态显示三种（打开 / 已关闭 / 已合并）。两种来源都是契约形状（已合并的收成「已关闭」、
       //   合并时间留在 mergedAt），所以判据只看合并时间 —— 那判据收在 views/shared/stateKind.js，
       //   与拉取请求页共用一份，本文件不再自己判。
-      const stateKind = prStateKind(src)
+      const stateKind = prStateKind({ state: stateRaw, mergedAt: src.mergedAt })
       const isOpen = stateKind === 'open'
       const isMerged = stateKind === 'merged'
       const stateColor = isOpen ? '#3fb950' : (isMerged ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : '#8b949e')
@@ -308,7 +314,7 @@ export const IssueDetail = function (props: any): any {
       const blockedNodes = knownBlockedNodes(src)
       // #1668 / #1669：顶栏两颗动作按钮同进退。被阻塞清单认详情回包与快照里已知的那一份，
       //   没取到就当没有；判据与原因收在 kernel/detail-top-gate.ts，本文件不自己判。
-      const topGate = detailTopGate(src, blockedNodes)
+      const topGate = detailTopGate({ state: stateRaw, mergedAt: src.mergedAt }, blockedNodes)
       // 悬停只喊一条原因：票已关闭（含已合并）说「已关闭」；被没做完的票阻塞则点名票号，
       //   票号升序与顿号都来自判据和词表，这里只负责拼句。可点时这句话不用（按钮各有原来的说明）。
       const gateTip = topGate.clickable ? '' : (topGate.reason === 'blocked'
@@ -335,7 +341,8 @@ export const IssueDetail = function (props: any): any {
       // 「我们知不知道评论这件事」：live 详情照旧可写；从本地快照库读回来的详情，库里评论组
       // 知道（完整或一部分）也可写。判据住在 views/shared/detailProjection.ts（proj.commentsAvailable）。
       if (proj.source !== 'live' && proj.commentsAvailable !== true) canComment = false
-      const commentsNodes = (proj.source !== 'none' && !!rawComments && Array.isArray(rawComments.nodes)) ? rawComments.nodes : []
+      // #1896：评论节点优先取视图模型切片里的那一份（与详情同一数组）；切片缺席时才按老口径从详情上挑。
+      const commentsNodes = (proj.comments && Array.isArray(proj.comments.nodes)) ? proj.comments.nodes : ((proj.source !== 'none' && !!rawComments && Array.isArray(rawComments.nodes)) ? rawComments.nodes : [])
       // #1783：快照投影里「评论未知」与「确实没有评论」是两件事。投影出来的详情没有 comments 字段时，
       // 说明这一行只带了正文、评论还没取过（GitLab 列表就是这样）；这时既不能说「评论 (0)」，也不能说「只读」。
       const commentsUnknown = !!(detail && proj.source === 'snapshot' && !(rawComments && Array.isArray(rawComments.nodes)))
