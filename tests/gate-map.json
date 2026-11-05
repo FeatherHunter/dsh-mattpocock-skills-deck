@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-04T23:06:23.259Z",
+  "generatedAt": "2026-11-04T23:52:22.980Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 575,
-  "gateCount": 575,
-  "attributedGates": 519,
+  "chainLength": 576,
+  "gateCount": 576,
+  "attributedGates": 520,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 118,
+  "completionRecordedGates": 119,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 911,
+  "graphFileCount": 913,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6816,6 +6816,24 @@
       "completionRecord": true,
       "expectedAssertions": 41,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 9 条）"
+    },
+    {
+      "step": "node tests/verify-1891-version-sync.ts",
+      "file": "tests/verify-1891-version-sync.ts",
+      "guards": [
+        "src/refresh/rooms/client/refresh-timer.ts",
+        "src/refresh/rooms/client/snapshot-cache-store.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/refresh/rooms/client/snapshot-version-sync.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/client"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 55,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
       "step": "node tests/verify-1892-pure-projection.ts",
@@ -14754,6 +14772,7 @@
       "node tests/verify-1483-client-chain-cache.ts",
       "node tests/verify-1626-cold-start-chain.ts",
       "node tests/verify-1640-unopened-merge.ts",
+      "node tests/verify-1891-version-sync.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-chain-after-pick.ts",
@@ -15841,9 +15860,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 934,
+    "fileCount": 936,
     "dirCount": 92,
-    "coveredFileCount": 934,
+    "coveredFileCount": 936,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 74,
@@ -16372,8 +16391,10 @@
       "src/refresh/rooms/client/refresh-timer.ts",
       "src/refresh/rooms/client/repo-sync-renderer.ts",
       "src/refresh/rooms/client/snapshot-cache-store.ts",
+      "src/refresh/rooms/client/snapshot-change-merge.ts",
       "src/refresh/rooms/client/snapshot-sync-helpers.ts",
       "src/refresh/rooms/client/snapshot-sync.ts",
+      "src/refresh/rooms/client/snapshot-version-sync.ts",
       "src/refresh/rooms/client/staleness-indicator.ts",
       "src/refresh/rooms/host/.gitkeep",
       "src/refresh/rooms/host/budget-model.ts",
@@ -16988,7 +17009,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 64
+        "fileCount": 66
       },
       {
         "path": "src/shared/command-cleanup",

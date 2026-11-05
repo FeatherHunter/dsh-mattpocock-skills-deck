@@ -57,6 +57,10 @@ const MODULES = [
   // #707：probe-snapshot.js 拆到这里之前 349 行（门禁上限 350），把颜色小函数、数据层增量差异、
   //   高亮清除搬成单独一片；那三样东西的导出名与行为一字未改。
   { name: 'probeSnapshotHelpers', file: 'snapshot-sync-helpers', exports: ['hexA', 'darken', 'diffSnapshots', '_flashClearPending', 'scheduleFlashClear'] },
+  // #1891：客户端按库版本取变化的两片 —— 变化集并进手上那份（纯合并），以及同步引擎与生产接线。
+  //   登记在这里是为了「改了没重建要被拦下」：产物新鲜度按 SOURCES 里的真源修改时间比。
+  { name: 'snapshotChangeMerge', file: 'snapshot-change-merge', exports: ['applySnapshotChangeSet', 'changeRowPatch', 'isNewerSnapshotVersion'] },
+  { name: 'snapshotVersionSync', file: 'snapshot-version-sync', exports: ['createSnapshotVersionSync', 'createPollingVersionSource', 'runSnapshotVersionTick', 'runSnapshotVersionTickGroup', 'captureSnapshotVersion', 'rememberSnapshotVersion', 'snapshotVersionBookOf', 'forgetSnapshotVersion'] },
   { name: 'probeAuto', file: 'refresh-timer', exports: ['PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'lastFocusProbe', '_actionProbePending', 'probeNow', 'scheduleActionProbe', 'startAutoProbe', 'startActiveProbeLoop', 'spinAll', 'refreshAll', 'SNAP_FRESH_MS', 'snapFresh'] },
   // #707：视野模型的客户端半边（窗口标识、焦点与可见性监听、20 秒本地心跳、处境判定）。
   { name: 'attentionHeartbeat', file: 'client-attention-heartbeat', exports: ['attentionWindowId', 'attentionVisible', 'attentionNoteHuman', 'attentionStoreOf', 'attentionRootOf', 'attentionKeyOf', 'noteShownAttentionStore', 'forgetShownAttentionStore', '_shownAttentionStore', '_attentionPlan', 'adoptAttentionPlan', 'attentionStandingOf', 'ATTENTION_SILENT_MS', 'attentionSuspended', 'attentionBeat', 'startAttentionHeartbeat', 'startAttentionSignals', 'stopAttentionSignals'] },

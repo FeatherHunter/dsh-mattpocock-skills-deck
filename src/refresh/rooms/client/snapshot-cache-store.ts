@@ -11,6 +11,11 @@
  * 反例：不要在这里决定行该怎么画（那是 store-derived.ts 的事），也不要在这里存人的偏好（那是 store-prefs.ts 的事）。
  */
 declare function keyOf(...args: any[]): any;
+// #1891：手上那份快照对应的库版本（版本簿记与「谁是更新的」判据都在 snapshot-version-sync.ts 与
+//   snapshot-change-merge.ts，本文件只读它们，不在这里另存一份数字）。
+declare function snapshotVersionBookOf(...args: any[]): any;
+declare function rememberSnapshotVersion(...args: any[]): any;
+declare function isNewerSnapshotVersion(...args: any[]): any;
 declare const DEFAULT_PANEL_H: number;
 declare const listPrefs: any;
 declare function isEnabled(...args: any[]): any;
@@ -30,7 +35,6 @@ declare function keepUserPick(...args: any[]): any;
 declare const React: any;
 declare const timer: any;
 declare const STORE_NOTICE_DISMISS_MS: number;
-declare const SNAPSHOT_PICKED_GUARD_MS: number;
 export const makeStore = (): any => ({
   open: false, tab: 'list', activeMap: null, activeIssue: null,
   // #552 导航栈（会话私有状态）：只存坐标不存正文，元素形状 { kind: 'map' | 'issue', n: 数字编号 }；
@@ -135,7 +139,7 @@ export const setCachedSnapshot = function (cwd: any, snap: any): void { if(!cwd|
   try{ delete s2.notModified; delete s2.status; delete s2.cached }catch(eT){}
   // #1355 · 这份读数的「视角」只属于当时请求它的会话，不进按工作区共享的缓存（要这张表就用自己的会话号现算一份）
   try{ delete s2.workRouteTable }catch(eW){}
-  try{ const k: any=wsKeyOf(cwd); const ver: any=s2.version||s2.etag||''; const ent: any={snapshot:s2, version:ver, ts:Date.now(), key:k, lastProbeAt:getProbeAt(k)}; touchLRUClient(snapshotByCwd,k,ent) }catch(e){} }
+  try{ const k: any=wsKeyOf(cwd); const ver: any=s2.version||s2.etag||''; const lib: any=(typeof snapshotVersionBookOf === 'function') ? snapshotVersionBookOf(cwd) : null; const ent: any={snapshot:s2, version:ver, libraryVersion:(lib && typeof lib.version === 'number') ? lib.version : null, ts:Date.now(), key:k, lastProbeAt:getProbeAt(k)}; touchLRUClient(snapshotByCwd,k,ent) }catch(e){} }
 // #1355 · 本会话手上那份快照缺自己的 workRouteTable 吗？缺的来路不止一种：同工作区别的会话水合过来的、升级前旧缓存留下的、
 //   或这一版宿主根本没带这个字段；不管哪种，都得补发一次带当前会话号的快照请求。
 //   忙（正在刷新 / 后端还说不准）时不判缺，所以三处接线重复触发也不会重复发请求。
@@ -175,16 +179,17 @@ export const getCachedChain = function(cwd: any, backendId: any, lang: any): any
 export const getCachedChainEntry = function(cwd: any, backendId: any, lang: any): any{ try{ const k: any=getChainCacheKey(cwd, backendId, lang); const e: any=chainByCwd.get(k); return e||null; }catch(e){ return null; } }
 // #1483：第 5 个参数记产出会话号；只传 4 个参数的老调用点行为不变（条目不带 sessionId）。
 export const setCachedChain = function(cwd: any, backendId: any, lang: any, snap: any, sessionId?: any): void{ if(!cwd||!snap) return; try{ const k: any=getChainCacheKey(cwd, backendId, lang); const ent: any={snapshot:snap, ts:Date.now()}; if(sessionId !== undefined && sessionId !== null) ent.sessionId = String(sessionId); if(chainByCwd.has(k)) chainByCwd.delete(k); chainByCwd.set(k, ent); if(chainByCwd.size>CHAIN_CWD_LRU_MAX){ const first: any=chainByCwd.keys().next().value; chainByCwd.delete(first);} }catch(e){} }
-// 水合守卫：刚点的那一下不被旧缓存盖掉（#1003 接替 userPicked 标记；只看时间，不落盘；
-//   保护窗多久由 config/ttl.yaml 的 snapshotPickedGuardMs 定，别在这里写第二份数字）。
-export const justPicked = function (st: any, c: any): boolean {
+// 水合守卫：刚点的那一下不被旧缓存盖掉（#1003 接替 userPicked 标记）。
+// #1891：判据从「生成时刻」改成「库版本」—— 点选那一刻记下的版本（st.pickedVersion）比缓存那份新，
+//   说明缓存的结论早于这次点选，不许拿它盖；版本不知道时，有明确人选就按「刚点过」保守处理。
+export const justPicked = function (st: any, c: any, cachedVersion?: any): boolean {
   try {
     const sel: any = st && st.selection
-    if (!sel || !sel.backendId || typeof sel.pickedAt !== 'number' || sel.pickedAt <= 0) return false
-    const cacheMs: number = (c && typeof c.generatedMs === 'number' && c.generatedMs > 0) ? c.generatedMs : 0
-    if (cacheMs > 0) return sel.pickedAt > cacheMs
-    const incBid: any = c && c.selection && c.selection.backendId
-    return !!(incBid && String(incBid) !== String(sel.backendId) && (Date.now() - sel.pickedAt) < SNAPSHOT_PICKED_GUARD_MS)
+    if (!sel || !sel.backendId) return false
+    const cachedVer: any = (typeof cachedVersion === 'number') ? cachedVersion : ((c && typeof c.libraryVersion === 'number') ? c.libraryVersion : null)
+    const pickedVer: any = (st && typeof st.pickedVersion === 'number') ? st.pickedVersion : null
+    if (pickedVer !== null && cachedVer !== null) return pickedVer > cachedVer
+    return sel.source === 'explicit'
   } catch (e) { return false }
 }
 export const hydrateFromCache = function (st: any): boolean {
@@ -209,31 +214,30 @@ export const hydrateFromCache = function (st: any): boolean {
   // 胜负自证（#495）：记合并前双方版本号与谁胜出，串门时单行 #28 即可判定，不用跨行推理
   let _winnerVer: string = '', _loserVer: string = '', _outcome: string = 'current'
   if (c) {
-    // 版本取舍：以最新生成时间者胜（水合与扇出一致，#301 契约）
-    const incomingMs: number = c.generatedMs || 0
-    const curMs: number = (st.snapshot && st.snapshot.generatedMs) || 0
-    const _incVer: string = String((c && (c.version || c.etag)) || '')
-    const _curVer: string = String((st.snapshot && (st.snapshot.version || st.snapshot.etag)) || '')
-    _winnerVer = _curVer; _loserVer = _incVer
-    if (!st.snapshot || incomingMs > curMs) {
-      _winnerVer = _incVer; _loserVer = _curVer; _outcome = 'incoming'
+    // #1891：水合的胜负只按库版本判 —— 来者那份的库版本比手上这份新才换（规格 I3：时间不决定显不显示）。
+    //   不知道版本的一律不换：不知道 ≠ 更新，宁可等宿主下一次回包把版本带上来。
+    const cacheEntry: any = getCachedEntry(st.cwd)
+    const incomingVer: any = (cacheEntry && typeof cacheEntry.libraryVersion === 'number') ? cacheEntry.libraryVersion : null
+    const heldBook: any = (typeof snapshotVersionBookOf === 'function') ? snapshotVersionBookOf(st.cwd) : null
+    const heldVer: any = (heldBook && typeof heldBook.version === 'number') ? heldBook.version : null
+    _winnerVer = heldVer === null ? '' : String(heldVer); _loserVer = incomingVer === null ? '' : String(incomingVer)
+    const takeIncoming: boolean = !st.snapshot || ((typeof isNewerSnapshotVersion === 'function') ? isNewerSnapshotVersion(incomingVer, heldVer) : false)
+    if (takeIncoming) {
+      _winnerVer = incomingVer === null ? '' : String(incomingVer); _loserVer = heldVer === null ? '' : String(heldVer); _outcome = 'incoming'
       st.snapshot = c
       st.snapMode = 'real'
       st.snapError = null
       st.snapLoading = false
+      if (incomingVer !== null && typeof rememberSnapshotVersion === 'function') rememberSnapshotVersion(st.cwd, incomingVer)
       changed=true
-    } else if (st.snapMode !== 'real' && incomingMs === curMs) {
-      st.snapMode = 'real'
-      st.snapError = null
-      changed=true
-    } else if (!st.snapshot && c) {
-      st.snapshot = c
+    } else if (st.snapMode !== 'real') {
+      // 同一版本：数据已经是这份了，只把「现在有真实数据」这个状态修好，不换对象。
       st.snapMode = 'real'
       st.snapError = null
       changed=true
     }
-    // 同步 selection：水合的是旧缓存（切换前结论），刚点的那一下（pickedAt 更新）不合并，宿主新回包照旧纠正。
-    if (c.selection !== undefined && !justPicked(st, c)) { if (mergeSelection(st, c.selection)) changed = true }
+    // 同步 selection：水合的是旧缓存（切换前结论），刚点的那一下（pickedVersion 更新）不合并，宿主新回包照旧纠正。
+    if (c.selection !== undefined && !justPicked(st, c, incomingVer)) { if (mergeSelection(st, c.selection)) changed = true }
     if (c.repository !== undefined) { st.repository = c.repository; setCachedRepository(st.cwd, c.repository) }
     if (c.backendModules) { st.backendModules = c.backendModules; setPresentationMap(c.backendModules) } // backendModules 缓存
   }
@@ -291,6 +295,8 @@ export const mergeSelection = function (st: any, incoming: any): boolean {
   }
   try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {}
   st.selection = incoming
+  // #1891：点选那一刻的库版本 —— 之后来一份比它旧的缓存，不许拿缓存的结论盖住这次点选。
+  try { const book: any = (typeof snapshotVersionBookOf === 'function') ? snapshotVersionBookOf(st.cwd) : null; st.pickedVersion = (book && typeof book.version === 'number') ? book.version : null } catch (ePick) {}
   return true
 }
 export const applySnapshotSelection = function (st: any, snap: any): void {

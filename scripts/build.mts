@@ -620,6 +620,10 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'probeSnapshotHelpers', file: 'src/refresh/rooms/client/snapshot-sync-helpers.ts' },
+  // #1891（规格 #1885 S4）：客户端只看库版本判新鲜度 —— 变化集并进手上那份（纯合并）在前，
+  //   同步引擎与生产接线在后。两片都不 import 别的模块（客户端闭包靠拼接），跨片名字各写 declare。
+  { name: 'snapshotChangeMerge', file: 'src/refresh/rooms/client/snapshot-change-merge.ts' },
+  { name: 'snapshotVersionSync', file: 'src/refresh/rooms/client/snapshot-version-sync.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'probeAuto', file: 'src/refresh/rooms/client/refresh-timer.ts' },
@@ -2099,8 +2103,6 @@ const CLIENT_TIME_NAMES: string[] = [
   'STATUS_MENU_FALLBACK_DELAY_MS',
   'SNAPSHOT_PROBE_MS',
   'STORE_NOTICE_DISMISS_MS',
-  // 刚选中快照的保护窗（snapshot-cache-store.ts 的水合守卫，#1240）。
-  'SNAPSHOT_PICKED_GUARD_MS',
   'ISSUE_DETAIL_CONFIRM_MS',
   'COMMENT_RESULT_FLASH_MS',
   'COMMENTS_MORE_LOADING_MIN_MS',

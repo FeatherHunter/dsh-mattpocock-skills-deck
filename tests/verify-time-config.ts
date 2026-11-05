@@ -296,7 +296,6 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/kernel/slotRenderer-queue.ts', name: 'SLOT_QUEUE_STEP_MS', key: 'slotQueueStepMs' },
   { file: 'src/client/kernel/slotRenderer-modal-view.ts', name: 'SLOT_MODAL_OPEN_DELAY_MS', key: 'slotModalOpenDelayMs' },
   { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'STORE_NOTICE_DISMISS_MS', key: 'storeNoticeDismissMs' },
-  { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'SNAPSHOT_PICKED_GUARD_MS', key: 'snapshotPickedGuardMs' },
   { file: 'src/client/kernel/store-switch.ts', name: 'STORE_SWITCH_CONFIRM_MS', key: 'storeSwitchConfirmMs' },
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'STATUS_MENU_DISMISS_DELAY_MS', key: 'statusMenuDismissDelayMs' },
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'STATUS_MENU_HOVER_OPEN_DELAY_MS', key: 'statusMenuHoverOpenDelayMs' },
@@ -518,9 +517,8 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/client/snapshot-sync.ts', name: 'timeOfMs', reason: '函数名（把时刻格式化成给人看的文字），不是时间参数' },
   { file: 'src/refresh/rooms/client/snapshot-sync.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/client/kernel/router.ts', name: 'fitMs', reason: '滚动位置回正的状态字段，不是时间参数' },
-  { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'cacheMs', reason: '从快照里读出的生成时刻，不是可调参数' },
-  { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'incomingMs', reason: '同上' },
-  { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'curMs', reason: '同上' },
+  // #1891：水合胜负改按库版本判之后，cacheMs / incomingMs / curMs 这一族「生成时刻」变量已从文件里退休
+  // （时间不再参与「谁的结论更新」）；工时测量那一格照旧。
   { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/client/kernel/store-switch.ts', name: '_hadToWait', reason: '布尔判断结果（这一步有没有等过），不是时间参数' },
   { file: 'src/client/statusbar/checksums.ts', name: '_probeMs', reason: '读出来的探测时刻，不是可调参数' },

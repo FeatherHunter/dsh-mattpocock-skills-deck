@@ -344,6 +344,10 @@ export default {
     //   迟到快照回包的落地判据）。单独一片的原因与 #707 那次一样：probe-snapshot.js 贴着 350 行上限。
     // ==== kernel:probeSelect (spliced by build) ====
     // ==== kernel:probeSnapshotHelpers (spliced by build) ====
+    // #1891（规格 #1885 S4）：客户端只看库版本判新鲜度 —— 变化集并进手上那份（纯合并）在前，
+    //   同步引擎与生产接线在后；两片都不 import 别的模块（客户端闭包靠拼接拼在一起）。
+    // ==== kernel:snapshotChangeMerge (spliced by build) ====
+    // ==== kernel:snapshotVersionSync (spliced by build) ====
     // ==== kernel:probeAuto (spliced by build) ====
     // ==== kernel:attentionHeartbeat (spliced by build) ====
     // 打开形式（#373 用户拍板 2026-08-14；#646 改版；2026-09-21 收敛为唯一一条路）：

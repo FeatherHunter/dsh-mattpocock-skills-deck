@@ -244,14 +244,12 @@ async function run() {
   // 读 .ts 真源（sourcePath 在同名 .js/.ts 并存时优先 .ts）：判据里的单引号与分支顺序都是源码形态。
   const clientSrc = fs.readFileSync(path.join(ROOT, sourcePath('src/refresh/rooms/client/refresh-timer.js')), 'utf8')
   check(/res\.mode === 'deferred'/.test(clientSrc) && /res\.mode === 'stale-dropped'/.test(clientSrc), "④客户端认得出宿主那句「这一次没并进去」（deferred / stale-dropped），那一拍一个请求都不发")
-  // #1355 起 applySnap 多带一个参数（这份表是不是本会话自己请求回来的）；判据只认「增量那一支确实把它交出去了」，
-  //   不钉参数个数以外的写法。
-  check(/res\.mode === 'patch'/.test(clientSrc) && /applySnap\(res\.snapshot(?:\s*,\s*[^)]*)?\)/.test(clientSrc), '④客户端吃宿主补好的那一份（res.mode === patch → applySnap(res.snapshot, …)）')
+  // #1891 起客户端不再吃探测回包里的整份快照：探测只负责让宿主把变化先写进库（产生变化的唯一入口），
+  //   这一拍取不取数据交给按库版本推进的同步那一片（版本没变什么都不取，变了才取变化集）。
+  check(!/res\.mode === 'patch'/.test(clientSrc) && !/applySnap\(res\.snapshot/.test(clientSrc), '④客户端不再吃探测回包里的整份快照（数据只从按库版本取的变化集来）')
+  check(/runSnapshotVersionTickGroup\(group, res\.changed \? 'probe-changed' : 'probe-clean'\)/.test(clientSrc), '④这一拍交给版本同步，并把「有没有变化」如实交过去（runSnapshotVersionTickGroup）')
   const clientCode = stripComments(clientSrc)
-  const patchBranch = clientCode.indexOf("res.mode === 'patch'")
-  const poolBranch = clientCode.indexOf('return loadSnapshot(primary, true, true)')
-  check(patchBranch > 0 && poolBranch > patchBranch, '④增量那一支排在整池那一支前面（遇到了就先吃增量，不再先整池）')
-  check((clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length === 1, '④整池那一条只剩一处（宿主说该整池时才走），实得 ' + (clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length + ' 处')
+  check((clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length === 0, '④探测路不再自己发整份重建（实得 ' + (clientCode.match(/loadSnapshot\(primary, true, true\)/g) || []).length + ' 处）')
 
   // ---- 反证夹具：把「探测一回来就推水印」放回去，判据必须逮住 ----
   // 收口后的代码分住两处：调用方 issueList.ts + 规则与状态 src/refresh/rooms/host/issue-index-scan.js，两份一起扫。
