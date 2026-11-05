@@ -254,6 +254,10 @@ export const vcRealCallbacksOf = function (deps: any): any {
       //   不在这里执行任何 git 写（#1846 的边界）。
       if (String(target.page) === 'branch-tags') manageActions.branch.overlay(action)
       else goPage(target.page, true)
+      // 浮层动作落地后浮层必须收起来。落在别的页时上面那次跳页已经清掉 open；
+      //   落在「当前这一页」（例如已经在分支页上点「新建」）时 vcRealNavTo 认页名相同、原样返回，
+      //   不补这一下就会留着一个盖在当前页上的浮层——真机 #1846 复验时正是这样抓到的。
+      setNav(function (cur: any) { return vcRealNavCloseAll(cur) })
       vcRealFocusLandingOf(rootRef, target, 0)
     },
     // #1846：浮层的本地分支清单——点一条按 4.3 的既有通路切换（预检签票 → 需要时确认 → 凭票执行）。

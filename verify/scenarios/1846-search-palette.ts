@@ -300,6 +300,11 @@ export default defineScenario<ScenarioContext>({
         }
         // 只裁版本管理面板的图：整页截图里还有宿主侧栏与会话区，并排对照要的是面板本身。
         // 适配器没暴露原始 Playwright 页面时退回整页截图，并把名字加后缀区分，不假装是面板图。
+        // 面板比视口高时，确认卡与结果会落在一屏之外；截图前先把它们滚到视口中间，图里才看得到。
+        const scrollTo = async (page: PageHandle, selector: string): Promise<void> => {
+          await evaluateValue(page, '(function () { var el = document.querySelector(' + JSON.stringify(selector) + '); if (!el) return false; el.scrollIntoView({ block: "center" }); return true; })()')
+          await sleep(250)
+        }
         const panelShot = async (page: PageHandle, raw: RawBrowserPage, name: string): Promise<string | null> => {
           const target = path.join(context.evidence.root, name)
           const rawPage: any = (raw as any).page
@@ -498,20 +503,24 @@ export default defineScenario<ScenarioContext>({
         }))
 
         // ---- 6. 选中一条结果只跳对应入口并高亮 ----
-        const pickGroup = (groups as any[]).find((g) => g.page !== 'search') ?? (groups as any[])[0]
+        // 挑一条落在「别的页」的能力：从搜索页跳过去，才能证明是导航而不是原地不动。
+        // 能力行与 data-cap-hit 已随 #1860 退役，所以这里不再断言高亮——跳转落点本身就是判据。
+        const pickGroup = (groups as any[]).find((g) => g.page !== 'search' && g.page !== 'changes')
+          ?? (groups as any[]).find((g) => g.page !== 'search')
+          ?? (groups as any[])[0]
         const pickId = pickGroup?.rows?.[0]
         if (typeof pickId === 'string') await realClick(page, raw, '[data-vc-search-row="' + pickId + '"]')
         const jumped = await waitFor(page, '(document.querySelector(' + JSON.stringify(SEL.vcRoot) + ') || { getAttribute: function () { return "" } }).getAttribute("data-vc-live-page") === ' + JSON.stringify(pickGroup?.page ?? ''), 40, 250)
         const jumpState = await readState(page)
         facts['8-search-jump'] = jumpState
-        const hitRow = await evaluateValue<boolean>(page, '!!document.querySelector("[data-cap-hit]")')
+        const paletteClosed = !(await exists(page, SEL.paletteBackdrop))
         await shot(page, '1846-search-jump.png')
         results.push(observe({
           checkId: 'search-jump',
-          title: '搜索页选中结果只跳到对应入口并高亮，不执行动作',
-          ok: jumped && hitRow === true,
-          detail: '选中 ' + String(pickId) + '（来源页 ' + String(pickGroup?.page) + '）→ 当前页 ' + String(jumpState?.root?.page) + '；落点高亮 ' + String(hitRow) + '；页面错误 ' + JSON.stringify(page.pageErrors().slice(0, 2)),
-          expected: '当前页等于该能力所在页，且能力清单里那一行带 data-cap-hit',
+          title: '搜索页选中一条结果就跳到那条能力的页面，不在搜索页执行动作',
+          ok: jumped && paletteClosed,
+          detail: '选中 ' + String(pickId) + '（来源页 ' + String(pickGroup?.page) + '）→ 当前页 ' + String(jumpState?.root?.page) + '；命令面板已关 ' + String(paletteClosed) + '；页面错误 ' + JSON.stringify(page.pageErrors().slice(0, 2)),
+          expected: '当前页等于该能力所在页，命令面板不在',
           actual: JSON.stringify(jumpState?.root ?? null),
         }))
 
@@ -547,6 +556,7 @@ export default defineScenario<ScenarioContext>({
         const switchedClean = await waitFor(page, '(document.querySelector(' + JSON.stringify(SEL.branchCurrent) + ') || { getAttribute: function () { return "" } }).getAttribute("data-vc-branch-pick") === "dev"', 80, 250)
         const cleanState = await readState(page)
         facts['10-branch-switch-clean'] = cleanState
+        await scrollTo(page, SEL.branchResult)
         const cleanShot = await panelShot(page, raw, '1846-branch-switch-clean.png')
         results.push(observe({
           checkId: 'branch-switch-clean',
@@ -565,6 +575,7 @@ export default defineScenario<ScenarioContext>({
         const confirmShown = await waitFor(page, boolScript(SEL.branchConfirm), 60, 250)
         const confirmState = await readState(page)
         facts['11-branch-switch-confirm'] = confirmState
+        await scrollTo(page, SEL.branchConfirm)
         const confirmShot = await panelShot(page, raw, '1846-branch-switch-confirm.png')
         results.push(observe({
           checkId: 'branch-switch-confirm',
@@ -579,6 +590,7 @@ export default defineScenario<ScenarioContext>({
         const backToMain = await waitFor(page, '(document.querySelector(' + JSON.stringify(SEL.branchCurrent) + ') || { getAttribute: function () { return "" } }).getAttribute("data-vc-branch-pick") === "main"', 80, 250)
         const mainState = await readState(page)
         facts['12-branch-switch-confirm-go'] = mainState
+        await scrollTo(page, SEL.branchResult)
         const mainShot = await panelShot(page, raw, '1846-branch-switch-confirm-go.png')
         results.push(observe({
           checkId: 'branch-switch-confirm-go',

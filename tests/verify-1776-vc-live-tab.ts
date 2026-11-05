@@ -826,6 +826,18 @@ async function scenarioManage() {
   check(!!m4.q('[data-vc-branch-overlay] [data-vc-result="ok"]'), 'T27r 直接执行的结果同样贴在浮层里')
   await m4.unmount()
 
+  // ---- #1846：浮层动作落在「当前这一页」时也要把浮层收起来 ----
+  // 跳页那条路靠 vcRealNavTo 清 open；落在同一个页名时它原样返回，不补一下就会留着一个盖在当前页上的浮层。
+  // 真机复验时正是这样抓到一次（已经在分支页上点浮层里的「新建」，浮层没关）。
+  if (!m.q('[data-vc-gear-index]')) await m.click('[data-vc-gear-btn]')
+  await m.click('[data-vc-gear-item="branch-tags"]')
+  await m.click('[data-vc-branch-btn]')
+  const samePageItem = m.q('[data-vc-branch-overlay] [data-vc-branch-action="create"]')
+  if (samePageItem) await m.click(samePageItem)
+  check(!!samePageItem && m.page() === 'branch-tags' && !m.q('[data-vc-branch-overlay]'), 'T27c2 浮层动作落在当前这一页时同样收起来（同页跳转不会自己清 open）')
+  if (m.depth() === '2') await m.click('[data-vc-back]')
+  if (m.depth() === '2') await m.click('[data-vc-back]')
+
   check(countKin(host, 'wf.gitTaskQuery') >= 1, 'T29 容器轮询任务通道（wf.gitTaskQuery 至少一次）')
   await m.unmount()
 
