@@ -350,9 +350,11 @@ async function main() {
   check(paletteHtml.indexOf('data-cap-primary') >= 0 && paletteHtml.indexOf(tZh('vc.shell.cap.hint')) < 0, '五 命令面板行承担能力入口，不再画「这一行只列能力与命令原文」的旧提示')
   const branchHtml = renderPage(view, { page: 'changes', width: 460, skin: 'dark', open: { branch: true } })
   const branchActions = attrValuesOf(branchHtml, 'data-vc-branch-action')
-  check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchActions.join(',') === 'list,create,delete,merge,rebase', '五 分支悬浮层仍列出五个动作名（顺序不变）')
-  check(/<span[^>]*data-vc-branch-action="list"/.test(branchHtml) && !/<button[^>]*data-vc-branch-action=/.test(branchHtml), '五 分支悬浮层的五个动作是标签不是按钮（没有假按钮）')
-  check(branchHtml.indexOf(tZh('vc.shell.branch.pointer')) >= 0, '五 分支悬浮层给出指路说明（这五个动作在「管理 › 分支与标签」页做）')
+  // #1846：分支浮层多了一段本地分支清单（真按钮、当前分支不可点），「分支列表」不再是一行指路文案。
+  check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchHtml.indexOf('data-vc-branch-branches') >= 0, '五 分支悬浮层带本地分支清单（data-vc-branch-branches）')
+  check(branchActions.join(',') === 'create,delete,merge,rebase', '五 分支悬浮层列出四个指路动作（新建 / 删除 / 合并 / 变基，顺序不变）')
+  check(/<span[^>]*data-vc-branch-action="create"/.test(branchHtml) && !/<button[^>]*data-vc-branch-action=/.test(branchHtml), '五 四个指路动作是标签不是按钮（没有假按钮；分支行按钮另带 data-vc-branch-pick）')
+  check(branchHtml.indexOf(tZh('vc.shell.branch.pointer')) >= 0, '五 分支悬浮层给出指路说明（这四个动作在「管理 › 分支与标签」页做）')
   const copyEntries = COPY_FILES.map(function (file) { return { name: 'config/copy/' + file, text: COPY_RAW[file] } })
   const copyProblems = placeholderProblemsOf(copyEntries)
   check(copyProblems.length === 0, '五 config/copy 全部词表不再出现「后续票 / later ticket」' + (copyProblems.length ? '：' + copyProblems.join('；') : ''))
@@ -647,12 +649,15 @@ async function main() {
       ],
     },
     {
-      label: '分支浮层五个动作项与能力行都能点：点了跳到对应页面并高亮，不自动执行',
+      label: '分支浮层四个指路动作跳页，本地分支行走切换通路，能力行跳页并高亮，都不在浮层里直接执行',
       need: [
         ['delegate', 'data-vc-branch-action'],
+        ['delegate', 'data-vc-branch-pick'],
+        ['delegate', 'branchOverlaySwitch'],
         ['delegate', 'capRow'],
         ['shell', 'branchOverlay'],
         ['act1', 'branchOverlay'],
+        ['act1', 'popoverSwitch'],
       ],
     },
     {

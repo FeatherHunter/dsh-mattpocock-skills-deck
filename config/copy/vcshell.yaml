@@ -100,8 +100,12 @@ zh:
   vc.shell.branch.delete: '删除分支'
   vc.shell.branch.merge: '合并'
   vc.shell.branch.rebase: '变基'
-  vc.shell.branch.pointer: '这五个动作在「管理 › 分支与标签」页做；这里只列出动作名，点进去才是真正操作的地方。'
+  vc.shell.branch.pointer: '「新建 / 删除 / 合并 / 变基」这四个动作在「管理 › 分支与标签」页做；这里只列出它们的名字，点进去才是真正操作的地方。'
   vc.shell.branch.close: '关闭分支浮层'
+  vc.shell.branch.branchesHint: '点一条分支切过去：先做预检，工作区有未提交改动时会先问一次。'
+  vc.shell.branch.branchPick: '切换到分支 {branch}'
+  vc.shell.branch.branchCurrentHint: '{branch} 是当前分支，不用切'
+  vc.shell.branch.branchEmpty: '还没读到本地分支：等首屏读数回来，或打开「管理 › 分支与标签」页查看完整清单。'
   # 分支与标签页（#1858 按定稿原型 38 核对：页头由页面壳画，正文三段 + 页尾写动作折叠区）
   vc.shell.branch2.section.branches: '分支'
   vc.shell.branch2.section.tags: '标签'
@@ -723,8 +727,12 @@ en:
   vc.shell.branch.delete: 'Delete branch'
   vc.shell.branch.merge: 'Merge'
   vc.shell.branch.rebase: 'Rebase'
-  vc.shell.branch.pointer: 'The five actions live on the "Manage › Branches and tags" page; this overlay only lists their names. Open that page to act on a branch.'
+  vc.shell.branch.pointer: 'The four actions (create / delete / merge / rebase) live on the "Manage › Branches and tags" page; this overlay only lists their names. Open that page to act on a branch.'
   vc.shell.branch.close: 'Close branch overlay'
+  vc.shell.branch.branchesHint: 'Pick a branch to switch to it: a pre-check runs first, and you are asked once when the working tree has uncommitted changes.'
+  vc.shell.branch.branchPick: 'Switch to branch {branch}'
+  vc.shell.branch.branchCurrentHint: '{branch} is the current branch, no switch needed'
+  vc.shell.branch.branchEmpty: 'No local branches read yet: wait for the first-screen read, or open "Manage › Branches and tags" for the full list.'
   # Branches and tags page (#1858, checked against prototype 38: the shell draws the page head,
   # the body is three sections plus a write-action fold at the tail).
   vc.shell.branch2.section.branches: 'Branches'

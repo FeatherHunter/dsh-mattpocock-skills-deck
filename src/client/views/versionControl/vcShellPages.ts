@@ -369,7 +369,9 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     paletteOpen: paletteOpen, paletteId: paletteId, gearOpen: gearOpen, gearId: gearId, onOpenHandoff: opts.onOpenHandoff,
     secondary: secondary,
   }), 'identity'))
-  if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch }), 'branch'))
+  // #1846：浮层的本地分支清单直接读首屏快照（seed.slices.workspace.branches），不另发读命令；
+  //   确认卡与结果由管理动作层放在浮层自己的两格上（不挤占分支页那两格）。
+  if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch, seed: seed, confirm: opts.branchPopoverConfirm, result: opts.branchPopoverResult }), 'branch'))
   // 受控渲染里只剩「旧形状」这一路会画齿轮索引面板（#1840 起真实入口改成打开独立索引屏）：
   //   身份行下面那块浮层仍按 open.gear 或「管理分区页未开次级版式」渲染，供全页自检与 Z 组断言使用。
   if (gearOverlay) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))

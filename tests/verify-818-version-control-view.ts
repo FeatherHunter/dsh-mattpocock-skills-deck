@@ -1363,7 +1363,8 @@ async function main() {
   check(darkHtml.indexOf('data-vc-identity="1"') >= 0 && darkHtml.indexOf('data-vc-sync="1"') >= 0 && darkHtml.indexOf('data-vc-search-entry="1"') >= 0, 'Z12a 身份行、同步带、全局搜索入口都在壳上')
   const branchHtml = shellHtmlOf({ page: 'changes', width: 460, skin: 'dark', open: { branch: true } })
   const branchActions = attrValuesOf(branchHtml, 'data-vc-branch-action')
-  check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchActions.join(',') === 'list,create,delete,merge,rebase', 'Z12b 分支悬浮层画出五个动作（列表 / 新建 / 删除 / 合并 / 变基）')
+  // #1846：分支浮层的「分支列表」那一行由真的本地分支清单取代；其余四个动作仍是名字与指路。
+  check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchHtml.indexOf('data-vc-branch-branches') >= 0 && branchActions.join(',') === 'create,delete,merge,rebase', 'Z12b 分支悬浮层画本地分支清单与四个指路动作（新建 / 删除 / 合并 / 变基）')
   let deepOk = true
   const deepKeys = Object.keys(VIEW.VC_DEEP_LINKS)
   const deepPageIds = VIEW.PAGE_SURFACES.map(function (p2) { return p2.id })
