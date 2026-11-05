@@ -1,16 +1,24 @@
-// graph-blocking.ts —— 以后改阻塞关系语义时改它：阻塞成对写格式、原生 blocked_by 探测、读合并写回退、环检、阻塞读写两操作。
-// 共享的原始票读取（fetchRawIssue）住在 issues/read.ts 一处（#1914）：本文件与亲缘文件都从那里取，不再各建一份。
-// 仓库标识不再住本文件，统一从 model/repo-identity.ts 取（#1910）。
+/**
+ * src/tracker/rooms/gitlab/graph-blocking.ts —— 阻塞关系的写半边：设置阻塞边的两条路、环检与滚回。
+ *
+ * 写的时候两条路：原生 is_blocked_by 可达就逐条真写（POST 加、DELETE 删），写后读回核对；
+ * 远端没能力（403/404/premium 字样）且滚回干净时，回退重写正文里的成对两行
+ * （可见 `Blocked by:` 行 + 隐藏机器表）。环检是两条路共用的一道门；读不到的节点当叶子。
+ *
+ * 读半边（getDependencies、原生阻塞能力探测 tryNativeBlockedBy、对端状态落实 resolveBlockerStates）
+ * 已搬进 graph/read.ts（#1917）；本文件需要时从那里取，不在本文件再养一份。
+ * 共享的原始票读取（fetchRawIssue）住在 issues/read.ts 一处（#1914）；
+ * 仓库标识住 model/repo-identity.ts（#1910）；正文成对写法住 model/description-markers.ts。
+ */
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { BackendContext, OpContext } from '../../contract/contexts.js'
-import type { Issue, IssueRef, RepositoryRef } from '../../contract/entities.js'
-import type { ErrorKind, IssueType, State } from '../../contract/identity.js'
-import type { DepsOpts, SetOpts } from '../../contract/inputs.js'
-import { TRACKER_ERROR_STAGE, type Dependencies, type OpResult } from '../../contract/results.js'
+import type { Issue } from '../../contract/entities.js'
+import type { ErrorKind } from '../../contract/identity.js'
+import type { SetOpts } from '../../contract/inputs.js'
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
-// 正文阻塞的回退读与成对写只在 model/description-markers.ts 一处，本文件直接用那个出处。
+// 正文阻塞的回退写与环检快照只在 model/description-markers.ts 一处，本文件直接用那个出处。
 import { parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from './model/description-markers.js'
 import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
@@ -18,58 +26,16 @@ import { issuePath, linksPath } from './queries.js'
 import { fetchRawIssue } from './issues/read.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
 import { repoRefId } from './model/repo-identity.js'
+// 读端点也走根目录请求边界：本文件只保留写端点的拼装，读一边不再自己拼 glab 参数。
+import { requestIssueLinks } from './requests.js'
+// 原生探测与对端状态落实住在关系读 module（#1917）：两条写路径都从那里取，不复制。
+import { tryNativeBlockedBy, resolveBlockerStates } from './graph/read.js'
+import type { CtxLike, RawBag, RepoLike } from './graph/read.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 import { PAGINATION } from '../../contract/pagination.js'
 
-// 仓库身份只取 refId/name，是因为阻塞读写只认这两样，拿全量会把 effortId 搅进来。
-type RepoLike = Partial<RepositoryRef> | null | undefined
-// 上下文两形都收，是因为调用方有时把执行器放在 ctx、有时放在 opCtx，缺了就让 glabClient 按 127 回。
-type CtxLike = Partial<OpContext> & Partial<BackendContext>
-type RawBag = Record<string, unknown>
-
-// 远端回包先收成袋再读，是因为 links/iid 等字段可缺可空，直接按定型读会把缺字段当成错。
-interface NativeProbe {
-  native: RawBag[] | null
-  probeFailed: boolean
-  nativeEmpty?: boolean
-}
-
-// 正文阻塞读写不自立认法：回退读（机器表优先、可见行兜底）与成对写的形状都在 model/description-markers.ts 一处，
-// 读回退、环检快照、回退写三处都调同一份，避免认法分叉。
-
-async function tryNativeBlockedBy(
-  opCtx: CtxLike | null | undefined,
-  refId: string,
-  key: string,
-): Promise<NativeProbe> {
-  // 试原生：GET .../blocked_by 或 links过滤 is_blocked_by
-  // GitLab原生blocking仅Premium；free返回403/404
-  const c = glabClient(opCtx as Partial<OpContext> & Partial<BackendContext>)
-  // 先试 links filtered
-  const res = await c.run(['api', linksPath(refId, key)], { timeout: GITLAB_READ_TIMEOUT_MS })
-  // 探针读不出（403/404/超时/回包形状不对）都只表示「这次探测不到原生」，交给回退路径；
-  // 真写阶段的 500/超时另按故障如实失败，不滑进回退（见 isNativeCapabilityError 的注释）。
-  if (res.code !== 0) return { native: null, probeFailed: true }
-  try {
-    const links: unknown = JSON.parse(res.stdout) as unknown
-    if (Array.isArray(links)) {
-      const blocked = (links as RawBag[]).filter(
-        (l) => String(l['link_type'] || '').toLowerCase() === 'is_blocked_by',
-      )
-      if (blocked.length > 0) return { native: blocked, probeFailed: false }
-      // 若有 links 但无 is_blocked_by，视为原生空（忽略回退）
-      // 需判断是否有 blocking 能力：若 links 端点可达，说明 free也有 relates_to，此时对 blocking 仍应判无原生能力
-      // 简化：仅当 filtered is_blocked_by 有值才用原生；否则视为无原生， fallback
-      return { native: null, probeFailed: false, nativeEmpty: true }
-    }
-  } catch {
-    // 读不出链接形状就按探针失败走回退，不拦主流程。
-  }
-  return { native: null, probeFailed: true }
-}
-
-// 环检：DFS对blockedBy图（Kahn简化版，针对增量检测），新边连出环就拦下这次写。
+// 环检：DFS 对 blockedBy 图（Kahn 简化版，针对增量检测），新边连出环就拦下这次写。
 function hasCycle(allBlockedByMap: Map<string, string[]>, startKey: string, newBlockers: string[]): boolean {
   const graph = new Map<string, string[]>()
   for (const [k, v] of allBlockedByMap) graph.set(k, [...v])
@@ -109,41 +75,6 @@ function isNativeCapabilityError(res: { code: number; stdout: string; stderr: st
   return /(^|\D)(403|404)(\D|$)|premium|blocked issues|not available/.test(s)
 }
 
-// 对端已知表：title 能从原生行直接拿，state 只有行里写明了才信（行里没写就逐张取对端票面，不猜）。
-interface BlockerKnown {
-  title?: string
-  state?: State
-}
-
-// 对端状态：key -> { title, state }，title 取不到退回 `#key`。
-// 取不到对端（删了/没权限）时 state 按 open 记：这是保守方向——不知道对端关没关，就当它还开着继续挡路；
-// frontier 因此可能少放行，不会多放行。这个保守选择写在这里，调用方不用再猜。
-async function resolveBlockerStates(
-  effective: CtxLike | undefined,
-  id: string,
-  keys: string[],
-  known: Map<string, BlockerKnown>,
-): Promise<IssueRef[]> {
-  const out: IssueRef[] = []
-  for (const k of keys) {
-    const hit = known.get(k)
-    if (hit && hit.state) {
-      out.push({ key: k, title: hit.title || `#${k}`, state: hit.state, type: 'issue' as IssueType })
-      continue
-    }
-    try {
-      const raw = (await fetchRawIssue(effective, id, k)) as unknown as RawBag
-      const st: State = raw['state'] === 'closed' ? 'closed' : 'open'
-      const rawTitle = raw['title']
-      const title = typeof rawTitle === 'string' && rawTitle ? rawTitle : (hit && hit.title) || `#${k}`
-      out.push({ key: k, title: title, state: st, type: 'issue' as IssueType })
-    } catch {
-      out.push({ key: k, title: (hit && hit.title) || `#${k}`, state: 'open' as State, type: 'issue' as IssueType })
-    }
-  }
-  return out
-}
-
 // 环检用的阻塞图：先拉一页快照（正文行优先、回包 blocked_by 数组次之），
 // 再从本次要写的阻塞出发沿边展开，把沿途各票的原生边并进来，最后统一交给 hasCycle 判定。
 // 这样正文行世界的环与原生边织成的环都拦得住；读不到的节点当叶子——那一段藏着环就拦不住，这个缺口认。
@@ -156,7 +87,7 @@ async function buildBlockMap(
   void selfKey
   const map = new Map<string, string[]>()
   try {
-    const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
+    const c = glabClient(effective as CtxLike)
     const listRes = await c.run(['api', `projects/${encodeURIComponent(id)}/issues?per_page=${PAGINATION.gitlab.maxPerPage}`], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (listRes.code === 0) {
       let arr: unknown = []
@@ -215,7 +146,7 @@ async function writeNativeBlockedBy(
   classifyCtx: CtxLike | null | undefined,
 ): Promise<{ ok: true } | { ok: false; fallback: boolean; message: string; raw: unknown }> {
   void classifyCtx
-  const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
+  const c = glabClient(effective as CtxLike)
   const keyOf = (l: RawBag): string => String(l['iid'] ?? l['target_issue_iid'] ?? l['key'] ?? '')
   const currentKeys = current.map(keyOf).filter(Boolean)
   const linkIdOf = (k: string): string => {
@@ -277,79 +208,6 @@ async function writeNativeBlockedBy(
 }
 
 /**
- * 读一张票被谁阻塞：原生 is_blocked_by 有值就用原生，否则回退读 Blocked by 行。
- *
- * @param ctx 调用上下文（opCtx 缺时顶上）
- * @param repo 目标仓库（只取 refId/name）
- * @param key 票号（iid 字符串）
- * @param opts 批量选项（今天只用单票，keys 由宿主缓存层处理）
- * @param opCtx 本次调用的上下文（优先用它）
- */
-export async function getDependencies(
-  ctx: CtxLike | null | undefined,
-  repo: RepoLike,
-  key: string,
-  opts: DepsOpts | null | undefined,
-  opCtx: CtxLike | null | undefined,
-): Promise<OpResult<Dependencies>> {
-  void opts
-  const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoRefId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'getDependencies: repo.refId missing', '')
-  const k = String(key)
-  try {
-    // 读当前 issue 的 blockedBy（走原生优先→回退）
-    let raw: RawBag | null = null
-    try {
-      raw = await fetchRawIssue(effective, id, k)
-    } catch (e: unknown) {
-      // 原文 = 读票面失败的那个 Error（它身上带着 glab 的 stderr/stdout）。
-      return failGlab(e, errMsg(e), e, effective)
-    }
-    // 尝试原生
-    let blockedKeys: string[] = []
-    // 原生行原样留一份：行里写明的标题与开关状态直接当已知，不再逐张取对端。
-    let nativeRows: RawBag[] = []
-    try {
-      const probe = await tryNativeBlockedBy(effective, id, k)
-      if (probe.native && probe.native.length > 0) {
-        nativeRows = probe.native
-        blockedKeys = probe.native.map((b) => String(b['iid'] || b['target_issue_iid'] || b['key'] || ''))
-      } else if (probe.nativeEmpty) {
-        // 原生空但可达 → 按#144合并策略：原生有值忽略回退，原生空时只用回退？此处links可达但blocking原生不可达，仍用回退
-        const fromLine = parseBlockedByFallback((raw && (raw['description'] || raw['body'])) || '')
-        if (fromLine !== null) blockedKeys = fromLine
-      } else if (probe.probeFailed) {
-        const fromLine = parseBlockedByFallback((raw && (raw['description'] || raw['body'])) || '')
-        if (fromLine !== null) blockedKeys = fromLine
-      } else {
-        const fromLine = parseBlockedByFallback((raw && (raw['description'] || raw['body'])) || '')
-        if (fromLine !== null) blockedKeys = fromLine
-      }
-    } catch {
-      const fromLine = parseBlockedByFallback((raw && (raw['description'] || raw['body'])) || '')
-      if (fromLine !== null) blockedKeys = fromLine
-    }
-
-    // 对端状态逐张落实：原生行里写明了开关才信，没写明的逐张取对端票面；取不到的按开着记（保守方向，见 resolveBlockerStates）。
-    const known = new Map<string, BlockerKnown>()
-    for (const b of nativeRows) {
-      const kk = String(b['iid'] || b['target_issue_iid'] || b['key'] || '')
-      if (!kk) continue
-      const title = typeof b['title'] === 'string' && b['title'] ? String(b['title']) : `#${kk}`
-      const st = b['state']
-      known.set(kk, typeof st === 'string' && (st === 'open' || st === 'closed') ? { title: title, state: st as State } : { title: title })
-    }
-    const blockedBy: IssueRef[] = await resolveBlockerStates(effective, id, blockedKeys.map((kk) => String(kk)), known)
-    // blocking反向聚合由宿主投影，此处仅返回便利投影：blocking=[]（后端不维护第二真相）
-    return { ok: true, data: { blockedBy, blocking: [] } }
-  } catch (err: unknown) {
-    // 原文 = 抛上来的那个 Error 对象本身。
-    return failGlab(err, errMsg(err), err, effective)
-  }
-}
-
-/**
  * 写阻塞：自环先拦，两条写路径共用同一道环检；原生可达时走原生边真写（上限路径，写后读回核对），
  * 探针失败或远端没能力时滑进正文行回退（滚回不干净就不滑，如实失败）。
  *
@@ -394,7 +252,7 @@ export async function setBlockedBy(
     // 探针活着 → 走上限：原生边真写。正文行在上限路径下只当回退写，不再当正典读。
     const probe = await tryNativeBlockedBy(effective, id, k)
     const oldBody = String(raw['description'] || raw['body'] || '')
-    // 免费档形状（links 端点通、is_blocked_by 零条）下，读路径（getDependencies 的 nativeEmpty 分支）以正文成对行为真相；
+    // 免费档形状（links 端点通、is_blocked_by 零条）下，读路径（graph/read.ts 的 getDependencies）遇到原生零条时以正文成对行为真相；
     // 写路径不能把「原生零条」当成已经取消：writeNativeBlockedBy 在 wanted=[]、current=[] 时是空操作，
     // 什么都不写就报成功，正文两行原样留着（#1801）。用「拆空后正文会变」判断正文里真有可拆的写法，
     // 有就跳过原生写，走下面的正文回退删行。
@@ -440,7 +298,7 @@ export async function setBlockedBy(
     // 回退路径：重写 description 的阻塞对（可见 Blocked by: 行 + 隐藏机器表，环检已在上面两条路径共用那道门里做过，这里不再做第二次）。
     const newBody = rewriteDescriptionWithBlockedPair(oldBody, wanted)
 
-    const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
+    const c = glabClient(effective as CtxLike)
     // 换行按真换行发：远端存什么读回就是什么，读回的解析才对得上。旧代码在这里把换行转成字面 `\n`，
     // 多行正文走这条路会被破坏（读回整段变成一行，正文丢格式），2026-10-15 查实并修。
     const putRes = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: GITLAB_READ_TIMEOUT_MS })
@@ -465,7 +323,8 @@ export async function setBlockedBy(
     const ub = updatedRaw !== null && typeof updatedRaw === 'object' ? (updatedRaw as RawBag) : ({} as RawBag)
     if (!ub['links']) {
       try {
-        const linksRes = await glabClient(effective as Partial<OpContext> & Partial<BackendContext>).run(['api', linksPath(id, k)], { timeout: GITLAB_PROBE_TIMEOUT_MS })
+        // 读链接也走请求边界（#1917）：路径与 method 只在 requests.ts 一处，这里只给领域值与超时。
+        const linksRes = await requestIssueLinks(effective, id, k, GITLAB_PROBE_TIMEOUT_MS)
         if (linksRes.code === 0) {
           try {
             ub['links'] = JSON.parse(linksRes.stdout) as unknown
@@ -495,4 +354,3 @@ export async function setBlockedBy(
     return failGlab(err, errMsg(err), err, effective)
   }
 }
-
