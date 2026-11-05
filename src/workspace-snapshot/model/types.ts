@@ -180,6 +180,30 @@ export interface ListProjection {
   issues: ListIssue[]
 }
 
+/**
+ * 面板顶上的六个数字，从库里一次查询算出（#1887，规格 #1885 §7）。
+ *
+ * 口径（与 projection/counts.ts 的 SQL 一一对应，改一处必须改另一处）：
+ *  - 只数「有 row 组记录、没被墓碑标记、不是拉取请求」的票；PR 身份未知的票按工单算，
+ *    与界面 ticketRowsOf 的工单口径一致；
+ *  - total 是全部；open / closed 按状态严格比（状态未知的票进 total，不进 open / closed）；
+ *  - 可接 / 阻塞 / 已认领只数还开着的票：已关闭的票不再可接、不再算阻塞，也不算在办认领；
+ *  - 可接 = 开放、指派组完整且为空、没有未关闭（或状态未知 / 不存在）的阻塞者；
+ *  - 阻塞 = 开放、至少一个阻塞者不是已关闭（目标不存在也算阻塞，与派生统计的 NOT-FOUND 口径一致）；
+ *  - 已认领 = 开放、至少一个指派人；
+ *  - completeness 来自库级同步簿记的「整仓完整枚举时刻」：写过 = complete，没写过 = known。
+ *    「已知」是诚实的下界，不是 0，也不是「真的只有这么多」。
+ */
+export interface SnapshotCounts {
+  total: number
+  open: number
+  closed: number
+  takeable: number
+  blocked: number
+  claimed: number
+  completeness: 'complete' | 'known'
+}
+
 /** 列表查询参数。state 缺省为 open；all 表示不筛状态。limit 缺省不限制。 */
 export interface ListQuery {
   state?: 'open' | 'closed' | 'all'

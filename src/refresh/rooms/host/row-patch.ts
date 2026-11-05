@@ -13,7 +13,7 @@
 //   · 整池只剩三处：冷启动、每 10 分钟对账、票号增减。本文件遇到后两种只回一句「该整池了」，自己不发大查询；
 //   · 水印只在变化真正并进列表之后才推进（delta.watermarkAfter）；
 //   · 每工作区一个世代号，迟到的整池结果不许覆盖更新的增量结果（admitSnapshot 与 run 两处都过 delta.admitResult）；
-//   · **deck.counts 是整仓口径，增量路径不许本地重算**，只许保持旧值并把 deck.partial 置真（票面点名的红线）。
+//   · **六个数字是整仓口径，增量路径不许本地重算**：数字由库一次查询算，随变化集回包一起交给界面（#1887）。
 //
 // 为什么这一整块必须留 JS 而不是进 TS：它要真去 `gh api` 取数、要读写本地快照库。
 // 纯逻辑进 TS、取数与落盘留 JS 是本仓库既定的分工（docs/adr/20260913-builtin-ts-shape.md §2.7）。
@@ -303,9 +303,9 @@ export function createPatch(deps?: PatchDeps | null): any {
     const derived: any = delta.derivedAfter('patch')
     const deck: any = Object.assign({}, (latest.deck && typeof latest.deck === 'object') ? latest.deck : {})
     if (derived.markPartial) deck.partial = true
-    // #1698 计数诚实：增量路径拿不到整仓计数，deck.counts 保持旧值（对象引用都不动），
-    //   只标 countsPending —— 界面据此说「上次校准：时间（数字待校准）」，不显示假数字。
-    deck.countsPending = true
+    // #1887：这里不本地重算六个数字，也不留「待校准」标记 —— 数字由库一次查询算：
+    //   变化集回包会带上同一时刻的 deck.counts（见 snapshot-read-channels），界面随变化行一起换掉；
+    //   这一趟的快照只是内部基线，不交付给界面。
     const wv: any = delta.watermarkAfter({ previousMs: latestState.watermarkMs || watermarkMs, scanStartedMs: scanStartedMs, outcome: 'merged' })
     // #1692：写回前按上限淘汰按需细节。本轮真拿到的行打新时间戳，其余沿用旧戳；
     // 淘汰只删内容字段、留「曾取过」记号，行与三类边、计数一个不动（规则住 kernel/detail-eviction.ts）。
@@ -430,9 +430,7 @@ export function createPatch(deps?: PatchDeps | null): any {
     const derived: any = delta.derivedAfter('patch')
     const deck: any = Object.assign({}, (latest.deck && typeof latest.deck === 'object') ? latest.deck : {})
     if (derived.markPartial) deck.partial = true
-    // #1698 计数诚实：增量路径拿不到整仓计数，deck.counts 保持旧值（对象引用都不动），
-    //   只标 countsPending —— 界面据此说「上次校准：时间（数字待校准）」，不显示假数字。
-    deck.countsPending = true
+    // #1887：与 run() 同一口径：不本地重算、不留待校准；数字随变化集回包从库来。
     const changedKeys: any[] = merged.changes.updated.concat(merged.changes.added)
     // #1692：同 run()，写事件这条写回前也按上限淘汰按需细节；本轮写回执拿到的行算「刚取到」。
     const ev: any = evictForWrite(merged.snapshot, got.rows)

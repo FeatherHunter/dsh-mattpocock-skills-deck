@@ -329,17 +329,9 @@ export     const ListTab = ({ st, narrow }: any) => {
         : (filters.stateFilter === 'frontier' ? openFiltered.filter(function (x: any) { return !isOccupied(st, x) }) : openFiltered)) : []
       const filteredClosed = showClosedList ? ((filters.lblFilters && filters.lblFilters.length) ? closedRows.filter(byLabel) : closedRows) : []
       // KPI 口径：与全局一致，但跟随 effort 筛选（未选 effort 时就是全局）
-      // #689：两个数字优先读宿主给的后端计数（deck.counts）—— 「已关闭」直接是它；「可接」= 后端说的未关闭
-      //   张数减去本地数出来的阻塞（阻塞要逐票看指派人、看有没有开放阻塞者，后端计数给不了）。
-      //   拿不到计数、或界面带着筛选时退回按池子派生：deckCountsOf 那时会返回 null（全仓数字与筛过的一屏
-      //   不是一个口径），宁可退回派生值，也不拿全仓数字冒充筛过的数字。
-      // #1698 计数诚实：数字由 kpiCountsOf 统一投影（宿主说这份清单不全、整仓数字又拿不到时回 null）——
-      //   此时显示「未知」而不是 0；待校准时给数字挂一句「上次校准：时间」，老快照/带筛选时口径不变。
-      const clockTextOf = function (ms: any): any {
-        const d = new Date(ms)
-        const p = function (n: any): any { return (n < 10 ? '0' : '') + n }
-        return p(d.getHours()) + ':' + p(d.getMinutes())
-      }
+      // #1887：数字只有一个来源 —— 快照库的六个数字（deck.counts）。可接/阻塞/已关闭直接读它；
+      //   拿不到（旧快照）或界面带着筛选时退回按池子派生，并如实标 complete=false。
+      //   「库没取全」时不再显示「待校准」，而是明说「已知 N 张（未取全）」——那是诚实的下界。
       const kpiFiltered = !!((filters.effFilters || []).length)
       const kpiOpenScoped = openIssuesOf(st).filter(effPass)
       const kpiOcc = kpiOpenScoped.filter(function (x: any) { return isOccupied(st, x) }).length
@@ -348,10 +340,11 @@ export     const ListTab = ({ st, narrow }: any) => {
       // #1894：不带工作单元筛选时，KPI 三数直接读视图模型的 counts（与状态栏同一份）；带上筛选时
       //   仍走原来那条按池子派生的路，数字口径不变（视图模型的 counts 是全仓读数，不跟着筛选缩）。
       const kpiState = (!kpiFiltered && deckCounts && deckCounts.kpi) ? deckCounts.kpi : ((typeof kpiCountsOf === 'function' ? kpiCountsOf(st, kpiFiltered, kpiLocal) : null) ||
-        { takeable: kpiLocal.open - kpiLocal.occupied, closed: kpiLocal.closed, unknown: false, pending: false, atMs: 0 })
-      const kpiFrontier = kpiState.takeable
-      const kpiClosed = kpiState.closed
-      const kpiHint = kpiState.pending ? tr('list.countsPendingTitle', { time: kpiState.atMs > 0 ? clockTextOf(kpiState.atMs) : '—' }) : (kpiState.unknown ? tr('list.countsUnknownTitle') : '')
+        { takeable: kpiLocal.open - kpiLocal.occupied, blocked: kpiOcc, claimed: 0, closed: kpiLocal.closed, total: kpiLocal.open + kpiLocal.closed, open: kpiLocal.open, complete: false, unknown: false, occupied: kpiOcc })
+      // 「阻塞」这一格：库给了确定的 blocked 就用它；老快照没有那一格时退回本地占用数（不编一个数）。
+      const kpiBlocked = (typeof kpiState.blocked === 'number') ? kpiState.blocked : kpiOcc
+      // 库没经历过完整枚举（complete=false）时明说这是「已知」的下界：数字有，但只是手上这份数据算出来的。
+      const kpiKnownPartial = kpiState.complete === false && typeof kpiState.total === 'number'
       // 折叠行那两个数：N（一共多少张）来自后端计数、x（列表里已经加载了多少张）就是手上这些行。
       //   带任何筛选时 N 退回手上的行数 —— 后端给的是全仓总数，与筛过的列表对不上会让人以为少了票。
       const foldCounts = deckCountsOf(st, !!(((st.effFilters || []).length) || ((st.lblFilters || []).length)))
@@ -381,12 +374,14 @@ export     const ListTab = ({ st, narrow }: any) => {
         // B Timeline 定版（2026-08-28）：全屏红卡（NoRepoCard）不再挂载于列表页顶部——
         //   远端未关联/环境未就绪由检查页行内红卡表达，列表页保持 KPI + 列表（无顶部错误信息）
         // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
-        // #1698：待校准/未知的说明走 Tip 薄预设（views 目录的 title 处数有上限，别再新增 title）。
+        // #1887：计数不再有「待校准」这一档；库没取全时直接在 KPI 行里说「已知 N 张（未取全）」。
         (function () {
           const kpiRow = h('div', { 'data-list-head': 'kpi', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
-          kpi(kpiFrontier, tr('list.kpi.takeable'), 'target', '#4ade80'),
-          kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
-          kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
+          kpi(kpiState.takeable, tr('list.kpi.takeable'), 'target', '#4ade80'),
+          kpi(kpiBlocked, tr('list.kpi.blocked'), 'lock', '#f0883e'),
+          kpi(kpiState.closed, tr('list.kpi.closed'), 'check', '#52525b'),
+          // #1887：库没取全时明说「已知 N 张（未取全）」；取全了就不画这句（直接说数字）。
+          kpiKnownPartial ? h('span', { key: 'countsKnownPartial', 'data-list-counts-known': '1', style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('list.countsKnownPartial', { n: String(kpiState.total) })) : null,
           // #1699：当前取数是否走了 REST 通道，不再画成占一行的横幅（历史在通知中心），改成这一行里的一枚小标识；
           //   说哪一句仍由 truthLines 的 restFallbackView 给（超一小时改口「上次…」、只有配额才提配额），这里只负责画。
           h(FallbackMark, { key: 'fallbackMark', st: st }),
@@ -423,7 +418,7 @@ export     const ListTab = ({ st, narrow }: any) => {
           })(),
           // T2 #2：刷新按钮已上移至面板 tabs 行（页内浮窗退役后，面板只有右侧边栏这一处）
           ])
-          return kpiHint ? h(Tip, { content: kpiHint }, kpiRow) : kpiRow
+          return kpiRow
         })(),
         // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
         // md目录签（仅多 effort 仓库出现）：一次只看一个工作单元，再点同一颗回到全部；与状态/label 过滤叠加。

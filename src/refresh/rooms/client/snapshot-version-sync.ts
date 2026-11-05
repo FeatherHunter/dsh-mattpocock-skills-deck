@@ -380,7 +380,7 @@ function syncPortsOf(ctx: any): SnapshotVersionPorts {
     merge: function (input: any): any {
       const applyChanges = ctx.scope.applyChanges
       if (typeof applyChanges !== 'function') return null
-      const merged = applyChanges(ctx.st && ctx.st.snapshot, input.reply.changed, input.reply.missing, { idOf: ctx.scope.idOf })
+      const merged = applyChanges(ctx.st && ctx.st.snapshot, input.reply.changed, input.reply.missing, { idOf: ctx.scope.idOf, counts: input.reply.counts })
       if (!merged) return null
       syncInstallMerged(ctx, merged)
       return { version: syncVersionNumber(input.reply.version) }

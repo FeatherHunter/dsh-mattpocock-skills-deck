@@ -109,7 +109,7 @@ function changeSameValue(a: any, b: any): boolean {
  * options.idOf 是票身份算法（(effortId, key) 现算一把），由调用方从闭包里的那一份传进来：
  * 这一片不能运行时 import，也不该自己再写一份身份算法。
  */
-export function applySnapshotChangeSet(snapshot: any, changes: any, missing: any, options: { idOf: (row: any) => string }): SnapshotChangeMerge | null {
+export function applySnapshotChangeSet(snapshot: any, changes: any, missing: any, options: { idOf: (row: any) => string, counts?: any }): SnapshotChangeMerge | null {
   if (!snapshot || snapshot.ok !== true || !Array.isArray(snapshot.maps) || !Array.isArray(snapshot.issues)) return null
   if (!options || typeof options.idOf !== 'function') return null
   const identity = options.idOf
@@ -204,5 +204,14 @@ export function applySnapshotChangeSet(snapshot: any, changes: any, missing: any
     if (hit) removed.push(id)
   })
 
-  return { snapshot: Object.assign({}, snapshot, { maps: maps, issues: issues, thinTickets: thin }), redrawn: redrawn, removed: removed }
+  // #1887：变化集回包带着库的六个数字。换行与换数字必须在同一次合并里落地：
+  //   只换行会让界面上的数字落后于列表，只换数字又会在下一次渲染时被旧的 deck 盖回去。
+  const out: any = Object.assign({}, snapshot, { maps: maps, issues: issues, thinTickets: thin })
+  if (options.counts !== undefined) {
+    const deck: any = Object.assign({}, (snapshot.deck && typeof snapshot.deck === 'object') ? snapshot.deck : {})
+    if (options.counts) deck.counts = options.counts
+    else delete deck.counts
+    out.deck = deck
+  }
+  return { snapshot: out, redrawn: redrawn, removed: removed }
 }

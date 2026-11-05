@@ -31,6 +31,7 @@ import type {
   IssueDetailQuery,
   ListProjection,
   ListQuery,
+  SnapshotCounts,
   SnapshotDiagnostic,
 } from '../model/types.js'
 import {
@@ -50,6 +51,7 @@ import { openWritableDatabase, describeError } from './open-schema.js'
 import { readListProjection } from '../projection/list.js'
 import { readIssueDetailProjection } from '../projection/detail.js'
 import { readChangeSetProjection } from '../projection/changes.js'
+import { readCountsProjection } from '../projection/counts.js'
 import { ingestWrites } from './ingest.js'
 import { markMissingTickets } from './tombstone-write.js'
 import {
@@ -262,6 +264,10 @@ export function openWorkspaceSnapshot(
         return { committed: false, reason: 'readonly', mergeVersion: readMergeVersion(db), marked: 0 }
       }
       return markMissingTickets(db, entries, startMergeVersion, now())
+    },
+    readCounts(): SnapshotCounts {
+      ensureOpen()
+      return readCountsProjection(db)
     },
     readList(query?: ListQuery): ListProjection {
       ensureOpen()

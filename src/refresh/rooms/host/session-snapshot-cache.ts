@@ -18,6 +18,8 @@ import { createFailureSegmentNotes } from './failure-segment-notes.js'
 import { createSnapshotDecoration } from './snapshot-decoration.js'
 // #1867：首屏先读本地快照库这件事收在 ./snapshot-library-first-screen.ts（GitHub 与 GitLab 两支路共用）。
 import { firstScreenFromLibrary, type FirstScreenLibrary } from './snapshot-library-first-screen.js'
+// #1887：六个数字由快照库一次查询算出；电话层只负责在库写到最新之后把它挂到 deck 上。
+import { applyDeckCounts } from '../../../tracker/deck-counts.js'
 // #1899：首屏回包的读数（行数/字节数/耗时/版本）与退化原因落在这里记，口径只此一份。
 import {
   applySnapshotReadout,
@@ -123,6 +125,14 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
     } catch (e) { return 0 }
   }
   /**
+   * #1887：库这一刻的六个数字 + 完整度。在线重建时要在「这一趟取回的行写进库」之后再读，
+   * 否则读到的是上一轮的数字。读不到就回 null（界面按「不知道」处理，不补 0）。
+   */
+  async function readLibraryCounts(first: any): Promise<any | null> {
+    if (!first || typeof first.readCounts !== 'function') return null
+    try { return await first.readCounts() } catch (e) { return null }
+  }
+  /**
    * #1835：快照取数失败补一条可回看的历史。
    *
    * 为什么包在外层：snapshotOf 的失败出口只有末尾一个 catch，但成功回包有好几种形状（快照对象、
@@ -221,6 +231,9 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           // 进程在这之前被杀，库仍是上一轮完整数据（不会留下半批）。
           // #1893：取回来的行整批写库，行数进回包（在线重建的进度）。
           const fetchedRows = await commitFetchRows(first); const inner = upcaseSnapStates(res.snapshot)
+          // #1887：库写到最新之后再读一次六个数字，挂到 deck 上；读不到就不挂（不补 0）。
+          const libCounts = await readLibraryCounts(first)
+          if (libCounts) { const deck: any = (inner.deck && typeof inner.deck === 'object') ? inner.deck : {}; applyDeckCounts(deck, libCounts); inner.deck = deck }
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
           let allForList: Row[] = []
           ;(inner.maps || []).forEach(function(m){
@@ -391,6 +404,9 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         if (!res2.ok) { const _e2: Error & { fail?: unknown } = new Error((res2.error && res2.error.message) || 'composeSnapshot failed'); if (res2.fail) _e2.fail = res2.fail; throw _e2 }
         // #1893：同 composer 支路，取回来的行整批写库（编排器成功之后），行数进回包。
         const fetchedRows2 = await commitFetchRows(first); const inner2 = upcaseSnapStates(res2.snapshot)
+        // #1887：与 composer 支路同一口径：写库之后再读一次六个数字，挂到 deck 上。
+        const libCounts2 = await readLibraryCounts(first)
+        if (libCounts2) { const deck2: any = (inner2.deck && typeof inner2.deck === 'object') ? inner2.deck : {}; applyDeckCounts(deck2, libCounts2); inner2.deck = deck2 }
         ;(inner2.maps || []).forEach(function(m){ 
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {

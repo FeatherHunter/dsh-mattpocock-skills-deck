@@ -40,6 +40,7 @@ import {
   closeSnapshotLibraries,
   readLibraryChangeSet,
   readLibraryVersion,
+  readSnapshotCounts,
   readSnapshotReplay,
 } from '../src/refresh/rooms/host/snapshot-library.ts'
 import { createSnapshotReadChannels } from '../src/refresh/rooms/host/snapshot-read-channels.ts'
@@ -120,6 +121,8 @@ function libModule(): any {
     readLibraryVersion,
     readLibraryChangeSet,
     readSnapshotReplay,
+    // #1887：变化集回包要带同一时刻的六个数字 + 完整度，门面必须有这一口。
+    readSnapshotCounts,
     // 首屏助手要求这条写口存在才认这个库门面（有回放时根本不会调到它）；这里给一个不回写的最小实现。
     recordIssueRows: async () => ({ ok: true, rows: 0, mergeVersion: null }),
   }
@@ -246,8 +249,13 @@ async function main(): Promise<void> {
     check(changedReply && changedReply.changed.length + changedReply.missing.length === 3,
       'B11 变化集条数与库里实际变化一致（两行变化 + 一条墓碑）', changedReply && { changed: changedReply.changed.length, missing: changedReply.missing.length })
     const keysOfReply = Object.keys(changedReply || {}).sort().join(',')
-    check(keysOfReply === 'backend,changed,full,missing,version,workspaceKey',
-      'B12 变化集回包的键集只有约定的那几格', keysOfReply)
+    // #1887：变化集回包多带一格 counts（同一时刻的六个数字 + 完整度），其余键不变。
+    check(keysOfReply === 'backend,changed,counts,full,missing,version,workspaceKey',
+      'B12 变化集回包的键集只有约定的那几格（#1887 起多一格 counts）', keysOfReply)
+    const replyCounts = changedReply && changedReply.counts
+    check(!!replyCounts && replyCounts.total === 3 && replyCounts.open === 3 && replyCounts.closed === 0 && replyCounts.claimed === 3
+      && replyCounts.completeness === 'known',
+      'B12b 变化集带着库这一刻的六个数字 + 完整度（与变化行同一次读取）', replyCounts)
 
     // ============================================================
     // 三、行数上限：超过就回「整份」，不给截断的变化集

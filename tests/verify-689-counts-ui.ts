@@ -37,12 +37,17 @@ const sd = await import('file://' + path.join(ROOT, STORE_DERIVED).replace(/\\/g
   check(Array.isArray(sd.ticketRowsOf(null)) && sd.ticketRowsOf(null).length === 0, 'ticketRowsOf 对非数组给空数组（不崩）')
 
   const st = (deck: any) => ({ snapshot: { deck: deck, issues: [] } })
-  const good = sd.deckCountsOf(st({ counts: { open: 30, closed: 650, total: 680 } }), false)
-  check(good && good.open === 30 && good.closed === 650 && good.total === 680, 'deck 里有计数 → 原样读出三个数')
-  check(sd.deckCountsOf(st({ counts: { open: 30, closed: 650, total: 680 } }), true) === null, '界面带着筛选（scoped）→ 返回 null（全仓数字与筛过的一屏不是一个口径）')
-  check(sd.deckCountsOf(st({ partial: true }), false) === null, '没有 counts（旧快照 / 后端不支持）→ 返回 null，调用方退回按池子派生')
-  check(sd.deckCountsOf(st({ counts: { open: -1, closed: 650, total: 649 } }), false) === null, '计数写成负数 → 返回 null（不采信坏数）')
-  check(sd.deckCountsOf(st({ counts: { open: 1.5, closed: 1, total: 2.5 } }), false) === null, '计数写成小数 → 返回 null')
+  const live = { total: 680, open: 30, closed: 650, takeable: 12, blocked: 7, claimed: 3, completeness: 'complete' }
+  const good = sd.deckCountsOf(st({ counts: live }), false)
+  check(good && good.total === 680 && good.open === 30 && good.closed === 650 && good.takeable === 12 && good.blocked === 7 && good.claimed === 3,
+    'deck 里有库计数 → 原样读出六个数字')
+  check(good && good.complete === true && good.completeness === 'complete', '完整枚举过 → 切片标 complete')
+  check(sd.deckCountsOf(st({ counts: Object.assign({}, live, { completeness: 'known' }) }), false).complete === false, '库没取全 → 切片标 known / complete=false')
+  check(sd.deckCountsOf(st({ counts: live }), true) === null, '界面带着筛选（scoped）→ 返回 null（全仓数字与筛过的一屏不是一个口径）')
+  check(sd.deckCountsOf(st({ partial: true }), false) === null, '没有 counts（旧快照）→ 返回 null，调用方退回按池子派生')
+  check(sd.deckCountsOf(st({ counts: Object.assign({}, live, { open: -1 }) }), false) === null, '计数写成负数 → 返回 null（不采信坏数）')
+  check(sd.deckCountsOf(st({ counts: Object.assign({}, live, { open: 1.5 }) }), false) === null, '计数写成小数 → 返回 null')
+  check(sd.deckCountsOf(st({ counts: { open: 30, closed: 650, total: 680 } }), false) === null, '只有老的三数、没有可接/阻塞/已认领 → 返回 null（不拿旧形状充数）')
   check(sd.deckCountsOf(st({ counts: 'yes' }), false) === null && sd.deckCountsOf(null, false) === null, '奇形怪状（字符串 / 没有快照）→ 返回 null（不崩）')
 
 }

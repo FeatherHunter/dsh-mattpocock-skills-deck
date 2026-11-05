@@ -34,6 +34,12 @@ interface SnapshotReadLibrary {
     maxRows: number
     maxAgeMs: number
   }): Promise<any> | any
+  /**
+   * 库这一刻的六个数字 + 完整度（#1887）。变化集只带变化的行，界面拿它把行换掉；
+   * 计数是由全库算的，必须在同一个回包里一起带上，改一行之后数字才能立刻跟着变。
+   * 老门面没有这一口时回包不带 counts（客户端保留手上那份）。
+   */
+  readSnapshotCounts?(input: SnapshotLibraryKeyLike): Promise<any> | any
 }
 
 interface SnapshotLibraryKeyLike {
@@ -240,11 +246,18 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
     if (result.full === true) {
       reply = Object.assign(head, { full: true, reason: textOf(result.reason) || 'no-baseline' })
     } else {
+      // #1887：变化行与六个数字同一个回包。只带变化行的话，界面把行换成新值之后数字还是旧的，
+      // 要等下一次整份快照才对得上 —— 那正是本票要消灭的「数字与列表两种口径」。
+      let counts: unknown = null
+      if (typeof resolved.lib.readSnapshotCounts === 'function') {
+        try { counts = await Promise.resolve(resolved.lib.readSnapshotCounts(keyOf(resolved))) } catch (e) { counts = null }
+      }
       reply = Object.assign(head, {
         full: false,
         changed: Array.isArray(result.changes) ? result.changes : [],
         missing: Array.isArray(result.missing) ? result.missing : [],
       })
+      if (counts && typeof counts === 'object') reply.counts = counts
     }
     // 读数与退化原因都在这一处记：回包已经拼好，字节数就是客户端真正收到的那一份。
     noteChangesReply(logEvent, reply, resolved.workspaceKey, Date.now() - startedAt, projectionMs)

@@ -15,7 +15,7 @@ import { SNAPSHOT_TTL_MS } from '../../../shared/time-config/src/values.js'
 // 空 refId 不能当身份（GitHub / GitLab 只给目录时 describe 回的就是空壳），给不出就问会话。
 import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
 // #1870：刷新要的「上一份快照」与首屏读的是同一件事（开库、读回放、拆包），复用首屏那一份实现。
-import { firstScreenFromLibrary } from './snapshot-library-first-screen.js'
+import { firstScreenFromLibrary, withLibraryCounts } from './snapshot-library-first-screen.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都收在文件顶部：本文件的依赖全部由接线处 index.js 注入（那份是 JS，不检查编译错误），
@@ -169,7 +169,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
        * 编排器是每次请求新建的实例，自带的进程内缓存永远是空的；上一份现在只从本地快照库的回放里取
        * （面板数据只住这一处）。库开不出来、没有回放时回 null，编排层按「没有上次」处理。
        */
-      const previousSnapshotOf = async function (bId: string, ref: RepoRef): Promise<any> {
+      const previousScreenOf = async function (bId: string, ref: RepoRef): Promise<any> {
         // 没有回放是正常的一档（第一次进工作区、库刚被清掉），不是异常；
         // 库开不出来、租约被占、库损坏这些异常由快照库自己的 workspaceSnapshot.* 日志交代，
         // 首屏助手也把「库不可用」折成「这一趟没有回放」，所以这里不另造一条事件。
@@ -181,7 +181,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
           repo: ref,
           force: false,
         })
-        return (screen && screen.replay) ? screen.replay.snapshot : null
+        return screen || null
       }
       try {
         // 第一性原理分发：与 wf.snapshot 同构
@@ -202,14 +202,15 @@ export function createSessionRefresh(deps: RefreshDeps) {
           const { createSnapshotComposer } = await import('../../../host/tracker/snapshot.js')
           // #1446：额度读数口接上了才传；#1439 A2：会话口接上了就经会话取数（没接的两种口 composer 各自保持老形状）。
           const composerOpts: { snapshotTtl: number; budgetReadout?: (backendId: string) => any; openSession?: (cwd: string, o?: { write?: boolean }) => Promise<any>; logCtx?: any } = { snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }
-          if (typeof budgetReadout === 'function') composerOpts.budgetReadout = budgetReadout
-          if (typeof openSession === 'function') composerOpts.openSession = openSession
+          if (typeof budgetReadout === 'function') composerOpts.budgetReadout = budgetReadout; if (typeof openSession === 'function') composerOpts.openSession = openSession
           const composer: Composer = createSnapshotComposer(reg, composerOpts)
-          const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: await previousSnapshotOf(backendId, repoRef), onRows: collectRows })
+          const prevScreen = await previousScreenOf(backendId, repoRef)
+          const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (prevScreen && prevScreen.replay) ? prevScreen.replay.snapshot : null, onRows: collectRows })
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
           // 先提交库，再把新快照交给界面：写库失败就整趟刷新失败，不能让界面显示一份重启后会消失的数据。
           await persistRefreshRows(cwd, backendId, repoRef)
-                    const inner = upcaseSnapStates(res.snapshot)
+          // #1887：行写进库之后再读六个数字并挂到 deck 上（读不到就原样返回，不补 0）。
+          const inner: Inner = await withLibraryCounts(upcaseSnapStates(res.snapshot), prevScreen)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
           let allForList: Row[] = []
           ;(inner.maps || []).forEach(function(m){
@@ -376,14 +377,15 @@ export function createSessionRefresh(deps: RefreshDeps) {
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
         // #1446：回退路径也把额度读数带上，否则面板在回退那一趟看不到后端额度状态（主路径见上方的 composerOpts）。
         const composer2Opts2: { snapshotTtl: number; budgetReadout?: (b: string) => any; openSession?: (cwd: string, o?: { write?: boolean }) => Promise<any>; logCtx?: any } = { snapshotTtl: SNAPSHOT_TTL_MS, logCtx: logCtx || undefined }
-        if (typeof budgetReadout === 'function') composer2Opts2.budgetReadout = budgetReadout
         // #1439 A2：会话门面也交给回退路径，两趟都经 Tracker 操作取数。
-        if (typeof openSession === 'function') composer2Opts2.openSession = openSession
+        if (typeof budgetReadout === 'function') composer2Opts2.budgetReadout = budgetReadout; if (typeof openSession === 'function') composer2Opts2.openSession = openSession
         const composer2: Composer = createComposer2(reg2, composer2Opts2)
-        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: await previousSnapshotOf(backendId2, repoRef2), onRows: collectRows })
+        const prevScreen2 = await previousScreenOf(backendId2, repoRef2)
+        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (prevScreen2 && prevScreen2.replay) ? prevScreen2.replay.snapshot : null, onRows: collectRows })
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
         await persistRefreshRows(cwd, backendId2, repoRef2)
-                  const inner2 = upcaseSnapStates(res2.snapshot)
+        // #1887：与主支路同一口径：写库之后读一次六个数字并挂到 deck 上。
+        const inner2: Inner = await withLibraryCounts(upcaseSnapStates(res2.snapshot), prevScreen2)
         ;(inner2.maps || []).forEach(function(m){ 
           if (m.number == null && m.key != null) { const nn = parseInt(m.key,10); if(!isNaN(nn)) m.number = nn; }
           try {

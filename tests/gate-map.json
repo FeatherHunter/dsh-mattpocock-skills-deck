@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T03:57:26.342Z",
+  "generatedAt": "2026-11-05T04:43:03.540Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 582,
-  "gateCount": 582,
-  "attributedGates": 526,
+  "chainLength": 583,
+  "gateCount": 583,
+  "attributedGates": 527,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 126,
+  "completionRecordedGates": 127,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 919,
+  "graphFileCount": 920,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6765,6 +6765,37 @@
       "reason": "归属来自：静态 import 说明符 5 条"
     },
     {
+      "step": "node tests/verify-1887-counts-from-library.ts",
+      "file": "tests/verify-1887-counts-from-library.ts",
+      "guards": [
+        "config/copy/flow.yaml",
+        "src/client/kernel/deck-view-binding.ts",
+        "src/client/kernel/store-derived.ts",
+        "src/client/views/ListTab.ts",
+        "src/host/tracker/snapshot.ts",
+        "src/refresh/rooms/host/snapshot-library-first-screen.ts",
+        "src/refresh/rooms/host/snapshot-library.ts",
+        "src/tracker/deck-counts.ts",
+        "src/workspace-snapshot/projection/counts.ts",
+        "src/workspace-snapshot/runtime/open.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "src/client/kernel",
+        "src/client/views",
+        "src/host/tracker",
+        "src/refresh/rooms/host",
+        "src/tracker",
+        "src/workspace-snapshot/projection",
+        "src/workspace-snapshot/runtime"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 52,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 10 条）"
+    },
+    {
       "step": "node tests/verify-1888-changes-to-store.ts",
       "file": "tests/verify-1888-changes-to-store.ts",
       "guards": [
@@ -6814,7 +6845,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 42,
+      "expectedAssertions": 43,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 9 条）"
     },
     {
@@ -9835,21 +9866,17 @@
       "file": "tests/verify-counts-honesty.ts",
       "guards": [
         "src/client/kernel/store-derived.ts",
-        "src/client/views/ListTab.ts",
-        "src/host/tracker/snapshot.ts",
         "src/tracker/deck-counts.ts"
       ],
       "dirs": [
         "src/client/kernel",
-        "src/client/views",
-        "src/host/tracker",
         "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 59,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+      "expectedAssertions": 30,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-ctx.ts",
@@ -13653,6 +13680,7 @@
       "node tests/verify-1661-banner-singleline.ts",
       "node tests/verify-1837-legend-browser.ts",
       "node tests/verify-1837-skill-importance.ts",
+      "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-notification-center.ts",
       "node tests/verify-rest-fallback-banner.ts"
     ],
@@ -14157,6 +14185,7 @@
       "node tests/verify-1833-list-sticky.ts",
       "node tests/verify-1866-write-ui.ts",
       "node tests/verify-1879-suggest-deck-gate.ts",
+      "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-1894-view-model.ts",
       "node tests/verify-1895-map-detail-vm.ts",
       "node tests/verify-1896-issue-detail-vm.ts",
@@ -14318,6 +14347,7 @@
       "node tests/verify-1864-snapshot-detail-view.ts",
       "node tests/verify-1866-write-ui.ts",
       "node tests/verify-1879-suggest-deck-gate.ts",
+      "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-1894-view-model.ts",
       "node tests/verify-1896-issue-detail-vm.ts",
@@ -14333,7 +14363,6 @@
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-763-detail-fold.ts",
       "node tests/verify-b2-map-newsession.ts",
-      "node tests/verify-counts-honesty.ts",
       "node tests/verify-issue529-checks-i18n.ts",
       "node tests/verify-labels-sync.ts",
       "node tests/verify-map-drill.ts",
@@ -14778,12 +14807,12 @@
       "node tests/verify-1798-issues-carry.ts",
       "node tests/verify-1826-markdown-subissues.ts",
       "node tests/verify-1839-async-registry.ts",
+      "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-934-935-invariants.ts",
-      "node tests/verify-counts-honesty.ts",
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
       "node tests/verify-map-first-frame.ts",
@@ -15023,6 +15052,7 @@
       "node tests/verify-1869-snapshot-log.ts",
       "node tests/verify-1870-index-baseline.ts",
       "node tests/verify-1886-schema-migration.ts",
+      "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-1888-changes-to-store.ts",
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-1892-pure-projection.ts",
@@ -15276,6 +15306,7 @@
       "node tests/verify-1090-progress-roundtrip.ts",
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-1286-snapshot.ts",
+      "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-908-progress-replace.ts",
       "node tests/verify-counts-honesty.ts",
@@ -15707,12 +15738,14 @@
       "node tests/verify-time-config.ts"
     ],
     "src/workspace-snapshot/projection": [
+      "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-time-config.ts"
     ],
     "src/workspace-snapshot/runtime": [
       "node tests/verify-1869-ingest-crash.ts",
       "node tests/verify-1886-schema-migration.ts",
+      "node tests/verify-1887-counts-from-library.ts",
       "node tests/verify-1888-changes-to-store.ts",
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-time-config.ts"
@@ -16011,9 +16044,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 942,
+    "fileCount": 943,
     "dirCount": 92,
-    "coveredFileCount": 942,
+    "coveredFileCount": 943,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 74,
@@ -16946,6 +16979,7 @@
       "src/workspace-snapshot/persistence/schema.ts",
       "src/workspace-snapshot/persistence/sync-bookkeeping.ts",
       "src/workspace-snapshot/projection/changes.ts",
+      "src/workspace-snapshot/projection/counts.ts",
       "src/workspace-snapshot/projection/detail.ts",
       "src/workspace-snapshot/projection/edges.ts",
       "src/workspace-snapshot/projection/list.ts",
