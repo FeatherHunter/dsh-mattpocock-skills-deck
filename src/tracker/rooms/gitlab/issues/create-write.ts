@@ -27,7 +27,7 @@
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { ErrorKind } from '../../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../../contract/contexts.js'
-import { requestIssueCreate } from '../requests.js'
+import { issueCreateArgs, requestIssueCreate } from '../requests.js'
 import { classifyCreateWriteAttempt, decideCreateWriteRetry } from '../../../../refresh/kernel/create-write-policy.js'
 import type {
   CreateWriteJudgement,
@@ -43,11 +43,11 @@ export interface CreateIssueBody {
   labels?: string
 }
 
-// 一次建票调用的写轨迹：判据结果加这次实际发出请求的次数。
-// 请求形状已经收进 requests.ts，argv 不再经过本文件；调用方报错时用次数说清「试了几次」。
+// 一次建票调用的写轨迹：判据结果加这次实际发出的每条 argv。
+// argv 由 requests.ts 的 issueCreateArgs 构造（请求形状仍只有那一处），本文件只是把它记下来给失败原文用。
 export interface WriteNewIssueResult {
   verdict: CreateWriteJudgement
-  attempts: number
+  argvs: string[][]
 }
 
 /**
@@ -66,21 +66,22 @@ export async function writeNewIssue(
   refId: string,
   body: CreateIssueBody,
 ): Promise<WriteNewIssueResult> {
-  let attempts = 1
+  const argv = issueCreateArgs(refId, body)
+  const argvs: string[][] = [argv.slice()]
   // 值实现来自构建产物 .js（无类型），判据形状以源码 .ts 的契约类型为准，这里只收敛类型不改逻辑。
   let verdict = classifyCreateWriteAttempt(
     await requestIssueCreate(opCtx, refId, body, GITLAB_READ_TIMEOUT_MS),
   ) as unknown as CreateWriteJudgement
 
-  const decision = decideCreateWriteRetry(verdict.verdict, attempts)
+  const decision = decideCreateWriteRetry(verdict.verdict, argvs.length)
   if (decision.retry) {
-    attempts = 2
+    argvs.push(argv.slice())
     verdict = classifyCreateWriteAttempt(
       await requestIssueCreate(opCtx, refId, body, GITLAB_READ_TIMEOUT_MS),
     ) as unknown as CreateWriteJudgement
   }
 
-  return { verdict, attempts }
+  return { verdict, argvs }
 }
 
 /** 没建出票时的错误分类：判据档位直接对应既有档位（不拿回包原文去猜档位）。 */
@@ -98,15 +99,15 @@ export function createWriteFailureKind(judgement: CreateWriteJudgement | null | 
  *
  * @param judgement 纯函数给的判据结果
  * @param idempotencyKey 本次调用带的幂等键（没带就是空串）
- * @param attempts 这个调用实际发出去几次建票请求（最多两次；请求形状不在这里，所以不再收 argv）
+ * @param argvs 这个调用实际发出去的建票请求（每一条的 argv，最多两条）
  */
 export function createWriteFailureMessage(
   judgement: CreateWriteJudgement | null | undefined,
   idempotencyKey: string,
-  attempts: number,
+  argvs: string[][] | null | undefined,
 ): string {
   const key = String(idempotencyKey || '')
-  const sent = typeof attempts === 'number' && isFinite(attempts) ? attempts : 0
+  const sent = Array.isArray(argvs) ? argvs.length : 0
   const reason = judgement && judgement.reason ? judgement.reason : '原因不明'
   if (judgement && judgement.verdict === 'never-sent') {
     return '建票没发出去：' + reason + '。这个调用一共试了 ' + sent + ' 次，两次都没有把请求送出去，远端不会有这张票；请先修好 glab 再重试。'
