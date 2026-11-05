@@ -28,6 +28,8 @@ import { failGlab } from './errors.js'
 import { issuesPath } from './queries.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml（与 listIssues 同一慢读档）。
 import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefId } from './model/repo-identity.js'
 
 // 仓库身份只取 refId/name：票读写只认这两样，拿全量会把 effortId 搅进来（与 issues.ts 同款）。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -40,13 +42,6 @@ const MAP_LABEL = 'wayfinder:map'
 const PAGE_SIZE = PAGINATION.gitlab.maxPerPage
 // 最多翻 10 页：与 GitHub 房同数（见文件头），撞上限挂 truncated，不装“全了”。
 const MAX_MAP_PAGES = PAGINATION.gitlab.mapListMaxPages
-
-function repoId(repo: RepoLike): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
 
 function parseJsonSafe(s: string): unknown {
   try {
@@ -83,7 +78,7 @@ export async function listMaps(
   repo: RepoLike,
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<MapListResult>> {
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'listMaps: repo.refId missing', '')
   const kept: { row: MapRow; updatedAt: string; seq: number }[] = []
   let seq = 0

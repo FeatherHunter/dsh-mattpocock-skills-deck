@@ -28,6 +28,8 @@ import { withAnchor, lookupByAnchor } from './idempotency.js'
 // 不许再写成「先发 PUT、拿不到票面再回落发 POST」——那是一次调用里两次可能都成功的写。
 import { writeNewIssue, createWriteFailureKind, createWriteFailureMessage } from './create-write.js'
 import type { CreateIssueBody } from './create-write.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefId } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
@@ -36,13 +38,6 @@ type RepoLike = Partial<RepositoryRef> | null | undefined
 // 上下文两形都收，是因为调用方有时把执行器放在 ctx、有时放在 opCtx，缺了就让 glabClient 按 127 回。
 type CtxLike = Partial<OpContext> & Partial<BackendContext>
 type RawBag = Record<string, unknown>
-
-function repoId(repo: RepoLike): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
 
 function parseJsonSafe(s: string): unknown {
   try {
@@ -190,7 +185,7 @@ export async function listIssues(
 ): Promise<IssueListResult> {
   const startedAt = Date.now()
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'list: repo.refId missing', '')
   // filter → query（state；分页固定单页 100 条，见函数头）
   const perPage = PAGINATION.gitlab.maxPerPage
@@ -258,7 +253,7 @@ export async function getIssue(
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<Issue>> {
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'get: repo.refId missing', '')
   const k = String(key)
   if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'get: key required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
@@ -295,7 +290,7 @@ export async function createIssue(
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<Issue>> {
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'create: repo.refId missing', '')
   if (!input || typeof input.title !== 'string' || !input.title.trim()) {
     // 标题与幂等键都在发出建票请求之前检查：失败说明输入要改，重试同一份输入没有意义，所以标输入被拒。
@@ -373,7 +368,7 @@ export async function closeIssue(
 ): Promise<OpResult<Issue>> {
   void opts
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'close: repo.refId missing', '')
   const k = String(key)
   try {
@@ -401,7 +396,7 @@ export async function reopenIssue(
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<Issue>> {
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'reopen: repo.refId missing', '')
   const k = String(key)
   try {
@@ -431,7 +426,7 @@ export async function updateIssue(
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<Issue>> {
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'update: repo.refId missing', '')
   const k = String(key)
   if (!patch || typeof patch !== 'object') return fail(ERROR_KIND.PARSE as ErrorKind, 'update: patch required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)

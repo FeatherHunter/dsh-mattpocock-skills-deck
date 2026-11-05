@@ -54,6 +54,8 @@ import { failGlab } from './errors.js'
 import { normalizeIssue } from './normalize.js'
 import { issuesPath } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
+// 项目全路径的形状校验只在 model/repo-identity.ts 一处（#1910）：改口径时计数与分页一起变。
+import { repoFullPath } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 import { PAGINATION } from '../../contract/pagination.js'
@@ -77,21 +79,6 @@ type Bag = Record<string, unknown>
 function asBag(v: unknown): Bag | null {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null
   return v as Bag
-}
-
-/**
- * 从 `repo.refId` 取 GitLab 的项目全路径，拿不到回 null（判法与理由与 `./counts.ts` 同名函数一字不差）。
- *
- * 两条读各留一份判法，是为了让「这条读的入参口径」在它自己的文件里读得完：改一条的口径不会悄悄
- * 改到另一条（GitHub 房的两条读也是这么分的）。
- */
-function fullPathOf(repo: RepoLike): string | null {
-  const refId = typeof repo?.refId === 'string' ? repo.refId.trim() : ''
-  if (!refId) return null
-  if (/\s/.test(refId)) return null
-  if (refId.startsWith('/') || refId.endsWith('/') || refId.includes('//')) return null
-  if (/^[0-9]+$/.test(refId)) return refId
-  return refId.includes('/') ? refId : null
 }
 
 /** filter.state 归一：契约说的 'open' 送到远端要写成 'opened'（GitLab 的写法），'closed' 同名。 */
@@ -159,7 +146,7 @@ export async function listPage(
   ctx: OpContext,
 ): Promise<OpResult<PageResult>> {
   const t0 = Date.now()
-  const fullPath = fullPathOf(repo)
+  const fullPath = repoFullPath(repo)
   if (!fullPath) {
     // 原文 = 这次收到的入参本身：它缺了或形状不对，人自己能看出差在哪。
     emitReadDegraded(ctx, 'listPage', 'listPage:repo-ref', Date.now() - t0)

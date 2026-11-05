@@ -1,5 +1,5 @@
 // graph-membership.ts —— 以后改亲缘挂载与指派接口时改它：隐藏标记挂载、assignee_ids 解析。
-// 抓取底座（repoId/fetchRawIssue）从阻塞文件单向导入，不自建第二份（同房互引，老门禁放行）。
+// 抓取底座（fetchRawIssue）从阻塞文件单向导入；仓库标识从 model/repo-identity.ts 取。两样都不自建第二份。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
@@ -13,7 +13,9 @@ import { normalizeIssue } from './normalize.js'
 import { rewriteDescriptionWithHiddenParent } from './model/description-markers.js'
 import { failGlab } from './errors.js'
 import { issuePath } from './queries.js'
-import { repoId, fetchRawIssue } from './graph-blocking.js'
+import { fetchRawIssue } from './graph-blocking.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefId } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
@@ -63,7 +65,7 @@ export async function setParent(
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<Issue>> {
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = (repoId as (r: unknown) => string)(repo)
+  const id = repoRefId(repo)
   // 原文给空串：这一条是本地入参不全（远端一个请求都没发），没有外部原文可取。
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'setParent: repo.refId missing', '')
   const k = String(key)
@@ -148,7 +150,7 @@ export async function setAssignees(
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<Issue>> {
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = (repoId as (r: unknown) => string)(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'setAssignees: repo.refId missing', '')
   const k = String(key)
   const wanted: string[] = Array.isArray(assignees)

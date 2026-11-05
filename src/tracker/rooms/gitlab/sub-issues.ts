@@ -43,7 +43,8 @@ import { glabClient } from './client.js'
 import { classifyGlabError, failGlab } from './errors.js'
 import { normalizeIssue } from './normalize.js'
 import { issuesPath } from './queries.js'
-import { repoId } from './graph-blocking.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefId } from './model/repo-identity.js'
 import { emitReadDegraded } from './read-log.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
@@ -106,7 +107,7 @@ export async function listSubIssues(
   // 判档那一格只读 logEvent / isEnabled 两样，null 与 undefined 在这里同义（都是「没有上下文」）。
   const classifyCtx = ctx || undefined
   // 入参两格都没问题才起进程：这之前一个请求都没发，所以原文给空串（本房既有做法，见 graph-membership.ts:60）。
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   const key = text(mapKey).trim()
   if (!id || !key) {
     emitReadDegraded(logCtx, 'subIssues', 'subIssues:repo-ref', Date.now() - t0)

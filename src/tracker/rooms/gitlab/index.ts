@@ -76,16 +76,6 @@ export type GitlabBackendMembers = 'id' | (ProvidedCapability<typeof GITLAB_CAPA
 /** 交出来的字面量形状：工厂用 `satisfies` 挂它（缺一条、多一条都在编译期红）。 */
 export type GitlabBackendShape = { [K in GitlabBackendMembers]: Tracker[K] }
 
-// 入参只取识别要用的两格，是因为 matches 只读工作区目录与仓库标识，拿全量会把无关字段搅进来。
-function repoId(handle: RepoHandle | Partial<RepositoryRef> | null | undefined): string {
-  if (!handle) return ''
-  if (typeof handle.refId === 'string' && handle.refId) return handle.refId
-  if (typeof (handle as RepoHandle).cwd === 'string' && (handle as RepoHandle).cwd) {
-    return (handle as RepoHandle).cwd as string
-  }
-  return ''
-}
-
 /**
  * 兜底问一次 git remote 的时间上限（毫秒）。
  *
