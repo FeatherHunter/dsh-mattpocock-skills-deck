@@ -2,7 +2,7 @@
  * rooms/gitlab/model/repo-identity.ts —— 从仓库引用或识别句柄里取仓库标识，全房唯一一处。
  *
  * 为什么收进 model（#1910）：房间里有九份同形不同名的 repoId（issues / comments / labels / maps /
- * identity-ops / idempotency / graph-blocking / preflight / counts）、两处 fullPathOf（counts / pages）、
+ * repo/permissions / idempotency / graph/write / preflight / counts）、两处 fullPathOf（counts / pages）、
  * 一处 repoRefOf（labels/list.ts 与 labels/colors.ts）。它们回答的是同一件事——「这次要问哪个仓库」——而实现各住一个文件，
  * 回落规则改一次要改近十处，漏一处就会让某条读路径拿显示名当项目路径去问远端。
  *

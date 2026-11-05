@@ -1,39 +1,49 @@
 /**
- * src/tracker/rooms/gitlab/graph-blocking.ts —— 阻塞关系的写半边：设置阻塞边的两条路、环检与滚回。
+ * src/tracker/rooms/gitlab/graph/write.ts —— 关系（阻塞边）的写半边：设置阻塞边的两条路、环检与滚回。
+ *
+ * 为什么搬进 graph/ 子树（#1920）：阻塞关系是一个概念，读在 ./read.ts、写在这里；根目录
+ * graph-blocking.ts 已删除，入口 index.ts 的 setBlockedBy 改从本文件取。
  *
  * 写的时候两条路：原生 is_blocked_by 可达就逐条真写（POST 加、DELETE 删），写后读回核对；
  * 远端没能力（403/404/premium 字样）且滚回干净时，回退重写正文里的成对两行
  * （可见 `Blocked by:` 行 + 隐藏机器表）。环检是两条路共用的一道门；读不到的节点当叶子。
  *
+ * 请求形状只在根目录 requests.ts 一处（#1920）：环检快照走 requestIssueListCapped，原生边加/删走
+ * requestLinkCreate / requestLinkDelete，正文成对回退与读链接走 requestIssuePatch / requestIssueLinks。
+ * 本文件只决定每次请求的时限，不再自己拼 glab 的 method、路径与表单字段。
+ *
  * 读半边（getDependencies、原生阻塞能力探测 tryNativeBlockedBy、对端状态落实 resolveBlockerStates）
- * 已搬进 graph/read.ts（#1917）；本文件需要时从那里取，不在本文件再养一份。
+ * 住在 ./read.ts（#1917）；本文件从那里取，不在本文件再养一份。
  * 共享的原始票读取（fetchRawIssue）住在 issues/read.ts 一处（#1914）；
  * 仓库标识住 model/repo-identity.ts（#1910）；正文成对写法住 model/description-markers.ts。
  */
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { Issue } from '../../contract/entities.js'
-import type { ErrorKind } from '../../contract/identity.js'
-import type { SetOpts } from '../../contract/inputs.js'
-import { TRACKER_ERROR_STAGE, type OpResult } from '../../contract/results.js'
-import { fail } from '../../kernel/preflight.js'
-import { glabClient } from './client.js'
-import { normalizeIssue } from './normalize.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { Issue } from '../../../contract/entities.js'
+import type { ErrorKind } from '../../../contract/identity.js'
+import type { SetOpts } from '../../../contract/inputs.js'
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../../contract/results.js'
+import { fail } from '../../../kernel/preflight.js'
+import { normalizeIssue } from '../normalize.js'
 // 正文阻塞的回退写与环检快照只在 model/description-markers.ts 一处，本文件直接用那个出处。
-import { parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from './model/description-markers.js'
-import { failGlab } from './errors.js'
-import { issuePath, linksPath } from './queries.js'
+import { parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from '../model/description-markers.js'
+import { failGlab } from '../errors.js'
 // 共享的原始票读取（按 iid GET 单票）住在 issues/read.ts 一处（#1914）：亲缘文件也从那里取，不各建一份。
-import { fetchRawIssue } from './issues/read.js'
+import { fetchRawIssue } from '../issues/read.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
-import { repoRefId } from './model/repo-identity.js'
-// 读端点也走根目录请求边界：本文件只保留写端点的拼装，读一边不再自己拼 glab 参数。
-import { requestIssueLinks } from './requests.js'
+import { repoRefId } from '../model/repo-identity.js'
+// 请求的形状只在房间根目录 requests.ts 一处（#1920）：本文件只收原始进程结果，再按旧口径判档与核对。
+import {
+  requestIssueLinks,
+  requestIssueListCapped,
+  requestLinkCreate,
+  requestLinkDelete,
+  requestIssuePatch,
+} from '../requests.js'
 // 原生探测与对端状态落实住在关系读 module（#1917）：两条写路径都从那里取，不复制。
-import { tryNativeBlockedBy, resolveBlockerStates } from './graph/read.js'
-import type { CtxLike, RawBag, RepoLike } from './graph/read.js'
+import { tryNativeBlockedBy, resolveBlockerStates } from './read.js'
+import type { CtxLike, RawBag, RepoLike } from './read.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
-import { PAGINATION } from '../../contract/pagination.js'
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 
 // 环检：DFS 对 blockedBy 图（Kahn 简化版，针对增量检测），新边连出环就拦下这次写。
 function hasCycle(allBlockedByMap: Map<string, string[]>, startKey: string, newBlockers: string[]): boolean {
@@ -87,8 +97,8 @@ async function buildBlockMap(
   void selfKey
   const map = new Map<string, string[]>()
   try {
-    const c = glabClient(effective as CtxLike)
-    const listRes = await c.run(['api', `projects/${encodeURIComponent(id)}/issues?per_page=${PAGINATION.gitlab.maxPerPage}`], { timeout: GITLAB_READ_TIMEOUT_MS })
+    // 快照的请求形状只在 requests.ts 一处（#1920）：这里只给仓库标识与这次请求的时限。
+    const listRes = await requestIssueListCapped(effective, id, GITLAB_READ_TIMEOUT_MS)
     if (listRes.code === 0) {
       let arr: unknown = []
       try {
@@ -143,10 +153,7 @@ async function writeNativeBlockedBy(
   key: string,
   wanted: string[],
   current: RawBag[],
-  classifyCtx: CtxLike | null | undefined,
 ): Promise<{ ok: true } | { ok: false; fallback: boolean; message: string; raw: unknown }> {
-  void classifyCtx
-  const c = glabClient(effective as CtxLike)
   const keyOf = (l: RawBag): string => String(l['iid'] ?? l['target_issue_iid'] ?? l['key'] ?? '')
   const currentKeys = current.map(keyOf).filter(Boolean)
   const linkIdOf = (k: string): string => {
@@ -156,10 +163,9 @@ async function writeNativeBlockedBy(
   const added: string[] = []
   for (const w of wanted) {
     if (currentKeys.includes(w)) continue
-    const res = await c.run(
-      ['api', linksPath(id, key), '--method', 'POST', '-f', `target_project_id=${id}`, '-f', `target_issue_iid=${w}`, '-f', 'link_type=is_blocked_by'],
-      { timeout: GITLAB_READ_TIMEOUT_MS },
-    )
+    // 原生边的请求形状只在 requests.ts 一处：表单顺序（target_project_id → target_issue_iid →
+    // link_type）与搬迁前逐字相同，远端收到的内容不变。
+    const res = await requestLinkCreate(effective, id, key, id, w, 'is_blocked_by', GITLAB_READ_TIMEOUT_MS)
     if (res.code !== 0) {
       if (!isNativeCapabilityError(res)) {
         return { ok: false, fallback: false, message: `阻塞真写：原生边 POST #${w} 失败（盘上是中间态，已加的不回滚）`, raw: res }
@@ -170,7 +176,7 @@ async function writeNativeBlockedBy(
           const back = await tryNativeBlockedBy(effective, id, key)
           const row = (back.native || []).find((l) => keyOf(l) === a)
           const linkId = row ? String(row['issue_link_id'] ?? row['link_id'] ?? '') : ''
-          if (linkId) await c.run(['api', `${linksPath(id, key)}/${linkId}`, '--method', 'DELETE'], { timeout: GITLAB_READ_TIMEOUT_MS })
+          if (linkId) await requestLinkDelete(effective, id, key, linkId, GITLAB_READ_TIMEOUT_MS)
         } catch {
           // 滚回尽力而为；滚没滚干净由下面的核对说了算，这里不提前下结论。
         }
@@ -196,7 +202,7 @@ async function writeNativeBlockedBy(
     if (!linkId) {
       return { ok: false, fallback: false, message: `阻塞真写：原生边 #${cur} 在回包里没有 link id，删不掉（盘上是中间态，加边已成功）`, raw: current }
     }
-    const res = await c.run(['api', `${linksPath(id, key)}/${linkId}`, '--method', 'DELETE'], { timeout: GITLAB_READ_TIMEOUT_MS })
+    const res = await requestLinkDelete(effective, id, key, linkId, GITLAB_READ_TIMEOUT_MS)
     if (res.code !== 0) {
       if (isNativeCapabilityError(res)) {
         return { ok: false, fallback: false, message: `阻塞真写：删原生边 #${cur} 时远端说没能力，但加边可能已成功，不敢滑进正文行`, raw: res }
@@ -266,7 +272,7 @@ export async function setBlockedBy(
     }
     if (!probe.probeFailed && !cancelMustClearBodyPair) {
       const keyOfProbe = (l: RawBag): string => String(l['iid'] ?? l['target_issue_iid'] ?? l['key'] ?? '')
-      const res = await writeNativeBlockedBy(effective, id, k, wanted, probe.native || [], effective)
+      const res = await writeNativeBlockedBy(effective, id, k, wanted, probe.native || [])
       if (!res.ok && !res.fallback) {
         // 原文 = 真写那次失败的进程结果（或构造失败时的现场）；kind 走 failGlab 的判档，结论话保留真写那句。
         return failGlab(res.raw, `setBlockedBy: ${res.message}`, res.raw, effective)
@@ -298,17 +304,14 @@ export async function setBlockedBy(
     // 回退路径：重写 description 的阻塞对（可见 Blocked by: 行 + 隐藏机器表，环检已在上面两条路径共用那道门里做过，这里不再做第二次）。
     const newBody = rewriteDescriptionWithBlockedPair(oldBody, wanted)
 
-    const c = glabClient(effective as CtxLike)
     // 换行按真换行发：远端存什么读回就是什么，读回的解析才对得上。旧代码在这里把换行转成字面 `\n`，
     // 多行正文走这条路会被破坏（读回整段变成一行，正文丢格式），2026-10-15 查实并修。
-    const putRes = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: GITLAB_READ_TIMEOUT_MS })
-    // glab api 对换行处理：改用 --input stdin 更稳妥，重试
+    const putRes = await requestIssuePatch(effective, id, k, { description: newBody }, GITLAB_READ_TIMEOUT_MS)
     if (putRes.code !== 0) {
-      // 重试：用 glabClient.api PUT with body object
+      // 失败前再读一次票面，让现场多一份远端此刻的正文；这次读的结果不参与结论，只留给日志与
+      // 排障的人看（搬迁前就有这一读，保留它是为了请求次数与失败路径逐字不变）。
       const raw2 = await fetchRawIssue(effective, id, k) // fresh
       void raw2
-      // 直接 PUT description via glab api with -f (handle multiline via stdin file)
-      // 简化：返回 conflict 报文
       // 原文 = 写阻塞那一次 PUT 的进程结果（stderr/stdout/退出码都在里面）。
       return failGlab(putRes, putRes.stderr || putRes.stdout || 'setBlockedBy failed', putRes, effective)
     }
