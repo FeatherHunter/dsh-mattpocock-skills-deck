@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-05T07:42:51.729Z",
+  "generatedAt": "2026-11-05T07:59:07.920Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 589,
   "gateCount": 589,
@@ -13014,6 +13014,7 @@
         "src/refresh/rooms/host/write-event-fetch.ts",
         "src/refresh/rooms/host/write-event-subscription.ts",
         "src/shared/naming-tracking.ts",
+        "src/shared/snapshot-row-fields.ts",
         "src/shared/time-config/src/values.ts",
         "src/shared/tracker/sync.ts",
         "src/shared/version-control/src/parse-log.ts",
@@ -13087,7 +13088,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 177 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 178 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
