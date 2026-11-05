@@ -73,6 +73,39 @@ function toApiError(message: string, stderr: string, stdout: string, code: numbe
 }
 
 /**
+ * 按 iid 拉一张票的原始形状：成功回票面，失败抛带原文的错以便上层归一。
+ *
+ * 这是「多处共用的原始票读取」的唯一出处（#1914）：关系读写的两个文件（graph-blocking.ts 与
+ * graph-membership.ts）都从这里取，不再在各自文件里再养一份。请求本身仍走根目录 requests.ts 的
+ * requestIssueGet，method、路径与 with_labels_details 只在那一处；本函数只决定超时，以及失败时
+ * 把原始回包挂在错上，让上层 `fail()` 能取到 glab 的原话。
+ *
+ * @param opCtx 本次调用的上下文（执行器从这里取；缺了请求边界按 127 如实回）
+ * @param refId 目标仓库（形如 group/project）
+ * @param key 票号（iid 字符串）
+ */
+export async function fetchRawIssue(
+  opCtx: CtxLike | null | undefined,
+  refId: string,
+  key: string,
+): Promise<RawBag | null> {
+  const res = await requestIssueGet(opCtx, refId, key, GITLAB_READ_TIMEOUT_MS)
+  if (res.code !== 0) {
+    // 带上这一趟的原始回包（stderr/stdout/退出码）：上层只 catch 到一个 Error 时，
+    // 原始回包仍然躺在这个错上，`fail()` 取原文时才拿得到「glab 到底说了什么」。
+    throw toApiError(res.stderr || res.stdout, res.stderr, res.stdout, res.code)
+  }
+  let raw: unknown = null
+  try {
+    raw = JSON.parse(res.stdout) as unknown
+  } catch {
+    raw = null
+  }
+  if (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) return raw as RawBag
+  return raw as RawBag | null
+}
+
+/**
  * 把一次已经发出去的请求收成 JSON。
  *
  * 请求本身由根目录 requests.ts 发出；本函数只处理回来的三件套：非零退出码按原来那句话术抛出

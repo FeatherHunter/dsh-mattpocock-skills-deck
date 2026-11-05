@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/gitlab/pages.ts — GitLab 房的按页取票（契约的 `listPage`，成员表见
+ * src/tracker/rooms/gitlab/issues/pages.ts — GitLab 房的按页取票（契约的 `listPage`，成员表见
  * `src/tracker/contract/operations.ts`，「分页契约」见 `src/tracker/contract/results.ts`，#690 新加）。
  *
  * 契约那一格说的是：一页票面、**按创建时间倒序**、带一个**游标**、并带上**这个筛选口径下的总数**；
@@ -25,45 +25,51 @@
  * （真实原因可能是认证/网络/远端报错，改成 parse 会把真诊断盖掉），不返回一份「有行、没总数」的
  * 半成品 —— 契约那一格要求每页都带总数，缺了就是没读到。
  *
+ * ── 为什么住在 issues/ 子树、请求从哪里发（#1914）───────────────────────────────
+ * 分页读票是「票」这个概念的一部分，落点跟着票读路径搬进 issues/ 子树；总数仍调同目录的
+ * `counts`（同一份口径、同一处归一）。发出去的 method、路径与查询参数不在本文件拼，一律调
+ * 根目录 requests.ts 的 requestIssueList：端点采样门禁只扫房间根目录，请求形状写在那里才看得见。
+ * 行为、游标判据、总数额与日志理由逐字不变。
+ *
  * ── 排序与筛选 ────────────────────────────────────────────────────────────────
  * `order_by=created_at` 与 `sort=desc` 每次都显式写上：文档给的默认值就是这两个，但默认值是文档的
  * 承诺、不是我方的约定，而「创建时间倒序」正是这一条读的全部意义，写死它就不给远端改默认值的机会。
- * `scope=all` 也显式写（理由同 `./counts.ts`）。`state` / `labels` 与 `./issues.ts` 的列票同一口径
- * （labels 逗号分隔、远端按 AND 筛），行形状也来自同一个 `./normalize.ts`，所以历史页里的一行与
+ * `scope=all` 也显式写（理由同 `./counts.ts`）。`state` / `labels` 与 `../issues.ts` 的列票同一口径
+ * （labels 逗号分隔、远端按 AND 筛），行形状也来自同一个 `../normalize.ts`，所以历史页里的一行与
  * 面板列票里的一行是同一套字段。
  *
- * 判档与选话走本房唯一的出口 `./errors.ts` 的 `failGlab`；「命令成功了、这一页仍然取不成」的几条路
- * 各自在返回前落一行 `read.degraded`，reason 只取本房已登记的值（`./read-log.ts`）：
+ * 判档与选话走本房唯一的出口 `../errors.ts` 的 `failGlab`；「命令成功了、这一页仍然取不成」的几条路
+ * 各自在返回前落一行 `read.degraded`，reason 只取本房已登记的值（`../read-log.ts`）：
  * `listPage:repo-ref` / `listPage:cursor` / `listPage:transport` / `listPage:json` / `listPage:shape` /
- * `listPage:total`。日志只从 `./read-log.ts` 那个出口走，本文件不直接 `ctx.logEvent`。
+ * `listPage:total`。日志只从 `../read-log.ts` 那个出口走，本文件不直接 `ctx.logEvent`。
  * 某一行归一不成一张票时**整页失败**（理由 `listPage:shape`，原文给那一行）：本房的口径是
- * 「取不全就整体失败，不返回残缺清单」（`./labels-ops.ts` 的 listLabels 同一条）；丢掉那一行接着回，
+ * 「取不全就整体失败，不返回残缺清单」（`../labels/list.ts` 的 listLabels 同一条）；丢掉那一行接着回，
  * 人看到的是「历史少了中间几张」，既不报错也无处查。
  */
 
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { OpContext } from '../../contract/contexts.js'
-import type { Issue, RepositoryRef } from '../../contract/entities.js'
-import type { ListFilter, PageOpts } from '../../contract/inputs.js'
-import type { OpResult, PageResult } from '../../contract/results.js'
-import { fail } from '../../kernel/preflight.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { OpContext } from '../../../contract/contexts.js'
+import type { Issue, RepositoryRef } from '../../../contract/entities.js'
+import type { ListFilter, PageOpts } from '../../../contract/inputs.js'
+import type { OpResult, PageResult } from '../../../contract/results.js'
+import { fail } from '../../../kernel/preflight.js'
 // 总数不自己拼：直接调同房 counts 那一条读（同一份口径、同一处归一）。
 import { counts } from './counts.js'
-import { glabClient } from './client.js'
-import { failGlab } from './errors.js'
-import { normalizeIssue } from './normalize.js'
-import { issuesPath } from './queries.js'
-import { emitReadDegraded } from './read-log.js'
+import { failGlab } from '../errors.js'
+import { normalizeIssue } from '../normalize.js'
+import { emitReadDegraded } from '../read-log.js'
 // 项目全路径的形状校验只在 model/repo-identity.ts 一处（#1910）：改口径时计数与分页一起变。
-import { repoFullPath } from './model/repo-identity.js'
+import { repoFullPath } from '../model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
-import { PAGINATION } from '../../contract/pagination.js'
+import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
+// 请求形状住在房间根目录的 requests.ts（#1914）：本文件只收原始进程结果，再按旧口径归位。
+import { requestIssueList } from '../requests.js'
+import { PAGINATION } from '../../../contract/pagination.js'
 
 // 契约的分页口径：缺省一页 50 张、要多了按 200 封顶（`contract/results.ts` 的「分页契约」，与 GitHub 房同一套）。
 const DEFAULT_LIMIT = PAGINATION.gitlab.limitDefault
 const MAX_LIMIT = PAGINATION.gitlab.limitMax
-// GitLab REST 的 per_page 上限（官方文档：默认 20、上限 100；本房 `labels-ops.ts` 顶上同一个常数、同一个出处）。
+// GitLab REST 的 per_page 上限（官方文档：默认 20、上限 100；本房 `../labels/list.ts` 顶上同一个常数、同一个出处）。
 // 为什么不能照 200 去问：远端会把 200 自己截到 100，而我们还以为这一页的大小是 200 —— 一页 100 行就成了
 // 「比 per_page 少」，于是把「还有下一页」误判成到底，历史从这儿少一段，而且没有任何报错。
 // 代价照实说：调用方要 200 行时这一趟只回 100 行 + 一个游标，接着翻就是（要多了按上限给，不是报错）。
@@ -171,11 +177,11 @@ export async function listPage(
   if (labels.length) params.set('labels', labels.join(','))
   params.set('page', String(page))
   params.set('per_page', String(perPage))
-  // 与 ./issues.ts 的列票同一个参数：要让标签带颜色回来（归一之后历史页的标签与面板列票长得一样）。
+  // 与 ../issues.ts 的列票同一个参数：要让标签带颜色回来（归一之后历史页的标签与面板列票长得一样）。
   params.set('with_labels_details', 'true')
   try {
-    const c = glabClient(ctx)
-    const r = await c.api(issuesPath(fullPath, params.toString()), {}, { timeout: GITLAB_SLOW_READ_TIMEOUT_MS })
+    // method、路径与查询串的拼装都在请求边界一处；本文件只给领域值（仓库全路径、查询串、超时毫秒）。
+    const r = await requestIssueList(ctx, fullPath, params.toString(), GITLAB_SLOW_READ_TIMEOUT_MS)
     if (r.code !== 0) {
       // 原文 = 这一次 glab 调用的进程结果（stderr 里那几句是 glab 或远端的原话）。
       emitReadDegraded(ctx, 'listPage', 'listPage:transport', Date.now() - t0)
@@ -208,7 +214,7 @@ export async function listPage(
       } catch (e) {
         // 一行归一不成票 = 这一页没读全，整页失败（理由 listPage:shape，原文给那一行本身）。
         // 为什么不丢掉那一行接着回：本房的口径是「取不全就整体失败，不返回残缺清单」
-        // （见 ./labels-ops.ts 的 listLabels）；丢一行接着回，人看到的是历史少了中间几张，既不报错也无处查。
+        // （见 ../labels/list.ts 的 listLabels）；丢一行接着回，人看到的是历史少了中间几张，既不报错也无处查。
         emitReadDegraded(ctx, 'listPage', 'listPage:shape', Date.now() - t0)
         return fail(ERROR_KIND.PARSE, `listPage: 有一行归一不成一张票 ${msgOf(e).slice(0, 200)}`, raw)
       }
@@ -218,7 +224,7 @@ export async function listPage(
     const nextCursor = rows.length >= perPage ? String(page + 1) : null
     return { ok: true, data: { items, nextCursor, total: counted.data.total } }
   } catch (e) {
-    // 抛上来的东西交给本房统一的判档出口；按 read-log.ts 对 `transport` 的定义
+    // 抛上来的东西交给本房统一的判档出口；按 ../read-log.ts 对 `transport` 的定义
     // （起不了进程、超时、非 0 退出这一族），它同样属于「这一页没读成」，所以先照上面各条的规矩
     // 落一行 read.degraded，再失败 —— 这一支还兜着上面那条 counts 子读抛上来的情形，
     // 不落这一行的话，「这一页没读成」在日志里就是空的，分不清「没走这条路」还是「折在中间」。

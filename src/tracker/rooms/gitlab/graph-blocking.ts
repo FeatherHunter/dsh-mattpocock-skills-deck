@@ -1,5 +1,5 @@
 // graph-blocking.ts —— 以后改阻塞关系语义时改它：阻塞成对写格式、原生 blocked_by 探测、读合并写回退、环检、阻塞读写两操作。
-// 抓取底座（fetchRawIssue）暂住本文件，亲缘文件从本文件单向导入（同房互引，老门禁放行；本文件不依赖亲缘文件）。
+// 共享的原始票读取（fetchRawIssue）住在 issues/read.ts 一处（#1914）：本文件与亲缘文件都从那里取，不再各建一份。
 // 仓库标识不再住本文件，统一从 model/repo-identity.ts 取（#1910）。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
@@ -14,6 +14,8 @@ import { normalizeIssue } from './normalize.js'
 import { parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from './model/description-markers.js'
 import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
+// 共享的原始票读取（按 iid GET 单票）住在 issues/read.ts 一处（#1914）：亲缘文件也从那里取，不各建一份。
+import { fetchRawIssue } from './issues/read.js'
 // 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
 import { repoRefId } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -33,48 +35,8 @@ interface NativeProbe {
   nativeEmpty?: boolean
 }
 
-// 抛出去的错要带原始回包，是因为上层只 catch 到一个 Error，原文得躺在错身上才拿得到。
-interface GlabFetchError extends Error {
-  stderr?: string
-  stdout?: string
-  code?: number
-}
-
 // 正文阻塞读写不自立认法：回退读（机器表优先、可见行兜底）与成对写的形状都在 model/description-markers.ts 一处，
 // 读回退、环检快照、回退写三处都调同一份，避免认法分叉。
-
-/**
- * 按 iid 拉一张票的原始形状：成功回票面，失败抛带原文的错以便上层归一。
- *
- * @param opCtx 本次调用的上下文（glabClient 吃这个 ctx）
- * @param refId 目标仓库（形如 group/project）
- * @param key 票号（iid 字符串）
- */
-export async function fetchRawIssue(
-  opCtx: CtxLike | null | undefined,
-  refId: string,
-  key: string,
-): Promise<RawBag | null> {
-  const c = glabClient(opCtx as Partial<OpContext> & Partial<BackendContext>)
-  const res = await c.run(['api', `${issuePath(refId, key)}?with_labels_details=true`], { timeout: GITLAB_READ_TIMEOUT_MS })
-  if (res.code !== 0) {
-    // 抛出去的那个错带上这一趟的原始回包（stderr/stdout/退出码）：上层只 catch 到一个 Error 时，
-    // 原始回包仍然躺在这个错上，`fail()` 取原文时才拿得到「glab 到底说了什么」。
-    const err = new Error(res.stderr || res.stdout) as GlabFetchError
-    err.stderr = res.stderr
-    err.stdout = res.stdout
-    err.code = res.code
-    throw err
-  }
-  let raw: unknown = null
-  try {
-    raw = JSON.parse(res.stdout) as unknown
-  } catch {
-    raw = null
-  }
-  if (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) return raw as RawBag
-  return raw as RawBag | null
-}
 
 async function tryNativeBlockedBy(
   opCtx: CtxLike | null | undefined,
