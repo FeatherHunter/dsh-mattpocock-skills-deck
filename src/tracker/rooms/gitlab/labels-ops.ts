@@ -81,6 +81,8 @@ import { fail } from '../../kernel/preflight.js'
 import { execGlab } from './client.js'
 import { classifyGlabError, failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefOf } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 import { PAGINATION } from '../../contract/pagination.js'
@@ -107,25 +109,6 @@ export const WRITE_CONCURRENCY_DEFAULT = PAGINATION.gitlab.labelWriteConcurrency
 /** 单次 glab 调用的超时（毫秒）。与同房其余读路径一致。 */
 
 // ── 入参把关 ──────────────────────────────────────────────────────────────────
-
-/**
- * 从仓库引用里取「项目全路径」（形如 `group/sub/project`）。
- *
- * 为什么只认 refId：契约的 `RepositoryRef`（`contract/entities.ts:163-177`）里，
- * GitLab 那一家的稳定标识就是这份全路径，`name` 只是给人看的显示名 —— 拿显示名去问接口
- * 会在仓库改名后指向别的东西，那比失败更糟。形状不对（空串、含空白、不是字符串）一律
- * 当作「没有可用目标」，连进程都不起。
- *
- * 这里**不**像 GitHub 房那样做三层兜底自己解析一次 owner/name：GitLab 的仓库身份是从
- * 「用户选定后端」那一步来的，本房没有那种兜底的既有实现，凭空造一个会把失败说成成功。
- */
-function repoRefOf(repo: RepositoryRef | null | undefined): string {
-  const raw = repo && typeof repo.refId === 'string' ? repo.refId.trim() : ''
-  if (!raw) return ''
-  // 含空白的全路径不可能是 GitLab 的项目路径：这一条判的是「形状不对」，不是「可能对但这次没试成」。
-  if (/\s/.test(raw)) return ''
-  return raw
-}
 
 /**
  * 改色入参的形状把关：不是一批改动就整条失败（落解析档）。

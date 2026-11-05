@@ -50,6 +50,8 @@ import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'
 import { projectPath } from './queries.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefId } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
@@ -82,13 +84,6 @@ const TRIAGE_MIN_LEVEL = 15
 
 // 只取 refId/name 两格，是因为这两条读只认仓库坐标，拿全量会把 effortId 之类搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
-
-function repoId(repo: RepoLike): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
 
 /**
  * refId 是不是一个「像 GitLab 项目路径」的样子：至少两段、每段都不空、整串没有空白。
@@ -182,7 +177,7 @@ function maxAccessLevel(permissions: unknown): number | null {
 export async function getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<Actor>> {
   // 这一笔的起点：下面每条降级日志带的是「从入口到这里花掉的毫秒数」。
   const t0 = Date.now()
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!looksLikeProjectPath(id)) {
     emitReadDegraded(ctx, 'currentUser', 'currentUser:repo-ref', Date.now() - t0)
     return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'getCurrentUser: repo.refId 缺失或不像是「分组/项目」', '')
@@ -247,7 +242,7 @@ export async function getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promi
  */
 export async function getRepoPermissions(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<RepoPermissions>> {
   const t0 = Date.now()
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!looksLikeProjectPath(id)) {
     // 与 getCurrentUser 同一道入口检查，理由见那条函数的注释；这一格的 reason 已登记。
     emitReadDegraded(ctx, 'permissions', 'permissions:repo-ref', Date.now() - t0)

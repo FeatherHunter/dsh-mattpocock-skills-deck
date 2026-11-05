@@ -1,5 +1,6 @@
 // graph-blocking.ts —— 以后改阻塞关系语义时改它：阻塞成对写格式、原生 blocked_by 探测、读合并写回退、环检、阻塞读写两操作。
-// 抓取底座（repoId/fetchRawIssue）暂住本文件，亲缘文件从本文件单向导入（同房互引，老门禁放行；本文件不依赖亲缘文件）。
+// 抓取底座（fetchRawIssue）暂住本文件，亲缘文件从本文件单向导入（同房互引，老门禁放行；本文件不依赖亲缘文件）。
+// 仓库标识不再住本文件，统一从 model/repo-identity.ts 取（#1910）。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { Issue, IssueRef, RepositoryRef } from '../../contract/entities.js'
@@ -13,6 +14,8 @@ import { normalizeIssue } from './normalize.js'
 import { parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from './model/description-markers.js'
 import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefId } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 import { PAGINATION } from '../../contract/pagination.js'
@@ -35,13 +38,6 @@ interface GlabFetchError extends Error {
   stderr?: string
   stdout?: string
   code?: number
-}
-
-export function repoId(repo: RepoLike): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
 }
 
 // 正文阻塞读写不自立认法：回退读（机器表优先、可见行兜底）与成对写的形状都在 model/description-markers.ts 一处，
@@ -336,7 +332,7 @@ export async function getDependencies(
 ): Promise<OpResult<Dependencies>> {
   void opts
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'getDependencies: repo.refId missing', '')
   const k = String(key)
   try {
@@ -411,7 +407,7 @@ export async function setBlockedBy(
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<Issue>> {
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'setBlockedBy: repo.refId missing', '')
   const k = String(key)
   if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'setBlockedBy: key required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)

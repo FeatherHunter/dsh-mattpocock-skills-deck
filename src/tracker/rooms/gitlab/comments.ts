@@ -13,6 +13,8 @@ import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
 import { notesPath } from './queries.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefId } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
@@ -20,13 +22,6 @@ import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.j
 type RepoLike = Partial<RepositoryRef> | null | undefined
 // 上下文两形都收，是因为调用方有时把执行器放在 ctx、有时放在 opCtx，缺了就让 glabClient 按 127 回。
 type CtxLike = Partial<OpContext> & Partial<BackendContext>
-
-function repoId(repo: RepoLike): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
 
 function errMsg(err: unknown): string {
   if (err !== null && typeof err === 'object' && 'message' in (err as Record<string, unknown>)) {
@@ -53,7 +48,7 @@ export async function addComment(
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<Comment>> {
   const effective = (opCtx || ctx) as CtxLike | undefined
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'comment: repo.refId missing', '')
   const k = String(key)
   if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'comment: key required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)

@@ -31,6 +31,8 @@ import { classifyGlabError, hintFor } from './errors.js'
 import type { GlabVerdict } from './errors.js'
 import { normalizeIssue } from './normalize.js'
 import { issuesPath } from './queries.js'
+// 仓库标识的取法与优先级只在 model/repo-identity.ts 一处（#1910）。
+import { repoRefId } from './model/repo-identity.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
@@ -59,15 +61,6 @@ export type LookupByAnchorResult =
 export function withAnchor(description: string, key: string | null | undefined): string {
   if (!key) return description
   return anchorLineFor(String(key)) + stripAnchorLines(description)
-}
-
-function repoId(repo: Partial<RepositoryRef> | null | undefined): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof (repo as Record<string, unknown>)['name'] === 'string' && (repo as Record<string, unknown>)['name']) {
-    return (repo as Record<string, unknown>)['name'] as string
-  }
-  return ''
 }
 
 function parseRows(text: string): Record<string, unknown>[] {
@@ -147,7 +140,7 @@ export async function lookupByAnchor(
   key: string,
   opCtx: (Partial<OpContext> & Partial<BackendContext>) | null | undefined,
 ): Promise<LookupByAnchorResult> {
-  const id = repoId(repo)
+  const id = repoRefId(repo)
   if (!id) return lookupFailure({ kind: ERROR_KIND.UNSUPPORTED as ErrorKind, fallback: false }, '这个仓库的 refId 是空的，回查无从做起', '')
   const c = glabClient(opCtx as Partial<OpContext> & Partial<BackendContext>)
 

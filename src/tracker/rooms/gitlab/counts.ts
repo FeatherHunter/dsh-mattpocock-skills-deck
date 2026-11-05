@@ -47,6 +47,9 @@ import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
 import { projectPath } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
+// 仓库标识的两个口径（refId 优先回落 name；项目全路径的形状校验）只在 model/repo-identity.ts 一处（#1910）。
+// refId 的原文仍在这里用于失败消息：人一眼能看出差在哪一格。
+import { repoFullPath, repoRefId } from './model/repo-identity.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
@@ -60,35 +63,6 @@ type Bag = Record<string, unknown>
 function asBag(v: unknown): Bag | null {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null
   return v as Bag
-}
-
-/** 失败消息里带上这次收到的仓库标识原文：人一眼能看出差在哪一格（拿不到标识时给空串）。 */
-function refIdOf(repo: RepoLike): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
-
-/**
- * 从 `repo.refId` 取 GitLab 的项目全路径（形如 `group/sub/project`），拿不到就回 null。
- *
- * 只认 refId、不拿 name 当标识（name 是给界面看的显示名，refId 缺时它就是目录名，拿显示名当
- * 远端路径会打到一个不存在的仓库上）—— name 在上面那个函数里只用于失败消息。
- *
- * 「形状对不对」按远端真能认的两种写法判（`projects/:id` 既收完整路径也收数字项目 ID）：
- *  · 完整路径：至少带一段命名空间（含 `/`），且不以 `/` 开头结尾、不出现 `//`、不含空白；
- *  · 纯数字的项目 ID（例如 `42`）也放行。
- * 单段的名字（例如 `myproject`）不是 GitLab 能定位的标识，在这里就按不合格回：早点说清
- * 「入参不合格」比让它跑成一次 404 之后说「仓库不在」更接近实情。
- */
-function fullPathOf(repo: RepoLike): string | null {
-  const refId = typeof repo?.refId === 'string' ? repo.refId.trim() : ''
-  if (!refId) return null
-  if (/\s/.test(refId)) return null
-  if (refId.startsWith('/') || refId.endsWith('/') || refId.includes('//')) return null
-  if (/^[0-9]+$/.test(refId)) return refId
-  return refId.includes('/') ? refId : null
 }
 
 /** filter.state 归一：只有 'open' / 'closed' 两种收窄，其余（含缺失）都是「两种都要」。 */
@@ -142,13 +116,13 @@ export async function counts(
   ctx: OpContext,
 ): Promise<OpResult<Counts>> {
   const t0 = Date.now()
-  const fullPath = fullPathOf(repo)
+  const fullPath = repoFullPath(repo)
   if (!fullPath) {
     // 原文 = 这次收到的入参本身：它缺了或形状不对，人自己能看出差在哪。
     emitReadDegraded(ctx, 'counts', 'counts:repo-ref', Date.now() - t0)
     return fail(
       ERROR_KIND.NOTFOUND,
-      `counts: 仓库标识缺了或形状不对（项目全路径形如 group/sub/project，也可以是数字项目 ID）：${refIdOf(repo)}`,
+      `counts: 仓库标识缺了或形状不对（项目全路径形如 group/sub/project，也可以是数字项目 ID）：${repoRefId(repo)}`,
       repo,
     )
   }
