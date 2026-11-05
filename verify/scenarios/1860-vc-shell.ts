@@ -2802,8 +2802,10 @@ async function runInteraction(context: ScenarioContext, page: PageHandle, raw: R
   const diffShown = await waitFor(page, CHANGES_DIFF_BLOCK, 8000)
   // 差异块一挂出来就是「正在读」那一句，得等这一句换成补丁或某一种结论再数行数；
   //   否则拍到的永远是加载中（第一轮真机就是这么拍的），断言会误判成「没有逐行差异」。
+  // 「还在读」这一句的判据只看这枚属性在不在：改动页重构之后它带的值是 "1" 而不是 "loading"
+  //   （旧的差异叶把状态串写进属性值，新的叶只写标记）。按值等会立刻判成「读完」，然后在加载中途去数行。
   for (let i = 0; i < 40; i += 1) {
-    if (!(await exists(page, '[data-vc-changes-diff-state="loading"]'))) break
+    if (!(await exists(page, '[data-vc-changes-diff-state]'))) break
     await sleep(200)
   }
   const diffLines = await evaluateThrough<number>(page, CHANGES_DIFF_LINES_SCRIPT)
