@@ -348,7 +348,6 @@ function syncInstallMerged(ctx: any, merged: any): void {
 
 function syncPortsOf(ctx: any): SnapshotVersionPorts {
   const keyNow = function (): string { return syncKeyOfIn(ctx.scope, (ctx.st && ctx.st.cwd) || '') }
-  const nowFn = function (): number { return Date.now() }
   return {
     held: function (): SnapshotVersionBook {
       const hit = syncBookByKey.get(keyNow())
@@ -405,7 +404,7 @@ function syncPortsOf(ctx: any): SnapshotVersionPorts {
       syncInstallMerged(ctx, merged)
       return { version: syncVersionNumber(input.reply.version) }
     },
-    now: nowFn,
+    now: function (): number { return Date.now() },
   }
 }
 
