@@ -12,6 +12,7 @@
 //   2. 判定结果按进程缓存：Windows 那次查系统网络盘集合要起一个 PowerShell，不能每次开库都付一次。
 //   3. 门禁要能在任一种主机上验两条路：平台与文件系统类型读数都可以注入，生产代码不传。
 import type { SnapshotStorageKind } from '../model/types.js'
+import { SNAPSHOT_NETWORK_DRIVE_PROBE_MS } from '../../shared/time-config/src/values.js'
 import { dirname, existsSync, statfsTypeOf } from './node-builtins.js'
 
 // process 在这里只用两件事：读平台、取内置模块。声明写窄是为了不把 Node 的环境声明带进
@@ -53,9 +54,6 @@ export const NETWORK_FILESYSTEM_MAGIC: Record<string, number> = {
 /** 向上找「最近存在的父目录」的最大层数；与 paths.ts 的工作区根搜索同一上限。 */
 const MAX_ANCESTOR_DEPTH = 64
 
-/** 查一次 Windows 网络盘集合的超时：查不到就按本地处理，不能把关库卡在这里。 */
-const NETWORK_DRIVE_PROBE_TIMEOUT_MS = 3000
-
 /** 进程级缓存：null = 还没查过。查失败也缓存（空集合 + 说明），避免每次开库都重试一次 PowerShell。 */
 let cachedNetworkDrives: { drives: Set<string> } | null = null
 
@@ -95,7 +93,7 @@ function networkDrivesOfThisMachine(): Set<string> {
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command',
         'Get-CimInstance Win32_LogicalDisk -Filter "DriveType=4" | Select-Object -ExpandProperty DeviceID'],
-      { encoding: 'utf8', timeout: NETWORK_DRIVE_PROBE_TIMEOUT_MS, windowsHide: true },
+      { encoding: 'utf8', timeout: SNAPSHOT_NETWORK_DRIVE_PROBE_MS, windowsHide: true },
     )
     const text = String((probe && probe.stdout) || '')
     for (const line of text.split(/\r?\n/)) {

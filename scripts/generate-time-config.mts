@@ -184,6 +184,8 @@ const KEYS: Array<[string, string, string]> = [
   ['registerRetryWaitMs', 'REGISTER_RETRY_WAIT_MS', 'timeouts'],
   // #1934：整库重建的库外锁最多等多久（等另一个窗口重建完成；到点就退回在线）。
   ['snapshotRebuildLockWaitMs', 'SNAPSHOT_REBUILD_LOCK_WAIT_MS', 'timeouts'],
+  // #1932：查 Windows 网络盘集合的超时（PowerShell 起不来就按本地多处理）。
+  ['snapshotNetworkDriveProbeMs', 'SNAPSHOT_NETWORK_DRIVE_PROBE_MS', 'timeouts'],
   ['shellResolveMs', 'SHELL_RESOLVE_TIMEOUT_MS', 'timeouts'],
   ['namingSummaryTimeoutMs', 'NAMING_SUMMARY_TIMEOUT_MS', 'timeouts'],
   ['logWatchdogMs', 'LOG_WATCHDOG_MS', 'timeouts'],

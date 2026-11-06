@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-06T13:21:41.395Z",
+  "generatedAt": "2026-11-06T13:32:19.653Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 600,
   "gateCount": 600,
@@ -13332,11 +13332,13 @@
         "src/refresh/rooms/host/refusal-messages.ts",
         "src/refresh/rooms/host/row-patch-state.ts",
         "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/snapshot-library-behind.ts",
         "src/refresh/rooms/host/snapshot-library.ts",
         "src/refresh/rooms/host/snapshot-read-channels.ts",
         "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
         "src/refresh/rooms/host/write-event-fetch.ts",
         "src/refresh/rooms/host/write-event-subscription.ts",
+        "src/refresh/rooms/host/write-retry.ts",
         "src/shared/naming-tracking.ts",
         "src/shared/snapshot-row-fields.ts",
         "src/shared/time-config/src/values.ts",
@@ -13359,9 +13361,13 @@
         "src/tracker/rooms/markdown/scratch-listing.ts",
         "src/workspace-snapshot/persistence/sync-bookkeeping.ts",
         "src/workspace-snapshot/projection/changes.ts",
+        "src/workspace-snapshot/runtime/ingest-apply.ts",
         "src/workspace-snapshot/runtime/ingest.ts",
         "src/workspace-snapshot/runtime/lease.ts",
         "src/workspace-snapshot/runtime/open.ts",
+        "src/workspace-snapshot/runtime/rebuild-lock.ts",
+        "src/workspace-snapshot/runtime/storage-kind.ts",
+        "src/workspace-snapshot/runtime/write-ports.ts",
         "tests/verify-time-config.ts"
       ],
       "dirs": [
@@ -13412,7 +13418,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 179 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 185 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",

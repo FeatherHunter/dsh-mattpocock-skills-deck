@@ -268,6 +268,7 @@ const REFERENCES: RefRow[] = [
   // #1862 工作区快照库的单写者租约：心跳与过期两个时长，分别出自 config/intervals.yaml 与 config/ttl.yaml。
   { file: 'src/workspace-snapshot/runtime/lease.ts', access: 'LEASE_HEARTBEAT_MS', gen: 'SNAPSHOT_LEASE_HEARTBEAT_MS', key: 'snapshotLeaseHeartbeatMs' },
   { file: 'src/workspace-snapshot/runtime/lease.ts', access: 'LEASE_TTL_MS', gen: 'SNAPSHOT_LEASE_TTL_MS', key: 'snapshotLeaseTtlMs' },
+  { file: 'src/workspace-snapshot/runtime/storage-kind.ts', access: 'SNAPSHOT_NETWORK_DRIVE_PROBE_MS', gen: 'SNAPSHOT_NETWORK_DRIVE_PROBE_MS', key: 'snapshotNetworkDriveProbeMs' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -653,6 +654,19 @@ const EXEMPTS: ExemptRow[] = [
   // #1862 工作区快照库：租约与开库诊断路径上的两个名字是读钟或测量值，不是可调时长。
   { file: 'src/workspace-snapshot/runtime/lease.ts', name: 'nowMs', reason: '读钟时刻（调用方注入的时钟），抢租约与续租时写进 meta，不是可调参数' },
   { file: 'src/workspace-snapshot/runtime/open.ts', name: 'elapsedMs', reason: '测量用局部变量（开库耗时），写进诊断日志，不是可调参数' },
+  { file: 'src/workspace-snapshot/runtime/write-ports.ts', name: 'elapsedMs', reason: '测量用局部变量（写事务耗时），写进日志，不是可调参数' },
+  { file: 'src/workspace-snapshot/runtime/rebuild-lock.ts', name: 'acquiredAtMs', reason: '拿锁时刻（起止计算用），不是可调参数' },
+  { file: 'src/workspace-snapshot/runtime/rebuild-lock.ts', name: 'deadline', reason: '算出来的等待截止时刻（拿锁时刻加等待上限），不是可调参数' },
+  { file: 'src/refresh/rooms/host/snapshot-library-behind.ts', name: 'nowMs', reason: '置位时取的当前时刻（Date.now()），不是可调参数' },
+  { file: 'src/refresh/rooms/host/snapshot-library-behind.ts', name: 'sinceMs', reason: '落后起始时刻，用来回答「落后了多久」，不是可调参数' },
+  { file: 'src/refresh/rooms/host/write-retry.ts', name: 'SNAPSHOT_WRITE_RETRY_DELAYS_MS', reason: '由两个中央时间常量组成的重试延迟数组，不是第二份数字' },
+  { file: 'src/workspace-snapshot/runtime/ingest-apply.ts', name: 'receiptMs', reason: '回执写入时刻（由 nowMs 决定），不是可调参数' },
+  { file: 'src/workspace-snapshot/runtime/ingest.ts', name: 'incomingMs', reason: '来者数据的 updatedAt（后端时间），不是可调参数' },
+  { file: 'src/workspace-snapshot/runtime/ingest.ts', name: 'existingMs', reason: '库里已存的 updatedAt（后端时间），不是可调参数' },
+  { file: 'src/workspace-snapshot/runtime/rebuild-lock.ts', name: 'expiresMs', reason: 'owner.json 里的过期时刻（由 TTL 算出），不是可调参数' },
+  { file: 'src/workspace-snapshot/runtime/rebuild-lock.ts', name: 'ttlMs', reason: '锁有效期，来自中央常量 SNAPSHOT_REBUILD_LOCK_TTL_MS（局部别名），不是第二份数字' },
+  { file: 'src/workspace-snapshot/runtime/rebuild-lock.ts', name: 'waitMs', reason: '等锁上限，来自中央常量 SNAPSHOT_REBUILD_LOCK_WAIT_MS（局部别名），不是第二份数字' },
+  { file: 'src/workspace-snapshot/runtime/rebuild-lock.ts', name: 'retryMs', reason: '重试间隔，来自中央常量 SNAPSHOT_REBUILD_LOCK_RETRY_MS（局部别名），不是第二份数字' },
   // #1888：库里的同步簿记三格（水印、待办与它们各自的时刻、上次完整枚举的时刻）都是状态字段，
   //   随库持久化；它们记录「发生了什么时候的事」，不是本文件决定的可调时长。
   { file: 'src/workspace-snapshot/persistence/sync-bookkeeping.ts', name: 'watermarkMs', reason: '上次扫到哪儿的时刻（库里的状态字段），不是可调参数' },
