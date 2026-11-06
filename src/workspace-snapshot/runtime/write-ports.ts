@@ -26,6 +26,7 @@ import { applySyncBookkeepingRow, readSyncBookkeepingRow } from '../persistence/
 import { readMergeVersion } from '../persistence/schema.js'
 import { ingestWrites } from './ingest.js'
 import { describeError } from './open-schema.js'
+import { logSnapshot } from './log.js'
 import { markMissingTickets } from './tombstone-write.js'
 
 /** 旧租约挡住本地写时给用户看的那一句话。措辞只此一处，诊断、写口与重建抛错都用它。 */
@@ -55,6 +56,9 @@ export interface WritePorts {
 
 /** 装配三条写口。 */
 export function createWritePorts(input: WritePortsInput): WritePorts {
+  // 日志出口先落成一个简单变量：静态扫描器只认「logSnapshot(标识符, '级别', '事件名', ...)」
+  // 这种形状，写成 input.logEvent 时点号会让事件台账门禁找不到 workspaceSnapshot.ingest。
+  const logEvent = input.logEvent
   return {
     ingest(batch: WriteBatch): IngestResult {
       input.assertOpen()
@@ -63,7 +67,7 @@ export function createWritePorts(input: WritePortsInput): WritePorts {
       }
       const db = input.db()
       if (input.mode() !== 'writable') {
-        input.logEvent?.('warn', 'workspaceSnapshot.ingest', {
+        logSnapshot(logEvent, 'warn', 'workspaceSnapshot.ingest', {
           committed: false,
           reason: 'readonly',
           mergeVersion: readMergeVersion(db),
@@ -71,7 +75,7 @@ export function createWritePorts(input: WritePortsInput): WritePorts {
         return { committed: false, reason: 'readonly' }
       }
       if (input.legacyWriteBlocked()) {
-        input.logEvent?.('warn', 'workspaceSnapshot.ingest', {
+        logSnapshot(logEvent, 'warn', 'workspaceSnapshot.ingest', {
           committed: false,
           reason: 'legacy-writer',
           writes: batch.writes.length,
@@ -91,7 +95,7 @@ export function createWritePorts(input: WritePortsInput): WritePorts {
         //   skipped-groups   —— 有组被版本门按组跳过，库里那几组比这一趟读的更新。
         // 两者同时出现时记 same-second-tie：它更少见，也更能解释一次看起来没变化的提交。
         const ingestDetail = result.sameSecondTie ? 'same-second-tie' : (result.skippedGroups ? 'skipped-groups' : undefined)
-        input.logEvent?.('info', 'workspaceSnapshot.ingest', {
+        logSnapshot(logEvent, 'info', 'workspaceSnapshot.ingest', {
           committed: true,
           writes: batch.writes.length,
           startMergeVersion: batch.startMergeVersion,
@@ -111,7 +115,7 @@ export function createWritePorts(input: WritePortsInput): WritePorts {
         }
       }
       const reason = result.reason ?? 'write-failed'
-      input.logEvent?.(reason === 'stale' ? 'warn' : 'error', 'workspaceSnapshot.ingest', {
+      logSnapshot(logEvent, reason === 'stale' ? 'warn' : 'error', 'workspaceSnapshot.ingest', {
         committed: false,
         reason,
         writes: batch.writes.length,
@@ -149,7 +153,7 @@ export function createWritePorts(input: WritePortsInput): WritePorts {
       input.assertOpen()
       const db = input.db()
       if (input.mode() !== 'writable') {
-        input.logEvent?.('warn', 'workspaceSnapshot.ingest', {
+        logSnapshot(logEvent, 'warn', 'workspaceSnapshot.ingest', {
           committed: false,
           reason: 'readonly',
           mergeVersion: readMergeVersion(db),
