@@ -49,7 +49,7 @@ export function renameSync(oldPath: string, newPath: string): void {
   nodeFs.renameSync(oldPath, newPath)
 }
 
-export function rmSync(path: string, options?: { force?: boolean }): void {
+export function rmSync(path: string, options?: { force?: boolean, recursive?: boolean }): void {
   nodeFs.rmSync(path, options)
 }
 

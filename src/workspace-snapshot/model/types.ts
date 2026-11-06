@@ -13,6 +13,16 @@ export type SnapshotBackend = 'github' | 'gitlab' | 'markdown'
 export type GroupCompleteness = 'complete' | 'truncated' | 'unknown'
 
 /**
+ * 读投影事务内的步骤钩子（#1931）。只为门禁存在：门禁在投影读到一半时用另一条连接提交一笔写，
+ * 再断言这一次投影仍只看见写之前那一份。生产代码从不传它；不传时它对行为零影响。
+ *
+ * 为什么住在 model 而不是 projection：契约（contract/types.ts）要引用它，而契约不许 import
+ * projection（tests/verify-dependency-rules.ts 的 snapshot-contract-stays-pure 守这条）；两边都
+ * 只依赖最底层的 model，才能既共享同一个类型、又不把契约和投影绑在一起。
+ */
+export type ReadStepHook = (stage: string) => void
+
+/**
  * 这个句柄现在能不能写。
  *
  * 口径（#1932 起）：readonly 只表达「真的写不了」的两种环境，不再表达「另一个窗口拿着写权」——

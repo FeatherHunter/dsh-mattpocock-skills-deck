@@ -19,9 +19,11 @@ import type {
   SnapshotCounts,
   SnapshotStorageKind,
   SnapshotStorageStats,
+  SyncBookkeeping,
 } from '../contract/types.js'
 import type { ReadStepHook } from '../projection/read-step.js'
 import { readMergeVersion } from '../persistence/schema.js'
+import { readSyncBookkeepingRow } from '../persistence/sync-bookkeeping.js'
 import { readContainerProjection, readListProjection } from '../projection/list.js'
 import { readIssueDetailProjection } from '../projection/detail.js'
 import { readChangeSetProjection } from '../projection/changes.js'
@@ -41,6 +43,8 @@ export interface ReadPortsInput {
 
 export interface ReadPorts {
   getMergeVersion(): number
+  /** 同步簿记（水印、世代号、待办）也是只读口：只读句柄同样能读，库是唯一真相。 */
+  readSyncBookkeeping(): SyncBookkeeping
   readCounts(): SnapshotCounts
   readStorageStats(): SnapshotStorageStats
   readList(query?: ListQuery): ListProjection
@@ -55,6 +59,10 @@ export function createReadPorts(input: ReadPortsInput): ReadPorts {
     getMergeVersion(): number {
       input.assertOpen()
       return readMergeVersion(input.db())
+    },
+    readSyncBookkeeping(): SyncBookkeeping {
+      input.assertOpen()
+      return readSyncBookkeepingRow(input.db())
     },
     readCounts(): SnapshotCounts {
       input.assertOpen()

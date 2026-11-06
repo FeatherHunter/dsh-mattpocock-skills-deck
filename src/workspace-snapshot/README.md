@@ -83,6 +83,29 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
 网络盘路径的写者标识用 `rw-<进程号>-<序号>` 前缀（旧代码是 `refresh-…` / `snapshot:…`），
 只为日志与排查能一眼分出「读写锁版本写下的」还是「旧版本留下的」；判断只看租约有没有过期。
 
+## 整库重建的库外锁（#1934，规格 #1930 §2.6）
+
+重建是唯一会删库文件的破坏性操作，所以互斥不能放在库里（库会被删掉），只能放在库文件旁边：
+`dbPath + '.rebuild-lock'` 目录。协议见 `runtime/rebuild-lock.ts`：
+
+- 先写唯一临时目录、再 rename 成锁目录，保证锁一出现就带完整 `owner.json`，不会暴露
+  「目录在、主人还没写」的窗口；`owner.json` 记 owner、fencing token 与过期时间。
+- 持锁期间按 TTL/3 续期；过期或无主的锁 rename 到唯一名字再删；删库前、备份前、建库前、建库后、
+  释放前都复核 token，旧重建者恢复后不会误删新库。
+- 拿锁后先复检库：等锁期间别人已经重建好就直接用新库、一个文件都不删；拿不到锁抛可识别的
+  `RebuildBusyError`，开库回落在线路径，不把「等一下就好」伪装成只读环境。
+- 三个时长都来自中央时间参数：锁有效期 60 秒（`snapshotRebuildLockTtlMs`）、等待上限 10 秒
+  （`snapshotRebuildLockWaitMs`）、重试间隔 50 毫秒（`snapshotRebuildLockRetryMs`）。
+
+## 写回执失败与「本机库落后」（#1935）
+
+写回执落库遇到 `write-failed` 时按两档退避重试（5 秒、10 秒，中央时间参数
+`snapshotWriteRetryFirstMs` / `snapshotWriteRetrySecondMs`）；`readonly` / `legacy-writer` /
+`stale` 不重试。最终仍失败就置「本机库落后」，隔 2 秒（`snapshotResyncDelayMs`）走既有写事件
+取数路补一次探测；任何一次写进库的成功都会清掉这个状态。列表状态行只说用户能懂的
+「本机数据落后，正在重新同步」，内部原因只在设置页与日志里。**不做本地持久队列**：后端是源头，
+重启后的第一拍会重新取数。
+
 ## 存储不设上限、不淘汰（2026-11-05，#1922）
 
 有了 SQLite 做存储之后，按需细节（正文、评论、评审、子票清单）不再设条数或字节上限，
@@ -229,6 +252,12 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
 - `tests/verify-1933-network-fallback.ts`：网络盘 / UNC 单写者回退与设置页诊断——路径判定与
   storageKind 覆盖、第二个句柄只读但仍能读、关掉第一个之后第三个接手写、本地盘两个句柄都可写、
   写模型五档文案键与中英词条、列表不出现回退原因（损坏重建仍要说）、租约三列与两个时长配置保留。
+- `tests/verify-1931-read-snapshot.ts`：五条投影的读事务一致（另一条连接在事务中间提交写）、
+  行组严格更新时间、回执严格时间、版本门按组跳过。
+- `tests/verify-1934-rebuild-lock.ts`：库外锁的原子获取与释放、过期/无主清理、fencing、
+  六条重建分支、两个真子进程同时重建只有一个真重建且等待方最后可写。
+- `tests/verify-1935-receipt-resync.ts`：写回执 `write-failed` 两档重试、最终失败置
+  「本机库落后」并排一次短延迟重同步、任何写成功清状态、首屏挂载与用户级文案、无本地持久队列。
 - `tests/verify-1863-snapshot-edges.ts`：父子边与阻塞边的三态写入、引用骨架、删除级联。
 - `tests/verify-1863-snapshot-library-replay.ts` 与 `verify-1863-snapshot-cold-start.ts`：
   列表读结果按组写库、断网冷启动首屏只读库。

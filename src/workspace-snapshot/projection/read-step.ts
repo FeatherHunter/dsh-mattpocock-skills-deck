@@ -8,8 +8,11 @@
 // 约定：stage 名字是对外契约的一部分，门禁按字面量比对，改名要同时改门禁，不要只改一边。
 // 反例：不要在这个钩子里做任何生产需要的事情 —— 它存在的前提就是「线上没人传」。
 
+// 类型住在 model（最底层），契约与投影两边都只依赖它；本文件只负责调用与再导出。
+import type { ReadStepHook } from '../model/types.js'
+
 /** 投影在事务内报出的步骤名；只收一个字符串，不把查询结果交出去（避免门禁顺手依赖内部形状）。 */
-export type ReadStepHook = (stage: string) => void
+export type { ReadStepHook }
 
 /**
  * 调一次步骤钩子。没传就什么都不做；钩子自己抛错时让错误照常冒出去 ——

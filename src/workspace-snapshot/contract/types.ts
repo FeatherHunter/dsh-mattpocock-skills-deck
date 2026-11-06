@@ -2,7 +2,6 @@
 //
 // 上层（refresh、界面、测试）只应该 import contract/ 里的东西。这里的形状是 #1862 定下的
 // 门面骨架，后续实施票（1863+）直接按这个形状接，不要各自再造一套批次类型。
-import type { ReadStepHook } from '../projection/read-step.js'
 import type {
   ChangeSetProjection,
   ChangeSetQuery,
@@ -14,6 +13,7 @@ import type {
   IssueRowValue,
   ListProjection,
   ListQuery,
+  ReadStepHook,
   SnapshotActor,
   SnapshotBackend,
   SnapshotComment,
@@ -47,6 +47,7 @@ export type {
   ListIssueRef,
   ListProjection,
   ListQuery,
+  ReadStepHook,
   SnapshotActor,
   SnapshotBackend,
   SnapshotComment,
