@@ -155,6 +155,9 @@ async function main() {
   check(lw.ok === true && lw.worktrees.length === 1 && lw.worktrees[0].branch === 'main', '真机 worktree 清单解出')
   const lr = refs.parseRefs(live.refs.out)
   check(lr.ok === true && lr.refs.some((r) => r.short === 'main' && r.current === true), '真机 refs 解出当前分支')
+  // #1883：第八段是提交主题。这条钉住「主题来自同一条 for-each-ref」——样本里 main 的 HEAD 就是
+  //   log.out 里那条提交，两处主题必须一致；解析器只认八段，才对得上命令里追加的那一段。
+  check(lr.ok === true && lr.refs[0].subject === '首次提交：四种路径形态各一份', '真机 refs 第八段解出提交主题（与同一份样本 log 里的主题一致）')
 
   // 反证：把被守的口径改回去（解析器只认「计数头独占字段」一种形状）——旧实现在这份真机字节上必须当场失败。
   const oldSingleShape = function (stdout) {
@@ -516,8 +519,12 @@ async function main() {
   check(badStatus.ok === false, '自检：字段数不对必须失败')
   const badHead = status.parseStatus('X oops')
   check(badHead.ok === false, '自检：未知行首字符必须失败')
-  const badHash = refs.parseRefs('refs/heads/a\0a\0xyz\0\0\0 \0' + '2026-10-02T16:02:31+08:00')
+  const badHash = refs.parseRefs('refs/heads/a\0a\0xyz\0\0\0 \0' + '2026-10-02T16:02:31+08:00' + '\0' + '主题')
   check(badHash.ok === false, '自检：非哈希 objectname 必须失败')
+  // 少一段（还是旧命令的七字段形状）也当场失败：命令与解析同属一个被测单元，段数对不上就是口径错位，
+  //   不能把「没读到主题」当成「这条分支没有主题」混过去。
+  const badFields = refs.parseRefs('refs/heads/a\0a\0' + 'a'.repeat(40) + '\0\0\0*\0' + '2026-10-02T16:02:31+08:00')
+  check(badFields.ok === false && badFields.error === 'refs-malformed', '自检：七字段的旧形状必须失败（字段数不是 8）')
   const badLog = log.parseLog('a\0b\0c')
   check(badLog.ok === false, '自检：字段总数非法必须失败')
   const badStep = state.classifyStepZero(128, '', 'fatal: not a git repository (or any of the parent directories): .git')

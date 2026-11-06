@@ -149,6 +149,9 @@ function worktreeRecords(): WorktreeRecord[] {
 }
 
 function refRecords(basisMs: number): RefRecord[] {
+  // #1883：RefRecord 在末尾追加了「分支尖端那次提交的主题」，分支页第三行要用它。
+  //   这里取采集到的 HEAD 提交的主题；采集清单里没有那条提交时给空串——原型数据不编造主题。
+  const head = capturedCommits.filter((c) => c.oid === capturedHead)[0]
   return [
     {
       ref: `refs/heads/${capturedBranch}`,
@@ -160,6 +163,7 @@ function refRecords(basisMs: number): RefRecord[] {
       behind: 0,
       current: true,
       commitDateMs: basisMs,
+      subject: head === undefined ? '' : head.subject,
     },
   ]
 }

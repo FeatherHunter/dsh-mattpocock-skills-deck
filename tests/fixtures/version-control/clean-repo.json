@@ -3,7 +3,7 @@
     "gitVersion": "git version 2.49.0.windows.1",
     "capturedAt": "2026-10-02T10:30:55.433Z",
     "live": true,
-    "note": "本机实采：主分支，仅未跟踪新文件（#816 施工中），无已跟踪改动"
+    "note": "本机实采：主分支，仅未跟踪新文件（#816 施工中），无已跟踪改动；refs.out 的第八段（提交主题）在 #1883 按新命令追加，值取自同一批 oid 在本机仓库里的提交主题"
   },
   "step0": {
     "code": 0,
@@ -22,7 +22,7 @@
   },
   "refs": {
     "code": 0,
-    "out": "refs/heads/main\u0000main\u0000edfc5b888735b10b9162dcfa62beb2ef123d620b\u0000origin/main\u0000\u0000*\u00002026-10-02T18:10:04+08:00\nrefs/heads/prototype/643-workflow-panel-variants\u0000prototype/643-workflow-panel-variants\u00004c45163b650a221c7769cd2530d46ab3d0017174\u0000\u0000\u0000 \u00002026-09-21T20:55:58+08:00\nrefs/heads/prototype/650-subworkspace-indicator\u0000prototype/650-subworkspace-indicator\u00003d7d5537398d42fc52f4c27e349748aa00f0e66a\u0000\u0000\u0000 \u00002026-09-19T10:57:06+08:00\nrefs/heads/prototype/769-takeover-supplement\u0000prototype/769-takeover-supplement\u000079ef4de28b8f91934e46fd8741f7b21627d60d4f\u0000origin/prototype/769-takeover-supplement\u0000\u0000 \u00002026-09-29T09:03:23+08:00\n",
+    "out": "refs/heads/main\u0000main\u0000edfc5b888735b10b9162dcfa62beb2ef123d620b\u0000origin/main\u0000\u0000*\u00002026-10-02T18:10:04+08:00\u0000收录地图 810 引用的三份调研底稿：功能风险划分、命令选型解析、取票详情丢失报告\nrefs/heads/prototype/643-workflow-panel-variants\u0000prototype/643-workflow-panel-variants\u00004c45163b650a221c7769cd2530d46ab3d0017174\u0000\u0000\u0000 \u00002026-09-21T20:55:58+08:00\u0000原型 #643：出一份「综合版」，把已经拍板的合起来、只摆还没定的几档\nrefs/heads/prototype/650-subworkspace-indicator\u0000prototype/650-subworkspace-indicator\u00003d7d5537398d42fc52f4c27e349748aa00f0e66a\u0000\u0000\u0000 \u00002026-09-19T10:57:06+08:00\u0000归档 #650 原型：子工作区标志定稿为「面板头部一枚文件夹图标」\nrefs/heads/prototype/769-takeover-supplement\u0000prototype/769-takeover-supplement\u000079ef4de28b8f91934e46fd8741f7b21627d60d4f\u0000origin/prototype/769-takeover-supplement\u0000\u0000 \u00002026-09-29T09:03:23+08:00\u0000按维护者定稿逐字落地B套两段：接手去约束后缀改节名，补充问用户并收敛缺失项\n",
     "err": ""
   },
   "log": {
