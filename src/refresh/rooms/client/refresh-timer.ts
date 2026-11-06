@@ -410,7 +410,9 @@ export const refreshAll = function (st: any): void {
               if (_df) {
                 _df.added.forEach(function (n: any): void { st2.rowFlash[n] = 'added'; });
                 _df.changed.forEach(function (n: any): void { st2.rowFlash[n] = 'changed'; });
-                if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (k: string): void { st2.issueFlash[Number(k)] = _df.issueFlash[k]; });
+                // #1926 评审：子票标记的键就是差异产出的那个身份键（工作单元 + 编号），与界面查的同一把尺子；
+                // 原来这里把它转成数字，多工作单元的键会变成 NaN，标记永远查不到。
+                if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (k: string): void { st2.issueFlash[k] = _df.issueFlash[k]; });
                 if (_df.removed && _df.removed.length) try { flash(st2, tr('panel.diffRemoved', { n: _df.removed.length }), 'info'); } catch (eFlash) {}
               }
             } catch (e2) {}

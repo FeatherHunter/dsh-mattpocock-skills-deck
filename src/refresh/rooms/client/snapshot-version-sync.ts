@@ -331,8 +331,11 @@ function syncInstallMerged(ctx: any, merged: any): void {
     st.issueFlash = {}
     merged.redrawn.forEach(function (id: string): void {
       st.rowFlash[id] = 'changed'
+      // 子票高亮的键必须与界面查的那把尺子同一个：MapDetail 按 idOf(t)（工作单元 + 编号）查，
+      // 这里原来只把编号当键写进去，多工作单元（本地 Markdown）的标记因此永远查不到、那一行不闪（#1926 评审）。
+      // 仍然只给编号类行打这个标记（容器与拉取请求的 id 不是数字，不参与子票高亮）。
       const numeric = Number(String(id).split('\u0000').pop())
-      if (Number.isInteger(numeric) && numeric > 0) st.issueFlash[numeric] = 'changed'
+      if (Number.isInteger(numeric) && numeric > 0) st.issueFlash[id] = 'changed'
     })
   } catch (e) {}
   // #1926：标记落了就得排上清除。漏了这一句，标记会一直留在会话身上；切走再切回来，

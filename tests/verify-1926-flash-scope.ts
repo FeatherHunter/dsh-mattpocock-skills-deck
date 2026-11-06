@@ -1,7 +1,7 @@
 /**
  * tests/verify-1926-flash-scope.ts —— 切换会话时右侧面板整列闪黄（#1926）
  *
- * 守什么（票面「做完」前三条逐条落在这里）：
+ * 守什么（票面「做完」第 1–3 条与分诊给出的不变式，分组落在下面）：
  *   A 同一时刻不判成变了。同一张票、同一时刻的数据，在线取数给的是后端原样的秒级 ISO
  *     （2026-08-24T01:33:13Z），本机快照库回放给的是 new Date(毫秒).toISOString()（…:13.000Z）。
  *     差异判据比的是「时刻」不是字面：两种写法互比必须一行都不产。
@@ -11,6 +11,8 @@
  *     同一会话连排两次仍只排一个；没有计时器出口时不粘住旗子。
  *   D 变化集合并那条路同样按时刻判。同一时刻的两种写法并进手上那份不算重画；合并落了闪烁标记
  *     也必须排上清除，否则切回那个会话时那些行又亮一遍。
+ *   E 子票高亮的键与界面查的同一把尺子（工作单元 + 编号）。只写裸编号（或转成数字变成 NaN）的键
+ *     在多工作单元（本地 Markdown）里永远查不到，那一行不会闪 —— 这是同一条路上顺带发现并修掉的一处。
  *
  * 为什么这么测：这几处都是纯判据（喂数据、看结论），不起浏览器、不依赖真机；真机复验按票面
  * 「做完」第 1、2 条在装好的插件里来回切会话做一次即可。
@@ -20,8 +22,6 @@
 // 门禁归属: src/refresh/rooms/client/snapshot-sync-helpers.ts
 // 门禁归属: src/refresh/rooms/client/snapshot-version-sync.ts
 // 门禁归属: src/refresh/rooms/client/snapshot-change-merge.ts
-// 门禁归属: src/refresh/rooms/client/refresh-timer.ts
-// 门禁归属: src/refresh/rooms/client/probe-scope-selection.ts
 
 import fs from 'node:fs'
 import { printGateResult } from './lib/gate-result.ts'
@@ -30,6 +30,8 @@ import { diffSnapshots, scheduleFlashClear } from '../src/refresh/rooms/client/s
 import { applySnapshotChangeSet } from '../src/refresh/rooms/client/snapshot-change-merge.ts'
 import { runSnapshotVersionTick, rememberSnapshotVersion } from '../src/refresh/rooms/client/snapshot-version-sync.ts'
 import { snapshotRowFieldsOf } from '../src/shared/snapshot-row-fields.ts'
+// 停留时长取中央那一档（config/ttl.yaml 的 snapshotProbeMs）：不在门禁里另写一个数字。
+import { SNAPSHOT_PROBE_MS } from '../src/shared/time-config/src/values.ts'
 
 const GATE = 'verify-1926-flash-scope'
 let total = 0
@@ -131,13 +133,13 @@ const keysOf = (list: any[]): string[] => list.map((one: any): string => String(
   const emitted: any[] = []
   ;(globalThis as any).timer = { timeout: function (fn: any, ms: number): any { timers.push({ fn: fn, ms: ms }); return function (): void {} } }
   ;(globalThis as any).emit = function (st: any): void { emitted.push(st) }
-  ;(globalThis as any).SNAPSHOT_PROBE_MS = 2600
+  ;(globalThis as any).SNAPSHOT_PROBE_MS = SNAPSHOT_PROBE_MS
   const sessionA: any = { cwd: 'A', rowFlash: { '101': 'changed' }, issueFlash: { 101: 'changed' } }
   const sessionB: any = { cwd: 'B', rowFlash: { '201': 'changed', '202': 'changed' }, issueFlash: { 201: 'changed' } }
   scheduleFlashClear(sessionA)
   scheduleFlashClear(sessionB)
   check(timers.length === 2, 'C1 两个会话各排一个清除计时器（不是全局共用一个）', timers.length)
-  check(timers.length === 2 && timers.every(function (one): boolean { return one.ms === 2600 }), 'C2 停留时长仍取中央那一档', timers.map(function (one): number { return one.ms }))
+  check(timers.length === 2 && timers.every(function (one): boolean { return one.ms === SNAPSHOT_PROBE_MS }), 'C2 停留时长仍取中央那一档（config/ttl.yaml 的 snapshotProbeMs）', timers.map(function (one): number { return one.ms }))
   timers.forEach(function (one): void { one.fn() })
   check(Object.keys(sessionA.rowFlash).length === 0 && Object.keys(sessionA.issueFlash).length === 0,
     'C3 A 会话的标记到点清空', sessionA.rowFlash)
@@ -172,7 +174,7 @@ const keysOf = (list: any[]): string[] => list.map((one: any): string => String(
     }, (extra && extra.row) || {})
     const complete = { completeness: 'complete' }
     return {
-      effortId: '', key: key, row: row, labels: [], assignees: [], parents: [], blockedBy: [],
+      effortId: (extra && extra.effortId) || '', key: key, row: row, labels: [], assignees: [], parents: [], blockedBy: [],
       subIssues: null, mergedAtMs: null,
       groups: { row: complete, body: null, labels: complete, assignees: complete, parents: complete, blockedBy: complete, subIssues: null, mergeInfo: null },
       placement: { place: 'issue' },
@@ -203,47 +205,62 @@ const keysOf = (list: any[]): string[] => list.map((one: any): string => String(
   const timers: Array<{ fn: () => void, ms: number }> = []
   ;(globalThis as any).timer = { timeout: function (fn: any, ms: number): any { timers.push({ fn: fn, ms: ms }); return function (): void {} } }
   ;(globalThis as any).emit = function (): void {}
-  ;(globalThis as any).SNAPSHOT_PROBE_MS = 2600
+  ;(globalThis as any).SNAPSHOT_PROBE_MS = SNAPSHOT_PROBE_MS
   ;(globalThis as any).scheduleFlashClear = scheduleFlashClear
+  /** 假宿主：版本从 5 走到 7，变化集只给这一行；一拍就能到「取变化并合并」那条路。 */
+  const scopeFor = function (cwd: string, changed: any[]): any {
+    return {
+      host: {
+        call: function (method: string): any {
+          if (method === 'wf.snapshotVersion') return Promise.resolve({ ok: true, version: 7, workspaceKey: cwd, backend: 'github' })
+          if (method === 'wf.snapshotChanges') return Promise.resolve({ ok: true, version: 7, workspaceKey: cwd, backend: 'github', full: false, changed: changed, missing: [] })
+          return Promise.resolve({ ok: false, error: 'unexpected ' + method })
+        },
+      },
+      wsKeyOf: function (x: any): string { return String(x || '') },
+      idOf: idOf,
+      emit: function (): void {},
+      setCachedSnapshot: function (): void {},
+      applyChanges: applySnapshotChangeSet,
+      snapshotWithoutWorkRoute: function (snap: any): any { return snap },
+      loadOwnWorkRoute: function (): void {},
+      installSnapshot: function (): void {},
+      log: function (): void {},
+      isEnabled: function (): boolean { return false },
+    }
+  }
+  const tickOf = async function (st: any, scope: any): Promise<string> {
+    try { return String(await runSnapshotVersionTick(st, 'gate', scope)) } catch (e) { return 'threw:' + String((e && e.message) || e) }
+  }
+
   const cwd = 'D:\\ws1926-d'
   const st: any = { cwd: cwd, snapshot: { ok: true, maps: [], issues: [held], thinTickets: [] }, snapMode: 'real', snapLoading: false }
   // 手上那份对应第 5 版；库已经到第 7 版 —— 这一拍走「版本变了取变化集」那条路。
   rememberSnapshotVersion(cwd, 5)
-  const scope: any = {
-    host: {
-      call: function (method: string): any {
-        if (method === 'wf.snapshotVersion') return Promise.resolve({ ok: true, version: 7, workspaceKey: cwd, backend: 'github' })
-        if (method === 'wf.snapshotChanges') return Promise.resolve({ ok: true, version: 7, workspaceKey: cwd, backend: 'github', full: false, changed: [libraryRow('201', T0 + 60000)], missing: [] })
-        return Promise.resolve({ ok: false, error: 'unexpected ' + method })
-      },
-    },
-    wsKeyOf: function (x: any): string { return String(x || '') },
-    idOf: idOf,
-    emit: function (): void {},
-    setCachedSnapshot: function (): void {},
-    applyChanges: applySnapshotChangeSet,
-    snapshotWithoutWorkRoute: function (snap: any): any { return snap },
-    loadOwnWorkRoute: function (): void {},
-    installSnapshot: function (): void {},
-    log: function (): void {},
-    isEnabled: function (): boolean { return false },
-  }
-  const started = runSnapshotVersionTick(st, 'gate', scope)
-  started.then(function (outcome: string): void {
-    check(outcome === 'merged', 'D5 一拍走完并合并成功（生产接线过一遍）', outcome)
-    check(st.rowFlash && Object.keys(st.rowFlash).length === 1, 'D6 合并后只给真变了的那一行打闪烁标记', st.rowFlash)
-    check(timers.length === 1, 'D7 合并落了标记就排上清除计时器（不是留在会话身上不管）', timers.length)
-    if (timers.length === 1) timers[0].fn()
-    check(!st.rowFlash || Object.keys(st.rowFlash).length === 0, 'D8 到点之后标记自己清掉（切回这个会话不再亮）', st.rowFlash)
-    console.log('')
-    console.log(failed ? 'FAIL：' + total + ' 条断言里有失败' : 'OK：' + total + ' 条断言全部通过')
-    printGateResult(GATE, total, failed)
-    process.exit(failed ? 1 : 0)
-  }, function (error: any): void {
-    check(false, 'D5 一拍走完并合并成功（生产接线过一遍）', String(error && error.message || error))
-    console.log('')
-    console.log('FAIL：' + total + ' 条断言里有失败')
-    printGateResult(GATE, total, failed)
-    process.exit(1)
-  })
+  const outcome = await tickOf(st, scopeFor(cwd, [libraryRow('201', T0 + 60000)]))
+  check(outcome === 'merged', 'D5 一拍走完并合并成功（生产接线过一遍）', outcome)
+  check(st.rowFlash && Object.keys(st.rowFlash).length === 1, 'D6 合并后只给真变了的那一行打闪烁标记', st.rowFlash)
+  check(timers.length === 1, 'D7 合并落了标记就排上清除计时器（不是留在会话身上不管）', timers.length)
+  if (timers.length === 1) timers[0].fn()
+  check(!st.rowFlash || Object.keys(st.rowFlash).length === 0, 'D8 到点之后标记自己清掉（切回这个会话不再亮）', st.rowFlash)
+
+  // ── E 多工作单元：子票高亮的键必须与界面查的同一把尺子（#1926 评审） ──────────
+  // MapDetail 按 idOf(t)（工作单元 + 编号）查 st.issueFlash，所以写标记时也只能用这个身份键；
+  // 只写编号（或转成数字）的键在多工作单元（本地 Markdown）里永远查不到，那一行不会闪。
+  const effort = 'base-package-rollout'
+  const cwdE = 'D:\\ws1926-e'
+  const stE: any = { cwd: cwdE, snapshot: { ok: true, maps: [], issues: [heldRow('201', T0, { effortId: effort })], thinTickets: [] }, snapMode: 'real', snapLoading: false }
+  rememberSnapshotVersion(cwdE, 5)
+  const outcomeE = await tickOf(stE, scopeFor(cwdE, [libraryRow('201', T0 + 60000, { effortId: effort })]))
+  const composite = idOf({ effortId: effort, key: '201' })
+  check(outcomeE === 'merged', 'E1 多工作单元的一拍同样合并成功', outcomeE)
+  check(stE.issueFlash && stE.issueFlash[composite] === 'changed',
+    'E2 子票标记用的是界面查的身份键（工作单元 + 编号）', { want: composite, got: Object.keys(stE.issueFlash || {}) })
+  check(stE.issueFlash && !Object.prototype.hasOwnProperty.call(stE.issueFlash, '201') && !Object.prototype.hasOwnProperty.call(stE.issueFlash, 'NaN'),
+    'E3 不再写裸编号或 NaN 当键（那种键界面永远查不到）', Object.keys(stE.issueFlash || {}))
 }
+
+console.log('')
+console.log(failed ? 'FAIL：' + total + ' 条断言里有失败' : 'OK：' + total + ' 条断言全部通过')
+printGateResult(GATE, total, failed)
+process.exit(failed ? 1 : 0)

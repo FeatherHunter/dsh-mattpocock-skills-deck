@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-06T04:31:00.550Z",
+  "generatedAt": "2026-11-06T04:57:44.603Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 595,
   "gateCount": 595,
@@ -7287,8 +7287,6 @@
       "step": "node tests/verify-1926-flash-scope.ts",
       "file": "tests/verify-1926-flash-scope.ts",
       "guards": [
-        "src/refresh/rooms/client/probe-scope-selection.ts",
-        "src/refresh/rooms/client/refresh-timer.ts",
         "src/refresh/rooms/client/snapshot-change-merge.ts",
         "src/refresh/rooms/client/snapshot-sync-helpers.ts",
         "src/refresh/rooms/client/snapshot-version-sync.ts"
@@ -7299,8 +7297,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 26,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+      "expectedAssertions": 29,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-1927-tip-first-frame-browser.ts",
