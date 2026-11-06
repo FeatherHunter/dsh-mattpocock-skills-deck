@@ -589,6 +589,34 @@ async function captureActions(page: PageHandle, raw: RawBrowserPage, spec: any, 
       const errShown = await waitForSelector(raw, '[data-wt-create-error]', 12000)
       facts['createError:' + spec.id + ':' + skin.id + ':' + width] = { shown: errShown, text: errShown ? await textOf(page, '[data-wt-create-error]') : '' }
       await shot('create-error')
+      // 第二种错误：目录已经被别的工作区占着。填一条已经在清单里的路径，错误同样要留在表单里。
+      const occupiedRows = await readWorktreeRows(raw)
+      if (occupiedRows.length > 0) {
+        try {
+          await raw.page.fill('[data-wt-create-path]', occupiedRows[0])
+          await raw.page.fill('[data-wt-create-branch-input]', 'ticket/1904-taken')
+          await realClick(raw, '[data-wt-create-submit]')
+          const takenShown = await waitForSelector(raw, '[data-wt-create-error]', 12000)
+          facts['createTaken:' + spec.id + ':' + skin.id + ':' + width] = { shown: takenShown, text: takenShown ? await textOf(page, '[data-wt-create-error]') : '' }
+          await shot('create-taken')
+        } catch (error) {
+          facts['createTakenProblem:' + skin.id] = messageOf(error)
+        }
+      }
+      // 第三种错误：本地没有这条分支（「已有分支」那一档）。错误同样留在表单里。
+      if (await softClick(raw, '[data-wt-create-mode="existing"]')) {
+        try {
+          await raw.page.fill('[data-wt-create-path]', WT_NEW_BASE + '/wt-nobranch-' + skin.id + '-' + width + '-' + WT_RUN_TAG)
+          await raw.page.fill('[data-wt-create-branch-input]', 'no-such-branch-1904-' + WT_RUN_TAG)
+          await realClick(raw, '[data-wt-create-submit]')
+          const missingShown = await waitForSelector(raw, '[data-wt-create-error]', 12000)
+          facts['createMissing:' + spec.id + ':' + skin.id + ':' + width] = { shown: missingShown, text: missingShown ? await textOf(page, '[data-wt-create-error]') : '' }
+          await shot('create-missing')
+        } catch (error) {
+          facts['createMissingProblem:' + skin.id] = messageOf(error)
+        }
+        await softClick(raw, '[data-wt-create-mode="new"]')
+      }
       // 真建一棵：目录与分支都填上再提交，结果条与「新建的那一棵排在最前」才有真凭据。
       const created = await createWorktree(raw, target, 'ticket/1904-' + skin.id + '-' + width + '-' + WT_RUN_TAG)
       createdOk = created.ok
