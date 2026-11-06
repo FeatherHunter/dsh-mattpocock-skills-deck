@@ -287,22 +287,20 @@ export const truthNoticeLines = function (st: any, nowMs: any) {
   // 三、有更新但被推后了；四、这个窗口没在刷新（同时活跃上限 2 个窗口，第 3 个在这里明说）。
   if (refresh && refresh.deferred === true) push({ key: 'truth.deferred', params: {}, tone: 'yellow', kind: 'deferred' })
   if (refresh && refresh.notRefreshing === true) push({ key: 'truth.notRefreshing', params: {}, tone: 'fresh', kind: 'notRefreshing' })
-  // 五、磁盘回放（#1692）：这份快照是从磁盘上的旧文件回放出来的，内容只到「上次已知」那一刻。
-  //   说清那一刻，免得把回放出来的旧数据当成刚取到的；时刻由宿主在回放时挂到快照的 diskReplay 上。
-  if (snap.diskReplay && typeof snap.diskReplay.lastKnownAtMs === 'number' && snap.diskReplay.lastKnownAtMs > 0) {
-    const rd = new Date(snap.diskReplay.lastKnownAtMs)
-    const rpad = function (n: any) { return (n < 10 ? '0' : '') + n }
-    push({ key: 'truth.replayLastKnown', params: { time: rpad(rd.getHours()) + ':' + rpad(rd.getMinutes()) }, tone: 'yellow', kind: 'replay' })
-  }
-  // 六、本地快照库自己报的开库诊断（#1869 真机演练补）：损坏重建、身份/结构重建、退回只读。
+  // 五、磁盘回放不再在列表上方说「上次已知」（#1928）：数据年龄由面板头部已有的时间标签表达
+  //   （truthFreshnessBox / truthFreshnessLine 读同一份 generatedMs），列表这一行只留「为什么旧」的
+  //   用户级结论。快照上的 diskReplay 字段仍保留：它是「这份数据来自库回放」的判据，别的读取方还在用。
+  //   反例：不要为了删这句话把 diskReplay 一起删掉——那是数据来源的记号，不是给用户看的内部状态。
+  // 六、本地快照库自己报的开库诊断（#1869 真机演练补）：损坏重建、身份/结构重建。
   //   这些是「本机数据出了什么事」的结论，必须由列表状态行说出来；失败时不说话会让界面静默变空白。
+  //   写者租约/只读这类内部状态不再上列表（#1928）：它们只在设置页诊断与日志里说，用户看到的是
+  //   「数据为什么旧」，不是「底层哪把锁在谁手里」。
   const snapshotDiags = Array.isArray(snap.snapshotDiagnostics) ? snap.snapshotDiagnostics : []
   const diagKeyOf = function (code: any) {
     if (code === 'corrupt-rebuilt') return 'truth.snapshotCorrupt'
     if (code === 'identity-mismatch-rebuilt') return 'truth.snapshotIdentity'
     if (code === 'schema-reset') return 'truth.snapshotSchema'
-    if (code === 'lease-held-readonly') return 'truth.snapshotReadonly'
-    if (code === 'lease-lost-readonly') return 'truth.snapshotLeaseLost'
+    // 租约/只读两个码故意不映射（#1928）：它们不是用户该在列表上读到的内部状态。
     return ''
   }
   for (let i = 0; i < snapshotDiags.length; i++) {

@@ -5,8 +5,9 @@
  *   A 整份磁盘快照退役（#1870）：旧的 .dsh-mattskillsdeck-cache/<owner>__<repo>.json 不再被读、
  *     不再被写、不再被迁移；格式模块已删除；两条快照宿主方法它们的装配处都不再引用那三个口。
  *     旧 JSON 文件仍原地留在磁盘上——谁也不碰它，所以它的字节一个都不会变。
- *   B 显示：从库里回放出来的内容在面板说「上次已知（HH:mm）」；本地快照库自己报的开库诊断
- *     （损坏重建、只读）走列表状态行。
+ *   B 显示（#1928 起）：列表上方不再出现「上次已知 / 只读 / 写锁」这类内部状态；数据年龄由面板
+ *     头部的时间标签表达。本地快照库自己报的损坏/身份/结构重建诊断仍走列表状态行 —— 它们说
+ *     「本机数据出了什么事」，不是底层锁在谁手里。
  *   C 接线：首屏与刷新的读写都经本地快照库门面；没有新增定时器。
  *
  * 2026-11-05（#1922）退役的部分：本门禁原来的 B 段「按需细节按上限淘汰」（条数 200 / 字节 512KB、
@@ -25,7 +26,11 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import * as path from 'node:path'
 import { printGateResult } from './lib/gate-result.ts'
-import { truthNoticeLines } from '../src/client/views/shared/truthLines.ts'
+import { truthFreshnessBox, truthNoticeLines } from '../src/client/views/shared/truthLines.ts'
+
+// truthLines.ts 拼进客户端闭包时，freshnessLevel 由 budget 片段提供；门禁单独求值这一片，
+// 所以在这里挂一个最小替身（只给 B3 的头部时间标签用，回 'fresh' 就够，不参与任何阈值判断）。
+;(globalThis as any).freshnessLevel = function (): string { return 'fresh' }
 
 const GATE = 'verify-1692-disk-replay-eviction'
 const ROOT = process.cwd()
@@ -93,32 +98,34 @@ function main(): void {
     check(libPaths.indexOf('.sqlite') >= 0 && libPaths.indexOf('.json') < 0, 'A6 本地快照库只认 .sqlite 一个文件，库路径不指向旧的 JSON（旧文件原地留着，谁也不碰）')
   }
 
-  // ── B 显示：回放句与开库诊断 ──
+  // ── B 显示：列表上方不再出现回放/只读/写锁这类内部状态（#1928） ──
+  //
+  // 这一段的判据从「内部状态要上列表」翻成「内部状态不上列表」：回放与只读租约都不再由列表
+  // 状态行说；数据年龄仍在面板头部的时间标签里（同一份 generatedMs）。损坏/身份/结构重建三条
+  // 仍然要上列表 —— 它们说「本机数据出了什么事」，不是「底层哪把锁在谁手里」。
   {
     const at = new Date(2026, 9, 31, 9, 23, 0).getTime()
-    const st = { snapshot: { diskReplay: { schema: 3, source: 'legacy-unknown', completeness: 'unknown', legacy: true, lastKnownAtMs: at } } }
-    const lines = truthNoticeLines(st, at + 3600000)
-    const line = lines.filter(function (l: any) { return l.key === 'truth.replayLastKnown' })[0]
-    check(!!line, 'B1 磁盘回放时面板有一条「上次已知」提示')
-    check(line && line.kind === 'replay' && line.tone === 'yellow', 'B2 回放提示是单独一类（replay）、黄档，不混进失败或额度句')
-    check(line && line.params && line.params.time === '09:23', 'B3 提示里写清上次已知到哪一刻（HH:mm）')
-
-    const fresh = truthNoticeLines({ snapshot: { diskReplay: null } }, at)
-    check(!fresh.some(function (l: any) { return l.key === 'truth.replayLastKnown' }), 'B4 负例：不是回放（没有 diskReplay）时不说这句话')
-    const zero = truthNoticeLines({ snapshot: { diskReplay: { lastKnownAtMs: 0 } } }, at)
-    check(!zero.some(function (l: any) { return l.key === 'truth.replayLastKnown' }), 'B5 负例：回放时刻为 0（未知）时不说「上次已知」')
+    const st = { snapshot: { generatedMs: at, diskReplay: { schema: 3, source: 'legacy-unknown', completeness: 'unknown', legacy: true, lastKnownAtMs: at } } }
+    const lines = truthNoticeLines(st, at + 1000)
+    check(!lines.some(function (l: any) { return l.key === 'truth.replayLastKnown' || l.kind === 'replay' }),
+      'B1 磁盘回放不再在列表上方说「上次已知」（数据年龄由头部时间标签表达）')
 
     const pages = srcText('config/copy/pages.yaml')
-    check(pages.indexOf('truth.replayLastKnown') >= 0 && pages.indexOf('上次已知（') >= 0, 'B6 词表两个语言都有「上次已知（{time}）」这一条')
+    check(pages.indexOf('truth.replayLastKnown') < 0 && pages.indexOf('truth.snapshotReadonly') < 0 && pages.indexOf('truth.snapshotLeaseLost') < 0,
+      'B2 词表里「上次已知 / 只读显示 / 租约丢失」三条内部状态词条已删')
 
-    // #1869 真机演练补：本地快照库自己报的开库诊断（损坏重建、只读）也要走这条状态行，
+    const header = truthFreshnessBox(st, at + 1000)
+    check(!!header && header.agoKey === 'truth.updatedJustNow' && header.time === '09:23',
+      'B3 数据年龄仍在面板头部的时间标签里（同一份 generatedMs）', header)
+
+    // #1869 真机演练补：本地快照库自己报的开库诊断（损坏重建）也要走这条状态行，
     // 否则库坏了重建完，列表区只剩「加载中… 暂无」，谁也看不出本机数据被清掉。
     const corruptDiag = truthNoticeLines({ snapshot: { snapshotDiagnostics: [{ code: 'corrupt-rebuilt', message: '本地快照已重建' }] } }, at)
-    check(corruptDiag.some(function (l: any) { return l.key === 'truth.snapshotCorrupt' }), 'B7 库损坏重建时状态行说「已整库重建」')
+    check(corruptDiag.some(function (l: any) { return l.key === 'truth.snapshotCorrupt' }), 'B4 库损坏重建时状态行仍说「已整库重建」')
     const readOnlyDiag = truthNoticeLines({ snapshot: { snapshotDiagnostics: [{ code: 'lease-held-readonly', message: '另一个窗口在写' }] } }, at)
-    check(readOnlyDiag.some(function (l: any) { return l.key === 'truth.snapshotReadonly' }), 'B8 只读租约时状态行说「以只读显示」')
-    check(!truthNoticeLines({ snapshot: { snapshotDiagnostics: [] } }, at).some(function (l: any) { return l.kind === 'snapshot' }), 'B9 负例：没有开库诊断时不说快照提示')
-    check(pages.indexOf('truth.snapshotCorrupt') >= 0 && pages.indexOf('本地快照已损坏') >= 0 && pages.indexOf('Local snapshot was corrupt') >= 0, 'B10 词表两个语言都有快照诊断这一组')
+    check(!readOnlyDiag.some(function (l: any) { return l.kind === 'snapshot' }), 'B5 只读/租约诊断不再出现在列表状态行')
+    check(!truthNoticeLines({ snapshot: { snapshotDiagnostics: [] } }, at).some(function (l: any) { return l.kind === 'snapshot' }), 'B6 负例：没有开库诊断时不说快照提示')
+    check(pages.indexOf('truth.snapshotCorrupt') >= 0 && pages.indexOf('本地快照已损坏') >= 0 && pages.indexOf('Local snapshot was corrupt') >= 0, 'B7 词表两个语言都保留快照损坏这一组')
   }
 
   // ── C 接线：新库是唯一持久副本，且没新增定时器 ──
