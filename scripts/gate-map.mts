@@ -783,6 +783,11 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 自动恢复并清残留；网络盘仍是单写者回退（第二个只读、第一个关掉后第三个接手）；UNC / 映射网络盘 /
   // POSIX 网络文件系统判成 network，判不出按 local；设置页写模型读数五档。单跑实测 41 条。
   'verify-1932-multi-window': 41,
+  // 2026-11-06 #1933（规格 #1930）：网络盘/UNC 回退与设置页诊断——UNC 两种写法、本地路径与
+  // storageKind 覆盖；网络回退第二个句柄只读但仍能读、第一个关闭后第三个接手；回包三格与
+  // 五档文案键；lease-held-readonly / lease-lost-readonly 不进列表状态行，损坏重建仍要说；
+  // schema 三个租约列与两个时长常量保留。单跑实测 43 条。
+  'verify-1933-network-fallback': 43,
   // 2026-11-04 #1863：GitHub 首屏改读本地快照库。第一扇守真 SQLite 上的按组写入、容器树回放、
   // 已关闭票在整池批次后仍在；第二扇守列表三条取数路径的写库钩子，以及「网络全断时首屏从库出」
   // （在线探测 / 磁盘缓存 / 当前用户 / 开会话 / 执行命令五处都计数为零）。

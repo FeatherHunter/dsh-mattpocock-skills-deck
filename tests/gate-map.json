@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-06T12:09:10.161Z",
+  "generatedAt": "2026-11-06T12:19:06.824Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 597,
-  "gateCount": 597,
-  "attributedGates": 541,
+  "chainLength": 598,
+  "gateCount": 598,
+  "attributedGates": 542,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 6,
-  "completionRecordedGates": 140,
+  "completionRecordedGates": 141,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
   "graphFileCount": 957,
@@ -7317,6 +7317,39 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
+      "step": "node tests/verify-1933-network-fallback.ts",
+      "file": "tests/verify-1933-network-fallback.ts",
+      "guards": [
+        "config/copy/panel.yaml",
+        "config/intervals.yaml",
+        "config/ttl.yaml",
+        "src/client/views/ChecksTab.ts",
+        "src/client/views/shared/truthLines.ts",
+        "src/refresh/rooms/host/snapshot-library-read.ts",
+        "src/refresh/rooms/host/snapshot-read-channels.ts",
+        "src/workspace-snapshot/README.md",
+        "src/workspace-snapshot/persistence/schema.ts",
+        "src/workspace-snapshot/runtime/lease.ts",
+        "src/workspace-snapshot/runtime/open.ts",
+        "src/workspace-snapshot/runtime/storage-kind.ts"
+      ],
+      "dirs": [
+        "config",
+        "config/copy",
+        "src/client/views",
+        "src/client/views/shared",
+        "src/refresh/rooms/host",
+        "src/workspace-snapshot",
+        "src/workspace-snapshot/persistence",
+        "src/workspace-snapshot/runtime"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 43,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 12 条）"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -13858,6 +13891,7 @@
       "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1586-diagnostics.ts",
+      "node tests/verify-1933-network-fallback.ts",
       "node tests/verify-fallback-fetch-budget.ts",
       "node tests/verify-notification-events.ts",
       "node tests/verify-prompt-config.ts",
@@ -13877,6 +13911,7 @@
       "node tests/verify-1837-legend-browser.ts",
       "node tests/verify-1837-skill-importance.ts",
       "node tests/verify-1887-counts-from-library.ts",
+      "node tests/verify-1933-network-fallback.ts",
       "node tests/verify-notification-center.ts",
       "node tests/verify-rest-fallback-banner.ts"
     ],
@@ -14446,6 +14481,7 @@
       "node tests/verify-1896-issue-detail-vm.ts",
       "node tests/verify-1897-pr-page-vm.ts",
       "node tests/verify-1922-retire-eviction.ts",
+      "node tests/verify-1933-network-fallback.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -14555,6 +14591,7 @@
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-1922-retire-eviction.ts",
       "node tests/verify-1932-multi-window.ts",
+      "node tests/verify-1933-network-fallback.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -15171,6 +15208,7 @@
       "node tests/verify-1922-retire-eviction.ts",
       "node tests/verify-1923-closed-container.ts",
       "node tests/verify-1932-multi-window.ts",
+      "node tests/verify-1933-network-fallback.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -15856,6 +15894,7 @@
       "node tests/verify-1863-snapshot-edges.ts",
       "node tests/verify-1864-snapshot-detail.ts",
       "node tests/verify-1865-snapshot-comments.ts",
+      "node tests/verify-1933-network-fallback.ts",
       "node tests/verify-log-count.ts",
       "node tests/verify-log-fields.ts"
     ],
@@ -15881,6 +15920,7 @@
       "node tests/verify-1888-changes-to-store.ts",
       "node tests/verify-1889-write-receipts.ts",
       "node tests/verify-1931-read-snapshot.ts",
+      "node tests/verify-1933-network-fallback.ts",
       "node tests/verify-time-config.ts"
     ],
     "src/workspace-snapshot/projection": [
@@ -15903,6 +15943,7 @@
       "node tests/verify-1923-closed-container.ts",
       "node tests/verify-1931-read-snapshot.ts",
       "node tests/verify-1932-multi-window.ts",
+      "node tests/verify-1933-network-fallback.ts",
       "node tests/verify-time-config.ts"
     ],
     "tests": [
