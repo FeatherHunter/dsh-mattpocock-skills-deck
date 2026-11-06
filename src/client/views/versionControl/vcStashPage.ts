@@ -263,6 +263,10 @@ const vcStashResultBlockOf = function (h: any, t: any, state: any): any {
       Number(result.untrackedLeft) > 0 && String(result.op) === 'push'
         ? h('span', { key: 'left', className: 'result-detail', 'data-vc-stash-untracked-left': String(result.untrackedLeft) }, vcStashText(t, 'vc.stash.result.untrackedLeft', { n: String(result.untrackedLeft) }))
         : null,
+      // 「只贮藏已暂存的改动」收完之后，工作区里那些没暂存的改动仍然在：结果条要把这一点说出来。
+      String(result.op) === 'push-staged'
+        ? h('span', { key: 'staged', className: 'result-detail', 'data-vc-stash-staged-note': '1' }, vcStashText(t, 'vc.stash.result.stagedNote', null))
+        : null,
       Number(result.untrackedBefore) > 0 && Number(result.untrackedLeft) === 0 && String(result.op) === 'push-untracked'
         ? h('span', { key: 'taken', className: 'result-detail', 'data-vc-stash-untracked-taken': String(result.untrackedBefore) }, vcStashText(t, 'vc.stash.result.untrackedTaken', { n: String(result.untrackedBefore) }))
         : null,

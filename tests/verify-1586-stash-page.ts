@@ -329,6 +329,11 @@ async function main() {
   const pushUState = Object.assign(leaf.vcStashStateNew(), { result: { ok: true, op: 'push-untracked', kind: '', untrackedBefore: 2, untrackedLeft: 0 } })
   const pushUPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([], 'git version 2.49.0'), state: pushUState })
   check(attrsOf(pushUPage, 'data-vc-stash-untracked-taken').join(',') === '2', '连未跟踪一起收的结果条写明其中几个是未跟踪文件（实得 ' + attrsOf(pushUPage, 'data-vc-stash-untracked-taken').join(',') + '）')
+  // 「只贮藏已暂存的改动」：本机 git < 2.35 时这颗按钮被版本门藏起来（规格如此），
+  //   所以它的结果条文案由这一条断言守，而不是等某台机器。
+  const stagedState = Object.assign(leaf.vcStashStateNew(), { result: { ok: true, op: 'push-staged', kind: '' } })
+  const stagedPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([], 'git version 2.49.0'), state: stagedState })
+  check(attrsOf(stagedPage, 'data-vc-stash-staged-note').join(',') === '1', '「只贮藏已暂存的改动」的结果条写明没暂存的改动仍然在工作区（实得 ' + attrsOf(stagedPage, 'data-vc-stash-staged-note').join(',') + '）')
   const clearedState = Object.assign(leaf.vcStashStateNew(), { result: { ok: true, op: 'clear', kind: '', dropped: 2 } })
   const clearedPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([], 'git version 2.49.0'), state: clearedState })
   check(attrsOf(clearedPage, 'data-vc-stash-dropped').join(',') === '2', '清空之后结果条写清清掉几条（实得 ' + attrsOf(clearedPage, 'data-vc-stash-dropped').join(',') + '）')

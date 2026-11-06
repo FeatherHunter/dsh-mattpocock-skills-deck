@@ -64,6 +64,7 @@ zh:
   vc.stash.result.dropped: 清掉 {n} 条记录。
   vc.stash.result.untrackedLeft: 还有 {n} 个未跟踪文件留在工作区。
   vc.stash.result.untrackedTaken: 其中 {n} 个是未跟踪文件。
+  vc.stash.result.stagedNote: 只收走了已暂存的那一份；工作区里没暂存的改动仍然在。
   vc.stash.result.tagOk: 完成
   vc.stash.result.tagFail: 没成功
   vc.stash.fail.usage: 这次请求少了必要参数，没有执行。
@@ -145,6 +146,7 @@ en:
   vc.stash.result.dropped: Cleared {n} stash records.
   vc.stash.result.untrackedLeft: '{n} untracked files stayed in the working tree.'
   vc.stash.result.untrackedTaken: '{n} of them were untracked files.'
+  vc.stash.result.stagedNote: Only the staged part was taken; unstaged changes stay in the working tree.
   vc.stash.result.tagOk: Done
   vc.stash.result.tagFail: Not done
   vc.stash.fail.usage: The request was missing required parameters; nothing ran.
