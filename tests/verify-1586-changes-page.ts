@@ -582,6 +582,19 @@ async function main() {
   check(reconcileViews(brokenB, proto.CHANGES_WRITE_OPS).length > 0, 'E22 反证自检：危险标记被改掉时对账必须报错')
   check(reconcileViews(leaf.VC_CHANGES_OPS.slice(0, 12), proto.CHANGES_WRITE_OPS).length > 0, 'E23 反证自检：视图少一条时对账必须报错')
 
+  // ---------- F 储藏拆分按钮（#1905）：三种收法从储藏页搬到提交区 ----------
+  // 这一组只读源码文本，守的是「入口还在、顺序还是默认那一种打头、7.3 的版本门跟着动作走」；
+  // 真渲染与点开菜单后的样子由真机场景 1857-tab-actions 与真浏览器门禁的改动页组守。
+  console.log('F 储藏拆分按钮（#1905）')
+  // 拆分按钮的渲染在 vcCommitOptions 叶里（#1905 把它放在提交选项同一族，避免提交页正文超行上限），
+  // 入口与回调在 vcCommitPage；两份源码一起看。
+  const commitSrc = sourceText('src/client/views/versionControl/vcCommitPage.ts') + String.fromCharCode(10) + sourceText('src/client/views/versionControl/vcCommitOptions.ts')
+  check(commitSrc.indexOf("'data-vc-stash-split': '1'") >= 0 && commitSrc.indexOf("'data-vc-stash-variant': v.op") >= 0, 'F1 提交区的储藏是拆分按钮：容器与三种收法各带自己的 data-* 记号')
+  check(commitSrc.indexOf("op: 'push', nameKey") >= 0 && commitSrc.indexOf("op: 'push-untracked', nameKey") >= 0 && commitSrc.indexOf("op: 'push-staged', nameKey") >= 0, 'F2 三种收法在同一张表里，顺序固定（主按钮用第一种）')
+  check(commitSrc.indexOf("'data-vc-stash-op': 'push'") >= 0, 'F3 主按钮仍是默认那一种（只收已跟踪的改动），拆分不改变它的动作')
+  check(commitSrc.indexOf('vcStashStagedStateOf') >= 0 && commitSrc.indexOf("'data-vc-stash-gate': 'hidden'") >= 0 && commitSrc.indexOf('vc.stash.gate.hidden') >= 0, 'F4 7.3 的版本门跟着动作搬到提交区：低于 2.35 时画版本门说明而不是按钮（藏起来不等于沉默）')
+  check(commitSrc.indexOf('composer-stash-items') >= 0 && commitSrc.indexOf('composer-stash-item-cmd') >= 0, 'F5 菜单每行写清收什么与对应的 git 命令（原型的菜单文案结构）')
+
   await printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)
 }

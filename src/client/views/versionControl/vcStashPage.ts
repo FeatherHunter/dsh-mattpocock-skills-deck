@@ -11,7 +11,9 @@
  * src/client/views/versionControl/vcProtoMenus.ts 里的 .stash-* 选择器画：
  *   div.view.view-stash > div.stash-head（h2.stash-title + p.stash-count）→ span.note（边界说明）
  *   → div.stash-scroll（结果条 / 空态 / div.stash-row-wrap > div.stash-row + div.stash-paths
- *   + div.stash-confirm）→ details.stash-more（新建、列出、清空、最近丢弃）。
+ *   + div.stash-confirm）→ 最近丢弃回收区。
+ * #1905：页底那块默认收起的 details（新建三条 / 列出 / 清空）已经拆掉——三种收法搬到改动页提交区的
+ * 拆分按钮里，清空搬到标题行，查看与建分支收进记录行尾的「⋯」菜单；页面上不再有两条通往同一件事的路。
  *
  * 记录下面常驻文件清单这件事受数据读法限制：列表命令给不出文件，只有「查看内容」
  * 拿到回包后才铺得出来；没看过的那一条照实写一句提示，其余偏差报在 #1860 的偏差表里。
@@ -52,9 +54,6 @@ declare function vcStashDetailOf(state: any, selector: any): any
 
 /** 真源标识：门禁按这一行找本文件，改路径要一起改门禁。 */
 export const VC_STASH_PAGE_SOURCE = 'src/client/views/versionControl/vcStashPage.ts'
-
-/** 工具行上出现的动作（不需要某条记录就能点）：新建三条、列出、清空。 */
-const VC_STASH_TOOL_OPS = ['push', 'push-untracked', 'push-staged', 'list', 'clear']
 
 /** 记录行上出现的动作（要先选中某条贮藏）：查看、应用、弹出、建分支、删除。 */
 const VC_STASH_ROW_OPS = ['show', 'apply', 'pop', 'branch', 'drop']
@@ -120,13 +119,15 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
     const node: any = mainButtonOf(op)
     if (node) mainActions.push(node)
   })
+  // 低频整理动作（查看内容、从这条记录建分支）收进行尾「⋯」菜单（#1905，原型 100）：
+  //   它们不是每次都要点的动作，留在行上会把一行撑成两排按钮；应用 / 弹出 / 丢弃仍留在行上。
   const quietActions: any[] = []
   VC_STASH_ROW_OPS.forEach(function (op: string): void {
     if (VC_STASH_ROW_MAIN_OPS.indexOf(op) >= 0) return
     const def: any = stashOpOf(op)
     if (!def) return
     quietActions.push(h('button', {
-      key: op, type: 'button', className: 'btn btn-ghost btn-sm',
+      key: op, type: 'button', className: 'stash-row-menu-item',
       title: vcStashText(t, def.nameKey, null),
       'data-vc-stash-op': op, 'data-vc-stash-cap': def.id,
       disabled: ctx.pending === true,
@@ -134,20 +135,28 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
       onClick: function () { ctx.act({ op: op, selector: selector }) },
     }, [h('span', { key: 'label', className: 'btn-label' }, vcStashText(t, def.nameKey, null))]))
   })
+  const rowMenu: any = quietActions.length > 0
+    ? h('details', { key: 'row-more', className: 'stash-row-more', 'data-vc-stash-row-menu': selector }, [
+      h('summary', {
+        key: 'summary', className: 'stash-row-more-btn',
+        'data-press': 'button', 'data-log': 'vc.stash.row-menu',
+        title: vcStashText(t, 'vc.stash.row.more', null),
+        'aria-label': vcStashText(t, 'vc.stash.row.more', null),
+      }, vcStashText(t, 'vc.stash.row.moreGlyph', null)),
+      h('div', { key: 'items', className: 'stash-row-more-items' }, quietActions),
+    ])
+    : null
   const children: any[] = [
     h('div', { key: 'row', className: 'stash-row' }, [
       h('div', { key: 'main', className: 'stash-main' }, [idLine, metaLine]),
-      h('div', { key: 'acts', className: 'stash-actions' }, mainActions),
+      h('div', { key: 'acts', className: 'stash-actions' }, rowMenu === null ? mainActions : mainActions.concat([rowMenu])),
     ]),
+    // 查看 / 建分支现在只住在行尾「⋯」菜单里：文件清单块与它的提示不再重复画这两颗按钮，
+    // 否则同一条记录会有两条通往同一件事的路（#1905 的「不留两条路」）。
     detailState === 'ok'
       ? vcStashPathsBlockOf(h, t, detail, ctx)
-      : (detail ? vcStashPathsPendingOf(h, t, detail, ctx, quietActions) : vcStashPathsHintNode(h, t, quietActions)),
+      : (detail ? vcStashPathsPendingOf(h, t, detail, ctx, []) : vcStashPathsHintNode(h, t, [])),
   ]
-  if (detailState === 'ok') {
-    // 读到了之后，安静的查看/建分支按钮接在清单块下面（读的中途与失败时它们已经在状态块里）。
-    const tail: any[] = quietActions.slice()
-    children.push(h('div', { key: 'quiet', className: 'stash-paths-acts' }, tail))
-  }
   const confirmNode: any = vcStashConfirmBlockOf(h, t, ctx.state, ctx, selector)
   if (confirmNode) children.push(confirmNode)
   if (ctx.branchFor === selector) {
@@ -164,46 +173,6 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
     ]))
   }
   return h('div', { key: selector, className: 'stash-row-wrap', 'data-vc-stash-entry': selector, 'data-vc-stash-oid-full': oid }, children)
-}
-
-/** 工具行（收进页底 details 里）：说明输入、新建三条、列出、清空；7.3 低于 2.35 时不画按钮，改印替代做法。 */
-const vcStashToolbarNodesOf = function (h: any, t: any, ctx: any): any[] {
-  const buttons: any[] = []
-  VC_STASH_TOOL_OPS.forEach(function (op: string) {
-    const def: any = stashOpOf(op)
-    if (!def) return
-    if (!vcStashOpVisibleOf(op, ctx.versionText)) return
-    const isDanger = def.danger === true
-    const props: any = {
-      type: 'button', key: op,
-      className: 'btn btn-sm ' + (isDanger ? 'btn-danger' : 'btn-secondary'),
-      'data-vc-stash-op': op, 'data-vc-stash-cap': def.id,
-      disabled: ctx.pending === true,
-      'data-press': 'button', 'data-log': 'vc.stash.tool-op',
-      onClick: function () { ctx.act({ op: op, message: ctx.message, selector: '' }) },
-    }
-    if (isDanger) props['data-vc-stash-danger'] = '1'
-    buttons.push(h('button', props, [h('span', { key: 'label', className: 'btn-label' }, vcStashText(t, def.nameKey, null))]))
-  })
-  const messageBox = h('label', { key: 'message', className: 'stash-message-box' }, [
-    h('span', { key: 'label', className: 'stash-message-label' }, vcStashText(t, 'vc.stash.message.label', null)),
-    h('input', {
-      key: 'input', type: 'text', className: 'stash-message-input',
-      'data-vc-stash-message-input': '1',
-      placeholder: vcStashText(t, 'vc.stash.message.placeholder', null),
-      value: ctx.message,
-      onInput: function (ev: any) { ctx.edit({ message: String((ev && ev.target && ev.target.value) || '') }) },
-    }),
-  ])
-  const kids: any[] = [messageBox, h('div', { key: 'buttons', className: 'stash-tools' }, buttons)]
-  const staged = vcStashStagedStateOf(ctx.versionText)
-  if (staged.state === 'hidden') {
-    kids.push(h('p', { key: 'gate', className: 'note note-warn', 'data-vc-stash-gate': 'hidden' }, [
-      h('span', { key: 'need' }, vcStashText(t, 'vc.stash.gate.hidden', { needed: staged.needed })),
-      h('span', { key: 'alt', className: 'stash-gate-alt', 'data-vc-stash-gate-alternative': '1' }, vcStashText(t, staged.alternativeKey, null)),
-    ]))
-  }
-  return kids
 }
 
 /** 确认卡：危险动作（丢弃 / 清空 / 新建）在触发点就地出，四段说清做什么、不做什么、能不能撤销、动作名。 */
@@ -350,12 +319,16 @@ export const vcStashPageNode = function (h: any, t: any, opts: any): any {
   }
   // 工具动作（新建/清空）的确认卡不针对某条记录，挂在滚动区里，点了就能看见。
   const pageConfirm = vcStashConfirmBlockOf(h, t, state, ctx, '')
+  // 最近丢弃是「丢弃 / 清空之后还能捞回来」的回收口：旧路把它和工具行一起塞在页底 details 里，
+  //   #1905 拆掉 details 之后它留在清单下面——它读的是状态里现成的记录，不需要额外入口。
+  const recentNode = vcStashRecentBlockOf(h, t, state, ctx)
   const scrollKids: any[] = [
     vcStashResultBlockOf(h, t, state),
     listNode,
     branchErr,
     pageConfirm,
     detailFallbackNode,
+    recentNode,
   ].filter(function (n: any): boolean { return !!n })
   return h('div', {
     key: 'stash-view', className: 'view view-stash',
@@ -369,14 +342,28 @@ export const vcStashPageNode = function (h: any, t: any, opts: any): any {
         h('h2', { key: 'title', className: 'stash-title' }, vcStashText(t, 'vc.stash.title', null)),
         h('p', { key: 'lede', className: 'stash-count' }, vcStashText(t, 'vc.stash.lede', null)),
       ]),
+      // 刷新列表（7.4）：旧路在页底工具行里，拆掉工具行之后放在标题行——它是只读动作，
+      //   任何时候都能点，不跟记录数走。
+      h('button', {
+        key: 'refresh', type: 'button', className: 'btn btn-sm btn-ghost',
+        'data-vc-stash-op': 'list', 'data-vc-stash-cap': '7.4',
+        disabled: pending, 'data-press': 'button', 'data-log': 'vc.stash.list',
+        title: vcStashText(t, 'vc.stash.op.list', null),
+        onClick: function () { act({ op: 'list' }) },
+      }, [h('span', { key: 'label', className: 'btn-label' }, vcStashText(t, 'vc.stash.op.list', null))]),
+      // 清空全部记录（#1905，原型 102）：只在真有记录时出现；危险动作先走确认卡，
+      //   确认卡由页面级的 pageConfirm 画（它按 selector 为空串认「不针对某一条」）。
+      sorted.length > 0
+        ? h('button', {
+          key: 'clear', type: 'button', className: 'btn btn-sm btn-ghost',
+          'data-vc-stash-clear': '1', 'data-vc-stash-op': 'clear', 'data-vc-stash-cap': '7.10', 'data-vc-stash-danger': '1',
+          disabled: pending, 'data-press': 'button', 'data-log': 'vc.stash.clear-open',
+          title: vcStashText(t, 'vc.stash.clear.hint', null),
+          onClick: function () { act({ op: 'clear' }) },
+        }, [h('span', { key: 'label', className: 'btn-label' }, vcStashText(t, 'vc.stash.op.clear', null))])
+        : null,
     ]),
     h('span', { key: 'boundary', className: 'note', 'data-vc-stash-boundary': '1' }, vcStashText(t, 'vc.stash.boundary', null)),
     h('div', { key: 'scroll', className: 'stash-scroll' }, scrollKids),
-    // 原型里没有这些入口，但十条能力还都要够得着：收进页底默认收起的 details。
-    h('details', { key: 'more', className: 'stash-more', 'data-vc-stash-more': '1' }, [
-      h('summary', { key: 'summary', className: 'stash-more-title', 'data-press': 'button', 'data-log': 'vc.stash.more' }, vcStashText(t, 'vc.stash.more.title', null)),
-      h('div', { key: 'toolbar', className: 'stash-toolbar' }, vcStashToolbarNodesOf(h, t, ctx)),
-      vcStashRecentBlockOf(h, t, state, ctx),
-    ]),
   ])
 }

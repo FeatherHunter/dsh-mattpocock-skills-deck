@@ -176,6 +176,21 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell] .vcs-config-id-key{font-size:12px;font-weight:600;overflow-wrap:anywhere}',
   '[data-vc-shell] .vcs-config-old{color:var(--vcs-dim);font-size:11px;overflow-wrap:anywhere}',
   '[data-vc-shell] .vcs-config-id-controls{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}',
+  // #1905：提交区储藏拆分按钮。菜单向上展开（提交区在页面底部，向下会被视口裁掉），
+  //   宽度夹到视口内，300 宽时也不横向溢出。
+  '[data-vc-shell] .composer-stash-split{position:relative;display:inline-flex;align-items:center;gap:2px}',
+  '[data-vc-shell] .composer-stash-more{position:relative;display:inline-block}',
+  '[data-vc-shell] .composer-stash-arrow{list-style:none;cursor:pointer;padding:0 4px;color:var(--vcs-dim);font-size:11px}',
+  '[data-vc-shell] .composer-stash-arrow::-webkit-details-marker{display:none}',
+  '[data-vc-shell] .composer-stash-more:not([open]) > .composer-stash-items{display:none}',
+  '[data-vc-shell] .composer-stash-items{position:absolute;right:0;bottom:calc(100% + 6px);z-index:8;display:flex;flex-direction:column;gap:4px;width:min(320px,calc(100vw - 48px));padding:8px;border:1px solid var(--vcs-line);border-radius:8px;background:var(--vcs-panel)}',
+  '[data-vc-shell] .composer-stash-hint{margin:0 0 2px;color:var(--vcs-dim);font-size:12px}',
+  '[data-vc-shell] .composer-stash-item{display:flex;flex-direction:column;gap:2px;text-align:left;background:none;border:1px solid transparent;border-radius:6px;padding:6px 8px;color:var(--vcs-fg);cursor:pointer}',
+  '[data-vc-shell] .composer-stash-item:hover{background:var(--vcs-raised);border-color:var(--vcs-line)}',
+  '[data-vc-shell] .composer-stash-item-name{font-size:13px}',
+  '[data-vc-shell] .composer-stash-item-detail{color:var(--vcs-dim);font-size:12px}',
+  '[data-vc-shell] .composer-stash-item-cmd{color:var(--vcs-faint);font-size:11px}',
+
   '[data-vc-shell] .vcs-config-input{flex:1 1 140px;min-width:0;padding:2px 6px;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-panel);color:var(--vcs-fg);font:inherit;font-size:12px}',
   '[data-vc-shell] .vcs-config-input:focus-visible{outline:1px solid var(--vcs-accent);outline-offset:1px}',
   '[data-vc-shell] .vcs-config-select{flex:0 1 auto;max-width:100%;padding:2px 6px;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-panel);color:var(--vcs-fg);font:inherit;font-size:12px}',

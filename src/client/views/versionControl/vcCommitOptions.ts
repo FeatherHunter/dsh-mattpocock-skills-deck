@@ -12,6 +12,77 @@
 // 收起时这一块留在 DOM 里但带 hidden：控件与 data-vc-commit-* 钩子一个不少，读屏与 Tab 不会进 hidden 子树。
 declare const Tip: any
 
+/** 提交区「储藏」拆分按钮（#1905，原型 98）：主按钮收默认那一种（只收已跟踪的改动），右侧箭头打开
+ *  三行菜单，每行写清这一种收什么、对应哪条 git 命令、收完之后工作区是什么样。
+ *  为什么放在这一叶：它和提交选项是同一类东西——贴在提交区上的一次展开，不是页面正文；
+ *  放在提交页正文里会把那个文件顶过有效行上限，也让「提交选项」这一族多一个没有归属的渲染函数。
+ *  菜单用原生 details 开合：它不落盘、不跨挂载保留，为一次展开往页面 ui 里加状态位不划算；
+ *  点完一项自己收起（closeMenu），否则菜单会挡着下面的提交区。
+ *  stagedGate 是 7.3 的版本门（来自共享规则）：低于 2.35 时那一行不画按钮，改画版本门说明——
+ *  「藏起来不等于沉默」是既有产品规矩。 */
+export const vcComposerStashSplitOf = function (h: any, t: any, o: any): any {
+  const opts = o || {}
+  const variants: any[] = [
+    { op: 'push', nameKey: 'vc.stash.op.push', detailKey: 'vc.changes.stash.pushDetail', commandKey: 'vc.changes.stash.pushCommand' },
+    { op: 'push-untracked', nameKey: 'vc.stash.op.pushUntracked', detailKey: 'vc.changes.stash.pushUntrackedDetail', commandKey: 'vc.changes.stash.pushUntrackedCommand' },
+    { op: 'push-staged', nameKey: 'vc.stash.op.pushStaged', detailKey: 'vc.changes.stash.pushStagedDetail', commandKey: 'vc.changes.stash.pushStagedCommand' },
+  ]
+  // 菜单开合不落盘：用 hidden 属性切换（原生 details 的收起内容在量尺下仍会被算进后代边界，
+  // 真浏览器门禁因此判成横向溢出；hidden 直接不参与布局）。点完一项自己收起。
+  const menuOf = function (ev: any): any {
+    const arrow: any = ev && ev.currentTarget ? ev.currentTarget : null
+    const box: any = arrow && typeof arrow.closest === 'function' ? arrow.closest('.composer-stash-split') : null
+    return box === null ? null : box.querySelector('.composer-stash-items')
+  }
+  const closeMenu = function (ev: any): void {
+    const menu: any = menuOf(ev)
+    if (menu) menu.hidden = true
+  }
+  const stagedGate: any = opts.stagedGate || null
+  const items: any[] = variants.map(function (v: any) {
+    if (v.op === 'push-staged' && stagedGate && stagedGate.state === 'hidden') {
+      return h('p', { key: v.op, className: 'composer-stash-gate note note-warn', 'data-vc-stash-gate': 'hidden' }, [
+        h('span', { key: 'need' }, t('vc.stash.gate.hidden', { needed: String(stagedGate.needed || '') })),
+        h('span', { key: 'alt', className: 'composer-stash-gate-alt' }, t(String(stagedGate.alternativeKey || ''))),
+      ])
+    }
+    return h('button', {
+      key: v.op, type: 'button', className: 'composer-stash-item',
+      'data-vc-stash-op': v.op, 'data-vc-stash-variant': v.op,
+      disabled: opts.pending === true,
+      'data-press': 'button', 'data-log': 'vc.changes.composer.stash-variant',
+      onClick: function (ev: any) { closeMenu(ev); if (typeof opts.onStash === 'function') opts.onStash({ op: v.op }) },
+    }, [
+      h('span', { key: 'name', className: 'composer-stash-item-name' }, t(v.nameKey)),
+      h('span', { key: 'detail', className: 'composer-stash-item-detail' }, t(v.detailKey)),
+      h('span', { key: 'cmd', className: 'composer-stash-item-cmd mono' }, t(v.commandKey)),
+    ])
+  })
+  return h('span', { key: 'stash', className: 'composer-stash-split', 'data-vc-stash-split': '1' }, [
+    h('button', {
+      key: 'main', type: 'button', className: 'link-btn', 'data-vc-stash-op': 'push',
+      title: t('vc.changes.view.composerStashHint'), 'data-press': 'button', 'data-log': 'vc.changes.composer.stash',
+      onClick: function () { if (typeof opts.onStash === 'function') opts.onStash({ op: 'push' }) },
+    }, t('vc.changes.view.composerStash')),
+    h('button', {
+      key: 'arrow', type: 'button', className: 'composer-stash-arrow',
+      title: t('vc.changes.stash.menuTitle'), 'aria-label': t('vc.changes.stash.menuTitle'),
+      'aria-expanded': 'false',
+      'data-vc-stash-arrow': '1', 'data-press': 'button', 'data-log': 'vc.changes.composer.stash-menu',
+      onClick: function (ev: any) {
+        const menu: any = menuOf(ev)
+        if (!menu) return
+        menu.hidden = !menu.hidden
+        if (ev && ev.currentTarget && ev.currentTarget.setAttribute) ev.currentTarget.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true')
+      },
+    }, t('vc.changes.stash.arrow')),
+    h('div', { key: 'items', className: 'composer-stash-items', 'data-vc-stash-menu': '1', hidden: true }, [
+      h('p', { key: 'hint', className: 'composer-stash-hint' }, t('vc.changes.stash.menuHint')),
+    ].concat(items)),
+  ])
+}
+
+
 /** 一个开关：方框 + 名字，整行是一颗按钮，键盘只停一次；后果写在悬停提示里，不占面板高度。
  *  item.optAttr / optValue 决定它带哪个 data-vc-commit-* 钩子：「一起提交」与三个记录方式都有各自的钩子。
  *  aria-label 一定显式写：悬停提示走 Tip，而 Tip 在缺 aria-label 时会把提示原文塞进去，读屏念的就不是名字了。 */

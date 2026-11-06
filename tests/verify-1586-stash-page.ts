@@ -285,26 +285,29 @@ async function main() {
   check(page.props['data-vc-stash-page'] === '1', '贮藏页画出自己的根标记')
   check(page.props['data-vc-stash-count'] === '2', '根上带真实条数（与首屏贮藏片同一份数据）')
   const caps = attrsOf(page, 'data-vc-stash-cap')
-  // #1860 整页还原：首屏按原型只留记录行（应用/弹出/丢弃 + 查看/建分支），
-  // 新建三条、列出、清空收进页底默认收起的「更多贮藏操作」。DOM 次序因此是「先记录、后工具」。
-  check(caps.join(',') === ['7.6', '7.7', '7.9', '7.5', '7.8', '7.6', '7.7', '7.9', '7.5', '7.8', '7.1', '7.2', '7.3', '7.4', '7.10'].join(','), '十条能力在贮藏页都有入口（记录行 + 页底折叠的工具行，实得 ' + caps.join(',') + '）')
-  check(caps.indexOf('7.3') >= 0, '2.49 上 7.3 的按钮画出来')
+  // #1905 之后：三种收法（7.1 / 7.2 / 7.3）搬到改动页提交区的储藏拆分按钮，贮藏页不再有它们；
+  // 页面上留下的是记录行（应用 7.6 / 弹出 7.7 / 丢弃 7.9，查看 7.5 与建分支 7.8 收进行尾 ⋯ 菜单）
+  // 与标题行的刷新 7.4、清空 7.10。DOM 次序是「先标题行、后记录」。
+  check(caps.join(',') === ['7.4', '7.10', '7.6', '7.7', '7.9', '7.5', '7.8', '7.6', '7.7', '7.9', '7.5', '7.8'].join(','), '贮藏页上的七条入口按新位置画出来：标题行刷新 + 清空，记录行应用/弹出/丢弃，⋯ 菜单里查看与建分支（实得 ' + caps.join(',') + '）')
+  check(caps.indexOf('7.1') < 0 && caps.indexOf('7.2') < 0 && caps.indexOf('7.3') < 0, '三种收法已搬到改动页提交区（贮藏页不再画它们，不留两条路）')
   // 工具行在页底折叠区里，按 data-vc-stash-cap 找它对应的 data-vc-stash-op（不能再用「前 N 个 op」的次序）。
   const capOp: any = {}
   findAll(page, (n) => n.props && n.props['data-vc-stash-cap'] && n.props['data-vc-stash-op']).forEach((n) => { capOp[n.props['data-vc-stash-cap']] = n.props['data-vc-stash-op'] })
-  check(capOp['7.1'] === 'push' && capOp['7.2'] === 'push-untracked' && capOp['7.3'] === 'push-staged' && capOp['7.4'] === 'list' && capOp['7.10'] === 'clear', '新建三条、列出与清空各按能力号挂在页底工具行（实得 ' + JSON.stringify(capOp) + '）')
+  check(capOp['7.4'] === 'list' && capOp['7.10'] === 'clear' && capOp['7.5'] === 'show' && capOp['7.8'] === 'branch', '刷新与清空挂在标题行、查看与建分支挂在记录行 ⋯ 菜单（实得 ' + JSON.stringify(capOp) + '）')
   const dangerAttrs = attrsOf(page, 'data-vc-stash-danger')
   check(dangerAttrs.length === 3, '危险动作三处（清空一处 + 每条记录删除两处）都带危险标记')
+  // 7.3 的版本门跟着动作搬到改动页提交区：那一边由 verify-1586-changes-page 与本票新增的断言守；
+  // 贮藏页这一层只需要证明自己不再画 7.3（不留两条路）。
   const oldPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([entry(0)], 'git version 2.34.0') })
   const oldCaps = attrsOf(oldPage, 'data-vc-stash-cap')
-  check(oldCaps.indexOf('7.3') < 0, '2.34 上 7.3 的按钮一个都不留（隐藏不等于沉默：下面还有替代做法）')
-  check(attrsOf(oldPage, 'data-vc-stash-gate').join(',') === 'hidden', '2.34 上画出 7.3 的版本门说明')
+  check(oldCaps.indexOf('7.3') < 0, '2.34 上贮藏页不画 7.3（它已搬到改动页提交区）')
   check(leaf.vcStashStagedStateOf('git version 2.34.0').needed === '2.35.0' && leaf.vcStashStagedStateOf('git version 2.49.0').state === 'full', '版本门口径来自共享规则，界面不自己比版本号')
   const calls = []
   const actPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([entry(0)], 'git version 2.49.0'), onStash: (input) => calls.push(input) })
-  const pushBtn = findAll(actPage, (n) => n.props && n.props['data-vc-stash-op'] === 'push' && n.props['data-vc-stash-cap'] === '7.1')[0]
-  pushBtn.props.onClick()
-  check(calls.length === 1 && calls[0].op === 'push', '点 7.1 把真实动作交给回调（带说明时一并带上）')
+  // #1905：7.1 已搬到改动页提交区；这里用留在页上的记录行动作证明「点击把真实动作交给回调」这条路没变。
+  const applyBtn = findAll(actPage, (n) => n.props && n.props['data-vc-stash-op'] === 'apply' && n.props['data-vc-stash-cap'] === '7.6')[0]
+  applyBtn.props.onClick()
+  check(calls.length === 1 && calls[0].op === 'apply' && calls[0].selector === 'stash@{0}', '点 7.6 把真实动作与记录选择器交给回调')
   const dropBtn = findAll(actPage, (n) => n.props && n.props['data-vc-stash-op'] === 'drop' && n.props['data-vc-stash-cap'] === '7.9')[0]
   dropBtn.props.onClick()
   check(calls.length === 2 && calls[1].op === 'drop' && calls[1].selector === 'stash@{0}' && calls[1].confirm !== true, '点 7.9 先交 drop 对象（不直接带确认，确认卡在前一步）')
