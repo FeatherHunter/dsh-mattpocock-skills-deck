@@ -196,7 +196,12 @@ export function createWorktreePhones(deps: any): any {
   async function readSparse(base: any, targetPath: any, dirs: any): Promise<any> {
     const rulesRes: any = await d.runPinned(base.exe, targetPath, worktreeArgsOf('sparse-list', {}), { stdoutLimit: OP_STDOUT_LIMIT, timeoutMs: VC_WORKTREE_OP_TIMEOUT_MS })
     const rulesBad: any = d.failureFromExec(rulesRes, '读稀疏检出规则这一步')
-    if (rulesBad && !(rulesRes && rulesRes.kind === 'non-zero' && rulesRes.exitCode === 1)) return rulesBad
+    // 「这棵工作树不是稀疏检出」不是失败：旧版 git 回退出码 1，新版回 128 并在 stderr 写
+    //   「fatal: this worktree is not sparse」。两种都按「还没有规则」处理——只认退出码 1 时，
+    //   一棵普通工作树的稀疏面板永远打不开（#1904 真机复验抓到的就是这个：结果条写着
+    //   「读稀疏检出规则这一步失败（git 退出码 128）：fatal: this worktree is not sparse」）。
+    const notSparse: boolean = !!(rulesRes && rulesRes.kind === 'non-zero' && (rulesRes.exitCode === 1 || String(rulesRes.stderr || '').indexOf('not sparse') >= 0))
+    if (rulesBad && !notSparse) return rulesBad
     const gitDirRes: any = await d.runPinned(base.exe, targetPath, worktreeArgsOf('sparse-rule-dir', {}), { stdoutLimit: 4096 })
     const gitDirBad: any = d.failureFromExec(gitDirRes, '读稀疏检出规则文件位置这一步')
     if (gitDirBad) return gitDirBad

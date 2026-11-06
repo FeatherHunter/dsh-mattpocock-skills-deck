@@ -265,10 +265,14 @@ export const worktreeJudge = function (op: any, ctx: any): any {
   // 其余动作都以「清单里的一棵工作树」为目标：不认识的路径先拒掉。
   if (target === '') return block('path-blank')
   if (!row) return block('worktree-not-listed')
-  if (o === 'remove' || o === 'move') {
+  // #1904 修：「开移动表单」与「真的移动」不是同一件事。开表单时新目录还是空的，按 move 的规则判
+  //   会直接落到 dest-blank 把按钮画成禁用——按钮点不动，表单永远打不开（真机上就是这么坏的）。
+  //   所以 move-open 只判行级前提（当前树 / 锁着），新目录留空交给保存时的 move 判定。
+  if (o === 'remove' || o === 'move' || o === 'move-open') {
     if (row.current === true) return block('worktree-is-current')
     if (row.locked === true) return block('worktree-locked')
   }
+  if (o === 'move-open') return allow()
   if (o === 'remove') {
     if (typeof c.dirtyCount === 'number' && c.dirtyCount > 0) warn('worktree-dirty')
     return allow()

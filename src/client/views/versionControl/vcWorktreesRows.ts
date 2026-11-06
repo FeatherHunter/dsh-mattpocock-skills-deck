@@ -109,7 +109,8 @@ const vcWtRowNode = function (h: any, t: any, model: any, row: any, ui: any, ops
   // 移动与稀疏检出贴着这一行就地展开：读者能一边看当前路径与规则，一边改，不用跳到别的页面。
   acts.push(vcWtFormOpenButtonNode(h, t, {
     op: 'move-open', capId: '9.7', label: t('vc.wt.action.move'), path: path,
-    decision: vcWorktreesActionDecisionOf(model, 'move', { path: path }), ops: ops,
+    // 判的是「能不能开这张表单」，不是「这次移动合不合法」：新目录还没填，按 move 判会 dest-blank 直接禁用。
+    decision: vcWorktreesActionDecisionOf(model, 'move-open', { path: path }), ops: ops,
   }))
   acts.push(vcWtFormOpenButtonNode(h, t, {
     op: 'sparse-open', capId: '9.8', label: t('vc.wt.action.sparse-list'), path: path,

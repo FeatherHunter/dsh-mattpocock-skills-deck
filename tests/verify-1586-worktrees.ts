@@ -229,6 +229,10 @@ async function main(): Promise<void> {
     ['九·18 解锁一棵没锁的树被拒', 'unlock', { rows: ROWS, targetPath: 'D:/w/repo/.wt/a', availability: av('full') }, 'block', 'worktree-not-locked'],
     ['九·19 锁标记读不到时允许解锁（按未知状态处理）', 'unlock', { rows: ROWS.map(function (r: any): any { return r.path === 'D:/w/repo/.wt/a' ? rowOf({ lockUnknown: true }) : r }), targetPath: 'D:/w/repo/.wt/a', availability: av('full') }, 'allow', 'ok'],
     ['九·20 移动目的地空', 'move', { rows: ROWS, targetPath: 'D:/w/repo/.wt/a', dest: '', availability: av('full') }, 'block', 'dest-blank'],
+    // #1904 真机复验抓到的：行内「移动」按钮当时按 move 的规则判，新目录还没填就落到 dest-blank，
+    //   按钮一上来就是禁用，表单永远打不开。开表单与真的移动必须分开判。
+    ['九·20b 开移动表单不算一次移动：新目录还没填也放行', 'move-open', { rows: ROWS, targetPath: 'D:/w/repo/.wt/a', availability: av('full') }, 'allow', 'ok'],
+    ['九·20c 当前工作区不能移动，也不给开移动表单', 'move-open', { rows: ROWS, targetPath: ROWS[0].path, availability: av('full') }, 'block', 'worktree-is-current'],
     ['九·21 移动目的地的写法非法', 'move', { rows: ROWS, targetPath: 'D:/w/repo/.wt/a', dest: '-bad', availability: av('full') }, 'block', 'dest-bad'],
     ['九·22 移动目的地就是它自己', 'move', { rows: ROWS, targetPath: 'D:/w/repo/.wt/a', dest: 'D:/w/repo/.wt/a/', availability: av('full') }, 'block', 'path-same'],
     ['九·23 移动目的地已经被占了', 'move', { rows: ROWS, targetPath: 'D:/w/repo/.wt/a', dest: 'D:/w/occupied', destExists: true, availability: av('full') }, 'block', 'path-exists'],
@@ -263,6 +267,9 @@ async function main(): Promise<void> {
   check(SRC.host.indexOf('createWorktreesMount(') >= 0 && SRC.host.indexOf('versionControlWorktreesMount.js') >= 0, '四·7 父文件把两条电话的装配壳接进返回对象（父文件只留一行调用，实现搬去同层壳）')
   check(SRC.mount.indexOf("import('./versionControlWorktrees.js')") >= 0 && SRC.mount.indexOf('handleGitWorktreeCheck') >= 0 && SRC.mount.indexOf('handleGitWorktreeRun') >= 0 && SRC.mount.indexOf("'wf.gitWorktreeCheck'") >= 0 && SRC.mount.indexOf("'wf.gitWorktreeRun'") >= 0 && SRC.mount.indexOf('loggedPhone') >= 0, '四·7b 装配壳首次调用时才 import 叶子，两条电话都包上日志再交出去（载入失败回明确失败）')
   check(SRC.hostLeaf.indexOf('capabilityAvailability(cap,') >= 0, '四·8 宿主的版本门用共享层 capabilityAvailability 算，不自己写一份版本比较')
+  // #1904 真机复验抓到的：git 2.4x 在「不是稀疏检出」时回的是退出码 128 + 「fatal: this worktree is not sparse」，
+  //   旧写法只认退出码 1，于是普通工作树的稀疏面板一打开就报失败，永远进不去。
+  check(SRC.hostLeaf.indexOf("indexOf('not sparse')") >= 0 && SRC.hostLeaf.indexOf('rulesRes.exitCode === 1') >= 0, '四·11 「这棵工作树不是稀疏检出」按空规则处理：退出码 1 与 128 两种回法都认（否则稀疏面板打不开）')
 
   // ---------- 四·9 / 四·10 票据的边界时刻与容量：真宿主叶子 + 假 git 现场 ----------
   // 为什么要加载宿主叶子：过期判据与容量上限写在 sweep 与执行电话里，只读源码文本看不出「恰好到期算不算过期」。
@@ -332,6 +339,7 @@ async function main(): Promise<void> {
   check(SRC.formView.indexOf('data-wt-sparse-dir') >= 0 && SRC.formView.indexOf('data-wt-sparse-form') >= 0 && SRC.rows.indexOf("'data-wt-sparse-current': path") >= 0, '五·17 稀疏检出在展开行里列出候选目录，保存后常驻「当前规则」一句（不让人盲写）')
   check(SRC.formView.indexOf("'data-wt-create-error': '1'") >= 0 && SRC.formView.indexOf('wt-form-error') >= 0 && SRC.formView.indexOf('vc.wt.result.tag') >= 0, '五·20 新建表单的错误画在自己的 wt-form-error 里，结果条另有一条来源标记（错误不跳到页底）')
   check(SRC.rows.indexOf("op: 'move-open'") >= 0 && SRC.rows.indexOf("op: 'sparse-open'") >= 0 && SRC.rows.indexOf('vc.wt.action.sparse-list') >= 0, '五·21 移动与稀疏检出各有一颗行内入口，按钮位置在动作行里（原型 95 / 96）')
+  check(SRC.rows.indexOf("vcWorktreesActionDecisionOf(model, 'move-open', { path: path })") >= 0 && SRC.rows.indexOf("vcWorktreesActionDecisionOf(model, 'move', { path: path })") < 0, '五·21b 行内「移动」按「能不能开表单」判，不拿空的新目录去判（否则按钮一上来就是禁用）')
   check(SRC.page.indexOf('dirtyCount') >= 0 && SRC.page.indexOf('vc.wt.plan.stashPath') >= 0, '五·18 删脏工作树前把「先贮藏再移除」的路径讲清楚（不传 --force）')
   check(SRC.page.indexOf("'data-vc-wt-page': '1'") >= 0 && SRC.page.indexOf('data-vc-wt-mode') >= 0 && SRC.page.indexOf('data-vc-wt-state') >= 0, '五·19 页面根节点带页面 / 模式 / 整体状态三个标记（四态与禁用原因都有落点）')
 
