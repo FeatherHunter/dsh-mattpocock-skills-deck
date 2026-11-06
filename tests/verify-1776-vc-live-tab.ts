@@ -474,10 +474,13 @@ async function scenarioMain() {
   check(!!m.q('[data-vc-commit-result]'), 'T16e 提交结果回到页面')
 
   // ---- 贮藏页首批动作：写动作走三段式（预检签票 → 页面确认卡 → 凭票执行），不再一步直发 ----
-  await m.click('[data-vc-tab="stash"]')
+  // #1905：三种收法的入口搬到改动页提交区的拆分按钮；stash 状态与确认卡仍归储藏页画，
+  // 所以这里从改动页点、再切到储藏页看确认卡。
+  await m.click('[data-vc-tab="changes"]')
   const stashCheckBefore = countKin(host, 'wf.gitStashCheck')
   const stashBefore = countKin(host, 'wf.gitStash')
   await m.click('[data-vc-stash-op="push"]')
+  await m.click('[data-vc-tab="stash"]')
   const stashCheckCall = host.calls.filter(function (one) { return one.phone === 'wf.gitStashCheck' })[stashCheckBefore]
   check(countKin(host, 'wf.gitStashCheck') === stashCheckBefore + 1 && !!stashCheckCall && String((stashCheckCall.args || {}).op || '') === 'push' && stashCheckCall.args.confirm === undefined && countKin(host, 'wf.gitStash') === stashBefore, 'T17 贮藏页点 push 先发预检电话 wf.gitStashCheck（op=push、不带 confirm），预检阶段不执行写')
   check(!!m.q('[data-vc-stash-confirm]'), 'T17b 预检签出票后贴触发点出确认卡，等人过目')
@@ -1640,8 +1643,11 @@ async function scenarioComposerOptions() {
   await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
   await settle()
   const composer = m.q('[data-vc-commit-panel]')
-  check(!!composer && !m.q('[data-vc-commit-advanced]') && !composer.querySelector('details'),
-    'T39 提交区没有第四行折叠（原型首屏只有三块：计数行 / 说明框 / 底行）')
+  // #1905：提交区多了一枚储藏拆分箭头与它的三行菜单。菜单是 hidden 的普通节点（不是 details、
+  //   不参与布局），所以「首屏只有三块、没有第四行折叠」这条仍然成立。
+  const stashMenu = m.q('[data-vc-stash-menu]')
+  check(!!composer && !m.q('[data-vc-commit-advanced]') && !composer.querySelector('details') && !!stashMenu && stashMenu.hidden === true,
+    'T39 提交区没有第四行折叠（储藏菜单默认 hidden、不是 details；原型首屏仍是三块：计数行 / 说明框 / 底行）')
   const optBtn = m.q('[data-vc-commit-options]')
   const menu = m.q('[data-vc-commit-menu]')
   const split = m.q('.commit-split')

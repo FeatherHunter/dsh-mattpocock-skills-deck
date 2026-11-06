@@ -19,6 +19,13 @@ declare const VC_COMMIT_MODE_KEYS: any
 declare const VC_COMMIT_MODE_CAPS: any
 // 提交选项展开区（形态、内容来源、说明模板、记录方式）住在独立叶子里；本文件只备数据与提交区骨架。
 declare const vcCommitOptionsNode: any
+// #1905：提交区储藏拆分按钮的渲染在 vcCommitOptions 叶里（构建时拼进同一个闭包，这里只声明形状）。
+declare const vcComposerStashSplitOf: any
+// #1905：储藏拆分按钮里「只储藏已暂存的改动」（7.3）要 git 2.35 以上。版本读数与版本门口径
+// 与储藏页共用同一份（vcStashOps 的这两个函数），这里只拿来决定画按钮还是画版本门说明——
+// 「藏起来不等于沉默」是既有产品规矩：低于 2.35 时按钮不画，但要写清为什么与替代做法。
+declare function vcStashVersionTextOf(reads: any): string
+declare function vcStashStagedStateOf(versionText: any): any
 // 悬停提示统一走 Tip 叶子（verify-no-title 门禁要求 3 处及以上 title: 抽成组件）。
 declare const Tip: any
 
@@ -218,8 +225,13 @@ export function vcCommitPanelOf(o: any): any {
       result = { state: 'fail', retry: true, tip: String(r.hint || ''), text: t('vc.commit.result.fail', { mode: modeLabel(resultMode), ms: Number(r.ms || 0) }) + (extra ? ': ' + extra : '') }
     }
   }
+  // #1905：储藏拆分按钮里「只储藏已暂存的改动」（7.3）要 git 2.35 以上。版本读数与储藏页共用
+  // 同一份口径（vcStashOps）；低于 2.35 时这一行不画按钮、改画版本门说明——「藏起来不等于沉默」。
+  const stashVersionText = typeof vcStashVersionTextOf === 'function' ? vcStashVersionTextOf(opts.reads || {}) : ''
+  const stashStaged = typeof vcStashStagedStateOf === 'function' ? vcStashStagedStateOf(stashVersionText) : { state: 'ok' }
   return {
     form: plan.mode, formNote: formNote,
+    stashStaged: stashStaged,
     forms: forms,
     allTracked: allTracked, allTrackedCount: trackedCount,
     optionsOpen: commit.menuOpen === true,
@@ -304,11 +316,9 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
     }, t('vc.changes.view.composerUnstageAll')))
   }
   if (typeof opts.onStash === 'function') {
-    links.push(h('button', {
-      key: 'stash', type: 'button', className: 'link-btn', 'data-vc-stash-op': 'push',
-      title: t('vc.changes.view.composerStashHint'), 'data-press': 'button', 'data-log': 'vc.changes.composer.stash',
-      onClick: function () { opts.onStash({ op: 'push' }) },
-    }, t('vc.changes.view.composerStash')))
+    // #1905：储藏改成拆分按钮（原型 98）。渲染在 vcCommitOptions 叶里（与提交选项同一族），
+    // 这里只把回调与 7.3 的版本门交过去；菜单开合、三种收法的文案都在那一叶。
+    links.push(vcComposerStashSplitOf(h, t, { onStash: opts.onStash, stagedGate: p.stashStaged, pending: opts.stashPending === true }))
   }
   children.push(h('div', { key: 'head', className: 'composer-head' }, [
     h('span', { key: 'count', className: 'composer-count', 'data-vc-staged-count': String(stagedCount) }, t('vc.changes.view.composerCount', { n: String(stagedCount) })),

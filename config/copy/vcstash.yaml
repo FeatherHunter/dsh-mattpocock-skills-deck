@@ -19,6 +19,9 @@ zh:
   vc.stash.op.drop: 丢弃记录
   vc.stash.op.clear: 清空全部
   vc.stash.op.unknown: 不认识的动作
+  vc.stash.row.more: 更多整理动作
+  vc.stash.row.moreGlyph: ⋯
+  vc.stash.clear.hint: 清空全部记录；先出一张写明条数与后果的确认卡
   vc.stash.entry.unknownSubject: （这条贮藏没有写说明）
   vc.stash.entry.files: "{n} 个文件"
   vc.stash.entry.filesUnknown: 文件数要点「查看内容」才给
@@ -94,6 +97,9 @@ en:
   vc.stash.op.drop: Drop entry
   vc.stash.op.clear: Clear all
   vc.stash.op.unknown: Unknown action
+  vc.stash.row.more: More tidy-up actions
+  vc.stash.row.moreGlyph: ⋯
+  vc.stash.clear.hint: Clear all records; a confirmation card states the count and consequences first
   vc.stash.entry.unknownSubject: (this stash has no message)
   vc.stash.entry.files: "{n} files"
   vc.stash.entry.filesUnknown: file count appears after "Inspect content"
