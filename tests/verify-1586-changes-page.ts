@@ -594,6 +594,10 @@ async function main() {
   check(commitSrc.indexOf("'data-vc-stash-op': 'push'") >= 0, 'F3 主按钮仍是默认那一种（只收已跟踪的改动），拆分不改变它的动作')
   check(commitSrc.indexOf('vcStashStagedStateOf') >= 0 && commitSrc.indexOf("'data-vc-stash-gate': 'hidden'") >= 0 && commitSrc.indexOf('vc.stash.gate.hidden') >= 0, 'F4 7.3 的版本门跟着动作搬到提交区：低于 2.35 时画版本门说明而不是按钮（藏起来不等于沉默）')
   check(commitSrc.indexOf('composer-stash-items') >= 0 && commitSrc.indexOf('composer-stash-item-cmd') >= 0, 'F5 菜单每行写清收什么与对应的 git 命令（原型的菜单文案结构）')
+  // #1905 真机复验抓到的：提交区没有说明输入框，而宿主要求贮藏说明非空，点了只会回「这次操作没有成功」。
+  //   现在主按钮与三种收法都带一句默认说明。
+  const defaultMsgUses = commitSrc.split("message: t('vc.changes.stash.defaultMessage')").length - 1
+  check(defaultMsgUses === 2, 'F6 主按钮与三种收法都带默认贮藏说明（提交区没有说明输入框，不带就会被宿主按「说明不合格」拒；实得 ' + String(defaultMsgUses) + ' 处）')
 
   await printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)

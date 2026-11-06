@@ -87,7 +87,7 @@ function buildStashLeaves() {
   // 真实构建里全局提示叶子 Tip 拼在所有视图叶子之前；这里给一个同形状垫片：把子节点原样交出去，
   // 叶子测试只关心「提示挂上没挂上、正文里的字对不对」，悬停面板本身由 818 与浏览器门禁去看。
   const tipStub = 'const Tip = function (props) { return (props && props.children !== undefined) ? props.children : null }\n'
-  const body = tipStub + src + '\nreturn { STASH_OPS, VC_STASH_STAGED_OP, STASH_STAGED_MIN_VERSION, vcStashPageNode, vcStashStateNew, vcStashStagedStateOf, vcStashActionPayloadOf, vcStashApplyReply, vcStashFailKeyOf, vcStashOpVersionStateOf, vcStashConfirmOf, vcStashConfirmPayloadOf, vcStashWhenOf, vcStashShortOidOf, vcStashNeedsTicketOf, vcStashRequestIdOf, vcStashCheckCallOf, vcStashWriteCallOf, vcStashCheckConfirmOf }\n'
+  const body = tipStub + src + '\nreturn { STASH_OPS, VC_STASH_STAGED_OP, STASH_STAGED_MIN_VERSION, vcStashPageNode, vcStashStateNew, vcStashStagedStateOf, vcStashActionPayloadOf, vcStashApplyReply, vcStashFailKeyOf, vcStashOpVersionStateOf, vcStashConfirmOf, vcStashConfirmPayloadOf, vcStashWhenOf, vcStashShortOidOf, vcStashNeedsTicketOf, vcStashRequestIdOf, vcStashCheckCallOf, vcStashWriteCallOf, vcStashCheckConfirmOf, vcStashBranchPrefillOf }\n'
   return compileFn([], body)()
 }
 
@@ -308,9 +308,23 @@ async function main() {
   const applyBtn = findAll(actPage, (n) => n.props && n.props['data-vc-stash-op'] === 'apply' && n.props['data-vc-stash-cap'] === '7.6')[0]
   applyBtn.props.onClick()
   check(calls.length === 1 && calls[0].op === 'apply' && calls[0].selector === 'stash@{0}', '点 7.6 把真实动作与记录选择器交给回调')
+  // #1905 真机复验抓到的：⋯ 菜单里的「从这条记录建分支」原来直接发动作、分支名是空的，宿主一律回
+  //   「分支名不合法」，表单永远打不开。现在它先打开表单并把分支名预填好，人改完再点「建分支」。
+  const edits: any[] = []
+  const branchPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([entry(0)], 'git version 2.49.0'), onStashEdit: (patch: any) => edits.push(patch) })
+  const branchItem = findAll(branchPage, (n: any) => n.props && n.props['data-vc-stash-op'] === 'branch')[0]
+  branchItem.props.onClick()
+  check(edits.length === 1 && edits[0].branch && edits[0].branch.selector === 'stash@{0}' && String(edits[0].branch.name).indexOf('stash/') === 0,
+    '点 7.8 先打开建分支表单并把分支名预填好（不再拿空名字直接发动作，实得 ' + JSON.stringify(edits[0] || null) + '）')
+  check(leaf.vcStashBranchPrefillOf({ oid: 'abcdef1234567' }) === 'stash/abcdef1' && leaf.vcStashBranchPrefillOf({}) === 'stash/new-branch',
+    '预填的分支名按记录对象号起名，缺对象号时给一个固定名')
   const dropBtn = findAll(actPage, (n) => n.props && n.props['data-vc-stash-op'] === 'drop' && n.props['data-vc-stash-cap'] === '7.9')[0]
   dropBtn.props.onClick()
   check(calls.length === 2 && calls[1].op === 'drop' && calls[1].selector === 'stash@{0}' && calls[1].confirm !== true, '点 7.9 先交 drop 对象（不直接带确认，确认卡在前一步）')
+  // #1905 票面：清空之后结果条要写清掉几条，不能只说一句「完成」。
+  const clearedState = Object.assign(leaf.vcStashStateNew(), { result: { ok: true, op: 'clear', kind: '', dropped: 2 } })
+  const clearedPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([], 'git version 2.49.0'), state: clearedState })
+  check(attrsOf(clearedPage, 'data-vc-stash-dropped').join(',') === '2', '清空之后结果条写清清掉几条（实得 ' + attrsOf(clearedPage, 'data-vc-stash-dropped').join(',') + '）')
   const confirmState = { confirm: { op: 'drop', selector: 'stash@{0}', subject: '第1条贮藏' } }
   const confirmPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([entry(0)]), state: Object.assign(leaf.vcStashStateNew(), confirmState) })
   check(attrsOf(confirmPage, 'data-vc-stash-confirm').join(',') === 'drop', '危险动作贴触发点出确认卡（带动作名）')

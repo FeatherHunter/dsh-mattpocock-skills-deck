@@ -51,7 +51,8 @@ export const vcComposerStashSplitOf = function (h: any, t: any, o: any): any {
       'data-vc-stash-op': v.op, 'data-vc-stash-variant': v.op,
       disabled: opts.pending === true,
       'data-press': 'button', 'data-log': 'vc.changes.composer.stash-variant',
-      onClick: function (ev: any) { closeMenu(ev); if (typeof opts.onStash === 'function') opts.onStash({ op: v.op }) },
+      // 提交区没有说明输入框，而宿主要求贮藏说明非空：这里带一句默认说明，否则点了只会回「这次操作没有成功」。
+      onClick: function (ev: any) { closeMenu(ev); if (typeof opts.onStash === 'function') opts.onStash({ op: v.op, message: t('vc.changes.stash.defaultMessage') }) },
     }, [
       h('span', { key: 'name', className: 'composer-stash-item-name' }, t(v.nameKey)),
       h('span', { key: 'detail', className: 'composer-stash-item-detail' }, t(v.detailKey)),
@@ -62,7 +63,7 @@ export const vcComposerStashSplitOf = function (h: any, t: any, o: any): any {
     h('button', {
       key: 'main', type: 'button', className: 'link-btn', 'data-vc-stash-op': 'push',
       title: t('vc.changes.view.composerStashHint'), 'data-press': 'button', 'data-log': 'vc.changes.composer.stash',
-      onClick: function () { if (typeof opts.onStash === 'function') opts.onStash({ op: 'push' }) },
+      onClick: function () { if (typeof opts.onStash === 'function') opts.onStash({ op: 'push', message: t('vc.changes.stash.defaultMessage') }) },
     }, t('vc.changes.view.composerStash')),
     h('button', {
       key: 'arrow', type: 'button', className: 'composer-stash-arrow',

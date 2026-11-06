@@ -61,6 +61,8 @@ const VC_STASH_ROW_OPS = ['show', 'apply', 'pop', 'branch', 'drop']
 /** 记录行上哪几颗按钮是原型里的主操作（应用/弹出/丢弃），哪几颗是安静的小按钮（查看/建分支）。 */
 const VC_STASH_ROW_MAIN_OPS = ['apply', 'pop', 'drop']
 
+declare function vcStashBranchPrefillOf(entry: any): string
+
 const vcStashText = function (t: any, key: string, vars: any): string {
   if (typeof t !== 'function') return key
   return vars ? t(key, vars) : t(key)
@@ -132,7 +134,13 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
       'data-vc-stash-op': op, 'data-vc-stash-cap': def.id,
       disabled: ctx.pending === true,
       'data-press': 'button', 'data-log': 'vc.stash.row-op',
-      onClick: function () { ctx.act({ op: op, selector: selector }) },
+      // 建分支不是「点一下就执行」：先把这一条的分支表单打开、把分支名预填好，人改完再点「建分支」。
+      //   #1905 真机复验抓到的：原来这里直接发动作，分支名是空的，宿主一律回「分支名不合法」，
+      //   表单永远打不开。
+      onClick: function () {
+        if (op === 'branch') { ctx.edit({ branch: { selector: selector, name: vcStashBranchPrefillOf(entry) } }); return }
+        ctx.act({ op: op, selector: selector })
+      },
     }, [h('span', { key: 'label', className: 'btn-label' }, vcStashText(t, def.nameKey, null))]))
   })
   const rowMenu: any = quietActions.length > 0
@@ -247,6 +255,10 @@ const vcStashResultBlockOf = function (h: any, t: any, state: any): any {
     return h('div', { className: 'result result-ok', 'data-vc-stash-result': 'ok', role: 'status' }, [
       h('span', { key: 'tag', className: 'result-tag' }, vcStashText(t, 'vc.stash.result.tagOk', null)),
       h('span', { key: 'text', className: 'result-text' }, vcStashText(t, 'vc.stash.result.ok', { op: vcStashText(t, stashOpNameKeyOf(result.op), null) })),
+      // 清空 / 丢弃这类毁级动作，结果条要说清「清掉几条」，不能只说一句「完成」。
+      Number(result.dropped) > 0
+        ? h('span', { key: 'dropped', className: 'result-detail', 'data-vc-stash-dropped': String(result.dropped) }, vcStashText(t, 'vc.stash.result.dropped', { n: String(result.dropped) }))
+        : null,
       h('span', { key: 'detail', className: 'result-detail' }, vcStashText(t, 'vc.stash.result.next', null)),
     ])
   }

@@ -180,6 +180,15 @@ export const vcStashStagedStateOf = function (versionText: any): any {
   return { state: state, needed: STASH_STAGED_MIN_VERSION, alternativeKey: 'vc.stash.gate.alternative' }
 }
 
+/** 「从这条记录建分支」表单里预填的分支名：按记录的对象号起一个一看就知道来历的名字。
+ *  为什么带对象号：同一条记录建过一次分支后再点一次，git 会因为分支已存在而拒绝，名字里带对象号
+ *  至少让人一眼看出这是哪一条记录的分支（#1905 票面要求输入框预填，不让人从空白开始猜）。 */
+export const vcStashBranchPrefillOf = function (entry: any): string {
+  const oid: string = String((entry && entry.oid) || '').trim()
+  const short: string = oid.length >= 7 ? oid.slice(0, 7) : oid
+  return short === '' ? 'stash/new-branch' : 'stash/' + short
+}
+
 /** 一条动作在这个版本上是否该画出来（hidden 的动作一个按钮都不留，命令面板另有替代路径）。 */
 export const vcStashOpVisibleOf = function (op: any, versionText: any): boolean {
   return vcStashOpVersionStateOf(op, versionText) !== 'hidden'
@@ -298,6 +307,8 @@ export const vcStashResultOf = function (reply: any): any {
     kind: ok ? '' : String((r.error && r.error.kind) || 'other'),
     needed: r.needed ? String(r.needed) : '',
     exitCode: typeof r.exitCode === 'number' ? r.exitCode : null,
+    // 清空 / 丢弃把「清掉哪几条」随回包带回来：结果条要能说清清掉几条（#1905 票面）。
+    dropped: Array.isArray(r.dropped) ? r.dropped.length : 0,
   }
 }
 

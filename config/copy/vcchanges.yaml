@@ -124,6 +124,8 @@ zh:
   vc.changes.stash.pushUntrackedCommand: 'git stash -u'
   vc.changes.stash.pushStagedDetail: '只收索引里那一份，工作区里的改动仍然在'
   vc.changes.stash.pushStagedCommand: 'git stash push --staged'
+  # 提交区没有说明输入框：这三颗按钮要自带一句说明，否则宿主按「说明不合格」直接拒（#1905 真机复验抓到的）。
+  vc.changes.stash.defaultMessage: '从提交区贮藏'
   vc.changes.view.composerPlaceholder: '写一句提交说明'
   vc.changes.view.composerHint: '只提交已暂存的内容。未暂存的文件留在工作区。'
   vc.changes.view.commitLabel: '提交 {n} 个文件'
@@ -291,6 +293,7 @@ en:
   vc.changes.stash.pushUntrackedCommand: 'git stash -u'
   vc.changes.stash.pushStagedDetail: 'Takes only what is staged; working-tree changes stay'
   vc.changes.stash.pushStagedCommand: 'git stash push --staged'
+  vc.changes.stash.defaultMessage: 'Stashed from the commit composer'
   vc.changes.view.composerPlaceholder: 'Write a one-line commit message'
   vc.changes.view.composerHint: 'Commits only what is staged. Unstaged files stay in the working tree.'
   vc.changes.view.commitLabel: 'Commit {n} files'

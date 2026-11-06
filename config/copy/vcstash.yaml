@@ -61,6 +61,7 @@ zh:
   vc.stash.recent.restore: 恢复到列表
   vc.stash.result.ok: 完成：{op}
   vc.stash.result.next: 列表已按最新状态刷新。
+  vc.stash.result.dropped: 清掉 {n} 条记录。
   vc.stash.result.tagOk: 完成
   vc.stash.result.tagFail: 没成功
   vc.stash.fail.usage: 这次请求少了必要参数，没有执行。
@@ -139,6 +140,7 @@ en:
   vc.stash.recent.restore: Restore to list
   vc.stash.result.ok: "Done: {op}"
   vc.stash.result.next: The list is refreshed to the latest state.
+  vc.stash.result.dropped: Cleared {n} stash records.
   vc.stash.result.tagOk: Done
   vc.stash.result.tagFail: Not done
   vc.stash.fail.usage: The request was missing required parameters; nothing ran.
