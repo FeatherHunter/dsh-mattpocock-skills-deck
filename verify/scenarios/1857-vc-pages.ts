@@ -52,6 +52,8 @@ const PAGES = [
   // 定过，收口这一轮只验「四档宽两皮肤下首屏还在、不横向溢出、页尾没有能力清单」。
   { id: 'manage', kind: 'gear-index', title: '管理', sections: [] },
   // 四个一级页签也走同一套四档宽两皮肤读数（#1904 / #1905 的工作区页与储藏页就在这里）。
+  // #1883：分支与标签页是二级页（齿轮进），第三行写「时间 · 提交主题」，这一页要多读一份行文本。
+  { id: 'branch-tags', kind: 'gear', title: '分支与标签', sections: [], branchRow: true },
   { id: 'changes', kind: 'tab', title: '改动', sections: [] },
   { id: 'worktrees', kind: 'tab', title: '工作区', sections: [] },
   { id: 'stash', kind: 'tab', title: '储藏', sections: [] },
@@ -64,6 +66,9 @@ const ENABLED_PAGES = String(process.env.DSH_1857_PAGES || 'migrate,diagnostics,
   .split(',').map(function (s) { return s.trim() }).filter(function (s) { return s.length > 0 })
 const ENABLED_WIDTHS = String(process.env.DSH_1857_WIDTHS || WIDTHS.join(','))
   .split(',').map(function (s) { return Number(s.trim()) }).filter(function (n) { return isFinite(n) && n > 0 })
+// DSH_1857_ACTIONS=1：在页签页上额外点开三张就地表单（新建工作区 / 储藏三种收法 / 记录行菜单与清空），
+// 每开一张截一张图。默认 0：只读页面版式，不改变页面状态。
+const ACTIONS = process.env.DSH_1857_ACTIONS === '1'
 const ENABLED_SKINS = String(process.env.DSH_1857_SKINS || 'dark,light')
   .split(',').map(function (s) { return s.trim() }).filter(function (s) { return s.length > 0 })
 
@@ -84,7 +89,7 @@ interface RawBrowserPage {
 interface RootState {
   page: string | null; width: string | null; skin: string | null; depth: string | null
   bodyPage: string | null; headTitle: string | null
-  sections: string[]; folds: string[]; capPrimaries: number
+  sections: string[]; folds: string[]; capPrimaries: number; branchSubs: string[]
   docScrollWidth: number; innerWidth: number
   rootRight: number; rootLeft: number; maxRight: number; minLeft: number; rootWidthPx: number
 }
@@ -198,6 +203,7 @@ const READ_STATE_SCRIPT = [
   '    sections: Array.prototype.map.call((body === null ? document : body).querySelectorAll(".page-section .section-title"), function (n) { return String(n.textContent || "").trim() }),',
   '    folds: Array.prototype.map.call((body === null ? document : body).querySelectorAll(".fold-title"), function (n) { return String(n.textContent || "").trim() }),',
   '    capPrimaries: (body === null ? document : body).querySelectorAll("[data-cap-primary]").length,',
+  '    branchSubs: Array.prototype.map.call(document.querySelectorAll("[data-vc-branch-row] .obj-sub"), function (n) { return String(n.textContent || "").trim() }),',
   '    docScrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth,',
   '    rootRight: box.right, rootLeft: box.left, maxRight: maxRight, minLeft: minLeft, rootWidthPx: Math.round(box.width),',
   '  }',
@@ -337,6 +343,43 @@ async function capturePanel(page: PageHandle, raw: RawBrowserPage, filePath: str
       return { ok: false, method: 'failed', bytes: 0, problem: '截图失败：' + messageOf(error) + '；整窗截图也失败：' + messageOf(error2) }
     }
   }
+}
+
+/** 点一个选择器；找不到或点不动就如实记下来，不抛。动作截图是给人看的，缺一张不该把整趟判红。 */
+async function softClick(raw: RawBrowserPage, selector: string): Promise<boolean> {
+  const found = await waitForSelector(raw, selector, 6000)
+  if (!found) return false
+  const clicked = await realClick(raw, selector)
+  if (clicked.ok) { await sleep(700); return true }
+  const forced = await forceClick(raw, selector)
+  if (forced.ok) await sleep(700)
+  return forced.ok
+}
+
+/** 页签页上的三张就地表单（#1904 / #1905）：打开、截图、再关掉，页面回到原样。 */
+async function captureActions(page: PageHandle, raw: RawBrowserPage, spec: any, skin: any, width: number, outDir: string, facts: any): Promise<void> {
+  const shots: any[] = []
+  const shot = async (name: string): Promise<void> => {
+    const shotPath = path.join(outDir, spec.id + '-' + name + '-' + skin.id + '-' + width + '.png')
+    const r = await capturePanel(page, raw, shotPath)
+    shots.push({ name, ok: r.ok, bytes: r.bytes, problem: r.problem })
+  }
+  if (spec.id === 'worktrees') {
+    if (await softClick(raw, '[data-wt-create-open]')) { await shot('create'); await softClick(raw, '[data-wt-create-close]') }
+    if (await softClick(raw, '[data-wt-action="expand"]')) {
+      if (await softClick(raw, '[data-wt-action="move"]')) { await shot('move'); await softClick(raw, '[data-wt-move-close]') }
+      if (await softClick(raw, '[data-wt-action="sparse"]')) { await shot('sparse'); await softClick(raw, '[data-wt-sparse-close]') }
+      await softClick(raw, '[data-wt-action="expand"]')
+    }
+  }
+  if (spec.id === 'changes') {
+    if (await softClick(raw, '[data-vc-stash-arrow]')) { await shot('variants'); await softClick(raw, '[data-vc-stash-arrow]') }
+  }
+  if (spec.id === 'stash') {
+    if (await softClick(raw, '[data-vc-stash-row-menu] summary')) { await shot('row-menu'); await softClick(raw, '[data-vc-stash-op="branch"]'); await shot('branch-form') }
+    if (await softClick(raw, '[data-vc-stash-clear]')) { await shot('clear-confirm'); await softClick(raw, '[data-vc-stash-confirm-cancel]') }
+  }
+  facts['actions:' + spec.id + ':' + skin.id + ':' + width] = shots
 }
 
 /** 子序列匹配：期望序列是否按序出现在实得序列里；返回缺失项与命中下标。 */
@@ -589,6 +632,9 @@ export default defineScenario<ScenarioContext>({
               const shotPath = path.join(OUT_DIR, spec.id + '-' + skin.id + '-' + width + '.png')
               let shot: any = { ok: false, bytes: 0, problem: nav.ok ? null : nav.detail }
               if (nav.ok) shot = await capturePanel(page, raw, shotPath)
+              if (nav.ok && ACTIONS && (spec.id === 'worktrees' || spec.id === 'stash' || spec.id === 'changes')) {
+                await captureActions(page, raw, spec, skin, width, OUT_DIR, facts)
+              }
               const sections = state === null ? [] : state.sections
               const seq = sequenceOk(sections, spec.sections)
               const widthOk = state !== null && state.width === String(width)
@@ -597,7 +643,11 @@ export default defineScenario<ScenarioContext>({
               const overflow = state === null ? true : (state.docScrollWidth > state.innerWidth + 1 || state.maxRight > state.rootRight + 1)
               const capFree = state !== null && state.capPrimaries === 0
               const foldFree = state === null ? true : state.folds.every(function (f) { return !/能力|capabilit/i.test(f) })
-              const ok = nav.ok && widthOk && pageOk && titleOk && seq.ok && !overflow && capFree && foldFree && shot.ok
+              // #1883：分支与标签页多一条判据——每条分支行的第三行必须带「时间 · 主题」的中间点，
+              // 且主题不是空串（主题来自宿主新追加的 subject 字段）。
+              const branchSubs = state === null ? [] : state.branchSubs
+              const branchOk = spec.branchRow !== true || (branchSubs.length > 0 && branchSubs.every(function (line) { return line.indexOf(' · ') > 0 && line.split(' · ').slice(1).join(' · ').trim() !== '' }))
+              const ok = nav.ok && widthOk && pageOk && titleOk && seq.ok && !overflow && capFree && foldFree && shot.ok && branchOk
               const detail = [
                 '页 ' + String(state === null ? null : state.bodyPage) + '（期望 ' + spec.id + '）',
                 '宽 ' + String(state === null ? null : state.width) + '（期望 ' + width + '）',
