@@ -131,6 +131,14 @@ zh:
   env.diagLibraryVersion: 本地数据版本
   env.diagLibraryBytes: 快照库文件大小
   env.diagLibraryRows: 快照库票行数
+  # #1933：写模型一行——这个窗口为什么能写 / 为什么只读。回退原因只在设置页与日志，
+  # 不在列表状态行（列表只说数据为什么旧）。五个句子对应 #1932 的五个档位，判据不在词表里。
+  env.diagWriteModel: 写模型
+  env.diagWriteModel.local: 本机所有窗口都能写
+  env.diagWriteModel.network: 这份库在网络盘上，同一时刻只有一个窗口能写
+  env.diagWriteModel.networkFallback: 另一个窗口正在写这份库，本窗口暂时只读
+  env.diagWriteModel.readonly: 这个工作区所在的磁盘不能写
+  env.diagWriteModel.legacy: 还有窗口在用旧版本写这个工作区，请重启所有窗口
   env.diagRepo: 仓库
   env.diagLocal: (本地)
   env.diagFields: 字段 presence
@@ -503,6 +511,12 @@ en:
   env.diagLibraryVersion: Local data version
   env.diagLibraryBytes: Snapshot library file size
   env.diagLibraryRows: Snapshot library ticket rows
+  env.diagWriteModel: Write model
+  env.diagWriteModel.local: All windows on this machine can write
+  env.diagWriteModel.network: This library is on a network drive, so only one window can write at a time
+  env.diagWriteModel.networkFallback: Another window is writing this library, so this window is temporarily read-only
+  env.diagWriteModel.readonly: This workspace's disk is not writable
+  env.diagWriteModel.legacy: A window still running the old version is writing this workspace — restart all windows
   env.diagRepo: Repository
   env.diagLocal: (local)
   env.diagFields: Field presence

@@ -39,6 +39,10 @@ declare const userHintOf: any;
 declare function snapshotVersionReadoutOf(...args: any[]): any;
 // #1922：诊断读数里的库占用（库文件字节数 / 票行数）。不淘汰，但增长要看得见。
 declare function snapshotStoreStatsReadoutOf(...args: any[]): any;
+// #1933：写模型读数（本地多写者 / 网络单写者 / 网络回退只读 / 文件系统只读 / 旧租约挡写）。
+// 判据在 views/shared/truthLines.ts 的 snapshotWriteModelReadoutOf 一处，本文件只把键翻成页面上的字；
+// 反例：不要在这里按 storageKind 自己写条件——有了第二份判据，设置页就会和日志各说一套。
+declare function snapshotWriteModelReadoutOf(...args: any[]): any;
 
 export const ChecksTab = ({ st }: any) => {
   const cx = React.useContext(DswsCtx)
@@ -299,6 +303,9 @@ export const ChecksTab = ({ st }: any) => {
       const sel = st.selection || (snap && snap.selection) || null
       const repoRef = st.repository || (snap && snap.repository) || null
       const libraryStatsReadout: any = snapshotStoreStatsReadoutOf(libraryStatsReply)
+      // #1933：写模型这一行与字节数、行数同源（同一个 wf.snapshotStoreStats 回包），不另发一条电话。
+      // 回包还没回来或读不到时 ok 为假，页面画「—」，不猜一个「能写」。
+      const writeModel: any = snapshotWriteModelReadoutOf(libraryStatsReply)
       return h('details', { style: { marginTop: 8, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, padding: '6px 8px', background: 'rgba(255,255,255,.02)' } }, [
         // 本次界面反馈需求：能力诊断折叠条能点，给它悬停反馈、按压态与点击日志。
         h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'check.diag.toggle', style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } }, [
@@ -312,6 +319,8 @@ export const ChecksTab = ({ st }: any) => {
           h('div', null, tr('env.diagLibraryVersion') + ': ' + snapshotVersionReadoutOf(libraryVersionReply).text),
           h('div', null, tr('env.diagLibraryBytes') + ': ' + libraryStatsReadout.bytesText),
           h('div', null, tr('env.diagLibraryRows') + ': ' + libraryStatsReadout.rowsText),
+          // #1933：网络盘回退的原因（另一个窗口正在写）只在这里说，不进列表状态行（#1928）。
+          h('div', null, tr('env.diagWriteModel') + ': ' + (writeModel.ok ? tr(writeModel.copyKey) : '—')),
           h('div', null, tr('env.diagFields') + ': present=' + counts.present + ' \u00b7 empty=' + counts.empty + ' \u00b7 missing=' + counts.missing),
           h('div', { style: { fontSize: 10, color: '#6b7280', marginTop: 4 } }, tr('env.diagNote')),
           h('div', { style: { marginTop: 6 } }, [

@@ -57,6 +57,15 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
 - **mode 的语义收紧了**：`readonly` 只表达「真的写不了」——网络盘回退，或文件系统不可写
   （诊断 `readonly-filesystem`）。它**不再表达「另一个窗口拿着租约」**：本地路径不会因为别的窗口
   而只读。
+- **回退原因只在设置页与日志**：网络盘抢不到写权时，列表上方不出现「只读」「写锁」这类内部状态
+  （#1928 删掉了那条映射，#1933 的门禁用负例守着）。原因只在设置页能力诊断的「写模型」一行
+  （`wf.snapshotStoreStats` 回包的 storageKind / mode / legacyWriterBlocked，五档说法见
+  `config/copy/panel.yaml` 的 `env.diagWriteModel.*`）与开库日志 `workspaceSnapshot.lease` 里说明。
+  列表状态行只说「数据为什么旧」，不说底层哪把锁在谁手里。
+- **升级要重启所有窗口**：旧版本在本地路径留下的未过期租约会被认出来，本窗口仍能读、mode 仍是
+  writable，但每一次本地写都回 `legacy-writer`，设置页「写模型」一行显示「还有窗口在用旧版本写
+  这个工作区，请重启所有窗口」。不升 schema 版本，升级保护靠这句话与旧租约检测（下一小节），
+  不靠版本号挡。
 
 ### 升级：旧租约还在 meta 里怎么办（#1932 验收 5）
 
@@ -217,6 +226,9 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   空闲窗口不占写权、关掉一个另一个照写、旧租约未过期时拒绝本地写并在过期后自动恢复、
   网络盘仍是单写者回退、设置页「写模型」三格读数（storageKind / mode / legacyWriterBlocked）
   与 UNC / 盘符 / POSIX 三路路径判定。
+- `tests/verify-1933-network-fallback.ts`：网络盘 / UNC 单写者回退与设置页诊断——路径判定与
+  storageKind 覆盖、第二个句柄只读但仍能读、关掉第一个之后第三个接手写、本地盘两个句柄都可写、
+  写模型五档文案键与中英词条、列表不出现回退原因（损坏重建仍要说）、租约三列与两个时长配置保留。
 - `tests/verify-1863-snapshot-edges.ts`：父子边与阻塞边的三态写入、引用骨架、删除级联。
 - `tests/verify-1863-snapshot-library-replay.ts` 与 `verify-1863-snapshot-cold-start.ts`：
   列表读结果按组写库、断网冷启动首屏只读库。
