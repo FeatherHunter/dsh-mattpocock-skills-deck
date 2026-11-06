@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-06T11:30:44.363Z",
+  "generatedAt": "2026-11-06T11:31:12.554Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 596,
   "gateCount": 596,
@@ -5403,7 +5403,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 19,
+      "expectedAssertions": 16,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
