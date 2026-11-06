@@ -18,6 +18,8 @@
  *      162 条主入口只在命令面板（本组末尾单独核对一次）；
  *   E. 命令面板：搜索页输入框在、命中行带 data-cap-secondary、按 id / 名称 / 命令原文都能搜到，
  *      搜不到时画空态；面板本身也不横向溢出。
+ *   W. 工作区页（#1904）：四档宽 × 两皮肤都画出页脚新建表单（目录 / 分支 / 已有分支候选 / 表单里的错误）、
+ *      行内移动表单预填、稀疏检出候选与勾选、展开行常驻的当前规则、页底结果条，旧入口清单不在页面上。
  *   F. 提交历史页（#1744 T09）：四档宽 × 两皮肤都画出列表、详情与逐文件差异、第 13.14 条图形化视图，
  *      各档宽按规格第 9 节增删行内信息（300 只留标题、380 补短号与图形车道、460 起补作者与时间），
  *      图形化视图不调用 gitk（门禁只认面板内自绘节点），且各档都不横向溢出。
@@ -99,6 +101,17 @@ const VC_FILES = [
   'src/client/views/versionControl/vcBranches.js', // #1829：分支与标签的数据层（读数归一、票与结果落位；页面壳挂页面前要先有它）
   'src/client/views/versionControl/vcBranchSections.js', // #1881：本页后两段正文（标签、上游跟踪）与四件小工具，注入次序在视图叶子之前
   'src/client/views/versionControl/vcBranchPage.js', // #1829：分支与标签页的视图叶子（页头、筛选与搜索、卡片、页尾折叠）
+  // #1904 工作区页四叶（与构建同序）：共享动作层 → 数据层 → 处理层 → 版式 → 页面体。
+  //   壳渲染 worktrees 页时要调 vcWorktreesPageNode，闭包里少一片就直接 ReferenceError、量尺什么也量不到。
+  '.build/shared/version-control/worktree-ops.js',
+  'src/client/views/versionControl/vcWorktreesData.js',
+  'src/client/views/versionControl/vcWorktreesUi.js',
+  'src/client/views/versionControl/vcWorktreesFormOps.js',
+  'src/client/views/versionControl/vcWorktreesOps.js',
+  'src/client/views/versionControl/vcWorktreesFormView.js',
+  'src/client/views/versionControl/vcWorktreesRows.js',
+  'src/client/views/versionControl/vcWorktreesView.js',
+  'src/client/views/versionControl/vcWorktreesPage.js',
   // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳的挂载段要看到它们。
   'src/client/views/versionControl/vcPageHead.js',
   // #1757 T21 子模块页（#1843 阶段 4 重做）：共享动作表 → 数据层 → 处理层 → 页面正文，按构建次序拼；
@@ -331,6 +344,27 @@ function entryOf(closureSrc: string): string {
     // #1844：页头的三段读数——计数收没收起、有没有「含不可逆动作」红 chip、返回键在不在。
     "    headDanger: (function () { const e = root.querySelector('[data-vc-page-head]'); return e === null ? -1 : e.querySelectorAll('.section-danger').length })(),",
     "    headBack: (function () { const e = root.querySelector('[data-vc-page-head] [data-vc-back]'); return e === null ? 0 : 1 })(),",
+    // #1904 工作区页：页脚新建入口、三张表单、稀疏目录勾选、结果条与旧计划面是否还在。
+    "    wtCreateOpen: root.querySelectorAll('[data-wt-create-open]').length,",
+    "    wtFoot: !!root.querySelector('.wt-foot'),",
+    "    wtCreateForm: (function () { const e = root.querySelector('[data-wt-create-form]'); return e === null ? null : String(e.getAttribute('data-wt-create-form')) })(),",
+    "    wtCreatePathValue: (function () { const e = root.querySelector('[data-wt-create-path]'); return e === null ? null : String(e.value) })(),",
+    "    wtCreateBranchValue: (function () { const e = root.querySelector('[data-wt-create-branch-input]'); return e === null ? null : String(e.value) })(),",
+    "    wtCreateMode: (function () { const e = root.querySelector('[data-wt-create-mode].is-on'); return e === null ? null : String(e.getAttribute('data-wt-create-mode')) })(),",
+    "    wtRecent: grab('[data-wt-create-branch-chip]', 'data-wt-create-branch-chip'),",
+    "    wtFormError: (function () { const e = root.querySelector('[data-wt-create-error]'); return e === null ? null : String(e.textContent || '') })(),",
+    "    wtFormErrorInForm: !!root.querySelector('[data-wt-create-form] [data-wt-create-error]'),",
+    "    wtMoveForm: (function () { const e = root.querySelector('[data-wt-move-form]'); return e === null ? null : String(e.getAttribute('data-wt-move-form')) })(),",
+    "    wtMoveValue: (function () { const e = root.querySelector('[data-wt-move-input]'); return e === null ? null : String(e.value) })(),",
+    "    wtSparseForm: (function () { const e = root.querySelector('[data-wt-sparse-form]'); return e === null ? null : String(e.getAttribute('data-wt-sparse-form')) })(),",
+    "    wtSparseDirs: grab('[data-wt-sparse-dir]', 'data-wt-sparse-dir'),",
+    "    wtSparseOn: (function () { const out = []; root.querySelectorAll('[data-wt-sparse-dir][aria-pressed=\"true\"]').forEach(function (el) { out.push(String(el.getAttribute('data-wt-sparse-dir'))) }); return out })(),",
+    "    wtSparseCurrent: (function () { const e = root.querySelector('[data-wt-sparse-current]'); return e === null ? null : String(e.textContent || '') })(),",
+    "    wtResult: (function () { const e = root.querySelector('[data-wt-result]'); return e === null ? null : String(e.getAttribute('data-wt-result')) })(),",
+    "    wtResultText: (function () { const e = root.querySelector('[data-wt-result-text]'); return e === null ? null : String(e.textContent || '') })(),",
+    "    wtResultDetail: (function () { const e = root.querySelector('[data-wt-result-detail]'); return e === null ? null : String(e.textContent || '') })(),",
+    "    wtEntries: root.querySelectorAll('[data-wt-entry]').length,",
+    "    wtRows: root.querySelectorAll('[data-wt-row]').length,",
     '  };',
     '};',
     'window.__expectedPalette = function (q) { return window.__VC.vcPaletteRowsOf(q).map((r) => r.id); };',
@@ -909,6 +943,85 @@ async function run(browser: any, env: any) {
     const order2 = mb && mb.branchOrder ? mb.branchOrder.join(',') : ''
     check(order2.indexOf('vcs-confirm') > order2.indexOf('vcs-branch2-forms') && order2.indexOf('vcs-result') > order2.indexOf('vcs-confirm'), '分支与标签页：确认卡与结果排在页尾折叠区之后（实得 ' + order2.slice(-90) + '）')
     await page.screenshot({ path: path.join(shotDir, 'branch-tags-confirm-dark-460.png') })
+    // ---- W 组：工作区页（#1904）—— 页脚新建、行内移动、行内稀疏检出，四档宽 × 两皮肤 ----
+    // 判据只看结构与读数：新建表单的目录/分支/模式/最近分支/表单错误、移动表单预填、稀疏面板的候选与勾选、
+    //   展开行常驻的当前规则、页底结果条，以及旧能力入口清单确实不在了；各档都不横向溢出。
+    // 数据只给 worktrees 页真正读得到的片；三张表单的打开状态由 ui 直接给，等价于用户点开之后的那一帧。
+    const WT_NOW = Date.parse('2026-10-04T10:00:00+08:00')
+    const wtOid = (ch: string): string => ch.repeat(40)
+    const wtSliceOk = (data: any) => ({ state: 'ok', data: data, error: null })
+    const wtSnapshotOf = function () {
+      return {
+        contract: 'version-control.first-screen', version: 2, readAtMs: WT_NOW,
+        slices: {
+          workspace: wtSliceOk({
+            identity: { worktreePath: 'D:/w/repo', worktreeDisplay: 'repo', branch: 'main', oid: wtOid('a') },
+            repo: null,
+            branches: [
+              { short: 'main', oid: wtOid('a'), current: true, upstream: null, upstreamGone: false, ahead: 0, behind: 0 },
+              { short: 't/a', oid: wtOid('b'), current: false, upstream: null, upstreamGone: false, ahead: 0, behind: 0 },
+              { short: 't/b', oid: wtOid('c'), current: false, upstream: null, upstreamGone: false, ahead: 0, behind: 0 },
+              { short: 'release/2026-10', oid: wtOid('d'), current: false, upstream: null, upstreamGone: false, ahead: 0, behind: 0 },
+            ],
+          }),
+          history: wtSliceOk({ commits: [
+            { oid: wtOid('b'), short: 'bbbbbbb', commitDateMs: WT_NOW - 60000 },
+            { oid: wtOid('c'), short: 'ccccccc', commitDateMs: WT_NOW - 120000 },
+            { oid: wtOid('d'), short: 'ddddddd', commitDateMs: WT_NOW - 180000 },
+          ] }),
+          worktrees: wtSliceOk({ others: [
+            { path: 'D:/w/repo/.wt/a', display: 'a', head: wtOid('b'), branch: 't/a', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false, prunableUnknown: false },
+            { path: 'D:/w/repo/.wt/b', display: 'b', head: wtOid('c'), branch: 't/b', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false, prunableUnknown: false },
+          ], bare: false }),
+          changes: wtSliceOk({ staged: [], unstaged: [], stagedCount: 0, unstagedCount: 0, conflictCount: 0 }),
+          stashes: wtSliceOk({ entries: [] }),
+          sync: wtSliceOk({ sync: 'no-upstream', ahead: 0, behind: 0, basisMs: null, upstream: null, remote: null, branch: 'main' }),
+          version: wtSliceOk({ gitVersion: 'git version 2.49.0', tier: 'full', switches: [] }),
+        },
+      }
+    }
+    const wtReads = { firstScreen: { state: 'ok', data: wtSnapshotOf(), error: null } }
+    const wtCreateUi = { worktrees: {
+      create: { open: true, path: 'D:/repo/.worktrees/1800-new', branch: 't/missing', mode: 'existing', error: { key: 'vc.wt.create.noBranch', params: {} } },
+      sparseRules: {},
+    } }
+    const wtRowsUi = { worktrees: {
+      move: { path: 'D:/w/repo/.wt/a', draft: 'D:/w/repo/.wt/a' },
+      sparse: { path: 'D:/w/repo/.wt/b', rules: ['docs'], candidates: ['docs', 'src', 'tests'], ruleFile: 'D:/w/repo/.git/worktrees/b/info/sparse-checkout' },
+      input: { path: 'D:/w/repo/.wt/b', dest: '', branch: '', reason: '', dirs: ['docs', 'tests'] },
+      mode: 'plan', op: 'sparse-list',
+      sparseRules: { 'D:/w/repo/.wt/a': ['docs', 'src'] },
+      lastResult: {
+        tone: 'ok', textKey: 'vc.wt.result.created', textParams: { name: '1800-new', branch: 'ticket/1800-new' },
+        detailKey: 'vc.wt.result.createdNewDetail', detailParams: { path: 'D:/repo/.worktrees/1800-new', branch: 'ticket/1800-new' },
+      },
+    } }
+    for (let s = 0; s < SKINS.length; s += 1) {
+      const skin = SKINS[s]
+      for (let w = 0; w < WIDTHS.length; w += 1) {
+        const width = WIDTHS[w]
+        const tag = '工作区页 ' + skin + ' / ' + width + ' 宽'
+        await page.setViewportSize({ width: width, height: 1000 })
+        const wt = await renderAt(page, { page: 'worktrees', width: width, skin: skin, reads: wtReads, ui: wtCreateUi })
+        check(!!wt && wt.page === 'worktrees' && wt.width === String(width) && wt.skin === skin, tag + '：根节点读数是工作区页 / 档宽 / 皮肤')
+        check(!!wt && !overflowOf(wt), tag + '：新建表单打开时不横向溢出（文档 ' + (wt && wt.docScrollWidth) + ' ≤ viewport ' + (wt && wt.innerWidth) + '）')
+        check(!!wt && wt.wtCreateOpen === 1 && wt.wtFoot === true, tag + '：页脚恰有一颗「新建工作区」，页脚本身还在')
+        check(!!wt && wt.wtCreateForm === '1' && wt.wtCreatePathValue === 'D:/repo/.worktrees/1800-new' && wt.wtCreateBranchValue === 't/missing' && wt.wtCreateMode === 'existing', tag + '：新建表单的目录、分支与「已有分支」模式都画出来了（实得 ' + (wt && wt.wtCreatePathValue) + ' / ' + (wt && wt.wtCreateMode) + '）')
+        check(!!wt && wt.wtRecent.join(',') === 't/a,t/b,release/2026-10', tag + '：已有分支模式列出最近用过的三条（当前 main 不列，实得 ' + (wt && wt.wtRecent.join(',')) + '）')
+        check(!!wt && wt.wtFormErrorInForm === true && wt.wtFormError === zh('vc.wt.create.noBranch'), tag + '：目录已被占用 / 本地没有这条分支这类错误留在表单里（表单里的 ' + (wt && wt.wtFormError) + '）')
+        check(!!wt && wt.wtEntries === 0 && wt.bodyPrimaries === 0, tag + '：旧的能力入口清单不再出现，正文也没有 data-cap-primary')
+        await page.screenshot({ path: path.join(shotDir, 'worktrees-create-' + skin + '-' + width + '.png'), fullPage: true })
+        await page.setViewportSize({ width: width, height: 1400 })
+        const wr = await renderAt(page, { page: 'worktrees', width: width, skin: skin, reads: wtReads, ui: wtRowsUi })
+        check(!!wr && !overflowOf(wr), tag + '：移动与稀疏检出的表单贴行展开时不横向溢出（文档 ' + (wr && wr.docScrollWidth) + ' ≤ viewport ' + (wr && wr.innerWidth) + '）')
+        check(!!wr && wr.wtMoveForm === 'D:/w/repo/.wt/a' && wr.wtMoveValue === 'D:/w/repo/.wt/a', tag + '：移动表单贴在 a 行里，输入框预填当前路径（实得 ' + (wr && wr.wtMoveValue) + '）')
+        check(!!wr && wr.wtSparseForm === 'D:/w/repo/.wt/b' && wr.wtSparseDirs.join(',') === 'docs,src,tests' && wr.wtSparseOn.join(',') === 'docs,tests', tag + '：稀疏检出列出三个顶层目录，按 ui 勾上 docs 与 tests（实得 ' + (wr && wr.wtSparseOn.join(',')) + '）')
+        check(!!wr && String(wr.wtSparseCurrent || '').indexOf('docs、src') >= 0, tag + '：展开行常驻「当前规则：只保留 docs、src」（实得 ' + (wr && wr.wtSparseCurrent) + '）')
+        check(!!wr && wr.wtResult === 'ok' && String(wr.wtResultText || '').indexOf('1800-new') >= 0 && String(wr.wtResultText || '').indexOf('ticket/1800-new') >= 0, tag + '：页底结果条写清新建的分支与新目录（实得 ' + (wr && wr.wtResultText) + '）')
+        check(!!wr && String(wr.wtResultDetail || '').indexOf('git worktree add -b') >= 0, tag + '：结果条第二行写明实际会跑的那条 git 子命令（实得 ' + (wr && wr.wtResultDetail) + '）')
+        await page.screenshot({ path: path.join(shotDir, 'worktrees-rows-' + skin + '-' + width + '.png'), fullPage: true })
+      }
+    }
   } finally {
     await close()
   }
@@ -934,7 +1047,9 @@ async function run(browser: any, env: any) {
   // #1883：分支行第三行要念「6 分钟前 · 提交主题」，相对时间那几句（vc.ago.*、vc.time.absolute）
   //   住在 flow 一族；不并进来，量到的第三行是词条键而不是读者真会看到的那句话。
   const flowLoc = await import(locUrl('src/client/kernel/locale-flow.js'))
-  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh, vccfg.L_VCCONFIG.zh, vchk.L_VCHOOKS.zh, vcm.L_VCMAINTENANCE.zh, vcs.L_VCSUBMODULES.zh, vcrw.L_VCREWRITE.zh, vcdg.L_VCDIAGNOSTICS.zh, vcpf.L_VCPLATFORM.zh, flowLoc.L_FLOW.zh)
+  // #1904：工作区页三张表单与结果条的词条在 vcworktrees 一族，缺了它截图里会露出 vc.wt.create.* 键名。
+  const vcwt = await import(locUrl('src/client/kernel/locale-vcworktrees.js'))
+  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh, vccfg.L_VCCONFIG.zh, vchk.L_VCHOOKS.zh, vcm.L_VCMAINTENANCE.zh, vcs.L_VCSUBMODULES.zh, vcrw.L_VCREWRITE.zh, vcdg.L_VCDIAGNOSTICS.zh, vcpf.L_VCPLATFORM.zh, flowLoc.L_FLOW.zh, vcwt.L_VCWORKTREES.zh)
   // vcText.js 单独拼进闭包时，相对时间窗口常量在真机闭包里由共享层提供；这里从 time-config 的
   // 生成物取同一份真值，挂到 window 上让闭包里的裸名读得到（与 verify-997 的手法一致）。
   const valuesMod = await import('file://' + path.join(ROOT, sourcePath('src/shared/time-config/values.js')).replace(/\\/g, '/'))
@@ -966,7 +1081,17 @@ async function run(browser: any, env: any) {
     if (Array.isArray(value)) return value.join('\n')
     return String(value === undefined || value === null ? '' : value)
   }
-  const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + joinRules(stylesMod.VC_SHELL_STYLE_TEXT) + '\n' + joinRules(pageStylesMod.VC_PAGE_STYLE_TEXT) + '\n' + joinRules(branchStylesMod.VC_BRANCH_STYLE_TEXT) + '\n' + protoCss
+  // #1904：页签页的高度链是「根 → 外壳 → .vcs-page-body → .view」一路 flex:1；探针的 #pane 不给高度时
+  //   页面只撑到内容高度，工作区页的新建表单会把「panel 底」算在内容末尾，量到的位置与真机不一样。
+  //   真机上宿主面板给的是确定高度，所以这里按视口高度给 #pane，量尺才和真机同一套前提。
+  // 真机上页签页外面还套着 .vcs-live.is-tabpage > .vcs-live-shell 两层弹性容器；探针只挂 .vcs-root，
+  //   少了这两层，页签页的高度链断在内容高度上（工作区页的新建表单因此把「panel 底」算到内容末尾）。
+  //   这里按同一条链给 #pane 与 .vcs-root 补上弹性高度，量尺的前提才和真机一致。
+  const probeHeightCss = '#pane{width:100%;height:100vh;display:flex;flex-direction:column}' +
+    '#pane>.vcs-root{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:0}' +
+    '#pane>.vcs-root>.vcs-page-body{flex:1 1 auto;min-height:0;overflow:hidden;padding:0}' +
+    '#pane>.vcs-root>.vcs-page-body>.view{flex:1 1 auto;min-height:0;overflow:hidden}'
+  const css = 'html,body{height:100%;margin:0;padding:0}' + probeHeightCss + joinRules(stylesMod.VC_SHELL_STYLE_TEXT) + '\n' + joinRules(pageStylesMod.VC_PAGE_STYLE_TEXT) + '\n' + joinRules(branchStylesMod.VC_BRANCH_STYLE_TEXT) + '\n' + protoCss
 
   // 悬停薄预设 Tip 在真机构建里是 leaf:tip（排在全部视图叶子之前），本闭包不拼 kernel 叶子，这里按契约给同形函数组件桩：
   // 只把触发节点原样渲染出来（真 Tip 额外挂悬停气泡，不影响布局量尺）。维护页与诊断页的禁用原因经它挂，缺了就会渲染抛错。

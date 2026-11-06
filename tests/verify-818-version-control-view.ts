@@ -121,7 +121,11 @@ const VC_FILES = [
   'src/client/views/versionControl/vcFirstScreen.js', // #1739：首屏七片的客户端数据层（只读一份版本化快照；与构建同序）
   // #1752 工作树页三叶（与构建同序）：数据层 → 处理层 → 页面体，页面壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcWorktreesData.js',
+  'src/client/views/versionControl/vcWorktreesUi.js', // #1904 界面读数归一
+  'src/client/views/versionControl/vcWorktreesFormOps.js', // #1904 三张表单的处理动作
   'src/client/views/versionControl/vcWorktreesOps.js',
+  'src/client/views/versionControl/vcWorktreesFormView.js', // #1904 三张表单与结果条画法
+  'src/client/views/versionControl/vcWorktreesRows.js', // #1904 逐行画法与清单
   'src/client/views/versionControl/vcWorktreesView.js', // #1829 阶段 3：工作树页版式（页面体只留能力定义与状态面）
   'src/client/views/versionControl/vcWorktreesPage.js',
   // #1757 子模块页三叶（与构建同序）：数据层 → 处理层 → 页面体，页面壳的挂载段要看到页面体那一叶。

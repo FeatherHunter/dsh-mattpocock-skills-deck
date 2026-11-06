@@ -1,10 +1,13 @@
-// views/versionControl/vcWorktreesOps.ts —— 工作树页的处理层（#1752 T17）
+// views/versionControl/vcWorktreesOps.ts —— 工作树页的处理层（#1752 T17；#1904 按原型 93–97 补三张就地表单）
 //
 // 这一层只做四件事：
 //   1. 八条能力的输入整形（哪些字段进电话、空值不传），界面不自己拼参数；
 //   2. 先过一遍与宿主同源的判定（共享层 worktreeJudge）：版本太老、目标不对这些在打第一枪之前就落「禁用/拦截」，
 //      不把注定被拒的请求发出去；界面拿到的理由与宿主预检拒绝时用的是同一套标识符；
 //   3. 三段式：预检（check）拿判定与现场 → 确认卡（危险操作）或计划面（prune 清单、稀疏规则）→ 执行（run）并显示结果；
+//      #1904 的三张表单（新建 / 移动 / 稀疏检出）例外：表单本身就是要人确认的那一步，提交后直接走
+//      「预检 → 凭票执行」，不再多弹一张确认卡（原型 93–97 的按钮就是一步到底）；删除、锁定、清理这些
+//      从行里点的危险动作仍然先出确认卡。
 //   4. 执行完按 T04 的刷新时机重读首屏（「任务完成后重读」那一档），清单与其它片一起更新。
 //
 // 长任务通道不在这里：工作树八条都是本地短写（规格第 5 节把它们排除在长任务清单外），
@@ -17,6 +20,8 @@ declare function vcReadFirstScreenOnManual(reads: any, call: any, cwd: any): any
 declare function vcWorktreeActionOf(op: any): any
 declare function vcWorktreesModelOf(reads: any): any
 declare function vcWorktreesActionDecisionOf(model: any, op: any, input: any): any
+declare function vcWorktreesUiOf(ui: any): any
+declare function createWorktreesFormOpsOf(env: any): any
 
 /** 两条工作树电话的名字：与宿主注册（src/host/index.ts）一一对应。 */
 export const VC_WORKTREE_PHONES: Record<string, string> = {
@@ -63,34 +68,8 @@ const vcWtStr = function (v: any): string {
   return String(v === undefined || v === null ? '' : v)
 }
 
-/** 页面读数的缺省形状：所有字段都在，界面不用到处判 undefined。 */
-export const vcWorktreesUiOf = function (ui: any): any {
-  const w: any = ui && ui.worktrees
-  const input: any = (w && w.input) || {}
-  const dirs: string[] = []
-  if (Array.isArray(input.dirs)) {
-    for (let i = 0; i < input.dirs.length; i += 1) dirs.push(vcWtStr(input.dirs[i]))
-  }
-  return {
-    mode: w && VC_WORKTREE_MODES.indexOf(String(w.mode)) >= 0 ? String(w.mode) : 'idle',
-    op: vcWtStr(w && w.op),
-    input: {
-      path: vcWtStr(input.path),
-      dest: vcWtStr(input.dest),
-      branch: vcWtStr(input.branch),
-      reason: vcWtStr(input.reason),
-      dirs: dirs,
-    },
-    decision: (w && w.decision) || null,
-    plan: (w && w.plan) || null,
-    ticket: (w && w.ticket) || null,
-    result: (w && w.result) || null,
-    error: (w && w.error) || null,
-    requestId: vcWtStr(w && w.requestId),
-    filter: w && w.filter === 'abnormal' ? 'abnormal' : 'all',
-    noteOpen: !(w && w.noteOpen === false),
-  }
-}
+
+
 
 /** 只把有值的输入字段放进电话参数：空串不传，宿主就不会把空串当成一个路径去判。 */
 export const vcWorktreeReqOf = function (input: any): any {
@@ -202,7 +181,8 @@ export const vcWorktreeDecisionStateOf = function (decision: any): string {
 
 /**
  * 处理层工厂：参数由渲染方注入（callHost、当前目录、读数引用、状态写入），本工厂不碰全局状态。
- * 返回值就是页面用的 handlers：refresh / start / field / pickDir / confirmNow / cancelConfirm / retry。
+ * 返回值分两块：核心动作（refresh / start / confirmNow / cancelConfirm / view / retry 等）与
+ * #1904 的三张表单动作（由 vcWorktreesFormOps 组装后并进来）。
  */
 export const createWorktreesOpsOf = function (deps: any): any {
   const d: any = deps || {}
@@ -221,7 +201,7 @@ export const createWorktreesOpsOf = function (deps: any): any {
   }
   const setError = function (mode: string, op: string, reply: any): any {
     const err: any = vcWorktreeFailureOf(reply)
-    try { log('warn', 'host.call.fail', { method: VC_WORKTREE_PHONES[String(err.kind) === 'shape' ? 'check' : 'check'], kind: 'git-worktree', errorHash: dswsLogHash(dswsLogTrunc(err.kind + ' ' + err.message, 120, 'error')) }) } catch (e) { /* 日志坏了不影响读数 */ }
+    try { log('warn', 'host.call.fail', { method: VC_WORKTREE_PHONES.check, kind: 'git-worktree', errorHash: dswsLogHash(dswsLogTrunc(err.kind + ' ' + err.message, 120, 'error')) }) } catch (e) { /* 日志坏了不影响读数 */ }
     return setWt({ mode: mode, op: op, error: err, decision: null, plan: null, ticket: null, result: null, requestId: '' })
   }
   const refresh = function (): any {
@@ -231,18 +211,52 @@ export const createWorktreesOpsOf = function (deps: any): any {
       return next
     })
   }
-  const start = function (op: any, preset: any): any {
-    const action: any = vcWorktreeActionOf(op)
+
+  /** 执行一枪（表单提交时预检之后直接调用；票据、请求号、显式确认一个不少）。 */
+  const runNow = function (op: string, input: any, ticket: any, plan: any, options: any, decision: any): any {
+    const o: any = options || {}
+    const ticketId: string = vcWtStr(ticket && ticket.id)
+    const requestId: string = vcWorktreeRequestIdOf(Date.now(), ticketId)
+    setWt({ mode: 'running', op: op, input: input, decision: decision, plan: plan, ticket: ticket, requestId: requestId, error: null })
+    const t0: any = Date.now()
+    return Promise.resolve()
+      .then(function () { return call(VC_WORKTREE_PHONES.run, vcWorktreeRunArgsOf(cwdNow(), op, ticketId, requestId, input)) })
+      .then(function (reply: any) {
+        const ok: boolean = !!(reply && reply.ok === true)
+        wtLog('run', t0, ok, { op: op })
+        const result: any = vcWorktreeResultOf(reply)
+        if (!ok || !result || result.state !== 'done') {
+          // 表单三件把失败放回表单 / 页底结果条；旧动作仍落失败卡。
+          if (typeof o.onFailure === 'function') o.onFailure(reply, result, '')
+          else setError('failed', op, reply)
+          return Promise.resolve(refresh()).then(function () { return vcWorktreesUiOf(uiNow()) })
+        }
+        if (typeof o.onSuccess === 'function') o.onSuccess(result)
+        else setWt({ mode: 'done', op: op, result: result, error: null, ticket: null })
+        return Promise.resolve(refresh()).then(function () { return vcWorktreesUiOf(uiNow()) })
+      })
+      .catch(function (err: any) {
+        const reply: any = { ok: false, error: { kind: 'throw', message: vcWtStr(err && err.message) } }
+        if (typeof o.onFailure === 'function') o.onFailure(reply, null, '')
+        else setError('failed', op, reply)
+        return vcWorktreesUiOf(uiNow())
+      })
+  }
+  /**
+   * 预检 + 按需要执行：表单三件（auto）在预检通过后直接凭票执行；其余动作照旧停在确认面。
+   * 失败落点由调用方给的 onFailure 决定（表单 vs 旧三段式），本函数只管预检、票据与执行顺序。
+   */
+  const begin = function (op: string, input: any, options: any): any {
+    const o: any = options || {}
     const opName: string = vcWtStr(op)
-    const prev: any = vcWorktreesUiOf(uiNow())
-    const input: any = Object.assign({}, prev.input, preset || {})
+    const action: any = vcWorktreeActionOf(opName)
     if (!action) return Promise.resolve(setError('failed', opName, { ok: false, error: { kind: 'bad-op', message: '' } }))
-    if (action.retry === true) return refresh()
-    if (action.id === 'list') return refresh()
-    // 先过一遍与宿主同源的判定：版本太老、目标不对这些在打第一枪之前就落「拦截」，不发注定被拒的请求。
+    if (action.retry === true || action.id === 'list') return refresh()
     const model: any = vcWorktreesModelOf(readsNow() || {})
     const decision: any = vcWorktreesActionDecisionOf(model, opName, input)
     if (vcWorktreeDecisionStateOf(decision) === 'block') {
+      const rs: string[] = vcWorktreeDecisionReasonsOf(decision)
+      if (typeof o.onFailure === 'function') return Promise.resolve(o.onFailure(null, null, rs.length > 0 ? rs[0] : ''))
       return Promise.resolve(setWt({ mode: 'blocked', op: opName, input: input, decision: decision, plan: null, ticket: null, result: null, error: null, requestId: '' }))
     }
     const t0: any = Date.now()
@@ -252,18 +266,59 @@ export const createWorktreesOpsOf = function (deps: any): any {
       .then(function (reply: any) {
         const ok: boolean = !!(reply && reply.ok === true)
         wtLog('check', t0, ok, { op: opName })
-        if (!ok) return setError('failed', opName, reply)
+        if (!ok) {
+          if (typeof o.onFailure === 'function') return o.onFailure(reply, null, '')
+          return setError('failed', opName, reply)
+        }
         const nextDecision: any = reply.decision || decision
         if (vcWorktreeDecisionStateOf(nextDecision) === 'block') {
+          const rs: string[] = vcWorktreeDecisionReasonsOf(nextDecision)
+          if (typeof o.onFailure === 'function') return o.onFailure(reply, null, rs.length > 0 ? rs[0] : '')
           return setWt({ mode: 'blocked', op: opName, input: input, decision: nextDecision, plan: vcWorktreePlanOf(reply), ticket: null, result: null, error: null, requestId: '' })
         }
         const plan: any = vcWorktreePlanOf(reply)
         if (opName === 'sparse-list') {
-          return setWt({ mode: 'plan', op: opName, input: input, decision: nextDecision, plan: plan, ticket: null, result: null, error: null, requestId: '' })
+          // 打开面板时把当前规则与候选目录一起带回：有规则就勾上当前规则，没规则就默认全勾（原型 96）。
+          const sparse: any = plan.sparse || {}
+          const candidates: string[] = Array.isArray(sparse.candidates) ? sparse.candidates.slice(0) : []
+          const rules: string[] = Array.isArray(sparse.rules) ? sparse.rules.slice(0) : []
+          const dirs: string[] = []
+          if (rules.length > 0) {
+            for (let i = 0; i < rules.length; i += 1) if (candidates.length === 0 || candidates.indexOf(rules[i]) >= 0) dirs.push(rules[i])
+          } else {
+            for (let i = 0; i < candidates.length; i += 1) dirs.push(candidates[i])
+          }
+          return setWt({
+            mode: 'plan', op: opName, input: Object.assign({}, input, { dirs: dirs }), decision: nextDecision, plan: plan,
+            ticket: null, result: null, error: null, requestId: '',
+            sparse: { path: vcWtStr(input.path), rules: rules, candidates: candidates, ruleFile: vcWtStr(sparse.ruleFile) },
+          })
         }
-        return setWt({ mode: 'confirm', op: opName, input: input, decision: nextDecision, plan: plan, ticket: (reply && reply.ticket) || null, result: null, error: null, requestId: vcWorktreeRequestIdOf(Date.now(), String((reply && reply.ticket && reply.ticket.id) || opName)) })
+        if (o.auto === true) {
+          if (!reply.ticket) {
+            if (typeof o.onFailure === 'function') return o.onFailure(reply, null, 'confirm-required')
+            return setError('failed', opName, reply)
+          }
+          return runNow(opName, input, reply.ticket, plan, o, nextDecision)
+        }
+        return setWt({
+          mode: 'confirm', op: opName, input: input, decision: nextDecision, plan: plan,
+          ticket: (reply && reply.ticket) || null, result: null, error: null,
+          requestId: vcWorktreeRequestIdOf(Date.now(), String((reply && reply.ticket && reply.ticket.id) || opName)),
+        })
       })
-      .catch(function (e: any) { return setError('failed', opName, { ok: false, error: { kind: 'throw', message: vcWtStr(e && e.message) } }) })
+      .catch(function (err: any) {
+        const reply: any = { ok: false, error: { kind: 'throw', message: vcWtStr(err && err.message) } }
+        if (typeof o.onFailure === 'function') return o.onFailure(reply, null, '')
+        return setError('failed', opName, reply)
+      })
+  }
+  const start = function (op: any, preset: any): any {
+    const prev: any = vcWorktreesUiOf(uiNow())
+    // 从行里点旧的危险动作时，先把上一件表单留下的结果条收掉：底部只留这一件的结果。
+    if (prev.lastResult) setWt({ lastResult: null })
+    const input: any = Object.assign({}, prev.input, preset || {})
+    return begin(String(op), input, { auto: false })
   }
   const confirmNow = function (): any {
     const prev: any = vcWorktreesUiOf(uiNow())
@@ -292,7 +347,6 @@ export const createWorktreesOpsOf = function (deps: any): any {
       .catch(function (e: any) { return setError('failed', opName, { ok: false, error: { kind: 'throw', message: vcWtStr(e && e.message) } }) })
   }
   const cancelConfirm = function (): any {
-    const prev: any = vcWorktreesUiOf(uiNow())
     return setWt({ mode: 'idle', op: '', decision: null, plan: null, ticket: null, result: null, error: null, requestId: '' })
   }
   const field = function (name: any, value: any): any {
@@ -328,7 +382,10 @@ export const createWorktreesOpsOf = function (deps: any): any {
     if (prev.op === '') return refresh()
     return start(prev.op, prev.input)
   }
-  return {
+  const formOps: any = typeof createWorktreesFormOpsOf === 'function'
+    ? createWorktreesFormOpsOf({ begin: begin, setWt: setWt, uiNow: uiNow, readsNow: readsNow, uiOf: vcWorktreesUiOf, pickDir: pickDir })
+    : {}
+  return Object.assign({
     refresh: refresh,
     start: start,
     field: field,
@@ -337,5 +394,5 @@ export const createWorktreesOpsOf = function (deps: any): any {
     cancelConfirm: cancelConfirm,
     view: view,
     retry: retry,
-  }
+  }, formOps)
 }

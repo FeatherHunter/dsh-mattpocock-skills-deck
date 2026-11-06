@@ -903,12 +903,16 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1748 变基待办页的历史改写两叶（数据层 → 画法），排在页面壳之前；壳的 rebase 挂载段要调 vcUndoPageNode。
   { id: 'vcUndoOps', file: 'src/client/views/versionControl/vcUndoOps.ts' }, // #1748 五条历史改写动作的输入整理、本地预检与回包落态（不画界面）
   { id: 'vcUndoPage', file: 'src/client/views/versionControl/vcUndoPage.ts' }, // #1748 变基待办页的面板（动作选择、预检、确认卡、恢复点与执行结果；由页面壳挂进 rebase 页）
-  // #1752 工作树页三叶，依赖次序固定：读首屏那一片的数据层 → 动作层（判定与两条写电话）→ 页面画法（八条入口、行、确认与结果）。
+  // #1752 工作树页族，依赖次序固定：读首屏那一片的数据层 → 界面读数归一 → 表单处理动作 → 处理层
+  //   （判定与两条写电话）→ 表单画法 → 逐行画法 → 版式 → 页面体。另外拆叶是为了守住 350 有效行上限：
+  //   表单三件与逐行清单各自独立，#1904 落地时把版式叶与处理叶拆成这几份。
   //   排在 vcShellPages 之前，壳的挂载段才看得到 vcWorktreesPageNode；也排在 vcFirstScreen 之后，数据层只问那一份片。
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
+  { id: 'vcWorktreesUi', file: 'src/client/views/versionControl/vcWorktreesUi.ts' },
+  { id: 'vcWorktreesFormOps', file: 'src/client/views/versionControl/vcWorktreesFormOps.ts' },
   { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
-  // #1829 阶段 3：工作树页版式独立一叶（说明条、当前工作区、头与筛选、逐行清单、页尾折叠入口、交接入口），
-  //   页面体只留八条能力的定义与按状态出现的拦截/计划/确认/结果面。
+  { id: 'vcWorktreesFormView', file: 'src/client/views/versionControl/vcWorktreesFormView.ts' },
+  { id: 'vcWorktreesRows', file: 'src/client/views/versionControl/vcWorktreesRows.ts' },
   { id: 'vcWorktreesView', file: 'src/client/views/versionControl/vcWorktreesView.ts' },
   { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
   { id: 'vcMigratePage', file: 'src/client/views/versionControl/vcMigratePage.ts' }, // #1759 T23 迁移与备份页正文（九个动作、只读结果、确认卡与任务区；排在页面壳之前，壳要调它）

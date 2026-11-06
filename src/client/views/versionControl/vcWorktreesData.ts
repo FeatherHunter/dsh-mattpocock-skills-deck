@@ -25,6 +25,7 @@ declare function vcFirstScreenSliceErrorOf(reads: any, id: any): any
 declare function worktreeRowsOf(others: any, current: any): any[]
 declare function worktreePruneEntriesOf(rows: any): any[]
 declare function worktreeJudge(op: any, ctx: any): any
+declare function worktreeSamePathOf(a: any, b: any): boolean
 
 /** 这份文件的出处：排查时凭它找到这份文件。 */
 export const VC_WORKTREES_DATA_SOURCE: string = 'src/client/views/versionControl/vcWorktreesData.ts'
@@ -110,6 +111,83 @@ export const vcWorktreeActionOf = function (op: any): any {
 }
 
 /**
+ * 本地分支名（按首屏 workspace 片的读数顺序）。
+ * 新建表单的「已有分支」用它做候选与「本地没有这条分支」的校验；读数缺席时回空表，
+ * 表单不会把「读不到分支」误当成「一条分支都没有」去拦人（缺席时只靠宿主预检给结论）。
+ */
+export const vcWorktreesLocalBranchesOf = function (reads: any): string[] {
+  if (vcFirstScreenSliceStateOf(reads, 'workspace') !== 'ok') return []
+  const slice: any = vcFirstScreenSliceOf(reads, 'workspace')
+  const data: any = (slice && slice.data) || {}
+  const rows: any[] = Array.isArray(data.branches) ? data.branches : []
+  const out: string[] = []
+  for (let i = 0; i < rows.length; i += 1) {
+    const row: any = rows[i] || {}
+    const name: string = String(row.short || row.name || '')
+    if (name !== '' && out.indexOf(name) < 0) out.push(name)
+  }
+  return out
+}
+
+/**
+ * 「最近用过的分支」：原型的工作区表单给最近六条候选（原型 select.ts 按每条分支最后一次提交时间倒序）。
+ * 首屏 workspace 片只带分支名与 tip 提交号，不带提交时间；能对上的时间从 history 片同一份提交读数里取，
+ * 对不上的（这条分支的 tip 不在首屏那一页提交里）排到后面并保持读数顺序——不编一个假时间出来。
+ * 当前分支不列：它已经在当前工作区里检出，再建一次同一条分支 git 会拒绝。
+ */
+export const vcWorktreesRecentBranchesOf = function (reads: any, limit: any): string[] {
+  const names: string[] = vcWorktreesLocalBranchesOf(reads)
+  if (names.length === 0) return []
+  const slice: any = vcFirstScreenSliceOf(reads, 'workspace')
+  const data: any = (slice && slice.data) || {}
+  const rows: any[] = Array.isArray(data.branches) ? data.branches : []
+  const current: string[] = []
+  for (let i = 0; i < rows.length; i += 1) if (rows[i] && rows[i].current === true) current.push(String(rows[i].short || rows[i].name || ''))
+  const times: Record<string, number> = {}
+  if (vcFirstScreenSliceStateOf(reads, 'history') === 'ok') {
+    const hist: any = vcFirstScreenSliceOf(reads, 'history')
+    const commits: any[] = Array.isArray((hist && hist.data || {}).commits) ? hist.data.commits : []
+    for (let i = 0; i < commits.length; i += 1) {
+      const c: any = commits[i] || {}
+      if (typeof c.commitDateMs === 'number') times[String(c.oid || '')] = c.commitDateMs
+    }
+  }
+  const scored: any[] = []
+  for (let i = 0; i < names.length; i += 1) {
+    const name: string = names[i]
+    if (current.indexOf(name) >= 0) continue
+    const row: any = rows.filter(function (r: any): boolean { return String(r && (r.short || r.name) || '') === name })[0] || {}
+    const ms: number = typeof times[String(row.oid || '')] === 'number' ? times[String(row.oid || '')] : -1
+    scored.push({ name: name, ms: ms, at: i })
+  }
+  scored.sort(function (a: any, b: any): number {
+    if (a.ms !== b.ms) return b.ms - a.ms
+    return a.at - b.at
+  })
+  const n: number = typeof limit === 'number' && limit > 0 ? limit : 6
+  return scored.slice(0, n).map(function (s: any): string { return String(s.name) })
+}
+
+/** 同一个路径是不是已经登记成清单里的一棵工作树（新建表单的「目录已被占用」用这一条）。 */
+export const vcWorktreesPathTakenOf = function (model: any, path: any): boolean {
+  const rows: any[] = Array.isArray(model && model.rows) ? model.rows : []
+  for (let i = 0; i < rows.length; i += 1) if (rows[i] && worktreeSamePathOf(rows[i].path, path)) return true
+  return false
+}
+
+/** 两条路径是不是同一棵（移动表单判断「新目录和现在一样」时用；口径与宿主同一份）。 */
+export const vcWorktreesPathSameOf = function (a: any, b: any): boolean {
+  return worktreeSamePathOf(a, b)
+}
+
+/** 路径的最后一段（新建结果、移动结果与稀疏检出结果都要用它说人话；不引界面层的拆分函数）。 */
+export const vcWorktreeBaseNameOf = function (p: any): string {
+  const raw: string = String(p === undefined || p === null ? '' : p).replace(/\\/g, '/')
+  const at: number = raw.lastIndexOf('/')
+  return at < 0 ? raw : raw.slice(at + 1)
+}
+
+/**
  * 一条动作此刻的判定：把模型里的清单、版本开关与本次输入交给共享层 worktreeJudge。
  * 与宿主预检是同一个函数、同一套理由标识符 —— 界面画禁用原因、宿主拒绝执行都用它。
  * 界面不知道的现场（比如目标工作树脏不脏）不传，判定就不会替它猜；真要执行时宿主预检会补上。
@@ -166,6 +244,10 @@ export const vcWorktreesModelOf = function (reads: any): any {
     error: snapshot.error,
     version: version,
     caps: caps,
+    // 新建表单的两种填法要用本地分支：已有分支挑候选、校验「本地没有这条分支」；
+    // 读数缺席时回空表，表单只拦明显空值，分支是否存在交给宿主预检。
+    branches: vcWorktreesLocalBranchesOf(reads),
+    recentBranches: vcWorktreesRecentBranchesOf(reads, 6),
     pruneEntries: worktreePruneEntriesOf(snapshot.rows),
   }
 }

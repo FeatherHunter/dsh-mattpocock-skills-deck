@@ -1,17 +1,18 @@
-// src/client/views/versionControl/vcWorktreesView.ts —— 工作树页的版式（#1860 整页还原）
+// src/client/views/versionControl/vcWorktreesView.ts —— 工作树页的版式（#1860 整页还原；#1904 补三张就地表单）
 //
 // 这一层只画版式：可关闭说明条 → 当前工作区卡 → 其他工作区头（计数/筛选/说明条重开）→
 // 行清单（行主体、复制、展开箭头；展开后三行事实、锁定或待清理的补充事实、动作行）→
-// 底部交接入口。读数由 vcWorktreesData 算，动作由 vcWorktreesOps 执行，本文件不发电话、
-// 不存状态；行的展开用原生 details（处理层的 ui 里没有展开状态），筛选与说明条的开合
-// 交给处理层写 ui。
+// 页底「新建工作区」表单（打开时）→ 页脚（新建工作区链接 + 交接入口）→ 结果条。
+// 读数由 vcWorktreesData 算，动作由 vcWorktreesOps 执行，本文件不发电话、不存状态；
+// 行的展开用原生 details（处理层的 ui 里没有展开状态），筛选与说明条的开合交给处理层写 ui。
 //
 // DOM 结构与类名照原型 docs/prototype/vc-redesign/src/ui/views/worktrees.ts 与
 // src/client/views/versionControl/vcProtoWorktrees.ts 里的 .wt-* 选择器画：
 //   div.view.view-worktrees > aside.wt-notice / section.wt-current / div.wt-head /
-//   div.wt-list（details.wt-row-wrap > summary.wt-row + div.wt-detail）/ div.wt-foot。
-// 能力入口不再单独占一块折叠区：行展开后的动作行只保留原型里有的三条（解锁、清除记录、
-// 移除），其余能力的唯一主入口是命令面板（#1860 能力清单退役，票面里的对照表）。
+//   div.wt-list（details.wt-row-wrap > summary.wt-row + div.wt-detail）/ div.wt-form.wt-create /
+//   div.wt-foot / div.result。
+// 三张表单的位置照原型 93–97：新建在页底、浮在列表上方；移动与稀疏检出在展开行里就地出现，
+// 与当前路径/当前规则同一屏，读者不用跳页。
 //
 // 可见文字全部走 t(词条)，词条真源 config/copy/vcworktrees.yaml；本文件不写可见字面量。
 
@@ -22,6 +23,10 @@ declare function vcWorktreeDecisionReasonsOf(decision: any): string[]
 declare function vcWorktreeWhyKeyOf(reason: any): string
 declare function vcWorktreeCall(ops: any, name: string, args?: any[]): any
 declare function vcShellStateNode(h: any, t: any, o: any): any
+declare function vcWorktreesPathSameOf(a: any, b: any): boolean
+declare function vcWtListNodesOf(h: any, t: any, model: any, ui: any, ops: any): any[]
+declare function vcWtCreateFormNode(h: any, t: any, model: any, ui: any, ops: any): any
+declare function vcWtResultBannerNode(h: any, t: any, result: any, ops: any): any
 
 /** 这份文件的出处：排查时凭它找到这份文件。 */
 export const VC_WORKTREES_VIEW_SOURCE: string = 'src/client/views/versionControl/vcWorktreesView.ts'
@@ -219,164 +224,66 @@ const vcWtActionButtonNode = function (h: any, t: any, o: any): any {
   return h('button', attrs, [h('span', { key: 'label', className: 'btn-label' }, String(o.label))])
 }
 
+/**
+ * 打开就地表单的按钮（移动 / 稀疏检出）。它们不发电话：移动只是展开表单，
+ * 稀疏检出要先预检一次拿当前规则与候选目录；禁用原因与其它行内动作同一套判定。
+ */
+const vcWtFormOpenButtonNode = function (h: any, t: any, o: any): any {
+  const decision: any = o.decision || null
+  const blocked: boolean = decision ? vcWorktreeDecisionStateOf(decision) === 'block' : false
+  const attrs: any = {
+    key: o.op, type: 'button', className: 'btn btn-sm btn-secondary',
+    'data-wt-action': String(o.op), 'data-wt-cap': String(o.capId),
+    'data-press': 'button', 'data-log': 'vc.wt.row.' + String(o.op),
+    onClick: function () {
+      if (o.op === 'move-open') return vcWorktreeCall(o.ops, 'moveOpen', [o.path])
+      return vcWorktreeCall(o.ops, 'sparseOpen', [o.path])
+    },
+  }
+  if (blocked) {
+    const rs: string[] = vcWorktreeDecisionReasonsOf(decision)
+    const k: string = vcWorktreeWhyKeyOf(rs.length > 0 ? rs[0] : 'ok')
+    attrs.disabled = true
+    attrs['data-wt-why'] = k
+    attrs.title = t(k)
+  } else if (decision && vcWorktreeDecisionStateOf(decision) === 'warn') {
+    const rs: string[] = vcWorktreeDecisionReasonsOf(decision)
+    attrs['data-wt-warn'] = vcWorktreeWhyKeyOf(rs.length > 0 ? rs[0] : 'ok')
+  }
+  return h('button', attrs, [h('span', { key: 'label', className: 'btn-label' }, String(o.label))])
+}
+
 /** 一行：details 外壳（展开状态由浏览器记）+ summary 行主体 + 展开详情。 */
 // 确认卡建在页面叶（vcWorktreesPage）里，这里只借用它把卡贴到被操作的那一行下面：
 //   页面叶在本文件之后拼进同一闭包，渲染时函数已就位。
 declare function vcWtConfirmNode(h: any, t: any, ui: any, ops: any): any
 
-/** 这一行是不是本次确认的目标（remove/lock 一类按路径定位的动作）。 */
-const vcWtRowConfirmHere = function (ui: any, path: string): boolean {
-  if (!ui || ui.mode !== 'confirm') return false
-  const plan: any = ui.plan || {}
-  const input: any = ui.input || {}
-  if (ui.op === 'prune') return false
-  const target: string = String(plan.targetPath || input.path || '')
-  return target !== '' && target === path
-}
 
-const vcWtRowNode = function (h: any, t: any, model: any, row: any, ui: any, ops: any): any {
-  const rawPath: string = vcWtViewStr(row.path)
-  const display: string = vcWtViewStr(row.display)
-  const path: string = rawPath === '' ? display : rawPath
-  const split: any = vcWorktreesSplitPathOf(path)
-  const name: string = split.name === '' ? display : split.name
-  const branch: string = vcWtViewStr(row.branch)
-  const head: string = vcWtViewStr(row.head)
-  const abnormal: boolean = vcWorktreesAbnormalOf(row)
-  const nameRow: any[] = [h('span', { key: 'name', className: 'wt-name mono', 'aria-label': path, title: path }, name)]
-  if (branch === '') nameRow.push(vcWtChipNode(h, 'branch', 'muted', t('vc.wt.noBranch'), false))
-  else nameRow.push(h('span', { key: 'branch', className: 'wt-branch', 'aria-label': t('vc.wt.factBranch'), title: t('vc.wt.factBranch') }, [h('span', { key: 'b', className: 'mono' }, branch)]))
-  if (head !== '') nameRow.push(h('span', { key: 'oid', className: 'wt-oid mono', 'data-wt-row-oid': head, 'aria-label': t('vc.wt.oidHint'), title: t('vc.wt.oidHint') }, head.slice(0, 7)))
-  const main: any = h('div', { key: 'main', className: 'wt-main' }, [
-    h('div', { key: 'name-row', className: 'wt-name-row' }, nameRow),
-    h('div', { key: 'path', className: 'wt-path' }, [
-      h('span', { key: 'dir', className: 'wt-path-dir mono' }, split.dir),
-      h('span', { key: 'name', className: 'wt-path-name mono' }, split.name),
-    ]),
-    h('div', { key: 'states', className: 'wt-states' }, vcWtStateChipsOf(h, t, row)),
-  ])
-  const expander: any = h('button', {
-    key: 'expander', type: 'button', className: 'icon-btn wt-expander',
-    'aria-hidden': 'true', tabIndex: -1, title: t('vc.wt.expand'),
-    'data-wt-action': 'expand', 'data-press': 'button', 'data-log': 'vc.wt.expand',
-    onClick: function (ev: any) {
-      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault()
-      if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation()
-      const box: any = ev && ev.currentTarget && typeof ev.currentTarget.closest === 'function' ? ev.currentTarget.closest('details') : null
-      if (box) box.open = !box.open
-    },
-  }, vcWtIconNode(h, 'chevron', 12))
-  const summary: any = h('summary', {
-    key: 'summary', className: 'wt-row' + (abnormal ? ' is-abnormal' : ''),
-    'aria-label': t('vc.wt.expand'),
-    'data-wt-expand': path, 'data-press': 'button', 'data-log': 'vc.wt.expand',
-  }, [
-    main,
-    h('div', { key: 'actions', className: 'wt-actions' }, [
-      vcWtCopyButtonNode(h, t, 'copy', path, 'icon-btn', 'vc.wt.copyPath'),
-      expander,
-    ]),
-  ])
-  const detailKids: any[] = [
-    vcWtFactNode(h, 'fact-path', t('vc.wt.factPath'), path, true, null),
-    vcWtFactNode(h, 'fact-branch', t('vc.wt.factBranch'), branch === '' ? t('vc.wt.noBranch') : branch, false, null),
-    vcWtFactNode(h, 'fact-head', t('vc.wt.factHead'), head, true, null),
-  ]
-  if (row.locked === true) detailKids.push(vcWtFactNode(h, 'fact-locked', t('vc.wt.locked'), vcWtViewStr(row.lockReason), false, { 'data-wt-detail': 'locked' }))
-  if (row.prunable === true) detailKids.push(vcWtFactNode(h, 'fact-prunable', t('vc.wt.prunable'), vcWtViewStr(row.prunableReason), false, { 'data-wt-detail': 'prunable' }))
-  const rowActions: any[] = vcWorktreesRowActionsOf(model, row)
-  const unlockAction: any = rowActions.filter(function (a: any): boolean { return String(a.op) === 'unlock' })[0]
-  const acts: any[] = []
-  if (unlockAction && (row.locked === true || row.lockUnknown === true)) {
-    acts.push(vcWtActionButtonNode(h, t, {
-      key: 'unlock', op: 'unlock', capId: unlockAction.action.capId, label: t('vc.wt.action.unlock'),
-      decision: unlockAction.decision, path: path, ops: ops,
-    }))
-  }
-  if (row.prunable === true) {
-    acts.push(vcWtActionButtonNode(h, t, {
-      key: 'prune', op: 'prune', capId: '9.5', label: t('vc.wt.action.prune'),
-      decision: vcWorktreesActionDecisionOf(model, 'prune', ui.input || {}), path: '', ops: ops,
-    }))
-  }
-  acts.push(vcWtActionButtonNode(h, t, {
-    key: 'remove', op: 'remove', capId: '9.4', label: t('vc.wt.action.remove'),
-    decision: vcWorktreesActionDecisionOf(model, 'remove', { path: path }), path: path, ops: ops, danger: true,
-  }))
-  detailKids.push(h('div', { key: 'actions-row', className: 'wt-actions-row', 'data-wt-row-actions': '1' }, acts))
-  // 危险动作的确认卡贴在触发它的那一行里（原型 04/12：卡在行下方展开处），不跳到页面另一头。
-  const confirmHere: any = vcWtRowConfirmHere(ui, path) ? vcWtConfirmNode(h, t, ui, ops) : null
-  if (confirmHere) detailKids.push(confirmHere)
-  const detail: any = h('div', { key: 'detail', className: 'wt-detail' + (abnormal ? ' is-abnormal' : ''), 'data-wt-detail-box': '1' }, detailKids)
-  // 原生 details 的 open 是浏览器状态：展开/收起时把 is-open 与 aria-expanded 同步到行与箭头上。
-  const syncOpen = function (ev: any): void {
-    try {
-      const box: any = ev && ev.currentTarget
-      if (!box || typeof box.querySelector !== 'function') return
-      const open: boolean = !!box.open
-      const sum: any = box.querySelector('summary')
-      const exp: any = box.querySelector('.wt-expander')
-      if (sum && sum.classList) { if (open) sum.classList.add('is-open'); else sum.classList.remove('is-open') }
-      if (exp) {
-        if (exp.classList) { if (open) exp.classList.add('is-open'); else exp.classList.remove('is-open') }
-        exp.setAttribute('aria-expanded', open ? 'true' : 'false')
-      }
-    } catch (e) {
-      // 同步失败只影响箭头姿态，不影响展开本身。
-    }
-  }
-  return h('details', {
-    key: path, className: 'wt-row-wrap', onToggle: syncOpen,
-    'data-wt-expandable': path, 'data-wt-row': '1', 'data-wt-path': path,
-    'data-wt-current': row.current === true ? '1' : '0',
-    'data-wt-locked': row.locked === true ? '1' : '0',
-    'data-wt-prunable': row.prunable === true ? '1' : '0',
-    'data-wt-abnormal': abnormal ? '1' : '0',
-  }, [summary, detail])
-}
 
-/** 清单：四态画状态、没有其他工作区画空态、筛选后为空画筛选空态，否则逐行。 */
-const vcWtListNodesOf = function (h: any, t: any, model: any, ui: any, ops: any): any[] {
-  const state: string = vcWtViewStr(model.state)
-  const rows: any[] = Array.isArray(model.rows) ? model.rows : []
-  const others: any[] = rows.filter(function (r: any): boolean { return r.current !== true })
-  const want: string = ui.filter === 'abnormal' ? 'abnormal' : 'all'
-  const shown: any[] = want === 'abnormal' ? others.filter(vcWorktreesAbnormalOf) : others
-  let inner: any[] = []
-  if (state === 'loading' || state === 'idle' || state === 'error') {
-    inner = [vcShellStateNode(h, t, { state: state })]
-  } else if (others.length === 0) {
-    inner = [h('div', { key: 'empty', className: 'empty', 'data-wt-empty': '1' }, [
-      h('div', { key: 'title', className: 'empty-title' }, t('vc.wt.empty')),
-      h('div', { key: 'hint', className: 'empty-hint' }, t('vc.wt.emptyHint')),
-    ])]
-  } else if (shown.length === 0) {
-    inner = [h('div', { key: 'filter-empty', className: 'empty', 'data-wt-filter-empty': '1' }, [
-      h('div', { key: 'title', className: 'empty-title' }, t('vc.wt.filterEmpty')),
-    ])]
-  } else {
-    inner = shown.map(function (row: any): any { return vcWtRowNode(h, t, model, row, ui, ops) })
-  }
-  return [h('div', { key: 'list', className: 'wt-list', 'data-wt-list': '1' }, inner)]
-}
-
-/** 底部交接入口：有异常工作区时请 AI 收尾，没有时请 AI 复查。 */
-const vcWtFootNode = function (h: any, t: any, abnormal: number, onOpenHandoff: any): any {
-  if (typeof onOpenHandoff !== 'function') return null
-  const label: string = abnormal > 0 ? t('vc.wt.aiEntry') : t('vc.wt.aiEntryClean')
-  return h('div', { key: 'foot', className: 'wt-foot' }, [
-    h('button', {
+/** 页脚：新建工作区入口（原型 93 的那颗链接）+ 交接入口（没有处理函数时不画）。 */
+const vcWtFootNode = function (h: any, t: any, ui: any, abnormal: number, ops: any, onOpenHandoff: any): any {
+  const open: boolean = ui.create && ui.create.open === true
+  const kids: any[] = [h('button', {
+    key: 'create-open', type: 'button', className: 'link-btn wt-create-open' + (open ? ' is-on' : ''),
+    'aria-expanded': open ? 'true' : 'false',
+    'data-wt-create-open': '1', 'data-press': 'button', 'data-log': 'vc.wt.create.open',
+    onClick: function () { if (open) vcWorktreeCall(ops, 'createClose'); else vcWorktreeCall(ops, 'createOpen') },
+  }, t('vc.wt.create.open'))]
+  if (typeof onOpenHandoff === 'function') {
+    const label: string = abnormal > 0 ? t('vc.wt.aiEntry') : t('vc.wt.aiEntryClean')
+    kids.push(h('button', {
       key: 'ai', type: 'button', className: 'btn btn-ghost btn-sm ai-entry ai-entry-inline',
       title: label, 'aria-label': label,
       'data-wt-handoff': '1', 'data-press': 'button', 'data-log': 'vc.wt.handoff',
       onClick: function () { onOpenHandoff({ kind: 'worktrees', summary: label }) },
-    }, [vcWtIconNode(h, 'spark', 14), h('span', { key: 'label', className: 'ai-entry-label' }, label)]),
-  ])
+    }, [vcWtIconNode(h, 'spark', 14), h('span', { key: 'label', className: 'ai-entry-label' }, label)]))
+  }
+  return h('div', { key: 'foot', className: 'wt-foot' }, kids)
 }
 
 /**
- * 工作树页的版式节点。只组装原型里有的五块，返回一棵 div.view.view-worktrees；
- * 页面叶子（vcWorktreesPage）把拦截/计划/确认/结果这些按状态出现的面接在这棵后面。
+ * 工作树页的版式节点。只组装原型里有的六块：说明条、当前工作区、头与筛选、清单、
+ * 页底新建表单（打开时）、页脚与结果条；页面叶子（vcWorktreesPage）把拦截/确认/旧结果面接在后面。
  */
 export const vcWorktreesLayoutNodesOf = function (h: any, t: any, o: any): any[] {
   const opts: any = o || {}
@@ -394,8 +301,12 @@ export const vcWorktreesLayoutNodesOf = function (h: any, t: any, o: any): any[]
   if (current) kids.push(current)
   kids.push(vcWtHeadNode(h, t, others, ui, ops, abnormal))
   Array.prototype.push.apply(kids, vcWtListNodesOf(h, t, model, ui, ops))
-  const foot: any = vcWtFootNode(h, t, abnormal, opts.onOpenHandoff)
-  if (foot) kids.push(foot)
+  // 「新建工作区」的表单从页底弹出、浮在列表上方：它不属于任何一行，
+  // 而面板不高时，把一整张表单塞进页面流会把列表挤成零高（原型 93 的做法）。
+  if (ui.create && ui.create.open === true) kids.push(vcWtCreateFormNode(h, t, model, ui, ops))
+  kids.push(vcWtFootNode(h, t, ui, abnormal, ops, opts.onOpenHandoff))
+  const banner: any = vcWtResultBannerNode(h, t, ui.lastResult, ops)
+  if (banner) kids.push(banner)
   // 版式节点直接交给页面根 section：原型是 .panel-body > .view.view-worktrees 一层，
   //   这里若再包一层 .view，section 夹在两层弹性容器中间会把高度链断掉，
   //   清单就不会自己滚动、页底交接入口被顶出可视区（#1860 并排图里能直接看到）。
