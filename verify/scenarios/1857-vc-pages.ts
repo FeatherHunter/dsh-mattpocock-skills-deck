@@ -58,7 +58,8 @@ const PAGES = [
   //   「页签处于选中态 + 正文根对得上」，再各点一条本页特有的入口，证明这一页真的挂出来了。
   { id: 'changes', kind: 'tab', title: '改动', sections: [], need: ['[data-vc-stash-arrow]'] },
   { id: 'worktrees', kind: 'tab', title: '工作区', sections: [], need: ['[data-wt-create-open]', '[data-wt-action="expand"]'] },
-  { id: 'stash', kind: 'tab', title: '储藏', sections: [], need: ['[data-vc-stash-op="list"]', '[data-vc-stash-clear]', '[data-vc-stash-row-menu]'] },
+  // 储藏页只要求「刷新」这一颗常驻入口：记录行与清空按钮随记录有无而变，它们由 460 档的动作截图证明。
+  { id: 'stash', kind: 'tab', title: '储藏', sections: [], need: ['[data-vc-stash-op="list"]'] },
   { id: 'remote', kind: 'gear', title: '远端与同步', sections: [] },
   { id: 'config', kind: 'gear', title: '配置', sections: [] },
   { id: 'hooks', kind: 'gear', title: '钩子', sections: [] },
@@ -365,6 +366,16 @@ async function softClick(raw: RawBrowserPage, selector: string): Promise<boolean
 const WT_NEW_BASE = String(process.env.DSH_1857_WT_BASE || 'D:/temp/matt1857/fixture1904')
 // 每一趟跑都用新的目录与分支名：同名工作树第二次建会直接失败，而动作截图每趟都要真建一棵。
 const WT_RUN_TAG = String(Date.now()).slice(-6)
+/** 这一趟的夹具仓库目录（由 custom 步算出来写进来）：动作截图里要现场改文件。 */
+let FIXTURE_DIR = ''
+
+/** 关掉页底的结果条：下一次动作要看到「这一枪」的结果，不能被上一条挡住。 */
+async function clearResult(raw: RawBrowserPage): Promise<void> {
+  try {
+    const close = raw.page.locator('[data-wt-result-close]').first()
+    if (await close.count() > 0) { await close.click({ timeout: 4000 }); await sleep(250) }
+  } catch (error) { /* 没有结果条就算了 */ }
+}
 
 /** 读一个元素的文字（找不到就是空串）。 */
 async function textOf(page: PageHandle, selector: string): Promise<string> {
@@ -375,6 +386,7 @@ async function textOf(page: PageHandle, selector: string): Promise<string> {
 /** 移动表单：填新目录再保存，等结果条；返回是否出了结果与结果条上的字。 */
 async function saveMove(page: PageHandle, raw: RawBrowserPage, target: string): Promise<{ ok: boolean; problem: string | null; text: string }> {
   try {
+    await clearResult(raw)
     await raw.page.fill('[data-wt-move-input]', target)
     await sleep(200)
     const saved = await realClick(raw, '[data-wt-move-save]')
@@ -386,17 +398,81 @@ async function saveMove(page: PageHandle, raw: RawBrowserPage, target: string): 
   }
 }
 
-/** 稀疏检出：一个都不勾就点保存，看页面是否拒绝；返回结果条上的字与语气。 */
-async function saveSparse(page: PageHandle, raw: RawBrowserPage): Promise<{ ok: boolean; problem: string | null; text: string; tone: string }> {
+/** 稀疏检出：先把默认勾上的目录全部取消，一个都不勾再点保存，看页面是否拒绝；返回结果条上的字与语气。 */
+async function saveSparse(page: PageHandle, raw: RawBrowserPage): Promise<{ ok: boolean; problem: string | null; text: string; tone: string; unchecked: number }> {
   try {
+    await clearResult(raw)
+    let unchecked = 0
+    for (let i = 0; i < 40; i += 1) {
+      const on = raw.page.locator('[data-wt-sparse-dir][aria-pressed="true"]').first()
+      if (await on.count() === 0) break
+      await on.click({ timeout: 5000 })
+      unchecked += 1
+      await sleep(120)
+    }
     const saved = await realClick(raw, '[data-wt-sparse-save]')
     if (!saved.ok) return { ok: false, problem: '点保存失败：' + String(saved.problem), text: '', tone: '' }
     const shown = await waitForSelector(raw, '[data-wt-result]', 20000)
     const tone = await evaluateThrough<string>(page, '(function () { var el = document.querySelector("[data-wt-result]"); return el === null ? "" : String(el.getAttribute("data-wt-result") || "") })()')
-    return { ok: shown, problem: shown ? null : '保存后 20 秒内没有结果条', text: shown ? await textOf(page, '[data-wt-result-text]') : '', tone: tone.ok ? tone.value : '' }
+    return { ok: shown, problem: shown ? null : '保存后 20 秒内没有结果条', text: shown ? await textOf(page, '[data-wt-result-text]') : '', tone: tone.ok ? tone.value : '', unchecked: unchecked }
   } catch (error) {
     return { ok: false, problem: messageOf(error), text: '', tone: '' }
   }
+}
+
+/** 稀疏检出：勾上第一个候选目录再保存，返回结果条上的字；用来验「保存后展开行常驻当前规则」。 */
+async function saveSparseKeepOne(page: PageHandle, raw: RawBrowserPage): Promise<{ ok: boolean; problem: string | null; text: string; tone: string; rule: string }> {
+  try {
+    await clearResult(raw)
+    const first = raw.page.locator('[data-wt-sparse-dir]').first()
+    if (await first.count() === 0) return { ok: false, problem: '没有候选目录', text: '', tone: '', rule: '' }
+    await first.click({ timeout: 5000 })
+    await sleep(200)
+    const saved = await realClick(raw, '[data-wt-sparse-save]')
+    if (!saved.ok) return { ok: false, problem: '点保存失败：' + String(saved.problem), text: '', tone: '', rule: '' }
+    const shown = await waitForSelector(raw, '[data-wt-result]', 25000)
+    const tone = await evaluateThrough<string>(page, '(function () { var el = document.querySelector("[data-wt-result]"); return el === null ? "" : String(el.getAttribute("data-wt-result") || "") })()')
+    await sleep(600)
+    return { ok: shown, problem: shown ? null : '保存后 25 秒内没有结果条', text: shown ? await textOf(page, '[data-wt-result-text]') : '', tone: tone.ok ? tone.value : '', rule: await textOf(page, '[data-wt-sparse-current]') }
+  } catch (error) {
+    return { ok: false, problem: messageOf(error), text: '', tone: '', rule: '' }
+  }
+}
+
+/** 确保提交区的储藏菜单是开着的（截图前后菜单可能被收起）：看 hidden 属性，关着就点一次箭头。 */
+async function ensureStashMenu(raw: RawBrowserPage): Promise<boolean> {
+  try {
+    const probe = await raw.page.evaluate(function () {
+      const menu = document.querySelector('[data-vc-stash-menu]')
+      return menu === null ? 'missing' : (menu.hasAttribute('hidden') ? 'closed' : 'open')
+    })
+    if (probe === 'open') return true
+    if (probe === 'missing') return false
+    await realClick(raw, '[data-vc-stash-arrow]')
+    await sleep(400)
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+/** 到储藏页读结果条与记录数，再切回改动页：三种收法的结果只在储藏页画出来。 */
+async function stashOutcomeOf(page: PageHandle, raw: RawBrowserPage): Promise<{ text: string; tone: string; kind: string; records: number; confirmed: boolean }> {
+  await realClick(raw, '[data-vc-tab="stash"]')
+  await sleep(1400)
+  // 贮藏的写动作都走「先预检签票、再确认」：切到贮藏页时确认卡已经贴在那里，点确认才真的执行。
+  let confirmed = false
+  if (await waitForSelector(raw, '[data-vc-stash-confirm]', 3000)) {
+    confirmed = await softClick(raw, '[data-vc-stash-confirm-go]')
+    await sleep(3000)
+  }
+  const text = await textOf(page, '[data-vc-stash-result] .result-text')
+  const tone = await evaluateThrough<string>(page, '(function () { var el = document.querySelector("[data-vc-stash-result]"); return el === null ? "" : String(el.getAttribute("data-vc-stash-result") || "") })()')
+  const kind = await evaluateThrough<string>(page, '(function () { var el = document.querySelector("[data-vc-stash-fail-kind]"); return el === null ? "" : String(el.getAttribute("data-vc-stash-fail-kind") || "") })()')
+  const records = await raw.page.locator('[data-vc-stash-row-menu]').count()
+  await realClick(raw, '[data-vc-tab="changes"]')
+  await sleep(1400)
+  return { text: text, tone: tone.ok ? tone.value : '', kind: kind.ok ? kind.value : '', records: records, confirmed: confirmed }
 }
 
 /** 读当前工作区页上逐行的路径（按页面画的顺序）。 */
@@ -427,6 +503,19 @@ async function createWorktree(raw: RawBrowserPage, target: string, branch: strin
   } catch (error) {
     return { ok: false, problem: messageOf(error), rows: [] }
   }
+}
+
+/** 读按钮身上的 React 属性名，并装一个捕获阶段的点击记录：用来分清「点击没到处理函数」还是「处理函数跑了但状态没变」。 */
+async function instrumentButton(page: PageHandle, selector: string): Promise<Record<string, unknown>> {
+  const script = '(function () { var el = document.querySelector(' + JSON.stringify(selector) + '); window.__wtClicks = []; document.addEventListener("click", function (e) { window.__wtClicks.push({ tag: e.target.tagName, action: e.target.getAttribute ? e.target.getAttribute("data-wt-action") : null, prevented: e.defaultPrevented }); }, true); if (el === null) return { found: false }; var keys = Object.keys(el).filter(function (k) { return k.indexOf("__react") === 0 }); var out = { found: true, tag: el.tagName, html: String(el.outerHTML || "").slice(0, 200), keys: keys, props: [], onClickType: "none" }; for (var i = 0; i < keys.length; i += 1) { var v = el[keys[i]]; if (v && typeof v === "object") { out.props = Object.keys(v).slice(0, 25); out.onClickType = typeof v.onClick; } } return out })()'
+  const probe = await evaluateThrough<Record<string, unknown>>(page, script)
+  return probe.ok ? probe.value : { error: probe.message }
+}
+
+/** 读捕获阶段记到的点击序列。 */
+async function clickLogOf(page: PageHandle): Promise<unknown> {
+  const probe = await evaluateThrough<unknown>(page, 'window.__wtClicks || []')
+  return probe.ok ? probe.value : []
 }
 
 /** 行内表单没打开时留一份现场：表单节点数、展开着的行数、展开区里的文字。 */
@@ -518,37 +607,112 @@ async function captureActions(page: PageHandle, raw: RawBrowserPage, spec: any, 
     // 移动与稀疏检出挂在某一行上，而「新建的那一棵」刚被刷新到清单最前：按它的路径精确展开那一行，
     //   不要按「第一个展开箭头」碰运气（刷新之后第一个箭头可能落在当前工作区那张卡上）。
     if (createdOk) {
-      // 移动与稀疏检出的按钮 op 是 move-open / sparse-open（vcWorktreesView 的 vcWtFormOpenButtonNode）。
-      const moveOpened = await openFirstRowForm(raw, 'move-open', '[data-wt-move-input]', 12000)
-      facts['moveOpened:' + spec.id + ':' + skin.id + ':' + width] = moveOpened
-      facts['moveProbe:' + spec.id + ':' + skin.id + ':' + width] = await probeRowState(page)
-      if (moveOpened) {
-        await shot('move')
-        const movedTarget = WT_NEW_BASE + '/wt-moved-' + skin.id + '-' + width + '-' + WT_RUN_TAG
-        const moved = await saveMove(page, raw, movedTarget)
-        facts['moveProbe:' + spec.id + ':' + skin.id + ':' + width] = await probeRowState(page)
-        facts['move:' + spec.id + ':' + skin.id + ':' + width] = moved
-        if (moved.ok) await shot('moved')
-        await softClick(raw, '[data-wt-move-close]')
-      }
-      // 稀疏检出的面板打开时会先发一次预检，预检回来之前只有一行「读取中」——要等保存键出现再动手。
+      // 先稀疏检出、后移动：移动会把这一行换成新路径，之后再点稀疏检出，面板拿到的是刚搬过的那一棵，
+      //   两件事挤在一起时分不清是哪个坏了（第一轮就是这么把稀疏检出判成「打不开」的）。
+      facts['sparseBtn:' + spec.id + ':' + skin.id + ':' + width] = await instrumentButton(page, '[data-wt-expandable] [data-wt-action="sparse-open"]')
       const sparseOpened = await openFirstRowForm(raw, 'sparse-open', '[data-wt-sparse-save]', 30000)
       facts['sparseOpened:' + spec.id + ':' + skin.id + ':' + width] = sparseOpened
+      facts['sparseClicks:' + spec.id + ':' + skin.id + ':' + width] = await clickLogOf(page)
       if (sparseOpened) {
         await shot('sparse')
         const refused = await saveSparse(page, raw)
         facts['sparse:' + spec.id + ':' + skin.id + ':' + width] = refused
         await shot('sparse-refused')
+        // 拒绝之后勾一个目录再保存：验「保存后展开行常驻当前规则」这一条。
+        const kept = await saveSparseKeepOne(page, raw)
+        facts['sparseSaved:' + spec.id + ':' + skin.id + ':' + width] = kept
+        if (kept.ok) await shot('sparse-saved')
         await softClick(raw, '[data-wt-sparse-close]')
+      } else {
+        facts['sparseProbe:' + spec.id + ':' + skin.id + ':' + width] = await probeRowState(page)
+        facts['sparseResult:' + spec.id + ':' + skin.id + ':' + width] = await textOf(page, '[data-wt-result-text]')
+      }
+      // 移动与稀疏检出的按钮 op 是 move-open / sparse-open（vcWorktreesView 的 vcWtFormOpenButtonNode）。
+      facts['btnProbe:' + spec.id + ':' + skin.id + ':' + width] = await instrumentButton(page, '[data-wt-expandable] [data-wt-action="move-open"]')
+      const moveOpened = await openFirstRowForm(raw, 'move-open', '[data-wt-move-input]', 12000)
+      facts['moveOpened:' + spec.id + ':' + skin.id + ':' + width] = moveOpened
+      facts['moveClicks:' + spec.id + ':' + skin.id + ':' + width] = await clickLogOf(page)
+      if (moveOpened) {
+        await shot('move')
+        // 先拿一个「已经被别的工作区占着」的目录试一次：要明确拒绝，不能假装移动成功。
+        const others = (await readWorktreeRows(raw)).filter(function (p) { return p !== target })
+        if (others.length > 0) {
+          const occupied = await saveMove(page, raw, others[0])
+          facts['moveOccupied:' + spec.id + ':' + skin.id + ':' + width] = occupied
+          await shot('move-occupied')
+        }
+        const movedTarget = WT_NEW_BASE + '/wt-moved-' + skin.id + '-' + width + '-' + WT_RUN_TAG
+        const moved = await saveMove(page, raw, movedTarget)
+        facts['move:' + spec.id + ':' + skin.id + ':' + width] = moved
+        if (moved.ok) await shot('moved')
+        await softClick(raw, '[data-wt-move-close]')
       }
     }
   }
   if (spec.id === 'changes') {
-    if (await softClick(raw, '[data-vc-stash-arrow]')) { await shot('variants'); await softClick(raw, '[data-vc-stash-arrow]') }
+    if (await softClick(raw, '[data-vc-stash-arrow]')) {
+      await shot('variants')
+      // 截图会把视口临时拉高再还原：菜单可能因此收起，点收法之前先确认它是开着的。
+      await ensureStashMenu(raw)
+      // 默认收法：只收已跟踪的改动。收完到储藏页看结果条与记录数，再回来造一个新文件试「连未跟踪一起收」。
+      await softClick(raw, '[data-vc-stash-variant="push"]')
+      await sleep(2500)
+      facts['stashPush:' + spec.id + ':' + skin.id + ':' + width] = await stashOutcomeOf(page, raw)
+      try { fs.writeFileSync(path.join(FIXTURE_DIR, 'untracked-1905.txt'), 'x' + String(Date.now()) + '\n', 'utf8') } catch (error) { facts['stashWriteProblem:' + skin.id] = messageOf(error) }
+      await sleep(1200)
+      await ensureStashMenu(raw)
+      await softClick(raw, '[data-vc-stash-variant="push-untracked"]')
+      await sleep(2500)
+      facts['stashUntracked:' + spec.id + ':' + skin.id + ':' + width] = await stashOutcomeOf(page, raw)
+    }
   }
   if (spec.id === 'stash') {
-    if (await softClick(raw, '[data-vc-stash-row-menu] summary')) { await shot('row-menu'); await softClick(raw, '[data-vc-stash-op="branch"]'); await shot('branch-form') }
-    if (await softClick(raw, '[data-vc-stash-clear]')) { await shot('clear-confirm'); await softClick(raw, '[data-vc-stash-confirm-cancel]') }
+    const rowCount = async (): Promise<number> => raw.page.locator('[data-vc-stash-row-menu]').count()
+    if (await softClick(raw, '[data-vc-stash-row-menu] summary')) {
+      await shot('row-menu')
+      await softClick(raw, '[data-vc-stash-op="branch"]')
+      await shot('branch-form')
+      const before = await rowCount()
+      const formOpen = await waitForSelector(raw, '[data-vc-stash-branch-box]', 8000)
+      let prefilled = ''
+      if (formOpen) {
+        prefilled = await raw.page.locator('[data-vc-stash-branch-input]').first().inputValue().catch(function () { return '' })
+        if (prefilled === '') {
+          try { await raw.page.fill('[data-vc-stash-branch-input]', 'ticket/1905-from-stash') } catch (error) { prefilled = 'fill-failed:' + messageOf(error) }
+        }
+        await softClick(raw, '[data-vc-stash-branch-go]')
+        // 建分支是写动作：先预检签票、再出确认卡，点确认才执行。
+        if (await waitForSelector(raw, '[data-vc-stash-confirm]', 8000)) {
+          facts['stashBranchConfirm:' + skin.id] = true
+          await softClick(raw, '[data-vc-stash-confirm-go]')
+          await sleep(3500)
+        }
+      }
+      await sleep(3000)
+      facts['stashBranch:' + spec.id + ':' + skin.id + ':' + width] = {
+        formOpen: formOpen,
+        prefilled: prefilled,
+        text: await textOf(page, '[data-vc-stash-result] .result-text'),
+        before: before,
+        after: await rowCount(),
+      }
+    }
+    if (await softClick(raw, '[data-vc-stash-clear]')) {
+      await shot('clear-confirm')
+      const before = await rowCount()
+      await softClick(raw, '[data-vc-stash-confirm-go]')
+      await sleep(3500)
+      const droppedText = await textOf(page, '[data-vc-stash-dropped]')
+      // 清完列表要重读一次才画得出来：点一下标题行的刷新，再数一遍。
+      await softClick(raw, '[data-vc-stash-op="list"]')
+      await sleep(2000)
+      facts['stashClear:' + spec.id + ':' + skin.id + ':' + width] = {
+        text: await textOf(page, '[data-vc-stash-result] .result-text'),
+        dropped: droppedText,
+        before: before,
+        after: await rowCount(),
+      }
+    }
   }
   facts['actions:' + spec.id + ':' + skin.id + ':' + width] = shots
 }
@@ -724,6 +888,7 @@ export default defineScenario<ScenarioContext>({
         //     其它工作树、一条储藏记录、一个已暂存文件与一个未暂存文件。只改这一趟的实例目录，不碰仓库。
         const seededDir = path.join(String((instance.record as any).dir || ''), 'workspace')
         const fixtureDir = String(process.env.DSH_1857_REPO || seededDir)
+        FIXTURE_DIR = fixtureDir
         const fixture: Record<string, unknown> = { dir: fixtureDir, steps: [] as string[] }
         try {
           const git = function (args: string[]): string { return execFileSync('git', args, { cwd: fixtureDir, encoding: 'utf8' }) }
@@ -909,7 +1074,12 @@ export default defineScenario<ScenarioContext>({
                   ? state.selectedTab === spec.id
                   : state.headTitle !== null && state.headTitle.indexOf(spec.title) >= 0)
               // 每页各点一条本页特有的入口：页签能选中不代表这一页真的挂出了正文。
-              const needMissing = state === null ? [] : await missingSelectors(page, spec.need === undefined ? [] : spec.need)
+              // 页面刚切过去时列表还没画出来：本页入口要等一会儿再判，不然会把「还没画」当成「没有」。
+              let needMissing = state === null ? [] : await missingSelectors(page, spec.need === undefined ? [] : spec.need)
+              for (let attempt = 0; attempt < 50 && needMissing.length > 0; attempt += 1) {
+                await sleep(400)
+                needMissing = await missingSelectors(page, spec.need === undefined ? [] : spec.need)
+              }
               const overflow = state === null ? true : (state.docScrollWidth > state.innerWidth + 1 || state.maxRight > state.rootRight + 1)
               const capFree = state !== null && state.capPrimaries === 0
               const foldFree = state === null ? true : state.folds.every(function (f) { return !/能力|capabilit/i.test(f) })
