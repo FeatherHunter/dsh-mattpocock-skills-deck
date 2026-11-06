@@ -418,6 +418,11 @@ async function goToPage(page: PageHandle, raw: RawBrowserPage, spec: { id: strin
   if (spec.kind === 'tab') {
     const tabSel = '[data-vc-tab="' + spec.id + '"]'
     let clicked = await realClick(raw, tabSel)
+    if (!clicked.ok) {
+      // 二级页上没有页签条（页头换成了返回键）：先回上一层，再点页签。
+      const back = await realClick(raw, '[data-vc-back]')
+      if (back.ok) { await sleep(900); clicked = await realClick(raw, tabSel) }
+    }
     if (!clicked.ok) clicked = await forceClick(raw, tabSel)
     if (!clicked.ok) return { ok: false, detail: '点页签失败：' + String(clicked.problem) }
     const landed = await waitForBodyPage(page, spec.id, 12000)
@@ -657,6 +662,7 @@ export default defineScenario<ScenarioContext>({
                 '溢出 ' + String(overflow) + '（文档 ' + String(state === null ? null : state.docScrollWidth) + ' ≤ 视口 ' + String(state === null ? null : state.innerWidth) + '，后代右界 ' + String(state === null ? null : Math.round(state.maxRight)) + ' ≤ 根右界 ' + String(state === null ? null : Math.round(state.rootRight)) + '）',
                 '页尾能力清单 ' + String(capFree ? '无' : '有 ' + String(state === null ? 0 : state.capPrimaries) + ' 条主入口'),
                 '截图 ' + (shot.ok ? String(shot.bytes) + ' 字节' : String(shot.problem)),
+                spec.branchRow === true ? '分支行第三行 ' + JSON.stringify(branchSubs) : '',
               ].join('；')
               comboSummaries.push({ checkId, page: spec.id, skin: skin.id, width, ok, detail, nav: nav.detail, sections, missing: seq.missing, shot: shotPath })
               await save(checkId + '.json', { checkId, page: spec.id, skin: skin.id, width, ok, nav, state, sequence: seq, shot }, '一档组合的完整读数')
