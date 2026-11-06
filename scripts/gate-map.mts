@@ -792,6 +792,10 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // fencing 复核失败不删库、六条重建分支都经过锁、两个真子进程同时重建只有一个真重建且等待方最后可写、
   // 拿不到锁抛 RebuildBusyError 而不是只读句柄、handle.rebuild() 拿不到锁时句柄仍可用。单跑实测 54 条。
   'verify-1934-rebuild-lock': 54,
+  // 2026-11-06 #1935（规格 #1930）：写回执失败的重同步——write-failed 两档退避重试、readonly/legacy-writer/stale
+  // 不重试；最终失败置「本机库落后」并排一次短延迟重同步；任何一次写成功清状态；首屏回包挂 libraryBehind，
+  // 列表状态行只出现用户级一句；文案中英各一份；没有本地持久队列。单跑实测 59 条。
+  'verify-1935-receipt-resync': 59,
   // 2026-11-04 #1863：GitHub 首屏改读本地快照库。第一扇守真 SQLite 上的按组写入、容器树回放、
   // 已关闭票在整池批次后仍在；第二扇守列表三条取数路径的写库钩子，以及「网络全断时首屏从库出」
   // （在线探测 / 磁盘缓存 / 当前用户 / 开会话 / 执行命令五处都计数为零）。
