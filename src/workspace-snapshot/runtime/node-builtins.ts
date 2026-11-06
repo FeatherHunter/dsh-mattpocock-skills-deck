@@ -35,6 +35,16 @@ export function mkdirSync(path: string, options?: { recursive?: boolean }): void
   nodeFs.mkdirSync(path, options)
 }
 
+/** 读一个小文本文件（重建锁的 owner.json）；调用方负责把「读不到」当成正常的过期信号。 */
+export function readFileSync(path: string, encoding: 'utf8'): string {
+  return nodeFs.readFileSync(path, encoding)
+}
+
+/** 写一个小文本文件（重建锁的 owner.json）。固定 UTF-8：锁文件里只有 ASCII 标识与数字。 */
+export function writeFileSync(path: string, data: string): void {
+  nodeFs.writeFileSync(path, data, 'utf8')
+}
+
 export function renameSync(oldPath: string, newPath: string): void {
   nodeFs.renameSync(oldPath, newPath)
 }

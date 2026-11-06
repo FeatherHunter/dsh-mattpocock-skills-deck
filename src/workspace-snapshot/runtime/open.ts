@@ -18,6 +18,13 @@
 // 为什么重建用「删文件」而不是 DROP TABLE：损坏的库可能连 sqlite_master 都读不出来，
 // 删文件是唯一能保证回到可用状态的做法；备份改名先做，失败就抛，绝不在没有证据的情况下删库。
 //
+// #1934 起重建是库外互斥的（细节在 runtime/rebuild-lock.ts 与 open-schema.ts）：
+//   - 自动重建与 handle.rebuild() 都先拿 dbPath + '.rebuild-lock' 这把锁；拿不到抛
+//     RebuildBusyError，一个文件都不删（宿主 catch 之后回落在线路径，下一次再试）。
+//   - 自动重建拿到锁之后必须重看一遍库：等锁期间别人可能已经重建好了，直接用新库。
+//   - openForWriting 这一层的只读兜底**不许**吞掉 RebuildBusyError：那是「稍后重试」，
+//     不是「这个环境写不了」，伪装成只读句柄会让竞争现场永远好不了。
+//
 // 什么约定不能改：
 //   - 本地路径不再写 meta 的租约三格（lease_owner / lease_heartbeat_ms / lease_expires_ms）。
 //     空闲窗口只要开着就占着写权，正是规格 #1930 要废掉的东西；本地写靠 SQLite 的
@@ -39,18 +46,20 @@ import type {
 import type { SnapshotDiagnostic } from '../model/types.js'
 import {
   applyReaderPragmas,
-  applyWriterPragmas,
   closeDatabase,
   openDatabase,
   quickCheckDatabase,
-  removeDatabaseFiles,
 } from '../persistence/database.js'
 import {
-  initializeSchema,
   readMergeVersion,
   type SnapshotIdentity,
 } from '../persistence/schema.js'
-import { openWritableDatabase as openSchemaWritable, describeError } from './open-schema.js'
+import {
+  describeError,
+  openWritableDatabase as openSchemaWritable,
+  rebuildWritableDatabase,
+} from './open-schema.js'
+import { isRebuildBusyError } from './rebuild-lock.js'
 import { createReadPorts } from './read-ports.js'
 import { createWritePorts, LEGACY_WRITER_MESSAGE } from './write-ports.js'
 import {
@@ -283,14 +292,16 @@ export function openWorkspaceSnapshot(
       // 旧租约未过期时不重建：重建会删库重建，而另一个可能是旧版本的进程还在写这份库。
       // 先让用户重启所有窗口；这里如实抛一句人话，不静默降级成「重建了但没人知道」。
       if (refreshLegacyWriterBlock()) throw new Error(LEGACY_WRITER_MESSAGE + '，重启之后再重建本地库')
-      heartbeat?.stop()
-      heartbeat = null
-      closeDatabase(db)
-      removeDatabaseFiles(dbPath)
-      db = openDatabase(dbPath, false)
-      journalMode = applyWriterPragmas(db)
-      initializeSchema(db, identity, now())
-      // #1934 会给重建加库外互斥；本票先保持「直接重建」，网络盘那一路仍要重新抢租约。
+      // #1934：删库/建库这一段走库外互斥。先拿锁再关连接：拿不到锁时抛 RebuildBusyError，
+      // 这个句柄仍然能用（读照常、写照常），不会因为一次「稍后重试」变成废句柄。
+      const fresh = rebuildWritableDatabase(dbPath, identity, now(), logEvent, () => {
+        heartbeat?.stop()
+        heartbeat = null
+        closeDatabase(db)
+      })
+      db = fresh.db
+      journalMode = fresh.journalMode
+      // 网络盘：重建之后重新抢一次写者租约（本地路径没有租约这一步）。
       if (storageKind === 'network') {
         const lease = tryAcquireNetworkLease(db, owner, now)
         if (!lease.acquired) {
@@ -373,6 +384,10 @@ function openForWriting(
       ...(opened.migratedFrom !== undefined ? { migratedFrom: opened.migratedFrom } : null),
     }
   } catch (error) {
+    // 「另一个窗口正在重建，等了一会儿没轮到」（#1934）不是「这个环境写不了」：
+    // 吞成只读句柄会让升级/竞争现场伪装成一个永远只读的工作区，用户等多久都好不了。
+    // 交给宿主：它 catch 之后回落在线路径，下一次刷新会再试一次开库。
+    if (isRebuildBusyError(error)) throw error
     const reader = openReadOnlyReader(dbPath)
     if (!reader) throw error
     return { db: reader, journalMode: 'readonly', fallbackError: error }
