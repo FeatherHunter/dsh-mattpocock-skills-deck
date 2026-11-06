@@ -9,8 +9,11 @@
  *
  * 这一扇断的不是「最终落点对不对」（那是 tests/verify-tip-place.ts 与 tests/verify-hovertip.ts 的事），
  * 而是「第一次可见的那一笔落在哪」：把真实的 HoverTip.ts 与 tipPlace.ts 放进真 Chromium，用
- * MutationObserver 在**每个任务边界**记录提示的位置与可见性。浏览器画的一帧就是「上一个任务边界时
- * 的 DOM 状态」，所以任务边界上出现过的每一种可见位置，都是用户可能看到的一帧。
+ * MutationObserver 在**每个任务边界**记录提示的位置与可见性。
+ *
+ * 用户说的「第一次出现」在这里的等价观察点就是任务边界：浏览器画的一帧，画的是上一个任务边界时的
+ * DOM 状态，所以任何一个任务边界上出现过的可见位置，都是用户可能看到的一帧；反过来，两个任务边界之间
+ * 的中间状态不可能被单独画出来。这就是为什么按任务边界采样、而不是逐个动画帧采样。
  *
  * 判据（每条用例都断）：
  *   B1 整段显示过程里只出现过一种可见位置——第一次可见时的位置就是最终位置，没有可见的跳动。
@@ -19,12 +22,13 @@
  *
  * 为什么必须真浏览器：jsdom 没有排版引擎，getBoundingClientRect 恒为 0，量不出「320 宽估算」与
  *   「59 宽真实尺寸」的差别；#1927 的组件级复现也证明这条路径与面板宽度无关，只与尺寸差有关。
- * 为什么按任务边界采样、而不是逐动画帧：被动 effect 与提交常常落在同一个任务里，逐动画帧会漏掉
- *   用户其实看不到的中间状态（本机实测旧代码两笔相隔约 5 毫秒，动画帧已经看不到第一笔）；
- *   按任务边界采样既能抓到「跨任务留下的错误可见帧」，又不会把同一任务里的内部重算误判成跳动。
+ * 为什么不能只逐动画帧：被动 effect 与提交常常落在同一个任务里，逐动画帧会漏掉用户其实看不到的
+ *   中间状态（本机实测旧代码两笔相隔约 5 毫秒，动画帧已经看不到第一笔）；按任务边界采样既能抓到
+ *   「跨任务留下的错误可见帧」，又不会把同一任务里的内部重算误判成跳动。
  *
- * C 组是这把尺子的自检（反证）：把这次修复的两半都关掉——可见性不再等量到、布局 effect 退回被动
- *   effect——再量同一种场景，必须量出两种可见位置。关不干净（补丁打不上）也判红，否则这一扇是假绿。
+ * C 组是这把尺子的自检（反证）：把这次修复在的那一半（两半都在就都关掉）——提示不再等算好落点就
+ *   可见，或者量尺寸退回被动 effect——再量同一种场景，必须量出两种可见位置。补丁一处都打不上也判红，
+ *   否则这一扇就是假绿。
  *
  * 跑法：node --import ./scripts/ts-hook.mts tests/verify-1927-tip-first-frame-browser.ts
  * 依赖：playwright（含 chromium），浏览器实例经 tests/lib/browser-pool.ts 取：
@@ -53,23 +57,29 @@ function check(ok: unknown, msg: string): void {
   else { console.log('  FAIL ' + msg); failed++ }
 }
 
-// ---------- A 组：源码里有这道闸（真正的判据在 B 组，这里只是让「修哪儿」一眼可见） ----------
+// ---------- A 组：源码里至少有守住「第一次可见即最终位置」的那一半（真正的判据在 B 组） ----------
+// 规格说的是二选一：「测量结果在提示可见之前生效」或者「提示在测量完成前不可见」。今天 HoverTip 两半
+// 都做了，但这扇门不许把两半都当成契约——只做到一边，B 组照样能过，这里也不判红。
 const hoverSrc = sourceText('src/client/views/primitives/HoverTip.ts')
-// 下面这两条模式同时是 C 组反证补丁的落点：拿同一对模式把修复关掉，再让同一把尺子去量旧行为。
-const VISIBILITY_GATE_RE = /visibility:\s*tipMeasured\s*\?\s*'visible'\s*:\s*'hidden'/
-const BEFORE_PAINT_RE = /\?\s*React\.useLayoutEffect\s*:\s*React\.useEffect/
-console.log('[A 源码：提示在量到之前不可见，且量尺寸在绘制之前生效]')
-check(VISIBILITY_GATE_RE.test(hoverSrc), '提示的可见性跟着「这次量到没有」走（量到之前不可见）')
-check(BEFORE_PAINT_RE.test(hoverSrc), '量尺寸与算落点走布局 effect（绘制之前生效），环境没有时退回被动 effect')
+// 下面这两条模式同时是 C 组反证补丁的锚点：哪一半还在，就按哪一半把修复关掉，再让同一把尺子去量旧行为。
+// 它们逐字绑着 HoverTip 的两行源码，改那两行就要来改这里；一处都对不上时 C 组会响亮地报「补丁没打上」，
+// 不会安安静静地变成假绿。
+const VISIBILITY_GATE_RE = /visibility:\s*tipPlaced\s*\?\s*'visible'\s*:\s*'hidden'/
+const BEFORE_PAINT_RE = /React\.useLayoutEffect\(/
+const hasVisibilityRule = VISIBILITY_GATE_RE.test(hoverSrc)
+const hasBeforePaint = BEFORE_PAINT_RE.test(hoverSrc)
+console.log('[A 源码：至少有一半在——量到落点之前不可见，或者量尺寸在绘制之前生效]')
+check(hasVisibilityRule || hasBeforePaint,
+  '源码里守住了「第一次可见即最终位置」的那一半（量到之前不可见 ' + hasVisibilityRule + '；量尺寸在绘制之前生效 ' + hasBeforePaint + '）')
 
-// 反证用的「旧做法」：把上面两半都关掉，等价于 #1927 修复之前的真源码。
+// 反证用的「旧做法」：把在的那一半（两半都在就都关掉）关掉，等价于 #1927 修复之前的真源码。
 const unfixed = (function () {
   let src = hoverSrc
-  let gateHits = 0
-  let hookHits = 0
-  src = src.replace(VISIBILITY_GATE_RE, function () { gateHits++; return "visibility: 'visible'" })
-  src = src.replace(BEFORE_PAINT_RE, function () { hookHits++; return '? React.useEffect : React.useEffect' })
-  return { src: src, gateHits: gateHits, hookHits: hookHits }
+  let visibilityHits = 0
+  let beforePaintHits = 0
+  src = src.replace(VISIBILITY_GATE_RE, function () { visibilityHits++; return "visibility: 'visible'" })
+  src = src.replace(BEFORE_PAINT_RE, function () { beforePaintHits++; return 'React.useEffect(' })
+  return { src: src, visibilityHits: visibilityHits, beforePaintHits: beforePaintHits, hits: visibilityHits + beforePaintHits }
 })()
 
 // ---------- 页面探针：真 React + 真 HoverTip/tipPlace 源码，浏览器里真挂载 ----------
@@ -115,7 +125,7 @@ function mount(opts) {
 // 每个任务边界采一次样：MutationObserver 的回调是微任务，跑在当前任务末尾、下一个任务之前，
 // 所以这一刻读到的 DOM 就是「浏览器接下来画的那一帧」。
 function record(selector) {
-  window.__BATCHES__ = []
+  window.__SAMPLES__ = []
   window.__HOVER_AT__ = null
   const btn = document.getElementById('btn')
   const onOver = function () {
@@ -131,7 +141,7 @@ function record(selector) {
     return { present: true, left: r.left, top: r.top, width: r.width, height: r.height, visibility: cs.visibility, opacity: cs.opacity }
   }
   const mo = new MutationObserver(function (records) {
-    window.__BATCHES__.push({
+    window.__SAMPLES__.push({
       t: performance.now(),
       records: records.length,
       kinds: records.map(function (r) { return r.type + (r.attributeName ? ':' + r.attributeName : '') }).join(','),
@@ -241,21 +251,25 @@ check(Number.isFinite(PANEL_SHOW_DELAY) && PANEL_SHOW_DELAY > 0, '面板那档�
 for (const c of CASES) if (c.id === 'panel-delay') c.delayShow = PANEL_SHOW_DELAY
 
 type Snap = { present: boolean; left: number; top: number; width: number; height: number; visibility: string; opacity: string }
-type Batch = { t: number; records: number; kinds: string; snap: Snap }
-type Episode = { batches: Batch[]; hoverAt: number | null }
+type Sample = { t: number; records: number; kinds: string; snap: Snap }
+type Episode = { samples: Sample[]; hoverAt: number | null }
 
 // 「能被看到」的一笔：在文档里、不是 visibility:hidden、不透明、有实际大小。
-function visibleBatches(ep: Episode): Batch[] {
-  return ep.batches.filter(function (b) {
-    const s = b.snap
+function visibleSamples(ep: Episode): Sample[] {
+  return ep.samples.filter(function (sample) {
+    const s = sample.snap
     return !!s && s.present === true && s.visibility !== 'hidden' && Number(s.opacity) > 0 && s.width > 0 && s.height > 0
   })
 }
-function positionKey(b: Batch): string {
-  return Math.round(b.snap.left) + ',' + Math.round(b.snap.top)
+function positionKey(sample: Sample): string {
+  return Math.round(sample.snap.left) + ',' + Math.round(sample.snap.top)
 }
-function describeShape(b: Batch): string {
-  return Math.round(b.snap.left) + 'x' + Math.round(b.snap.top) + '（' + b.snap.width.toFixed(1) + '×' + b.snap.height.toFixed(1) + '）'
+function describeShape(sample: Sample): string {
+  return Math.round(sample.snap.left) + 'x' + Math.round(sample.snap.top) + '（' + sample.snap.width.toFixed(1) + '×' + sample.snap.height.toFixed(1) + '）'
+}
+// 这一趟显示里出现过的可见位置（按位置去重，保留出现次序）。
+function distinctPositions(seen: Sample[]): string[] {
+  return seen.map(positionKey).filter(function (k, i, all) { return all.indexOf(k) === i })
 }
 
 async function runEpisode(page: any, rect: any, selector: string, waitMs: number): Promise<Episode> {
@@ -264,7 +278,7 @@ async function runEpisode(page: any, rect: any, selector: string, waitMs: number
   await page.waitForTimeout(waitMs)
   return await page.evaluate(function () {
     window.__STOP__()
-    return { batches: window.__BATCHES__, hoverAt: window.__HOVER_AT__ }
+    return { samples: window.__SAMPLES__, hoverAt: window.__HOVER_AT__ }
   })
 }
 
@@ -274,10 +288,10 @@ async function runEpisode(page: any, rect: any, selector: string, waitMs: number
  */
 async function judgeEpisode(c: ProbeCase, ep: Episode, rect: any): Promise<void> {
   const tag = c.id + ' '
-  const seen = visibleBatches(ep)
-  check(seen.length > 0, tag + '提示确实出现过（' + seen.length + ' 个可见的任务边界，共 ' + ep.batches.length + ' 个边界）')
+  const seen = visibleSamples(ep)
+  check(seen.length > 0, tag + '提示确实出现过（' + seen.length + ' 个可见的任务边界，共 ' + ep.samples.length + ' 个边界）')
   if (!seen.length) return
-  const keys = seen.map(positionKey).filter(function (k, i, all) { return all.indexOf(k) === i })
+  const keys = distinctPositions(seen)
   const first = seen[0]
   const last = seen[seen.length - 1]
   check(keys.length === 1, tag + '整段显示里只出现过一种可见位置（出现了 ' + keys.length + ' 种：' + keys.join(' / ') + '，用例：' + c.why + '）')
@@ -296,22 +310,29 @@ async function judgeEpisode(c: ProbeCase, ep: Episode, rect: any): Promise<void>
   }
 }
 
+/** 开一页装好探针的页面：挂载前先把鼠标挪到角落，保证这一次悬停是真的「第一次进入」。 */
+async function openProbe(browser: any, viewport: { width: number; height: number }): Promise<{ page: any; errors: string[] }> {
+  const page = await browser.newPage({ viewport: viewport })
+  const errors: string[] = []
+  page.on('pageerror', function (e: any) { errors.push('pageerror: ' + String((e && e.message) || e)) })
+  page.on('console', function (m: any) { if (m.type() === 'error') errors.push('console: ' + m.text()) })
+  await page.setContent(pageHtml(), { waitUntil: 'load' })
+  await page.waitForFunction(function () { return window.__PROBE_READY__ === true }, null, { timeout: 20000 })
+  await page.mouse.move(2, 2)
+  return { page: page, errors: errors }
+}
+
 async function runCase(browser: any, c: ProbeCase, waitMs: number): Promise<void> {
   console.log('')
   console.log('[B ' + c.id + '] ' + c.why)
-  const page = await browser.newPage({ viewport: c.viewport })
-  const pageErrors: string[] = []
-  page.on('pageerror', function (e: any) { pageErrors.push('pageerror: ' + String((e && e.message) || e)) })
-  page.on('console', function (m: any) { if (m.type() === 'error') pageErrors.push('console: ' + m.text()) })
+  const opened = await openProbe(browser, c.viewport)
+  const page = opened.page
   try {
-    await page.setContent(pageHtml(), { waitUntil: 'load' })
-    await page.waitForFunction(function () { return window.__PROBE_READY__ === true }, null, { timeout: 20000 })
-    await page.mouse.move(2, 2)
     const rect = await page.evaluate(function (o: any) { return window.__probe.mount(o) }, {
       content: c.content, className: 'tip-probe', maxWidth: c.maxWidth, delayShow: c.delayShow, button: c.button,
     })
     const ep = await runEpisode(page, rect, '.tip-probe', waitMs)
-    check(pageErrors.length === 0, c.id + ' 页面没有报错' + (pageErrors.length ? '：' + pageErrors.slice(0, 3).join(' | ') : ''))
+    check(opened.errors.length === 0, c.id + ' 页面没有报错' + (opened.errors.length ? '：' + opened.errors.slice(0, 3).join(' | ') : ''))
     await judgeEpisode(c, ep, rect)
 
     if (c.second) {
@@ -337,21 +358,19 @@ async function runCase(browser: any, c: ProbeCase, waitMs: number): Promise<void
 // ---------- C 组：反证。把修复关掉之后，同一把尺子必须量出两种可见位置 ----------
 async function runCounterProof(browser: any, c: ProbeCase, waitMs: number): Promise<void> {
   console.log('')
-  console.log('[C 反证] 把可见闸与绘制前测量都关掉，同一场景必须量出两种可见位置（否则 B 组是假绿）')
-  check(unfixed.gateHits === 1 && unfixed.hookHits === 1,
-    '反证补丁打上了：可见闸 ' + unfixed.gateHits + ' 处、布局 effect ' + unfixed.hookHits + ' 处（旧行为就是这两半都关掉的样子）')
-  if (unfixed.gateHits !== 1 || unfixed.hookHits !== 1) return
-  const page = await browser.newPage({ viewport: c.viewport })
+  console.log('[C 反证] 把修复关掉（在的那一半都关），同一场景必须量出两种可见位置（否则 B 组是假绿）')
+  check(unfixed.hits >= 1,
+    '反证补丁打上了：可见性判断 ' + unfixed.visibilityHits + ' 处、布局 effect ' + unfixed.beforePaintHits + ' 处（旧行为就是把这些都关掉的样子）')
+  if (unfixed.hits < 1) return
+  const opened = await openProbe(browser, c.viewport)
+  const page = opened.page
   try {
-    await page.setContent(pageHtml(), { waitUntil: 'load' })
-    await page.waitForFunction(function () { return window.__PROBE_READY__ === true }, null, { timeout: 20000 })
-    await page.mouse.move(2, 2)
     const rect = await page.evaluate(function (o: any) { return window.__probe.mount(o) }, {
       content: c.content, className: 'tip-probe', button: c.button, unfixed: true,
     })
     const ep = await runEpisode(page, rect, '.tip-probe', waitMs)
-    const seen = visibleBatches(ep)
-    const keys = seen.map(positionKey).filter(function (k, i, all) { return all.indexOf(k) === i })
+    const seen = visibleSamples(ep)
+    const keys = distinctPositions(seen)
     check(seen.length > 0, '反证组件确实出现过（' + seen.length + ' 个可见的任务边界）')
     check(keys.length > 1, '反证：关掉修复后量出 ' + keys.length + ' 种可见位置（' + keys.join(' / ') + '）——旧行为必红，这把尺子测得出来')
     if (keys.length > 1) {
