@@ -69,7 +69,9 @@ const MODULES = [
   { name: 'probeSnapshot', file: 'snapshot-sync', exports: ['pendingSnapshotByCwd', 'nowStr', 'timeOf', 'timeOfMs', 'broadcastCfg', 'cacheFirstThenAttend', 'loadSnapshot'] },
   // #707：probe-snapshot.js 拆到这里之前 349 行（门禁上限 350），把颜色小函数、数据层增量差异、
   //   高亮清除搬成单独一片；那三样东西的导出名与行为一字未改。
-  { name: 'probeSnapshotHelpers', file: 'snapshot-sync-helpers', exports: ['hexA', 'darken', 'diffSnapshots', '_flashClearPending', 'scheduleFlashClear'] },
+  // #1926：模块级旗子 _flashClearPending 退场（清除计时器改成按会话各排一个，旗子记在会话身上），
+  //   这一行随之少一个名字。
+  { name: 'probeSnapshotHelpers', file: 'snapshot-sync-helpers', exports: ['hexA', 'darken', 'diffSnapshots', 'scheduleFlashClear'] },
   // #1891：客户端按库版本取变化的两片 —— 变化集并进手上那份（纯合并），以及同步引擎与生产接线。
   //   登记在这里是为了「改了没重建要被拦下」：产物新鲜度按 SOURCES 里的真源修改时间比。
   { name: 'snapshotChangeMerge', file: 'snapshot-change-merge', exports: ['applySnapshotChangeSet', 'changeRowPatch', 'isNewerSnapshotVersion'] },

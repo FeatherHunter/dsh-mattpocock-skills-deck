@@ -19,7 +19,8 @@
  *     删除与否是宿主回包（missing）的决定，这里只照单执行，不猜「没出现就是删了」。
  *
  * 反例：不要在这里按时间判新旧、不要在这里发任何电话；合并结果只依赖入参、options.idOf 与
- * options.rowFieldsOf（缺省用闭包里拼进来的那一份）。
+ * options.rowFieldsOf（缺省用闭包里拼进来的那一份）。时间字段的「是不是同一份内容」按时刻比
+ * （#1926：在线秒级 ISO 与库回放毫秒级 ISO 是同一时刻），不要退回按字面比 —— 那会让没变的行也重画。
  */
 
 // 客户端半边不能运行时 import：这一份换算由 scripts/build.mts 的 SHARED_SPLICE 把同一份源码
@@ -101,9 +102,26 @@ export function changeRowPatch(item: any, rowFieldsOf?: ((row: any) => any) | nu
   return patch
 }
 
-/** 两格的「是不是同一份内容」：只用来决定这一行要不要重画，不用来判新旧。 */
-function changeSameValue(a: any, b: any): boolean {
+/**
+ * 一条补丁里带时间戳的那几格。只有这几格按「时刻」比（见 changeSameValue）；
+ * 其余格子仍按内容比 —— 拿普通文本去解析时间会把「1」与「01」这种标题当成同一时刻。
+ */
+const CHANGE_STAMP_KEYS: Record<string, boolean> = { createdAt: true, updatedAt: true, closedAt: true, mergedAt: true }
+
+/**
+ * 两格的「是不是同一份内容」：只用来决定这一行要不要重画，不用来判新旧。
+ *
+ * #1926：同一时刻有两种 ISO 写法 —— 在线取数给的是后端原样的秒级 ISO（2026-08-24T01:33:13Z），
+ * 变化集这条路给的是 new Date(毫秒).toISOString()（2026-08-24T01:33:13.000Z）。按字面比会把
+ * 「其实一点没变」的行判成重画，界面就给那些行闪一下；所以时间字段比的是时刻。
+ * 只对上面那几格生效，普通文本一个字都不进这条判断。
+ */
+function changeSameValue(a: any, b: any, field?: string): boolean {
   if (a === b) return true
+  if (field && CHANGE_STAMP_KEYS[field] === true && typeof a === 'string' && typeof b === 'string') {
+    const ta = Date.parse(a), tb = Date.parse(b)
+    if (isFinite(ta) && isFinite(tb)) return ta === tb
+  }
   try { return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b) } catch (e) { return false }
 }
 
@@ -151,7 +169,7 @@ export function applySnapshotChangeSet(
   }
   const differs = function (held: any, patch: any): boolean {
     const keys = Object.keys(patch)
-    for (let i = 0; i < keys.length; i++) if (!changeSameValue(held[keys[i]], patch[keys[i]])) return true
+    for (let i = 0; i < keys.length; i++) if (!changeSameValue(held[keys[i]], patch[keys[i]], keys[i])) return true
     return false
   }
   /** 把这一行从所有「票所在的位置」拿掉（容器本身不在内）：换位置、或墓碑都走这一句。 */

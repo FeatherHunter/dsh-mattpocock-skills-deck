@@ -6,7 +6,14 @@
  * 这里搬出来的是三类跟「下载快照」本身无关的小东西，就地不动、一行都没改行为：
  * ① 颜色两个小函数（hexA / darken）：标签配色渲染用；
  * ② 数据层增量差异 diffSnapshots：新旧两份快照对比，供多视图增量与行闪烁；
- * ③ 闪烁高亮的一次性清除 scheduleFlashClear：排一个定时器把高亮擦掉，防堆积。
+ * ③ 闪烁高亮的一次性清除 scheduleFlashClear：给一个会话排一个定时器把高亮擦掉，防堆积。
+ *
+ * #1926 定下的两条判据（改这里之前先读）：
+ *  - 差异比「时刻」不比字面：同一时刻的秒级 ISO（在线取数）与毫秒级 ISO（本机快照库回放）
+ *    必须判成没变，否则同一个工作区在两种来源之间切换时每一行都会闪；
+ *    解析不出时刻的值仍按原文比（真换了内容就得闪）。
+ *  - 清除计时器按会话各排一个：闪烁标记是会话私有的，清除也必须会话私有；
+ *    全局共用一个计时器会让除第一个之外的会话永远留着标记，切回去那些行又亮一遍。
  *
  * 契约：与其它内核文件一样，本文件为模块真源；构建时去掉行首 export 后拼回
  * src/client/index.ts 的拼接标记处，源码树里只有这一份真源。同名 .js 是构建产物。
@@ -14,7 +21,7 @@
  * 所以一律用 declare 声明形状，不做运行时引入。
  *
  * 反例：不要在这里加运行时 import；不要把颜色比较与是否合法混成同一个判据；
- * 不要让清除高亮的定时器堆积，一次探测只排一个。
+ * 不要把「同一会话只排一个计时器」写成全局只排一个（那是 #1926 修的缺陷）。
  */
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）。
 declare const emit: any;
@@ -67,6 +74,18 @@ export const diffSnapshots = function (oldS: any, newS: any): any {
   const lbl = function (x: any): string { return (x.labels || []).map(function (l: any): string { return typeof l === 'string' ? l : l.name; }).sort().join(','); };
   // effort 维度：差异索引按票身份 (effort, 编号) 键入，否则不同 effort 的同号地图互相顶掉、变更探测不到
   const idx = function (snap: any): Record<string, any> { const m: Record<string, any> = {}; snap.maps.forEach(function (x: any): void { m[idOf(x)] = x; }); return m; };
+  // #1926：同一时刻有两种写法 —— 在线取数交上来的是后端原样的秒级 ISO（2026-08-24T01:33:13Z），
+  //   本机快照库回放交上来的是 new Date(毫秒).toISOString()（2026-08-24T01:33:13.000Z）。
+  //   同一个工作区在两种来源之间切换（切会话、手动刷新、库版本推进）时，按字面比会把每一行都判成变了。
+  //   这里比的是「时刻」：两种写法解析出同一毫秒就算没变。解析不出时刻的（空串、夹具里的 't1' / 't2'）
+  //   退回原文比较 —— 那正是「真的换了内容」的那一档，不能一起吞掉。
+  const sameMoment = function (a: any, b: any): boolean {
+    const x: string = a === undefined || a === null ? '' : String(a);
+    const y: string = b === undefined || b === null ? '' : String(b);
+    if (x === y) return true;
+    const tx: number = Date.parse(x), ty: number = Date.parse(y);
+    return isFinite(tx) && isFinite(ty) && tx === ty;
+  };
   const a: Record<string, any> = idx(oldS), b: Record<string, any> = idx(newS);
   // 子票级变化：逐票对比（新增/变更标 issueFlash；任一变化 → 该 map 计入 changed，map 详情视图增量）
   //   字段实证（#458 核验）：map 子票在快照里是 tickets（非 issues）；票级变化 = state/progress/claimedBy/labels
@@ -79,7 +98,7 @@ export const diffSnapshots = function (oldS: any, newS: any): any {
     Object.keys(iy).forEach(function (k: string): void {
       if (!ix[k]) { sub = true; out.issueFlash[k] = 'added'; return; }
       var a2: any = ix[k], b2: any = iy[k];
-      if (a2.state !== b2.state || a2.progress !== b2.progress || a2.claimedBy !== b2.claimedBy || lbl(a2) !== lbl(b2) || String(a2.updatedAt || '') !== String(b2.updatedAt || '')) { sub = true; out.issueFlash[k] = 'changed'; }
+      if (a2.state !== b2.state || a2.progress !== b2.progress || a2.claimedBy !== b2.claimedBy || lbl(a2) !== lbl(b2) || !sameMoment(a2.updatedAt, b2.updatedAt)) { sub = true; out.issueFlash[k] = 'changed'; }
     });
     if (Object.keys(ix).length !== Object.keys(iy).length) sub = true;
     if (x.state !== y.state || x.title !== y.title || lbl(x) !== lbl(y) || sub) out.changed.push(n);
@@ -93,24 +112,29 @@ export const diffSnapshots = function (oldS: any, newS: any): any {
   Object.keys(iy0).forEach(function (k: string): void {
     if (!ia[k]) { out.added.push(k); return; }
     var xa: any = ia[k], ya: any = iy0[k];
-    if (xa.state !== ya.state || xa.title !== ya.title || lbl(xa) !== lbl(ya) || String(xa.updatedAt || '') !== String(ya.updatedAt || '')) out.changed.push(k);
+    if (xa.state !== ya.state || xa.title !== ya.title || lbl(xa) !== lbl(ya) || !sameMoment(xa.updatedAt, ya.updatedAt)) out.changed.push(k);
   });
   Object.keys(ia).forEach(function (k: string): void { if (!iy0[k]) out.removed.push(k); });
   return out;
 };
-// R5：高亮定时清除（防堆积；一次只排一个 timer）
-export let _flashClearPending: boolean = false;
+// R5：高亮定时清除（防堆积）—— 按会话各排一个，标记在哪份会话身上就由哪份计时器擦掉
+// 闪烁标记（st.rowFlash / st.issueFlash）是会话私有的，清除它的计时器也必须是会话私有的。
+//   曾经用一个模块级的「已经排上一个计时器」旗子去重：同工作区扇出时只有第一个会话的标记被清，
+//   其余会话的标记一直留着；切到那些会话时界面又给这些行挂上变化动画，看起来就是「一换会话整列闪」（#1926）。
+//   现在旗子记在会话自己身上（st._flashClearPending）：同一会话连着装两次快照只排一个计时器，
+//   不同会话各有各的，谁也不会把谁的清除顶掉。
 export const scheduleFlashClear = function (st: any): void {
-  if (_flashClearPending) return;
-  _flashClearPending = true;
-  if (timer === undefined) { _flashClearPending = false; return; }
-  // 这一次探测标出来的高亮留多久：亮这么久就自己淡掉（一次探测留下的痕迹不该一直挂在界面上），
-  //   连着两次探测只排一个清除计时器、不堆积。
+  if (!st || st._flashClearPending) return;
+  st._flashClearPending = true;
+  if (timer === undefined) { st._flashClearPending = false; return; }
+  // 这一次探测标出来的高亮留多久：亮这么久就自己淡掉（一次探测留下的痕迹不该一直挂在界面上）。
   // 数值写在 config/ttl.yaml 的 snapshotProbeMs（高亮停留那一档，2.6 秒），构建时由生成器变成常量、随界面闭包一起进来。
-  timer.timeout(function (): void {
-    _flashClearPending = false;
-    st.rowFlash = {};
-    st.issueFlash = {};
-    emit(st);
-  }, SNAPSHOT_PROBE_MS);
+  try {
+    timer.timeout(function (): void {
+      st._flashClearPending = false;
+      st.rowFlash = {};
+      st.issueFlash = {};
+      emit(st);
+    }, SNAPSHOT_PROBE_MS);
+  } catch (e) { st._flashClearPending = false; }
 };

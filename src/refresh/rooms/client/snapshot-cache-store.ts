@@ -69,6 +69,10 @@ export const makeStore = (): any => ({
   selPending: false, _selAskedKey: '',
   // T2 HoverTip 迁移（#381）：skillTip 已由 HoverTip 局部 state 统一，移除全局，skillHover 保留用于行高亮（后续可改 CSS :hover 再移除）
   refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, handoffSearching: false,
+  // #1926 会话私有的清除计时旗子：本会话已经排上一个清除闪烁的计时器（同一会话只排一个，不同会话各排各的）。
+  //   为什么要记在会话身上：闪烁标记（rowFlash / issueFlash）是会话私有的，清除计时器全局只有一个时，
+  //   扇出之后除第一个会话之外的标记永远清不掉，切回那些会话那些行又亮一遍。
+  _flashClearPending: false,
   // #787 交接会话隔离（会话私有状态）：本会话记下的时间戳、真实文件名、记下那一刻的目录。
   //   无记忆时为 null/空串；读时当时目录与当前目录对不上视为无记忆（fail-closed），绝不串到别的会话。
   handoffTs: null, handoffFile: null, handoffCwd: '',

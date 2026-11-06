@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-06T02:01:23.611Z",
+  "generatedAt": "2026-11-06T04:31:00.550Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 593,
-  "gateCount": 593,
-  "attributedGates": 537,
+  "chainLength": 595,
+  "gateCount": 595,
+  "attributedGates": 539,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 137,
+  "completionRecordedGates": 138,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
   "graphFileCount": 951,
@@ -7282,6 +7282,40 @@
       "completionRecord": true,
       "expectedAssertions": 44,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 12 条）"
+    },
+    {
+      "step": "node tests/verify-1926-flash-scope.ts",
+      "file": "tests/verify-1926-flash-scope.ts",
+      "guards": [
+        "src/refresh/rooms/client/probe-scope-selection.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
+        "src/refresh/rooms/client/snapshot-change-merge.ts",
+        "src/refresh/rooms/client/snapshot-sync-helpers.ts",
+        "src/refresh/rooms/client/snapshot-version-sync.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/client"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 26,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1927-tip-first-frame-browser.ts",
+      "file": "tests/verify-1927-tip-first-frame-browser.ts",
+      "guards": [
+        "src/client/views/primitives/HoverTip.ts"
+      ],
+      "dirs": [
+        "src/client/views/primitives"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -14734,6 +14768,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-no-title.ts",
       "node tests/verify-1612-deck-door.ts",
+      "node tests/verify-1927-tip-first-frame-browser.ts",
       "node tests/verify-hovertip.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-time-config.ts",
@@ -15266,6 +15301,7 @@
       "node tests/verify-1891-version-sync.ts",
       "node tests/verify-1893-projection-only.ts",
       "node tests/verify-1899-degradation-logs.ts",
+      "node tests/verify-1926-flash-scope.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-chain-after-pick.ts",

@@ -27,6 +27,8 @@ declare const snapshotWithoutWorkRoute: any;
 declare const loadOwnWorkRoute: any;
 declare const _snapInstallBody: any;
 declare const applySnapshotChangeSet: any;
+// #1926：合并落了闪烁标记之后要排上清除（与装快照那条路同一份实现）。门禁可直接传替身。
+declare const scheduleFlashClear: any;
 // #1885 评审修复：变化集的行换算由闭包里的共享片提供（src/shared/snapshot-row-fields.ts）。
 declare function snapshotRowFieldsOf(item: any): any;
 declare const log: any;
@@ -333,6 +335,9 @@ function syncInstallMerged(ctx: any, merged: any): void {
       if (Number.isInteger(numeric) && numeric > 0) st.issueFlash[numeric] = 'changed'
     })
   } catch (e) {}
+  // #1926：标记落了就得排上清除。漏了这一句，标记会一直留在会话身上；切走再切回来，
+  //   界面又给这些行挂上变化动画 —— 看起来就是「一换会话又闪一遍」。
+  try { if (typeof scheduleFlashClear === 'function') scheduleFlashClear(st) } catch (eFlash) {}
   try { if (typeof ctx.scope.setCachedSnapshot === 'function') ctx.scope.setCachedSnapshot(st.cwd, merged.snapshot) } catch (e) {}
   try { if (typeof ctx.scope.loadOwnWorkRoute === 'function') ctx.scope.loadOwnWorkRoute(st) } catch (e) {}
   try { if (typeof ctx.scope.emit === 'function') ctx.scope.emit(st) } catch (e) {}
