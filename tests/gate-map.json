@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-06T11:31:12.554Z",
+  "generatedAt": "2026-11-06T12:09:10.161Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 596,
-  "gateCount": 596,
-  "attributedGates": 540,
+  "chainLength": 597,
+  "gateCount": 597,
+  "attributedGates": 541,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 6,
-  "completionRecordedGates": 139,
+  "completionRecordedGates": 140,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 953,
+  "graphFileCount": 957,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6655,7 +6655,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 13,
+      "expectedAssertions": 18,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -6688,7 +6688,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 18,
+      "expectedAssertions": 24,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -6703,7 +6703,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 32,
+      "expectedAssertions": 35,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -7293,6 +7293,28 @@
       "completionRecord": true,
       "expectedAssertions": 36,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 9 条）"
+    },
+    {
+      "step": "node tests/verify-1932-multi-window.ts",
+      "file": "tests/verify-1932-multi-window.ts",
+      "guards": [
+        "src/client/views/shared/truthLines.ts",
+        "src/refresh/rooms/host/snapshot-library-read.ts",
+        "src/refresh/rooms/host/snapshot-read-channels.ts",
+        "src/workspace-snapshot/runtime/lease.ts",
+        "src/workspace-snapshot/runtime/open.ts",
+        "src/workspace-snapshot/runtime/storage-kind.ts"
+      ],
+      "dirs": [
+        "src/client/views/shared",
+        "src/refresh/rooms/host",
+        "src/workspace-snapshot/runtime"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 41,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -14532,6 +14554,7 @@
       "node tests/verify-1866-write-ui.ts",
       "node tests/verify-1890-read-channels.ts",
       "node tests/verify-1922-retire-eviction.ts",
+      "node tests/verify-1932-multi-window.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -15147,6 +15170,7 @@
       "node tests/verify-1899-degradation-logs.ts",
       "node tests/verify-1922-retire-eviction.ts",
       "node tests/verify-1923-closed-container.ts",
+      "node tests/verify-1932-multi-window.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -15878,6 +15902,7 @@
       "node tests/verify-1922-retire-eviction.ts",
       "node tests/verify-1923-closed-container.ts",
       "node tests/verify-1931-read-snapshot.ts",
+      "node tests/verify-1932-multi-window.ts",
       "node tests/verify-time-config.ts"
     ],
     "tests": [
@@ -16175,9 +16200,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 976,
+    "fileCount": 980,
     "dirCount": 101,
-    "coveredFileCount": 976,
+    "coveredFileCount": 980,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 80,
@@ -17147,6 +17172,7 @@
       "src/workspace-snapshot/projection/list.ts",
       "src/workspace-snapshot/projection/members.ts",
       "src/workspace-snapshot/projection/read-step.ts",
+      "src/workspace-snapshot/runtime/ingest-apply.ts",
       "src/workspace-snapshot/runtime/ingest.ts",
       "src/workspace-snapshot/runtime/lease.ts",
       "src/workspace-snapshot/runtime/log.ts",
@@ -17154,8 +17180,11 @@
       "src/workspace-snapshot/runtime/open-schema.ts",
       "src/workspace-snapshot/runtime/open.ts",
       "src/workspace-snapshot/runtime/paths.ts",
+      "src/workspace-snapshot/runtime/read-ports.ts",
+      "src/workspace-snapshot/runtime/storage-kind.ts",
       "src/workspace-snapshot/runtime/storage-stats.ts",
       "src/workspace-snapshot/runtime/tombstone-write.ts",
+      "src/workspace-snapshot/runtime/write-ports.ts",
       "src/workspace-snapshot/sources/README.md",
       "src/workspace-snapshot/tsconfig.json"
     ],
