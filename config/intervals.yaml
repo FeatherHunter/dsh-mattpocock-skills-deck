@@ -127,6 +127,14 @@ intervals:
   # 与 ttl.yaml 的 snapshotLeaseTtlMs（15 秒）成对使用，那是一张租约多久没续可以被别人接手；
   # 心跳必须远小于过期时间，否则一次卡顿就会把租约弄丢。
   snapshotLeaseHeartbeatMs: 5000
+  # 整库重建的库外锁在等待期间多久重试一次：50 毫秒（#1934）。只在等锁那一小段用。
+  snapshotRebuildLockRetryMs: 50
+  # 写回执第一次/第二次重试前的等待：5 秒 / 10 秒（#1935）。两次退避仍失败就尽快安排一次重同步；
+  # 重试只对 write-failed（事务忙/失败）有意义，readonly 与旧租约不重试。
+  snapshotWriteRetryFirstMs: 5000
+  snapshotWriteRetrySecondMs: 10000
+  # 写回执最终失败后，隔多久安排一次探测/重同步：2 秒（#1935）。不能等常规 probe 的 5 分钟。
+  snapshotResyncDelayMs: 2000
 
   # —— 配额与限流诊断的判定窗（#1627）——
   # 同一限流类别的告警去重窗：60 秒。同一个 rateClass 60 秒内只写一条 quota.incident。

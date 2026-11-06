@@ -182,6 +182,8 @@ const KEYS: Array<[string, string, string]> = [
   ['quotaSyncHardCooldownMs', 'QUOTA_SYNC_HARD_COOLDOWN_MS', 'timeouts'],
   ['quotaSyncMaxCooldownMs', 'QUOTA_SYNC_MAX_COOLDOWN_MS', 'timeouts'],
   ['registerRetryWaitMs', 'REGISTER_RETRY_WAIT_MS', 'timeouts'],
+  // #1934：整库重建的库外锁最多等多久（等另一个窗口重建完成；到点就退回在线）。
+  ['snapshotRebuildLockWaitMs', 'SNAPSHOT_REBUILD_LOCK_WAIT_MS', 'timeouts'],
   ['shellResolveMs', 'SHELL_RESOLVE_TIMEOUT_MS', 'timeouts'],
   ['namingSummaryTimeoutMs', 'NAMING_SUMMARY_TIMEOUT_MS', 'timeouts'],
   ['logWatchdogMs', 'LOG_WATCHDOG_MS', 'timeouts'],
@@ -256,6 +258,12 @@ const KEYS: Array<[string, string, string]> = [
   ['buildLockHeartbeatMs', 'BUILD_LOCK_HEARTBEAT_MS', 'intervals'],
   // #1862：工作区快照库单写者租约的续约心跳（与 ttl 那档的 snapshotLeaseTtlMs 成对使用）。
   ['snapshotLeaseHeartbeatMs', 'SNAPSHOT_LEASE_HEARTBEAT_MS', 'intervals'],
+  // #1934：整库重建的库外锁在等待期间的重试间隔。
+  ['snapshotRebuildLockRetryMs', 'SNAPSHOT_REBUILD_LOCK_RETRY_MS', 'intervals'],
+  // #1935：写回执两次退避重试的等待，以及最终失败后安排重同步的短延迟。
+  ['snapshotWriteRetryFirstMs', 'SNAPSHOT_WRITE_RETRY_FIRST_MS', 'intervals'],
+  ['snapshotWriteRetrySecondMs', 'SNAPSHOT_WRITE_RETRY_SECOND_MS', 'intervals'],
+  ['snapshotResyncDelayMs', 'SNAPSHOT_RESYNC_DELAY_MS', 'intervals'],
   // —— 宿主出站排队段的日志节流（#1101）：等多久才记一行、同一只桶最短多久记一次 ——
   ['laneLongWaitLogMs', 'LANE_LONG_WAIT_LOG_MS', 'intervals'],
   ['laneWaitLogIntervalMs', 'LANE_WAIT_LOG_INTERVAL_MS', 'intervals'],
@@ -286,6 +294,8 @@ const KEYS: Array<[string, string, string]> = [
   // （#1893 退役）snapshotCacheMs：会话快照内存缓存随宿主内存副本一起删除，不再生成。
   // #1862：工作区快照库写者租约的有效期（心跳在 intervals 那档，这里是多久没续可以被接管）。
   ['snapshotLeaseTtlMs', 'SNAPSHOT_LEASE_TTL_MS', 'ttl'],
+  // #1934：整库重建的库外锁有效期（持锁进程按 TTL/3 续期；崩溃后最多等这么久可被清理）。
+  ['snapshotRebuildLockTtlMs', 'SNAPSHOT_REBUILD_LOCK_TTL_MS', 'ttl'],
   // #1889：写回执优先窗口——回执提交后这么久之内，读结果不得覆盖它表达过的字段组。
   ['snapshotReceiptPriorityMs', 'SNAPSHOT_RECEIPT_PRIORITY_MS', 'ttl'],
   // #1890：变化集的两个降级阈值成对使用，住同一份文件、相邻两行。行数上限不是时间，
