@@ -71,7 +71,7 @@ import {
   tryAcquireLease,
   type LeaseHeartbeat,
 } from './lease.js'
-import { detectStorageKindDetailed, describeStorageKindReason } from './storage-kind.js'
+import { detectStorageKindDetailed } from './storage-kind.js'
 import { logSnapshot, shortHash } from './log.js'
 import { defaultSnapshotDbPath, resolveSnapshotWorkspaceRoot } from './paths.js'
 
@@ -388,10 +388,22 @@ function openForWriting(
     // 吞成只读句柄会让升级/竞争现场伪装成一个永远只读的工作区，用户等多久都好不了。
     // 交给宿主：它 catch 之后回落在线路径，下一次刷新会再试一次开库。
     if (isRebuildBusyError(error)) throw error
+    // #1936 评审修复：只把「真的写不了」的错误退成只读。SQLITE_BUSY（另一个写者占着写锁）、
+    // 迁移失败、未知错误都不属于「这个环境不能写」——把它们吞成只读会把一次短暂竞争伪装成
+    // 永久只读，句柄还会被 handleOf 缓存到会话结束（旧的「只读到重启」问题会回来）。
+    if (!isReadOnlyEnvironmentError(error)) throw error
     const reader = openReadOnlyReader(dbPath)
     if (!reader) throw error
     return { db: reader, journalMode: 'readonly', fallbackError: error }
   }
+}
+
+/** 这个错误是不是「文件系统/权限真的写不了」，而不是短暂的锁竞争或迁移失败。 */
+function isReadOnlyEnvironmentError(error: unknown): boolean {
+  const code = String((error as { code?: unknown } | null | undefined)?.code || '')
+  if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') return true
+  const message = String((error as { message?: unknown } | null | undefined)?.message || error || '')
+  return /readonly|read-only|unable to open database file|attempt to write a readonly database/i.test(message)
 }
 
 /** 以只读连接打开并确认它能用；任何一步失败都回 null（调用方抛原来的错误）。 */

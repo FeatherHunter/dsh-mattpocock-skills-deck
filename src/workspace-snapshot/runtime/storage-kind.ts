@@ -14,6 +14,7 @@
 import type { SnapshotStorageKind } from '../model/types.js'
 import { SNAPSHOT_NETWORK_DRIVE_PROBE_MS } from '../../shared/time-config/src/values.js'
 import { dirname, existsSync, statfsTypeOf } from './node-builtins.js'
+import { WORKSPACE_ROOT_MAX_DEPTH } from './paths.js'
 
 // process 在这里只用两件事：读平台、取内置模块。声明写窄是为了不把 Node 的环境声明带进
 // refresh / host 的编译程序（理由与 node-builtins.ts 文件头相同）。
@@ -50,9 +51,6 @@ export const NETWORK_FILESYSTEM_MAGIC: Record<string, number> = {
   afs: 0x5346414f,
   ninep: 0x01021997,
 }
-
-/** 向上找「最近存在的父目录」的最大层数；与 paths.ts 的工作区根搜索同一上限。 */
-const MAX_ANCESTOR_DEPTH = 64
 
 /** 进程级缓存：null = 还没查过。查失败也缓存（空集合 + 说明），避免每次开库都重试一次 PowerShell。 */
 let cachedNetworkDrives: { drives: Set<string> } | null = null
@@ -110,7 +108,7 @@ function networkDrivesOfThisMachine(): Set<string> {
 /** 从给定路径向上找到第一个存在的目录或文件；都找不到回 null（调用方按本地处理）。 */
 function nearestExistingAncestor(target: string): string | null {
   let current = target
-  for (let depth = 0; depth < MAX_ANCESTOR_DEPTH; depth += 1) {
+  for (let depth = 0; depth < WORKSPACE_ROOT_MAX_DEPTH; depth += 1) {
     if (existsSync(current)) return current
     const parent = dirname(current)
     if (parent === current) return null
@@ -188,12 +186,4 @@ export function detectStorageKind(
 /** 门禁用的清缓存入口：两次断言之间换了注入的探测函数时，不共享上一次的结果。 */
 export function resetStorageKindProbeCache(): void {
   cachedNetworkDrives = null
-}
-
-/** 给 open.ts 的一行日志用：判定失败要说得出「按本地多写者处理」。 */
-export function describeStorageKindReason(reason: string): string {
-  if (reason === 'probe-failed') return '查不到本机的网络盘集合，按本地多写者处理'
-  if (reason === 'statfs-failed') return '读不到文件系统类型，按本地多写者处理'
-  if (reason === 'no-existing-ancestor') return '库文件与它的父目录都还不存在，按本地多写者处理'
-  return reason
 }

@@ -26,7 +26,7 @@
 // 门禁归属: src/refresh/rooms/host/snapshot-read-channels.ts
 // 门禁归属: src/client/views/shared/truthLines.ts
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -390,6 +390,19 @@ async function run(): Promise<void> {
       'F6 POSIX：挂载点是 NFS 时判成 network（平台与文件系统读数可注入，门禁不依赖跑在哪种主机上）')
     check(detectStorageKind('/home/me/snap.sqlite', { platform: 'linux', statfsTypeOf: () => 0xef53 }) === 'local',
       'F7 POSIX：ext4 这类本地文件系统判成 local')
+  }
+
+  // ── G 只读兜底只认「真的写不了」（#1936 评审修复） ───────────────────────────
+  // SQLITE_BUSY（另一个写者占着写锁）、迁移失败、未知错误都不是「这个环境不能写」；
+  // 把它们吞成只读会让一次短暂竞争变成整个会话的只读（句柄被 handleOf 缓存）。
+  {
+    const openSrc = readFileSync(path.join(process.cwd(), 'src/workspace-snapshot/runtime/open.ts'), 'utf8')
+    const guardAt = openSrc.indexOf('if (!isReadOnlyEnvironmentError(error)) throw error')
+    const readerAt = openSrc.indexOf('const reader = openReadOnlyReader(dbPath)')
+    check(
+      openSrc.includes('function isReadOnlyEnvironmentError(') && guardAt > 0 && readerAt > guardAt,
+      'G1 写连接失败时只把「真的写不了」的错误退成只读；SQLITE_BUSY 等短暂竞争照旧抛出',
+    )
   }
 
   // 缓存句柄（占用的那条读口）关掉再删临时目录：Windows 上还开着的库文件删不掉。

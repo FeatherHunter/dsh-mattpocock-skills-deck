@@ -33,7 +33,7 @@
 // 门禁归属: src/workspace-snapshot/runtime/ingest.ts
 // 门禁归属: src/workspace-snapshot/runtime/open.ts
 
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -434,6 +434,29 @@ function sectionB(tempRoot: string): void {
   check(
     shouldApplyRowTime(Number.NaN, 4, 'read') === false && shouldApplyRowTime(-1, 4, 'read') === false,
     'B10 纯判断：非有限数与负数都按「不知道」处理，不许拿坏值当更新',
+  )
+
+  // ---- E. 生产接线：startMergeVersion 必须在读开始前取好 ----
+  // 版本门挡的是「读开始之后、写之前」的提交；如果写的时候才读当前版本，那段时间里发生的写
+  // 都已经包含在当前版本里，门永远不会命中。这里用源码接线断言把三条读路钉住（行为已在 D 组用真库验过）。
+  const firstScreenSrc = readFileSync(path.join(process.cwd(), 'src/refresh/rooms/host/snapshot-library-first-screen.ts'), 'utf8')
+  check(
+    firstScreenSrc.includes('startMergeVersion') && firstScreenSrc.includes('replay.mergeVersion')
+      && firstScreenSrc.includes('payload.startMergeVersion = startMergeVersion'),
+    'E1 首屏：起点版本取自回放（或请求前读一次），并交给 recordIssueRows',
+  )
+  const refreshSrc = readFileSync(path.join(process.cwd(), 'src/refresh/rooms/host/session-refresh-schedule.ts'), 'utf8')
+  check(
+    refreshSrc.includes('replayVersionOf')
+      && refreshSrc.includes('persistRefreshRows(cwd, backendId, repoRef, replayVersionOf(prevScreen))')
+      && refreshSrc.includes('persistRefreshRows(cwd, backendId2, repoRef2, replayVersionOf(prevScreen2))'),
+    'E2 强制刷新：两条支路都把回放起点版本交给 recordIssueRows',
+  )
+  const commentSrc = readFileSync(path.join(process.cwd(), 'src/refresh/rooms/host/comment-thread-fetch.ts'), 'utf8')
+  check(
+    commentSrc.includes('const startMergeVersion: number | null = await libraryVersionOf(lib, libKey)')
+      && commentSrc.includes('payload.startMergeVersion = startMergeVersion'),
+    'E3 详情与评论页：发请求前读库版本，写库时带上它',
   )
 
   handle.close()

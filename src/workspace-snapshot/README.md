@@ -77,7 +77,7 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   伪装成一个正常的只读环境），而是让每一次本地写回 `legacy-writer`（ingest / writeSyncBookkeeping /
   markMissing 都回它，rebuild 直接抛一句人话），并落诊断 `legacy-writer-restart`，文案是
   「还有窗口在用旧版本写这个工作区，请重启所有窗口」。每次写之前都会重查一次租约是否已过期。
-- **不升 schema 版本**：旧代码看到比它新的 `user_version` 会整库重建（`resetForSchema`），
+- **不升 schema 版本**：旧代码看到比它新的 `user_version` 会整库重建，
   那会毁掉数据。升级保护靠旧租约检测 + 文档要求全窗口重启，不靠版本号挡。
 
 网络盘路径的写者标识用 `rw-<进程号>-<序号>` 前缀（旧代码是 `refresh-…` / `snapshot:…`），
@@ -129,8 +129,9 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   `unknown` = 明确不知道（带 reason）。
 - `complete` 可以整组覆盖或清空（值为 null / 空数组 = 确认没有）；`truncated` 只补空缺，
   不删旧值；`unknown` 与没表达都不动值。
-- 一批写入带 `startMergeVersion`。事务里发现任一被表达组的 `written_version` 大于它，
-  整批丢弃（stale），库里一个字节不改。
+- 一批写入带 `startMergeVersion`（读开始那一刻的库版本，不是写那一刻）。事务里发现某一被表达组的
+  `written_version` 大于它，**只跳过那一组**，同批其余组照写；全部组都被跳过时不推进版本。
+  整批丢弃（stale）只留给同步世代门（`sync.expectedGeneration` 对不上），那是另一件事。
 - 八个字段组各有一个主人：`row`（票骨架列）、`body`（正文，独立表）、`labels`、`assignees`、
   `parents`（父票边）、`blockedBy`（阻塞边）、`subIssues`（子票计数三列）、`mergeInfo`（合并时间）。
   子票计数与合并时间不放进 `row`：行组是「整行我都知道」的语义，详情读结果未必知道这两项，

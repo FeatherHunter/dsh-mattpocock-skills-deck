@@ -254,6 +254,8 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       if (local && local.issue && !local.issue.referenceSkeleton && isFreshDetail(local.issue)) {
         return finish({ ok: true, issue: detailOfProjection(local.issue), fromSnapshot: true })
       }
+      // #1931：详情写库要带「读开始那一刻」的库版本，不能等写的时候才读；这一读在发后端请求之前。
+      const startMergeVersion: number | null = await libraryVersionOf(lib, libKey)
       const r: any = await opened.call(function (session: any, opCtx: any) {
         if (!session || typeof session.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + opened.backendId + "' 未实现 get" } }
         // 详情也要首屏这一页评论正文（#1783：#1784 之前这里不带 comments 选项，房间只能按默认一页 20 条取，
@@ -273,7 +275,11 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       // #1864：取回来的详情按组写进库（正文、标签、父票、阻塞、子票计数、合并信息）。
       // 写库失败不影响这次回包：详情照常显示，下一趟打开再写。
       if (lib && libKey) {
-        try { await lib.recordIssueDetail(Object.assign({ issue: iss }, libKey)) } catch (eW) { /* 写库失败不影响这次详情 */ }
+        try {
+          const payload: any = Object.assign({ issue: iss }, libKey)
+          if (startMergeVersion !== null) payload.startMergeVersion = startMergeVersion
+          await lib.recordIssueDetail(payload)
+        } catch (eW) { /* 写库失败不影响这次详情 */ }
       }
       // 适配客户端期望的 issue 形状：补充 number / labels 节点等
       if (iss && iss.key != null && iss.number == null) {
@@ -403,6 +409,8 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
           if (storedPage) return finish({ ok: true, nodes: storedPage.nodes, pageInfo: storedPage.pageInfo })
         }
       }
+      // #1931：评论页写库同样带读开始那一刻的库版本（在发后端请求之前读）。
+      const startMergeVersion: number | null = await libraryVersionOf(lib, libKey)
       const r: any = await opened.call(function (session: any, opCtx: any) {
         if (!session || typeof session.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + opened.backendId + "' 未实现 get" } }
         return session.get(repoRef, key, { comments: { first: want } }, opCtx)
@@ -411,7 +419,11 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       const iss: any = r.data
       // #1865：这一页按组写进库并推进游标。写失败不影响这次回包（下一趟还会再取）。
       if (lib && libKey) {
-        try { await lib.recordIssueComments(Object.assign({ issue: iss }, libKey)) } catch (eW) { /* 写库失败不影响这次回包 */ }
+        try {
+          const payload: any = Object.assign({ issue: iss }, libKey)
+          if (startMergeVersion !== null) payload.startMergeVersion = startMergeVersion
+          await lib.recordIssueComments(payload)
+        } catch (eW) { /* 写库失败不影响这次回包 */ }
       }
       const all: any = (iss.comments || []).map(function(c: any){ return { author: c.author || { login: '' }, authorAssociation: c.authorAssociation || '', body: c.body || '', createdAt: c.createdAt || '', updatedAt: c.updatedAt || '' } })
       // 客户端拿到 nodes 后是逐条追加（src/client/kernel/api-io.ts 里的 existing.push），

@@ -227,8 +227,9 @@ export interface SyncBookkeepingResult {
 
 /**
  * 一批读结果。startMergeVersion 是调用方开始读这批数据时看到的版本（readList / getMergeVersion
- * 返回的那个）。事务里发现任一被表达组的 written_version 比它大，说明期间有别的写者先提交了，
- * 整批丢弃，避免用旧读结果覆盖新数据。
+ * 返回的那个）。事务里发现某一被表达组的 written_version 比它大，说明期间有别的写者先提交了，
+ * **只跳过那一组**，同批其余组照写（#1931）；全部组都被跳过时不推进版本。整批丢弃只留给
+ * 同步世代门（sync.expectedGeneration 对不上），那是「这一趟结果整体比库里旧」的另一件事。
  */
 export interface WriteBatch {
   startMergeVersion: number

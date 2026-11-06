@@ -184,11 +184,18 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
     if (!Array.isArray(rows) || !rows.length) return
     for (let i = 0; i < rows.length; i += 1) pendingRows.push(rows[i])
   }
+  // #1931：这一趟读开始那一刻的库版本。回放带的就是读回放时的版本；没有回放（库空/刚重建）
+  // 就在发后端请求之前读一次。commitRows 在组装之后才跑，必须用这个起点，不能用写那一刻的版本。
+  let startMergeVersion: number | null = (replay && typeof replay.mergeVersion === 'number' && Number.isInteger(replay.mergeVersion) && replay.mergeVersion >= 0)
+    ? replay.mergeVersion
+    : null
   const commitRows = async function (): Promise<unknown> {
     if (!pendingRows.length) return null
     const rows = pendingRows.splice(0, pendingRows.length)
     try {
-      return await Promise.resolve(lib!.recordIssueRows(Object.assign({ rows: rows, atomic: true }, key)))
+      const payload: any = { rows: rows, atomic: true }
+      if (startMergeVersion !== null) payload.startMergeVersion = startMergeVersion
+      return await Promise.resolve(lib!.recordIssueRows(Object.assign(payload, key)))
     } catch (e) {
       return null
     }
@@ -204,6 +211,8 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
       return null
     }
   }
+  // 没有回放时补读起点版本：这一步仍在后端请求之前（firstScreenFromLibrary 先返回，调用方才去取数）。
+  if (startMergeVersion === null) startMergeVersion = await readVersion()
   // #1887：库这一侧单读一次六个数字；门面没接这一口就回 null（老假库与不接库的世界）。
   const readCounts = async function (): Promise<SnapshotCounts | null> {
     if (typeof lib!.readSnapshotCounts !== 'function') return null

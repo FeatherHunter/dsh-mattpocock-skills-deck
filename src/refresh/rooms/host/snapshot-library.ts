@@ -40,9 +40,11 @@ import {
 import { containerProjectionOf, snapshotOfProjection } from './snapshot-library-view.js'
 import {
   clearLibraryBehind,
+  markLibraryBehind,
   readLibraryBehind as readLibraryBehindState,
   type LibraryBehindState,
 } from './snapshot-library-behind.js'
+import { ingestWithRetry } from './write-retry.js'
 
 // 句柄缓存与开关：调用方（宿主入口与门禁）从这里拿的仍是同一组名字。
 export { closeSnapshotLibraries, setSnapshotLogSink, snapshotLibraryHandleCount }
@@ -95,13 +97,16 @@ export async function recordIssueRows(input: RecordIssueRowsInput): Promise<Reco
   if (!writes.length) return { ok: true, rows: 0, mergeVersion: null }
   const handle = await handleOf(input)
   if (!handle) return { ok: false, rows: 0, mergeVersion: null, reason: 'unavailable' }
-  // 整批一个事务：读者在提交前只看得到旧库（WAL），进程被杀则整批回滚；stale 时整批重试一次。
+  // 版本门要的是「读开始那一刻」的版本，不是写这一刻的版本；没传才退回当前版本（见输入类型注释）。
+  const startVersion = typeof input.startMergeVersion === 'number' && Number.isFinite(input.startMergeVersion) && input.startMergeVersion >= 0
+    ? Math.trunc(input.startMergeVersion)
+    : handle.getMergeVersion()
+  // 整批一个事务：读者在提交前只看得到旧库（WAL），进程被杀则整批回滚。
+  // write-failed 有界重试（#1935），仍失败才置「本机库落后」并安排重同步。
   if (input.atomic === true) {
-    let atomicResult = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
-    if (!atomicResult.committed && atomicResult.reason === 'stale') {
-      atomicResult = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
-    }
+    const atomicResult = await ingestWithRetry(() => handle.ingest({ startMergeVersion: startVersion, writes }))
     if (!atomicResult.committed) {
+      if (atomicResult.reason === 'write-failed') markLibraryBehind(input, 'write-failed')
       return { ok: false, rows: 0, mergeVersion: null, reason: atomicResult.reason }
     }
     // 一整批行真的写进库了：本机库已经追上后端，落后的状态到此结束（#1935）。
@@ -112,11 +117,9 @@ export async function recordIssueRows(input: RecordIssueRowsInput): Promise<Reco
   let mergeVersion: number | null = null
   for (let offset = 0; offset < writes.length; offset += SNAPSHOT_WRITE_CHUNK) {
     const chunk = writes.slice(offset, offset + SNAPSHOT_WRITE_CHUNK)
-    let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes: chunk })
-    if (!result.committed && result.reason === 'stale') {
-      result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes: chunk })
-    }
+    const result = await ingestWithRetry(() => handle.ingest({ startMergeVersion: startVersion, writes: chunk }))
     if (!result.committed) {
+      if (result.reason === 'write-failed') markLibraryBehind(input, 'write-failed')
       return { ok: false, rows: written, mergeVersion, reason: result.reason }
     }
     written += chunk.length
@@ -154,6 +157,15 @@ function oldestRowAtMsOf(projection: ListProjection): number {
 
 export interface RecordIssueRowsInput extends SnapshotLibraryKey {
   rows: Issue[]
+  /**
+   * 这一趟读结果开始时库的合并版本（#1931 规格：整份刷新带 startMergeVersion）。
+   *
+   * 为什么必须由调用方在「发后端请求之前」读好再传进来：版本门要挡的是「读开始之后、写之前
+   * 别人提交过」的那一段。如果在写的时候才读当前版本，那段时间里发生的写都已经包含在当前版本里，
+   * 门永远不会命中——整批刷新会安静地盖掉另一个窗口刚写的标签、正文与边。
+   * 缺省时退回「写这一刻的版本」，只适合没有并发写者的测试与内部调用。
+   */
+  startMergeVersion?: number
   /**
    * true = 整批只开一个事务（刷新/首屏整轮写入用）；缺省按 200 条分批（写回执等增量用）。
    * 为什么要有这个开关：整轮刷新被杀时，库里要么是上一轮完整数据、要么是这一轮完整数据；
@@ -297,6 +309,8 @@ export async function readSnapshotReplay(input: SnapshotReplayInput): Promise<Sn
 
 export interface RecordIssueDetailInput extends SnapshotLibraryKey {
   issue: Issue
+  /** 同 RecordIssueRowsInput.startMergeVersion：读开始时的库版本，由调用方在发请求之前读好。 */
+  startMergeVersion?: number
 }
 
 export interface RecordIssueDetailResult {
@@ -324,11 +338,14 @@ export async function recordIssueDetail(input: RecordIssueDetailInput): Promise<
   const handle = await handleOf(input)
   if (!handle) return { ok: false, mergeVersion: null, reason: 'unavailable' }
   const writes: IssueWrite[] = [detailIssueWriteOf(input.issue, input.backend)]
-  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
-  if (!result.committed && result.reason === 'stale') {
-    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+  const startVersion = typeof input.startMergeVersion === 'number' && Number.isFinite(input.startMergeVersion) && input.startMergeVersion >= 0
+    ? Math.trunc(input.startMergeVersion)
+    : handle.getMergeVersion()
+  const result = await ingestWithRetry(() => handle.ingest({ startMergeVersion: startVersion, writes }))
+  if (!result.committed) {
+    if (result.reason === 'write-failed') markLibraryBehind(input, 'write-failed')
+    return { ok: false, mergeVersion: null, reason: result.reason }
   }
-  if (!result.committed) return { ok: false, mergeVersion: null, reason: result.reason }
   // 详情也是「这一张票当前的真状态」：写成功说明库是通的，落后状态该清掉（#1935）。
   clearLibraryBehind(input)
   return { ok: true, mergeVersion: result.mergeVersion }
@@ -397,10 +414,13 @@ export async function recordIssueComments(input: RecordIssueDetailInput): Promis
   if (!writes[0] || Object.keys(writes[0].groups).length === 0) return { ok: true, mergeVersion: null }
   const handle = await handleOf(input)
   if (!handle) return { ok: false, mergeVersion: null, reason: 'unavailable' }
-  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
-  if (!result.committed && result.reason === 'stale') {
-    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+  const startVersion = typeof input.startMergeVersion === 'number' && Number.isFinite(input.startMergeVersion) && input.startMergeVersion >= 0
+    ? Math.trunc(input.startMergeVersion)
+    : handle.getMergeVersion()
+  const result = await ingestWithRetry(() => handle.ingest({ startMergeVersion: startVersion, writes }))
+  if (!result.committed) {
+    if (result.reason === 'write-failed') markLibraryBehind(input, 'write-failed')
+    return { ok: false, mergeVersion: null, reason: result.reason }
   }
-  if (!result.committed) return { ok: false, mergeVersion: null, reason: result.reason }
   return { ok: true, mergeVersion: result.mergeVersion }
 }
