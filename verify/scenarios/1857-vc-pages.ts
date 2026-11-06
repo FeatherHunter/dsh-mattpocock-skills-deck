@@ -51,6 +51,10 @@ const PAGES = [
   // #1848 收口走查的其余四页：管理索引（齿轮那屏）与三张分区页。这几页的区块写法由各自的切片票
   // 定过，收口这一轮只验「四档宽两皮肤下首屏还在、不横向溢出、页尾没有能力清单」。
   { id: 'manage', kind: 'gear-index', title: '管理', sections: [] },
+  // 四个一级页签也走同一套四档宽两皮肤读数（#1904 / #1905 的工作区页与储藏页就在这里）。
+  { id: 'changes', kind: 'tab', title: '改动', sections: [] },
+  { id: 'worktrees', kind: 'tab', title: '工作区', sections: [] },
+  { id: 'stash', kind: 'tab', title: '储藏', sections: [] },
   { id: 'remote', kind: 'gear', title: '远端与同步', sections: [] },
   { id: 'config', kind: 'gear', title: '配置', sections: [] },
   { id: 'hooks', kind: 'gear', title: '钩子', sections: [] },
@@ -368,6 +372,15 @@ async function waitForSelector(raw: RawBrowserPage, selector: string, budgetMs: 
 async function goToPage(page: PageHandle, raw: RawBrowserPage, spec: { id: string; kind: string }): Promise<{ ok: boolean; detail: string }> {
   const current = await readState(page)
   if (current !== null && current.bodyPage === spec.id) return { ok: true, detail: 'already-there' }
+  if (spec.kind === 'tab') {
+    const tabSel = '[data-vc-tab="' + spec.id + '"]'
+    let clicked = await realClick(raw, tabSel)
+    if (!clicked.ok) clicked = await forceClick(raw, tabSel)
+    if (!clicked.ok) return { ok: false, detail: '点页签失败：' + String(clicked.problem) }
+    const landed = await waitForBodyPage(page, spec.id, 12000)
+    if (landed !== null) return { ok: true, detail: 'navigated' }
+    return { ok: false, detail: '没有落到 ' + spec.id }
+  }
   if (spec.kind === 'gear-index') {
     // 管理索引就是齿轮按下去的那一屏，没有卡片要点。
     let opened = await realClick(raw, GEAR_BTN)
