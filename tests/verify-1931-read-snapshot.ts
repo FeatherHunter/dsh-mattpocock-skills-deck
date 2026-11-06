@@ -447,9 +447,9 @@ function sectionB(tempRoot: string): void {
   )
   const refreshSrc = readFileSync(path.join(process.cwd(), 'src/refresh/rooms/host/session-refresh-schedule.ts'), 'utf8')
   check(
-    refreshSrc.includes('replayVersionOf')
-      && refreshSrc.includes('persistRefreshRows(cwd, backendId, repoRef, replayVersionOf(prevScreen))')
-      && refreshSrc.includes('persistRefreshRows(cwd, backendId2, repoRef2, replayVersionOf(prevScreen2))'),
+    refreshSrc.includes('prevScreen && prevScreen.replay ? prevScreen.replay.mergeVersion : undefined')
+      && refreshSrc.includes('persistRefreshRows(cwd, backendId, repoRef, prevScreen && prevScreen.replay')
+      && refreshSrc.includes('persistRefreshRows(cwd, backendId2, repoRef2, prevScreen2 && prevScreen2.replay'),
     'E2 强制刷新：两条支路都把回放起点版本交给 recordIssueRows',
   )
   const commentSrc = readFileSync(path.join(process.cwd(), 'src/refresh/rooms/host/comment-thread-fetch.ts'), 'utf8')

@@ -143,11 +143,6 @@ export function createSessionRefresh(deps: RefreshDeps) {
       // 所以条数在收集时单独记，不靠数组长度后算。
       let refreshRowCount = 0
       const collectRows = function (rows: unknown): void { if (Array.isArray(rows)) { refreshRowCount += rows.length; for (let i = 0; i < rows.length; i += 1) refreshRows.push(rows[i]) } }
-      /** 从上一屏回放里取「这一趟读开始那一刻」的库版本；没有回放或版本不合法就返回 undefined。 */
-      const replayVersionOf = function (screen: any): number | undefined {
-        const version = screen && screen.replay && screen.replay.mergeVersion
-        return (typeof version === 'number' && Number.isInteger(version) && version >= 0) ? version : undefined
-      }
       const persistRefreshRows = async function (persistCwd: string, persistBackend: string, persistRepo: RepoRef, startMergeVersion?: number): Promise<void> {
         if (!refreshRows.length || typeof getSnapshotLibrary !== 'function') return
         const rows = refreshRows.splice(0, refreshRows.length)
@@ -220,7 +215,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (prevScreen && prevScreen.replay) ? prevScreen.replay.snapshot : null, onRows: collectRows })
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
           // 先提交库，再把新快照交给界面：写库失败就整趟刷新失败，不能让界面显示一份重启后会消失的数据。
-          await persistRefreshRows(cwd, backendId, repoRef, replayVersionOf(prevScreen))
+          await persistRefreshRows(cwd, backendId, repoRef, prevScreen && prevScreen.replay ? prevScreen.replay.mergeVersion : undefined)
           // #1887：行写进库之后再读六个数字并挂到 deck 上（读不到就原样返回，不补 0）。
           const inner: Inner = await withLibraryCounts(upcaseSnapStates(res.snapshot), prevScreen)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
@@ -395,7 +390,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
         const prevScreen2 = await previousScreenOf(backendId2, repoRef2)
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (prevScreen2 && prevScreen2.replay) ? prevScreen2.replay.snapshot : null, onRows: collectRows })
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
-        await persistRefreshRows(cwd, backendId2, repoRef2, replayVersionOf(prevScreen2))
+        await persistRefreshRows(cwd, backendId2, repoRef2, prevScreen2 && prevScreen2.replay ? prevScreen2.replay.mergeVersion : undefined)
         // #1887：与主支路同一口径：写库之后读一次六个数字并挂到 deck 上。
         const inner2: Inner = await withLibraryCounts(upcaseSnapStates(res2.snapshot), prevScreen2)
         ;(inner2.maps || []).forEach(function(m){ 
