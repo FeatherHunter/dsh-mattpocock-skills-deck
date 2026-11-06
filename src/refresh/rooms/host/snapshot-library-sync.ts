@@ -20,6 +20,7 @@ import type {
 import { indexFromSnapshot } from '../../kernel/index-window-rules.js'
 import { changeIssueWriteOf } from './snapshot-library-adapter.js'
 import { handleOf, type SnapshotLibraryKey } from './snapshot-library-handles.js'
+import { clearLibraryBehind } from './snapshot-library-behind.js'
 import { snapshotOfProjection } from './snapshot-library-view.js'
 
 /** 读簿记时顺带交回的合并版本：行级增量发起时要拿它当 startMergeVersion。 */
@@ -133,6 +134,9 @@ export async function commitChangeRows(input: ChangeRowsInput): Promise<ChangeRo
     return { ok: false, rows: 0, mergeVersion: null, reason: 'ingest-threw' }
   }
   if (!result.committed) return { ok: false, rows: 0, mergeVersion: null, reason: result.reason || 'write-failed' }
+  // 变化行真的落库了（#1935）：写回执失败后的那次重同步走的就是这条路，行补进来即算追上。
+  // 只写簿记、一行没写的探测不清状态：它没有补回任何数据，不能替「落后」作保。
+  if (writes.length > 0) clearLibraryBehind(input)
   return {
     ok: true,
     rows: writes.length,

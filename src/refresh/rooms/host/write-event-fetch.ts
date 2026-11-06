@@ -141,6 +141,22 @@ export function createWriteEventFetch(deps: WriteEventFetchDeps): any {
   }
 
   /**
+   * #1935：按工作区目录直接补一次探测，给「写回执失败后的重同步」用。
+   *
+   * 与 fetch 的区别只有一处：调用方手里是目录，不是短散列。所以这里先自己登记一次
+   * 「散列 → 目录」的映射，再走完全相同的 fetch —— 不登记的话 fetch 找不到根，会按
+   * write-no-root 直接返回，看起来「重同步了」其实一次取数都没发。
+   */
+  async function resync(cwd: any): Promise<void> {
+    const key: string = await canonicalOf(cwd)
+    if (!key) return
+    let keyHash: string = ''
+    try { keyHash = hash8(key) } catch (eH: any) { return }
+    rootByHash[keyHash] = key
+    await fetch({ action: 'probe-now', ticket: null }, { source: 'receipt-resync', kind: 'probe', workspaceKey: keyHash, cycle: 'resync' })
+  }
+
+  /**
    * 探针进来先问这一句：有刚补好的补丁就交出去，没有就回 null 让探针照旧走窗口探测。
    * 只交一次（取走即删），过期的直接丢掉——同一份补丁被重放会让客户端反复回到旧版本。
    * at 一起交出去：探针拿它当回包的 since（补丁覆盖到哪一刻），不能拿「此刻」冒充。
@@ -155,5 +171,5 @@ export function createWriteEventFetch(deps: WriteEventFetchDeps): any {
     return { mode: 'patch', rows: p.rows, version: p.version, queries: p.queries, partial: p.partial, at: p.at }
   }
 
-  return { fetch: fetch, remember: remember, forget: forget, takeWritePatch: takeWritePatch }
+  return { fetch: fetch, resync: resync, remember: remember, forget: forget, takeWritePatch: takeWritePatch }
 }

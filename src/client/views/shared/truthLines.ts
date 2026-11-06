@@ -307,6 +307,11 @@ export const truthNoticeLines = function (st: any, nowMs: any) {
     const key = diagKeyOf(snapshotDiags[i] && snapshotDiags[i].code)
     if (key) { push({ key: key, params: {}, tone: 'yellow', kind: 'snapshot' }); break }
   }
+  // 七、本机快照库落后（#1935）：刚才那一笔写已经在后端成了，写回执却没能落进本机库（两档重试也没成）。
+  //   这句话只说「本机数据落后、正在重新同步」——用户要理解的是「我刚改的东西面板还没跟上」。
+  //   反例：不要把 write-failed / 写锁 / 租约这些内部词写进这一行；它们是设置页诊断与日志里的东西。
+  //   恢复判据只有一个：任何一次写进库的成功都会清掉这个标记（见 snapshot-library-behind.ts）。
+  if (snap.libraryBehind === true) push({ key: 'truth.libraryBehind', params: {}, tone: 'yellow', kind: 'behind' })
   // #1833：额度读数不再并进列表这一行 —— 它改由通知中心「当前状态」区的「额度」行表达
   //   （budgetTierViewOf 给档位，展开看原始数字）。列表这一行只说数据为什么旧。
   return lines

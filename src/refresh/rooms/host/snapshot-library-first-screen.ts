@@ -18,6 +18,7 @@
 import type { RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { SnapshotCounts, SnapshotDiagnostic } from '../../../workspace-snapshot/contract/types.js'
 import { hasRebuildDiagnostic, SNAPSHOT_DEGRADE } from './snapshot-degradation.js'
+import { readLibraryBehind } from './snapshot-library-behind.js'
 
 /** 库门面里这一层真正用到的两件：读回放、按批写行。 */
 export interface FirstScreenLibrary {
@@ -222,6 +223,14 @@ export async function firstScreenFromLibrary(options: FirstScreenOptions): Promi
     diagnostics: diagnostics,
     decorate: function (snap: any): void {
       if (diagnostics.length) snap.snapshotDiagnostics = diagnostics
+      // #1935：本机库落后时把标记挂到回包上。两种后端走的都是这一个 decorate，不再另开第二处；
+      // 只在真落后时挂 true —— 缺省即「没落后」，界面按真假判断，不需要一个 false 字段撑形状。
+      // reason 只给诊断与日志，界面那条用户级提示不读它（内部失败词不上界面）。
+      const behind = readLibraryBehind(key)
+      if (behind.behind) {
+        snap.libraryBehind = true
+        snap.libraryBehindReason = behind.reason
+      }
       if (!replay) return
       snap.fromCache = true
       snap.diskReplay = { schema: 'snapshot-sqlite-v1', source: 'sqlite', lastKnownAtMs: replay.lastKnownAtMs }

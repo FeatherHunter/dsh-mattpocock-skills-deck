@@ -19,10 +19,29 @@ import type {
 
 declare const process: { pid: number } | undefined
 
+/** 开库实现的形状：门禁塞假句柄时也要满足它。 */
+type SnapshotOpener = (options: OpenWorkspaceSnapshotOptions) => Promise<{ handle: WorkspaceSnapshotHandle }>
+
 /** 快照树只暴露契约；开库这一句是本目录唯一一处动态 import 契约实现的地方。 */
-async function openSnapshot(options: OpenWorkspaceSnapshotOptions): Promise<{ handle: WorkspaceSnapshotHandle }> {
+async function defaultSnapshotOpener(options: OpenWorkspaceSnapshotOptions): Promise<{ handle: WorkspaceSnapshotHandle }> {
   const mod = await import('../../../workspace-snapshot/contract/index.js')
   return mod.openWorkspaceSnapshot(options)
+}
+
+/**
+ * 当前的开库实现。生产永远是 defaultSnapshotOpener，只有门禁会换掉它去塞一个假句柄。
+ * 为什么留这个口：要验「写回执失败 → 重试 → 置落后态」这条链路，得让 ingest 按门禁的剧本回
+ * write-failed；真库上造一次事务失败要么靠权限、要么靠并发，既慢又不稳定。
+ */
+let openSnapshot: SnapshotOpener = defaultSnapshotOpener
+
+/**
+ * 门禁专用：换掉开库实现（传 null 还原）。换的时候顺手清空已缓存的句柄，避免上一个用例开出来的
+ * 真句柄继续被命中、假句柄根本没生效。生产代码不调用。
+ */
+export function setSnapshotLibraryOpenerForTest(opener: SnapshotOpener | null): void {
+  openSnapshot = (typeof opener === 'function') ? opener : defaultSnapshotOpener
+  closeSnapshotLibraries()
 }
 
 /** 同一工作区最多同时留几个库句柄；工作区一般只有一个，留 4 是给多仓库/多后端切换。 */
@@ -52,7 +71,11 @@ export function setSnapshotLogSink(sink: SnapshotLogSink | null): void {
   logSink = sink
 }
 
-function cacheKeyOf(input: SnapshotLibraryKey): string {
+/**
+ * 库身份三格 → 缓存键。导出给 snapshot-library-behind.ts 用：落后状态必须与句柄缓存认同一把钥匙，
+ * 两边各拼一份迟早会漂成「句柄说这个库、状态记那个库」。
+ */
+export function cacheKeyOf(input: SnapshotLibraryKey): string {
   return [input.workspaceRoot, input.backend, input.repoIdentity].join('\u0000')
 }
 

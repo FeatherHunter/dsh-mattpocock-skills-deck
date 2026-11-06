@@ -52,6 +52,7 @@ import { hostTimers } from '../../contract/host-timer-ports.js' // #758 剩余�
 // #1472 起住 ./patch-wiring.js（本文件贴着 350 有效行上限，新增接线不能再往这里堆），写事件取数那一格住 ./write-event-fetch.js。
 import { createPatchWiring } from './patch-wiring.js'
 import { createWriteEventFetch } from './write-event-fetch.js'
+import { installResyncWiring } from './snapshot-resync.js' // #1935：写回执失败后的重同步接在写事件取数那一格上（延迟与转交住该文件，本文件贴行数上限）
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、九个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../contract/workspace-keys.js'
@@ -287,6 +288,9 @@ export function createRefreshWiring(deps: any): any {
     return writeFetch
   }
   async function fetchForWriteEvent(step: any, meta: any): Promise<any> { return writeFetchOf().fetch(step, meta) }
+  // #1935：写回执最终失败后，隔 2 秒（snapshotResyncDelayMs）从这里补一次探测；走的就是上面这条
+  // 既有的写事件取数路（先 remember 再 fetch），不新造第二条取数路。
+  installResyncWiring(writeFetchOf)
 
   // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.ts 文件头）；只负责取数，不再喂工作路线（#1262 起写入口只在工具壳）。
   // #746：命名摘要编排单例（ctx 与 getNaming 由宿主入口经 deps 给；任一缺失则钩子静默降级）。

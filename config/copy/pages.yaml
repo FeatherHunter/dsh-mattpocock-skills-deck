@@ -39,6 +39,8 @@ zh:
   truth.snapshotCorrupt: 本地快照已损坏，已整库重建；本机旧快照数据已清掉
   truth.snapshotIdentity: 仓库身份变了，本地快照已重建
   truth.snapshotSchema: 本地快照结构版本变了，已重建
+  # #1935：写回执没落进本机库时那句用户级状态。只说「本机数据落后、正在重新同步」，不写失败原因与内部状态词。
+  truth.libraryBehind: 本机数据落后，正在重新同步
   truth.lag: 数据可能落后 {min} 分钟
   truth.writing: 更新中
   truth.budgetGraphql: GraphQL 剩 {remaining}/{limit}
@@ -128,6 +130,7 @@ en:
   truth.snapshotCorrupt: "Local snapshot was corrupt and has been rebuilt from scratch; the old local snapshot data is gone"
   truth.snapshotIdentity: The repository identity changed, so the local snapshot was rebuilt
   truth.snapshotSchema: The local snapshot schema changed, so it was rebuilt
+  truth.libraryBehind: Local data is behind; resyncing
   truth.lag: Data may lag up to {min} min
   truth.writing: Updating
   truth.budgetGraphql: "GraphQL {remaining}/{limit} left"

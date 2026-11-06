@@ -4,7 +4,8 @@
  * 职责（别把它做成第二个编排器）：
  *  1. recordIssueRows：把列表电话拿到的 tracker 票按组、分批写进库。失败只回结果，不抛。
  *  2. readSnapshotReplay：把库里的列表投影装回界面要的快照主体（容器树 + 子票 + 瘦身行）。
- *  3. 详情、评论页、写回执与评论回执各自的读/写口。
+ *  3. 详情与评论页的读/写口。写回执与评论回执搬到了 snapshot-library-receipts.ts（#1935），
+ *     本文件原样转出，调用方不用改。
  *
  * #1888 起句柄缓存与同步簿记读写各自搬到同目录的 snapshot-library-handles.ts 与
  * snapshot-library-sync.ts（本文件贴着 350 有效行上限）；四个新口在这里原样转出，
@@ -14,35 +15,34 @@
  * 200 条一批是经验值——一轮列表最多几十批，每批都在毫秒级。
  */
 /// <reference path="../../../workspace-snapshot/node-ambient.d.ts" />
-import type { Comment, Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
+import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
 import type {
   ContainerProjection,
-  GroupCompleteness,
   IssueDetailProjection,
   IssueWrite,
   ListProjection,
   SnapshotCounts,
   SnapshotDiagnostic,
-  WorkspaceSnapshotHandle,
 } from '../../../workspace-snapshot/contract/types.js'
 import {
-  RECEIPT_SOURCE,
   commentPageWriteOf,
-  commentReceiptValueOf,
   detailIssueWriteOf,
   issueWritesOf,
-  receiptIssueWriteOf,
 } from './snapshot-library-adapter.js'
 import {
   closeSnapshotLibraries,
   handleOf,
   setSnapshotLogSink,
   snapshotLibraryHandleCount,
-  supportedBackend,
   type SnapshotLibraryKey,
   type SnapshotLogSink,
 } from './snapshot-library-handles.js'
 import { containerProjectionOf, snapshotOfProjection } from './snapshot-library-view.js'
+import {
+  clearLibraryBehind,
+  readLibraryBehind as readLibraryBehindState,
+  type LibraryBehindState,
+} from './snapshot-library-behind.js'
 
 // 句柄缓存与开关：调用方（宿主入口与门禁）从这里拿的仍是同一组名字。
 export { closeSnapshotLibraries, setSnapshotLogSink, snapshotLibraryHandleCount }
@@ -58,6 +58,10 @@ export type { ChangeRowsInput, ChangeRowsResult, LibrarySyncState } from './snap
 // 版本查询与变化集两条新读口（#1890）：实现住在同目录的 read 模块，调用方仍只认这一个门面。
 export { readLibraryVersion, readLibraryChangeSet, readLibraryStorageStats } from './snapshot-library-read.js'
 export type { LibraryChangeSetInput, LibraryStorageStats } from './snapshot-library-read.js'
+// #1935：两个回执写口搬到同目录的 snapshot-library-receipts.ts（本文件贴着 350 有效行上限）。
+// 有界重试与「本机库落后」的约定住那个文件；调用方仍然只认这一个门面。
+export { recordCommentReceipt, recordWriteReceipt } from './snapshot-library-receipts.js'
+export type { CommentReceiptInput, CommentReceiptResult, WriteReceiptInput, WriteReceiptResult } from './snapshot-library-receipts.js'
 
 /** 一批写多少张票；见文件头。 */
 export const SNAPSHOT_WRITE_CHUNK = 200
@@ -100,6 +104,8 @@ export async function recordIssueRows(input: RecordIssueRowsInput): Promise<Reco
     if (!atomicResult.committed) {
       return { ok: false, rows: 0, mergeVersion: null, reason: atomicResult.reason }
     }
+    // 一整批行真的写进库了：本机库已经追上后端，落后的状态到此结束（#1935）。
+    clearLibraryBehind(input)
     return { ok: true, rows: writes.length, mergeVersion: atomicResult.mergeVersion }
   }
   let written = 0
@@ -116,6 +122,8 @@ export async function recordIssueRows(input: RecordIssueRowsInput): Promise<Reco
     written += chunk.length
     mergeVersion = result.mergeVersion
   }
+  // 分批全部提交成功：与整批一个事务同一口径，清掉「本机库落后」。
+  clearLibraryBehind(input)
   return { ok: true, rows: written, mergeVersion }
 }
 
@@ -231,6 +239,18 @@ export async function readSnapshotLibraryHealth(input: SnapshotLibraryKey): Prom
 }
 
 /**
+ * 「本机库落后」读口（#1935）：写回执最终失败后置位，任何一次写进库的成功会清掉它。
+ *
+ * 为什么门面要转一手而不是让调用方直接 import 状态模块：首屏与诊断只认这一个库门面，
+ * 状态模块是它的实现细节；门禁要替换库门面时也只需要换这一个口。
+ */
+export function readLibraryBehind(input: SnapshotLibraryKey): LibraryBehindState {
+  return readLibraryBehindState(input)
+}
+
+export type { LibraryBehindState }
+
+/**
  * 库这一刻的六个数字 + 完整度（#1887）。库开不出来或读失败回 null —— 调用方按「不知道」处理。
  *
  * 与 readSnapshotReplay 里的 counts 是同一个查询：回放那条路把它随快照一起交回去，
@@ -309,6 +329,8 @@ export async function recordIssueDetail(input: RecordIssueDetailInput): Promise<
     result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
   }
   if (!result.committed) return { ok: false, mergeVersion: null, reason: result.reason }
+  // 详情也是「这一张票当前的真状态」：写成功说明库是通的，落后状态该清掉（#1935）。
+  clearLibraryBehind(input)
   return { ok: true, mergeVersion: result.mergeVersion }
 }
 
@@ -381,149 +403,4 @@ export async function recordIssueComments(input: RecordIssueDetailInput): Promis
   }
   if (!result.committed) return { ok: false, mergeVersion: null, reason: result.reason }
   return { ok: true, mergeVersion: result.mergeVersion }
-}
-
-export interface WriteReceiptInput extends SnapshotLibraryKey {
-  /** 写完之后 tracker 交回来的那张票（可能不止一张：一次调用可以改到几张）。 */
-  issues: Issue[]
-  /** 是哪条写操作交回来的：close / reopen / update / setLabels … 只进日志与组记录，不参与判断。 */
-  operation: string
-}
-
-export interface WriteReceiptResult {
-  ok: boolean
-  /** true = 库这会儿开不出来，这次没写进库；调用方按老路继续（这是明示的降级，不是写成功）。 */
-  degraded?: boolean
-  /** 真正提交进库的票数。 */
-  rows: number
-  mergeVersion: number | null
-  reason?: string
-}
-
-export interface CommentReceiptInput extends SnapshotLibraryKey {
-  /** 这张票在库里可能用的键（本地 Markdown 补零、GitHub 不补零，两种都试）。 */
-  keys: string[]
-  effortId?: string
-  /** 写完之后 tracker 交回来的那一条评论。 */
-  comment: Comment
-}
-
-export interface CommentReceiptResult {
-  ok: boolean
-  degraded?: boolean
-  mergeVersion: number | null
-  /** 这一条最后落在评论组的第几位（0 起）；库没写成时是 null。 */
-  position: number | null
-  reason?: string
-}
-
-/** 库的身份没给对：这不是「库不可用」，是调用方传错了，如实回失败。 */
-function keyProblemOf(input: SnapshotLibraryKey): string | null {
-  if (!input || typeof input.workspaceRoot !== 'string' || !input.workspaceRoot) return 'no-workspace'
-  if (!supportedBackend(String(input.backend || ''))) return 'unsupported-backend'
-  return null
-}
-
-/**
- * 把一批写回执写进库（#1866）：改状态、改标签、改标题之后，tracker 交回来的那张票按组并进库。
- *
- * 为什么与列表写入同一套换算：回执表达的组就是「行 + 标签 + 指派 + 父子 + 阻塞」这几样，
- * 换算规则只该有一份（见 snapshot-library-adapter.ts 的 receiptIssueWriteOf）。
- * 一批一个事务：其中一张票写不进去，整批都不提交，不会留下半批。
- *
- * 三种结局：
- *   { ok:true }                 提交成功，界面这时候才该更新；
- *   { ok:true, degraded:true }  库开不出来（没有工作区根、打不开文件），这次没写，按老路继续；
- *   { ok:false, reason }        调用方给的参数不对，或者事务被版本门挡下 / 写失败，库一个字节没改。
- */
-export async function recordWriteReceipt(input: WriteReceiptInput): Promise<WriteReceiptResult> {
-  const problem = keyProblemOf(input)
-  if (problem) return { ok: false, rows: 0, mergeVersion: null, reason: problem }
-  const operation = String(input.operation || 'write')
-  const writes: IssueWrite[] = (Array.isArray(input.issues) ? input.issues : [])
-    .filter((issue) => !!issue && issue.key != null)
-    .map((issue) => receiptIssueWriteOf(issue, operation, input.backend))
-  if (!writes.length) return { ok: true, rows: 0, mergeVersion: null }
-  const handle = await handleOf(input)
-  if (!handle) return { ok: true, degraded: true, rows: 0, mergeVersion: null, reason: 'library-unavailable' }
-  // kind:'receipt'（#1889）：这一批是「写完之后 tracker 交回来的那张票」，它自己就是刚写完的真状态。
-  // 库据此给每一组盖回执时刻，并在随后一个短窗口内挡住迟到的读结果；回执本身不受窗口约束。
-  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes })
-  // 与读结果写入同一口径：stale 说明期间有别的写者先提交了，重读版本再写一次；两次都不成才放弃。
-  if (!result.committed && result.reason === 'stale') {
-    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes })
-  }
-  if (!result.committed) return { ok: false, rows: 0, mergeVersion: null, reason: result.reason }
-  return { ok: true, rows: writes.length, mergeVersion: result.mergeVersion }
-}
-
-/**
- * 把一条评论写回执写进库（#1866）：发评论成功后，把这一条追加进评论组，一个事务。
- *
- * 位置与完整度怎么定：
- *  - 库里这张票的行组记着票面总数时，新评论的位置就是那个数（它是这条新评论的下标）；
- *    不知道总数时交给库里落到已有条数后面。
- *  - 原来评论组是 complete（我们确实知道这张票的全部评论），加一条之后仍然 complete；
- *    只有一部分或从没取过时写成 truncated —— 中间那几条我们没取过，不许说成知道。
- *
- * 票号两种写法都试：本地 Markdown 存的是补零的键（01），GitHub 是不补零的（1）。写错键会让库里
- * 多出一张只有身份的骨架票，评论挂在那张骨架下面，详情页永远看不到。
- */
-export async function recordCommentReceipt(input: CommentReceiptInput): Promise<CommentReceiptResult> {
-  const problem = keyProblemOf(input)
-  if (problem) return { ok: false, mergeVersion: null, position: null, reason: problem }
-  const keys: string[] = (Array.isArray(input.keys) ? input.keys : [])
-    .map((key) => String(key || ''))
-    .filter((key) => key !== '')
-  if (!keys.length) return { ok: false, mergeVersion: null, position: null, reason: 'no-keys' }
-  const comment = input.comment
-  if (!comment || typeof comment.body !== 'string') {
-    return { ok: false, mergeVersion: null, position: null, reason: 'no-comment' }
-  }
-  const handle = await handleOf(input)
-  if (!handle) return { ok: true, degraded: true, mergeVersion: null, position: null, reason: 'library-unavailable' }
-  // 闭包里再读一次句柄时编译器收窄不过去（它可能在中途被换掉），这里先固定成一份可用的句柄。
-  const db: WorkspaceSnapshotHandle = handle
-  const effortId = String(input.effortId || '')
-
-  /** 读一次库里那张票，据此算这条评论该落在第几位、写完还算不算完整。 */
-  function planOf(): { key: string, write: IssueWrite, fallbackPosition: number | null } {
-    let found: IssueDetailProjection | null = null
-    let key = keys[0]
-    for (const candidate of keys) {
-      const projection = db.readIssueDetail({ key: candidate, effortId })
-      if (projection && projection.issue) { found = projection; key = candidate; break }
-    }
-    const issue = found ? found.issue : null
-    const group = issue ? issue.groups.comments : null
-    const completeness: GroupCompleteness = (group && group.completeness === 'complete') ? 'complete' : 'truncated'
-    const count = issue && typeof issue.row.commentCount === 'number' && Number.isFinite(issue.row.commentCount)
-      ? Math.floor(issue.row.commentCount)
-      : null
-    const write: IssueWrite = {
-      effortId,
-      key,
-      groups: {
-        commentReceipt: {
-          comment: commentReceiptValueOf(comment),
-          position: count,
-          completeness,
-          source: RECEIPT_SOURCE,
-          operation: 'comment',
-        },
-      },
-    }
-    return { key, write, fallbackPosition: count }
-  }
-
-  let planned = planOf()
-  // kind:'receipt'（#1889）：刚发出去的那一条是真状态，评论组在随后一个短窗口内不被读结果覆盖。
-  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes: [planned.write] })
-  if (!result.committed && result.reason === 'stale') {
-    planned = planOf()
-    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), kind: 'receipt', writes: [planned.write] })
-  }
-  if (!result.committed) return { ok: false, mergeVersion: null, position: null, reason: result.reason }
-  const applied = Array.isArray(result.commentPositions) && result.commentPositions.length ? result.commentPositions[0] : planned.fallbackPosition
-  return { ok: true, mergeVersion: result.mergeVersion, position: applied }
 }
