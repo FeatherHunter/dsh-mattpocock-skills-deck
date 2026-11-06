@@ -718,12 +718,25 @@ async function captureActions(page: PageHandle, raw: RawBrowserPage, spec: any, 
         }
       }
       await sleep(3000)
+      // 页面上的读数之外，直接问一次 git：新分支是不是成了当前分支、文件有没有回到工作区、记录还在不在。
+      let gitAfter: Record<string, unknown> = {}
+      try {
+        const run = function (args: string[]): string { return execFileSync('git', args, { cwd: FIXTURE_DIR, encoding: 'utf8' }).trim() }
+        gitAfter = {
+          branch: run(['branch', '--show-current']),
+          stashes: run(['stash', 'list']).split('\n').filter(function (line) { return line.length > 0 }).length,
+          status: run(['status', '--porcelain']).slice(0, 200),
+        }
+      } catch (error) {
+        gitAfter = { problem: messageOf(error) }
+      }
       facts['stashBranch:' + spec.id + ':' + skin.id + ':' + width] = {
         formOpen: formOpen,
         prefilled: prefilled,
         text: await textOf(page, '[data-vc-stash-result] .result-text'),
         before: before,
         after: await rowCount(),
+        git: gitAfter,
       }
     }
     if (await softClick(raw, '[data-vc-stash-clear]')) {
