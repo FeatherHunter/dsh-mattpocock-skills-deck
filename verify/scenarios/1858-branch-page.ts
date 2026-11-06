@@ -601,15 +601,27 @@ async function ensureSkin(page: PageHandle, raw: RawBrowserPage, skin: Skin): Pr
   const before = await measureUi(page)
   facts.skinBefore = before.ok ? before.value.attrSkin : null
   if (current === desiredDark) {
+    // 皮肤本来就对：壳根属性也对就直接用，不重挂。重挂一次反而会丢掉壳根的 data-vc-skin
+    //   （实测 380 / 460 两档在「列表页签 → 版本管理页签」这一趟之后变成 null），
+    //   而重挂只在 body 主题需要翻转时才必要。
+    if (before.ok && before.value.attrSkin === skin) {
+      facts.strategy = 'already-' + skin + '-no-remount'
+      return { ok: true, blocked: false, detail: '页面已经是 ' + skin + ' 皮肤，壳根 data-vc-skin 也一致，不用重挂', facts: facts }
+    }
     const remounted = await remountVersionControlTab(page, raw)
     facts.remount = remounted
-    const after = await measureUi(page)
-    facts.skinAfter = after.ok ? after.value.attrSkin : null
-    if (after.ok && after.value.attrSkin === skin) {
-      facts.strategy = 'already-' + skin
-      return { ok: true, blocked: false, detail: '页面已经是 ' + skin + ' 皮肤（body 主题属性一致）', facts: facts }
+    let after: Result<UiFacts> | null = null
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      after = await measureUi(page)
+      if (after.ok && after.value.attrSkin === skin) break
+      await sleep(400)
     }
-    return { ok: false, blocked: true, detail: 'body 主题属性已经是 ' + skin + '，但壳根 data-vc-skin=' + String(after.ok ? after.value.attrSkin : null) + '，重挂载后仍不一致', facts: facts }
+    facts.skinAfter = after !== null && after.ok ? after.value.attrSkin : null
+    if (after !== null && after.ok && after.value.attrSkin === skin) {
+      facts.strategy = 'already-' + skin
+      return { ok: true, blocked: false, detail: '页面已经是 ' + skin + ' 皮肤（重挂后壳根属性也一致）', facts: facts }
+    }
+    return { ok: false, blocked: true, detail: 'body 主题属性已经是 ' + skin + '，但壳根 data-vc-skin=' + String(facts.skinAfter) + '，重挂载后仍不一致', facts: facts }
   }
   const locked = String(process.env.DSH_1858_SKIN || '')
   if (locked !== '' && locked !== skin) {
