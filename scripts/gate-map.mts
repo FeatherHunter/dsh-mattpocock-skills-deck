@@ -788,6 +788,10 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 五档文案键；lease-held-readonly / lease-lost-readonly 不进列表状态行，损坏重建仍要说；
   // schema 三个租约列与两个时长常量保留。单跑实测 43 条。
   'verify-1933-network-fallback': 43,
+  // 2026-11-06 #1934（规格 #1930）：整库重建的库外短时互斥——锁目录原子获取与释放、过期/无主锁清理、
+  // fencing 复核失败不删库、六条重建分支都经过锁、两个真子进程同时重建只有一个真重建且等待方最后可写、
+  // 拿不到锁抛 RebuildBusyError 而不是只读句柄、handle.rebuild() 拿不到锁时句柄仍可用。单跑实测 54 条。
+  'verify-1934-rebuild-lock': 54,
   // 2026-11-04 #1863：GitHub 首屏改读本地快照库。第一扇守真 SQLite 上的按组写入、容器树回放、
   // 已关闭票在整池批次后仍在；第二扇守列表三条取数路径的写库钩子，以及「网络全断时首屏从库出」
   // （在线探测 / 磁盘缓存 / 当前用户 / 开会话 / 执行命令五处都计数为零）。

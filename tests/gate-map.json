@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-06T12:19:06.824Z",
+  "generatedAt": "2026-11-06T12:39:34.576Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 598,
-  "gateCount": 598,
-  "attributedGates": 542,
+  "chainLength": 599,
+  "gateCount": 599,
+  "attributedGates": 543,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 6,
-  "completionRecordedGates": 141,
+  "completionRecordedGates": 142,
   "smokeLength": 8,
   "smokeCompletionRecordedGates": 5,
-  "graphFileCount": 957,
+  "graphFileCount": 958,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -7348,6 +7348,23 @@
       "completionRecord": true,
       "expectedAssertions": 43,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 12 条）"
+    },
+    {
+      "step": "node tests/verify-1934-rebuild-lock.ts",
+      "file": "tests/verify-1934-rebuild-lock.ts",
+      "guards": [
+        "src/workspace-snapshot/runtime/open-schema.ts",
+        "src/workspace-snapshot/runtime/open.ts",
+        "src/workspace-snapshot/runtime/rebuild-lock.ts"
+      ],
+      "dirs": [
+        "src/workspace-snapshot/runtime"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 54,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -15944,6 +15961,7 @@
       "node tests/verify-1931-read-snapshot.ts",
       "node tests/verify-1932-multi-window.ts",
       "node tests/verify-1933-network-fallback.ts",
+      "node tests/verify-1934-rebuild-lock.ts",
       "node tests/verify-time-config.ts"
     ],
     "tests": [
@@ -16241,9 +16259,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 980,
+    "fileCount": 981,
     "dirCount": 101,
-    "coveredFileCount": 980,
+    "coveredFileCount": 981,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 80,
@@ -17222,6 +17240,7 @@
       "src/workspace-snapshot/runtime/open.ts",
       "src/workspace-snapshot/runtime/paths.ts",
       "src/workspace-snapshot/runtime/read-ports.ts",
+      "src/workspace-snapshot/runtime/rebuild-lock.ts",
       "src/workspace-snapshot/runtime/storage-kind.ts",
       "src/workspace-snapshot/runtime/storage-stats.ts",
       "src/workspace-snapshot/runtime/tombstone-write.ts",
