@@ -162,7 +162,12 @@ export const worktreeArgsOf = function (op: any, input: any): any {
   const path = String(p.path === undefined || p.path === null ? '' : p.path)
   if (o === 'list') return ['worktree', 'list', '--porcelain', '-z']
   if (o === 'list-plain') return ['worktree', 'list', '--porcelain']
-  if (o === 'add') return ['worktree', 'add', path]
+  // 新建工作区有两种填法（原型 93 / 94）：带分支名时用 -b 新建并检出这条分支，
+  // 不带分支名时仍是 git 自动按目录名建分支的旧形态（命令面板等既有调用方不受影响）。
+  if (o === 'add') {
+    const branch = String(p.branch === undefined || p.branch === null ? '' : p.branch)
+    return branch === '' ? ['worktree', 'add', path] : ['worktree', 'add', '-b', branch, path]
+  }
   if (o === 'add-branch') return ['worktree', 'add', path, String(p.branch === undefined || p.branch === null ? '' : p.branch)]
   if (o === 'remove') return ['worktree', 'remove', path]
   if (o === 'prune-preview') return ['worktree', 'prune', '--dry-run', '--verbose']
@@ -239,8 +244,11 @@ export const worktreeJudge = function (op: any, ctx: any): any {
     const pp = worktreePathProblem(target)
     if (pp) return block(pp)
     if (c.targetExists === true) return block('path-exists')
-    if (o === 'add-branch') {
-      const bp = worktreeBranchProblem(c.branch)
+    const branch = String(c.branch === undefined || c.branch === null ? '' : c.branch)
+    // add 的分支是可选的：给了就按 -b 新建，得先过分支名形状检查；没给就交给 git 按目录名建分支。
+    // add-branch 的分支是必填的，空值也走同一条分支名检查（branch-blank）。
+    if (o === 'add-branch' || branch !== '') {
+      const bp = worktreeBranchProblem(branch)
       if (bp) return block(bp)
       if (c.branchMissing === true) return block('branch-missing')
     }

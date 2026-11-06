@@ -407,6 +407,13 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell] .vcs-platform-field{display:flex;flex:1 1 150px;flex-direction:column;gap:2px;min-width:0;color:var(--vcs-faint);font-size:10px}',
   '[data-vc-shell] .vcs-platform-field input{box-sizing:border-box;width:100%;min-width:0;padding:2px 6px;border:1px solid var(--vcs-line);border-radius:var(--vcs-r-sm);background:var(--vcs-bg);color:var(--vcs-fg);font:inherit;font-size:11px}',
   '[data-vc-shell] .vcs-platform-pre{margin:0;padding:4px 6px;max-height:200px;overflow:auto;border:1px solid var(--vcs-line);border-radius:var(--vcs-r-sm);background:var(--vcs-bg);color:var(--vcs-ink2);font-family:var(--vcs-mono);font-size:10px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}',
+  // ===== #1904：工作区页的输入框（三张就地表单共用；其余表单样式随原型工作区页样式叶子） =====
+  // 页签页的正文高度链由壳铺满；这里让工作区页跟着撑满，新建表单的绝对定位才有「面板底」可依。
+  '[data-vc-shell] .vc-wt-page{position:relative;flex:1 1 auto;min-height:0}',
+  // 输入框的过渡时长走 MOTION（页面样式叶子能读到它；原型样式叶子只放静态规则）。
+  '[data-vc-shell] .wt-input{box-sizing:border-box;width:100%;min-width:0;min-height:28px;padding:0 8px;border:1px solid var(--vcs-line-2);border-radius:var(--vcs-r-btn);background:var(--vcs-inset);color:var(--vcs-fg);font:11.5px var(--vcs-mono);transition:border-color ' + MOTION.hoverFadeMs + 'ms ease,background ' + MOTION.hoverFadeMs + 'ms ease}',
+  '[data-vc-shell] .wt-input:hover{border-color:var(--vcs-dim)}',
+  '[data-vc-shell] .wt-input:focus-visible{outline:2px solid var(--vcs-accent);outline-offset:0;border-color:var(--vcs-accent);background:var(--vcs-panel)}',
   // 300 档（原型 @container panel max-width:359px）：页头与正文左右内边距收到 10px，事实网格单列，
   //   管理卡单列，返回键只留图标（原型 max-width:339px 的规则）。条数与「打开」不删。
   '[data-vc-shell][data-vc-width="300"] .vcs-page-head{padding-left:10px;padding-right:10px}',

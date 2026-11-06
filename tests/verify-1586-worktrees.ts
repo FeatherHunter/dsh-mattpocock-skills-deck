@@ -1,5 +1,10 @@
 // 门禁归属: src/client/views/versionControl/vcWorktreesPage.ts
-// verify-1586-worktrees.ts —— 工作树页域九八条的门禁（规格 #1586 之 T17 #1752）。
+// 门禁归属: src/client/views/versionControl/vcWorktreesView.ts
+// 门禁归属: src/client/views/versionControl/vcWorktreesData.ts
+// 门禁归属: src/client/views/versionControl/vcWorktreesOps.ts
+// 门禁归属: src/shared/version-control/src/worktree-ops.ts
+// 门禁归属: config/copy/vcworktrees.yaml
+// verify-1586-worktrees.ts —— 工作树页域九八条的门禁（规格 #1586 之 T17 #1752；#1904 补原型 93–97 的三张表单）。
 //
 // 这一扇守三件事，缺一条都算没过：
 //   ① 八条能力（9.1 列表 / 9.2 新建 / 9.3 用已有分支建 / 9.4 删除 / 9.5 清除失效登记 /
@@ -7,7 +12,9 @@
 //   ② 安全边界：不信 --force 与 -f -f 那两个口子，危险动作（删 / 清 / 移 / 写稀疏规则）先预检再确认，
 //      锁必须写原因，版本不够时给替代做法而不是硬画一个点不动的按钮；
 //   ③ 一份数据：页面与首屏聚合读的是同一份 worktrees 片，版本门读的是同一份 version 片里的 switches，
-//      判定调的是共享层 worktreeJudge 这同一个纯函数 —— 界面不另写一份。
+//      判定调的是共享层 worktreeJudge 这同一个纯函数 —— 界面不另写一份；
+//   ④ #1904：新建（新建分支带 -b / 已有分支）、移动、稀疏检出三条入口按原型 93–97 落在页脚与展开行，
+//      三种新建表单错误留在表单里；旧的能力入口清单与稀疏计划面已拆，界面不留第二条路。
 //
 // 做法：先读真源码文本（页面 / 处理层 / 数据层 / 宿主叶子 / 挂载点 / 构建登记 / 词表），按组断言；
 // 再直接加载共享层的真模块（worktree-ops.ts 无 import，可以直接 import）跑纯函数，
@@ -43,6 +50,11 @@ const SRC = {
   mount: raw(read('src/host/versionControlWorktreesMount.ts')),
   hostIndex: raw(read('src/host/index.ts')),
   shell: raw(read('src/client/views/versionControl/vcShellPages.ts')),
+  ui: raw(read('src/client/views/versionControl/vcWorktreesUi.ts')),
+  formOps: raw(read('src/client/views/versionControl/vcWorktreesFormOps.ts')),
+  view: raw(read('src/client/views/versionControl/vcWorktreesView.ts')),
+  formView: raw(read('src/client/views/versionControl/vcWorktreesFormView.ts')),
+  rows: raw(read('src/client/views/versionControl/vcWorktreesRows.ts')),
   build: raw(read('scripts/build.mts')),
   entry: raw(read('src/client/index.ts')),
   yaml: raw(read('config/copy/vcworktrees.yaml')),
@@ -75,6 +87,25 @@ const J = {
   versionHint: (s: any): boolean => s.page.indexOf("'data-wt-version'") >= 0 && s.page.indexOf('vcWorktreesVersionHintOf') >= 0,
   // 页面绝不用主入口标记 data-cap-primary（每条能力的唯一主入口由能力行负责，818 逐条数）。
   noPrimary: (s: any): boolean => codeOnly(s.page).indexOf('data-cap-primary') < 0,
+  // #1904：三条入口按原型 93–97 落到页脚与展开行，旧的能力入口清单与稀疏计划面整块消失。
+  //   判据看的是「新表单真的在画 / 旧计划面真的没了」，不是只看常量还在。
+  forms: (s: any): boolean => s.formView.indexOf('vcWtCreateFormNode') >= 0 && s.formView.indexOf('vcWtMoveFormNode') >= 0 &&
+    s.formView.indexOf('vcWtSparsePanelNode') >= 0 && s.formView.indexOf("'data-wt-create-form': '1'") >= 0 &&
+    s.formView.indexOf("'data-wt-move-form': path") >= 0 && s.formView.indexOf("'data-wt-sparse-form': path") >= 0,
+  oldPlanGone: (s: any): boolean => codeOnly(s.page).indexOf('vcWtEntriesNode') < 0 && codeOnly(s.page).indexOf('vcWtSparsePlanNode') < 0 &&
+    codeOnly(s.view).indexOf('vcWtEntriesNode') < 0 && s.page.indexOf("'data-wt-entry'") < 0 && s.page.indexOf("'data-wt-plan'") < 0,
+  // 表单提交后直接预检并凭票执行：三张表单各自带 auto 标记，runNow 一定存在；三条错误键留在处理层。
+  autoRun: (s: any): boolean => s.formOps.indexOf('auto: true') >= 0 && s.formOps.indexOf('onSuccess') >= 0 &&
+    s.formOps.indexOf('onFailure') >= 0 && s.ops.indexOf('const runNow') >= 0 && s.ops.indexOf('o.auto === true') >= 0 &&
+    ['vc.wt.create.emptyPath', 'vc.wt.create.emptyBranch', 'vc.wt.create.noBranch', 'vc.wt.create.taken'].every(function (k: string): boolean { return s.formOps.indexOf(k) >= 0 }),
+  // 结果条在页脚之后（原型 97 的位置），新建表单在页脚之前（原型 93 的页底浮层）。
+  resultOrder: (s: any): boolean => {
+    const list = s.view.indexOf('Array.prototype.push.apply(kids, vcWtListNodesOf')
+    const create = s.view.indexOf("if (ui.create && ui.create.open === true) kids.push(vcWtCreateFormNode")
+    const foot = s.view.indexOf('kids.push(vcWtFootNode')
+    const banner = s.view.indexOf('const banner: any = vcWtResultBannerNode')
+    return list >= 0 && create > list && foot > create && banner > foot && s.formView.indexOf("'data-wt-result': tone") >= 0
+  },
   // 宿主叶子只借父文件的 runPinned 起进程，不自己碰 subprocess。
   pinnedOnly: (s: any): boolean => s.hostLeaf.indexOf('runPinned(') >= 0 && s.hostLeaf.indexOf('child_process') < 0 && s.hostLeaf.indexOf('spawn(') < 0,
   // 票据：有上限、有到期、六类过期与变化理由都翻成人话而不是静默重跑。
@@ -94,6 +125,19 @@ const J = {
     for (const r of REASONS) keys.push('vc.wt.why.' + r)
     for (const a of ['list', 'add', 'add-branch', 'remove', 'prune', 'lock', 'unlock', 'move', 'sparse-list', 'sparse-set']) keys.push('vc.wt.action.' + a)
     for (const c of ['9.4', '9.5', '9.6', '9.7', '9.8']) keys.push('vc.wt.alt.' + c)
+    // #1904 的三张表单与结果条：每个键都可能是单独出现的一句提示，两段缺一个就会在切换语言时露英文键名。
+    for (const k of ['vc.wt.create.open', 'vc.wt.create.title', 'vc.wt.create.path', 'vc.wt.create.pathPlaceholder',
+      'vc.wt.create.branch', 'vc.wt.create.branchPlaceholder', 'vc.wt.create.modeNew', 'vc.wt.create.modeExisting',
+      'vc.wt.create.hintNew', 'vc.wt.create.hintExisting', 'vc.wt.create.recent', 'vc.wt.create.submit',
+      'vc.wt.create.cancel', 'vc.wt.create.emptyPath', 'vc.wt.create.emptyBranch', 'vc.wt.create.noBranch',
+      'vc.wt.create.taken', 'vc.wt.create.failed', 'vc.wt.move.title', 'vc.wt.move.label', 'vc.wt.move.hint',
+      'vc.wt.move.submit', 'vc.wt.move.empty', 'vc.wt.move.taken', 'vc.wt.move.same', 'vc.wt.sparse.title',
+      'vc.wt.sparse.hint', 'vc.wt.sparse.save', 'vc.wt.sparse.cancel', 'vc.wt.sparse.empty', 'vc.wt.sparse.current',
+      'vc.wt.sparse.noDirs', 'vc.wt.sparse.keep', 'vc.wt.sparse.unkeep', 'vc.wt.result.tag', 'vc.wt.result.close',
+      'vc.wt.result.closeGlyph', 'vc.wt.result.created', 'vc.wt.result.createdNewDetail',
+      'vc.wt.result.createdExistingDetail', 'vc.wt.result.moved', 'vc.wt.result.movedDetail',
+      'vc.wt.result.sparseSaved', 'vc.wt.result.sparseAll', 'vc.wt.result.sparseDetail',
+      'vc.wt.result.sparseAllDetail', 'vc.wt.result.failed', 'vc.wt.listSep']) keys.push(k)
     return keys.every(function (k: string): boolean { return zh.indexOf('\n  ' + k + ':') >= 0 && en.indexOf('\n  ' + k + ':') >= 0 })
   },
 }
@@ -137,6 +181,8 @@ async function main(): Promise<void> {
     ['list', {}, ['worktree', 'list', '--porcelain', '-z']],
     ['list-plain', {}, ['worktree', 'list', '--porcelain']],
     ['add', { path: 'D:/w/x' }, ['worktree', 'add', 'D:/w/x']],
+    // #1904：原型 93 / 97 的「新建分支」是 git worktree add -b <分支> <目录>；不带分支名的旧形态一个字节不变。
+    ['add', { path: 'D:/w/x', branch: 't/x' }, ['worktree', 'add', '-b', 't/x', 'D:/w/x']],
     ['add-branch', { path: 'D:/w/x', branch: 't/x' }, ['worktree', 'add', 'D:/w/x', 't/x']],
     ['remove', { path: 'D:/w/x' }, ['worktree', 'remove', 'D:/w/x']],
     ['prune-preview', {}, ['worktree', 'prune', '--dry-run', '--verbose']],
@@ -157,7 +203,7 @@ async function main(): Promise<void> {
     check(ok, '一·5 动作 ' + a[0] + ' 的 argv 逐字对：' + JSON.stringify(a[2]))
   }
   const forceLeaks = ['hostLeaf', 'page', 'ops'].filter(function (k: string): boolean { return FORCE_TOKEN_RE.test(codeOnly((SRC as any)[k])) })
-  check(argvBad === 0 && forceLeaks.length === 0, '一·6 十四个 argv 一个都不带 --force / -f / -ff，宿主叶子与界面的代码里也没有这些开关的字面量（边界：不提供强删；漏在 ' + (forceLeaks.join('、') || '哪都没有') + '）')
+  check(argvBad === 0 && forceLeaks.length === 0, '一·6 十六个 argv 一个都不带 --force / -f / -ff，宿主叶子与界面的代码里也没有这些开关的字面量（边界：不提供强删；漏在 ' + (forceLeaks.join('、') || '哪都没有') + '）')
   check(mod.worktreeCmdNameOf('remove') === 'git worktree remove' && mod.worktreeCmdNameOf('sparse-set') === 'git sparse-checkout' && mod.worktreeCmdNameOf('prune') === 'git worktree prune', '一·7 结果卡只显示 git 子命令名（remove / sparse-set / prune 三个都翻对）')
 
   // ---------- 二、判定：版本门、目标状态、危险动作与票据前置 ----------
@@ -189,6 +235,8 @@ async function main(): Promise<void> {
     ['九·24 稀疏检出要勾目录，一个都没勾', 'sparse-set', { rows: ROWS, targetPath: 'D:/w/repo/.wt/a', dirs: [], availability: av('full') }, 'block', 'dirs-blank'],
     ['九·25 勾了目录就放行', 'sparse-set', { rows: ROWS, targetPath: 'D:/w/repo/.wt/a', dirs: ['src'], availability: av('full') }, 'allow', 'ok'],
     ['九·26 稀疏规则读出来是只读动作，不确认', 'sparse-list', { rows: ROWS, targetPath: 'D:/w/repo/.wt/a', availability: av('full') }, 'allow', 'ok'],
+    ['九·27 新建分支时分支名不合法（-b 分支也要过形状检查）', 'add', { rows: ROWS, targetPath: 'D:/w/new', branch: '-bad', availability: av('full') }, 'block', 'branch-bad'],
+    ['九·28 新建分支时分支名合法，路径也空着就放行', 'add', { rows: ROWS, targetPath: 'D:/w/new', branch: 't/new', availability: av('full') }, 'allow', 'ok'],
   ]
   for (const c of J_CASES) {
     const d = mod.worktreeJudge(c[1], c[2])
@@ -275,13 +323,15 @@ async function main(): Promise<void> {
   check(second.ok === true && mid.ok === true, '四·10b 第 2 张与第 101 张仍在表里、照常执行（容量若退回 64，这两张早被淘汰）')
 
   // ---------- 五、界面三层：数据层 / 处理层 / 页面体 ----------
-  for (const name of ['entries', 'rowActions', 'phones', 'runArgs', 'noLongTask', 'sameSlice', 'oneJudge', 'dataNoPhone', 'confirmCard', 'versionHint', 'noPrimary']) check((J as any)[name](SRC), '五·' + name + ' 界面三层的约定守住了（' + name + '）')
+  for (const name of ['entries', 'rowActions', 'phones', 'runArgs', 'noLongTask', 'sameSlice', 'oneJudge', 'dataNoPhone', 'confirmCard', 'versionHint', 'noPrimary', 'forms', 'oldPlanGone', 'autoRun', 'resultOrder']) check((J as any)[name](SRC), '五·' + name + ' 界面三层的约定守住了（' + name + '）')
   check(SRC.ops.indexOf("'idle', 'checking', 'plan', 'confirm', 'blocked', 'running', 'done', 'failed'") >= 0, '五·12 处理层的八个状态齐全（预检 / 计划 / 确认 / 拦下 / 执行 / 完成 / 失败各有落点）')
   check(SRC.ops.indexOf('vcWorktreesActionDecisionOf(model, opName, input)') >= 0, '五·13 发电话之前先按首屏模型判一次（同一判定在界面先拦，不靠宿主兜底）')
   check(SRC.ops.indexOf('vcReadFirstScreenOnManual') >= 0, '五·14 动作完成后用首屏的手动刷新时机重读同一份片（不另发一条清单电话）')
   check(SRC.ops.indexOf("kind: 'git-worktree'") >= 0 && SRC.ops.indexOf('host.call.fail') >= 0, '五·15 两条电话的成败都记在既有的 host.call / host.call.fail 上（多一个 git-worktree 种类区分来源）')
-  check(SRC.page.indexOf('vcWtFieldNode') >= 0 && SRC.page.indexOf("name: 'reason'") >= 0 && SRC.page.indexOf("name: 'dirs'") < 0 && SRC.page.indexOf("name: 'dest'") >= 0, '五·16 页面给锁原因与移动目标都留了输入框（稀疏目录用勾选，不手填）')
-  check(SRC.page.indexOf("'data-wt-plan': 'sparse-list'") >= 0 && SRC.page.indexOf('data-wt-rule') >= 0 && SRC.page.indexOf('data-wt-dir') >= 0, '五·17 稀疏检出先列出将更新的规则文件与候选目录，勾完再写（不让人盲写）')
+  check(SRC.formView.indexOf('data-wt-create-path') >= 0 && SRC.formView.indexOf('data-wt-create-branch-input') >= 0 && SRC.formView.indexOf('data-wt-move-input') >= 0 && SRC.formView.indexOf("name: 'dirs'") < 0, '五·16 新建表单给了目录与分支两栏、移动表单给了新目录输入框（稀疏目录仍用勾选，不手填）')
+  check(SRC.formView.indexOf('data-wt-sparse-dir') >= 0 && SRC.formView.indexOf('data-wt-sparse-form') >= 0 && SRC.rows.indexOf("'data-wt-sparse-current': path") >= 0, '五·17 稀疏检出在展开行里列出候选目录，保存后常驻「当前规则」一句（不让人盲写）')
+  check(SRC.formView.indexOf("'data-wt-create-error': '1'") >= 0 && SRC.formView.indexOf('wt-form-error') >= 0 && SRC.formView.indexOf('vc.wt.result.tag') >= 0, '五·20 新建表单的错误画在自己的 wt-form-error 里，结果条另有一条来源标记（错误不跳到页底）')
+  check(SRC.rows.indexOf("op: 'move-open'") >= 0 && SRC.rows.indexOf("op: 'sparse-open'") >= 0 && SRC.rows.indexOf('vc.wt.action.sparse-list') >= 0, '五·21 移动与稀疏检出各有一颗行内入口，按钮位置在动作行里（原型 95 / 96）')
   check(SRC.page.indexOf('dirtyCount') >= 0 && SRC.page.indexOf('vc.wt.plan.stashPath') >= 0, '五·18 删脏工作树前把「先贮藏再移除」的路径讲清楚（不传 --force）')
   check(SRC.page.indexOf("'data-vc-wt-page': '1'") >= 0 && SRC.page.indexOf('data-vc-wt-mode') >= 0 && SRC.page.indexOf('data-vc-wt-state') >= 0, '五·19 页面根节点带页面 / 模式 / 整体状态三个标记（四态与禁用原因都有落点）')
 
@@ -296,11 +346,28 @@ async function main(): Promise<void> {
   check(altKeys.every(function (k: string): boolean { return LOCW.zh[k] && LOCW.en[k] }), '六·6 五条被版本门管住的能力，中英都写明「这个版本以下怎么办」的替代做法')
   const actionKeys: string[] = ['list', 'add', 'add-branch', 'remove', 'prune', 'lock', 'unlock', 'move', 'sparse-list', 'sparse-set'].map(function (a: string): string { return 'vc.wt.action.' + a })
   check(actionKeys.every(function (k: string): boolean { return LOCW.zh[k] && LOCW.en[k] }), '六·7 十个动作的中英说法都有（确认卡与结果卡按动作名说人话）')
+  const formKeys: string[] = ['vc.wt.create.emptyPath', 'vc.wt.create.emptyBranch', 'vc.wt.create.noBranch', 'vc.wt.create.taken',
+    'vc.wt.move.empty', 'vc.wt.move.taken', 'vc.wt.move.same', 'vc.wt.sparse.empty', 'vc.wt.sparse.current',
+    'vc.wt.result.created', 'vc.wt.result.moved', 'vc.wt.result.sparseSaved', 'vc.wt.result.sparseAll', 'vc.wt.result.tag']
+  check(formKeys.every(function (k: string): boolean { return LOCW.zh[k] && LOCW.en[k] }), '六·8 三张表单的三种错误与四类结果说法中英都有（错误留下来才改得动，结果条才说得清）')
+  const placeholderKeys: string[] = ['vc.wt.create.failed', 'vc.wt.move.empty', 'vc.wt.result.created', 'vc.wt.result.createdNewDetail',
+    'vc.wt.result.moved', 'vc.wt.result.movedDetail', 'vc.wt.result.sparseSaved', 'vc.wt.sparse.current', 'vc.wt.sparse.keep']
+  const placeholdersOf = function (text: string): string[] {
+    const out: string[] = []
+    const reg = /\{(\w+)\}/g
+    let m: any = reg.exec(text)
+    while (m) { out.push(String(m[1])); m = reg.exec(text) }
+    return out.join(',')
+  }
+  check(placeholderKeys.every(function (k: string): boolean { return placeholdersOf(String(LOCW.zh[k] || '')) === placeholdersOf(String(LOCW.en[k] || '')) }), '六·9 表单与结果词条的中英占位符一字不差（少一个占位符，切到英文就会把原文里的花括号印出来）')
 
   // ---------- 七、反证：把每一组的一处故意改坏，对应判据必须当场变红 ----------
   const ANTI: any[] = [
     ['页面删掉 9.7 移动的入口', 'page', function (t: string): string { return t.replace("  { capId: '9.7', op: 'move', row: true },\n", '') }, 'entries'],
-    ['页面把能力号标记改成 data-cap-primary（主入口标记不许抢）', 'page', function (t: string): string { return t.replace("'data-wt-cap-id': capId", "'data-cap-primary': capId") }, 'noPrimary'],
+    ['页面偷偷挂一枚 data-cap-primary（主入口标记不许抢）', 'page', function (t: string): string { return t + '\nconst vcWtStolenPrimary = "data-cap-primary"\n' }, 'noPrimary'],
+    ['页面又把旧能力入口清单画回来（同一件事两条路）', 'page', function (t: string): string { return t + '\nconst vcWtEntriesNode = 1\n' }, 'oldPlanGone'],
+    ['视图把新建表单的标记改名（三张表单少一张）', 'formView', function (t: string): string { return t.replace("'data-wt-create-form': '1'", "'data-wt-create-form': '0'") }, 'forms'],
+    ['表单处理层把新建分支的自动执行关掉（又回去等确认卡）', 'formOps', function (t: string): string { return t.split('auto: true').join('auto: false') }, 'autoRun'],
     ['执行电话改名成 wf.gitTaskStart（落回长任务通道）', 'ops', function (t: string): string { return t.replace("run: 'wf.gitWorktreeRun'", "run: 'wf.gitTaskStart'") }, 'phones'],
     ['执行时不带显式确认', 'ops', function (t: string): string { return t.replace('confirm: true,', 'confirm: false,') }, 'runArgs'],
     ['数据层不再读 worktrees 片（另起一份清单）', 'data', function (t: string): string { return t.replace("vcFirstScreenSliceOf(reads, 'worktrees')", "vcFirstScreenSliceOf(reads, 'otherWorktrees')") }, 'sameSlice'],
