@@ -72,7 +72,14 @@ export function createStashPhones(deps: any): { handle: (args: any) => Promise<a
   }
 
   /** 成功回包的公共部分：动作、时间、刷新后的列表与「最近丢弃」。 */
-  const okReply = function (op: string, entries: StashEntry[], extra: any): any {
+  /** 工作区里未跟踪文件的条数（git status 的 ?? 行）；读不出来回 -1，调用方据此不谎报数字。 */
+const untrackedCountOf = async function (exe: any, root: any): Promise<number> {
+  const res: any = await runPinned(exe, root, ['status', '--porcelain', '--untracked-files=normal'], { stdoutLimit: 1048576 })
+  if (!res || res.kind !== 'ok') return -1
+  return String(res.stdout || '').split(String.fromCharCode(10)).filter(function (line: string): boolean { return line.indexOf('??') === 0 }).length
+}
+
+const okReply = function (op: string, entries: StashEntry[], extra: any): any {
     const reply: any = { ok: true, op: op, atMs: nowMs(), entries: entries, recent: recent.slice(0), stderr: '' }
     if (extra) Object.assign(reply, extra)
     return reply
@@ -245,9 +252,15 @@ export function createStashPhones(deps: any): { handle: (args: any) => Promise<a
       before = listed.entries || []
     }
 
+    // 两种收法要知道「收走几个未跟踪文件、还剩几个」：票面要求结果条把这一点写出来。
+    //   收之前数一次、收之后再数一次；数不出来（status 失败）记 -1，界面据此不谎报数字。
+    const countsUntracked: boolean = !!def && (def.op === 'push' || def.op === 'push-untracked')
+    const untrackedBefore: number = countsUntracked ? await untrackedCountOf(exe, root) : -1
+
     const res = await runPinned(exe, root, built.args, { timeoutMs: timeoutMs, stdoutLimit: stdoutLimit })
     const failure = failureFromExec(res, '贮藏动作「' + (def ? def.op : op) + '」')
     if (failure) return failure
+    const untrackedLeft: number = countsUntracked ? await untrackedCountOf(exe, root) : -1
 
     if (def && (def.op === 'drop' || def.op === 'clear')) rememberDropped(droppedOf(def.op, before, selector), def.op)
 
@@ -256,6 +269,8 @@ export function createStashPhones(deps: any): { handle: (args: any) => Promise<a
     return okReply(def ? def.op : op, listedAfter.entries, {
       output: firstLine(res.stdout || ''),
       dropped: def && (def.op === 'drop' || def.op === 'clear') ? droppedOf(def.op, before, selector) : [],
+      untrackedBefore: untrackedBefore,
+      untrackedLeft: untrackedLeft,
     })
   }
 

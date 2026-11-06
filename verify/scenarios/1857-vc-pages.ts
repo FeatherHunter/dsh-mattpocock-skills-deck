@@ -457,7 +457,7 @@ async function ensureStashMenu(raw: RawBrowserPage): Promise<boolean> {
 }
 
 /** 到储藏页读结果条与记录数，再切回改动页：三种收法的结果只在储藏页画出来。 */
-async function stashOutcomeOf(page: PageHandle, raw: RawBrowserPage): Promise<{ text: string; tone: string; kind: string; records: number; confirmed: boolean }> {
+async function stashOutcomeOf(page: PageHandle, raw: RawBrowserPage): Promise<{ text: string; tone: string; kind: string; records: number; confirmed: boolean; untracked: string }> {
   await realClick(raw, '[data-vc-tab="stash"]')
   await sleep(1400)
   // 贮藏的写动作都走「先预检签票、再确认」：切到贮藏页时确认卡已经贴在那里，点确认才真的执行。
@@ -470,9 +470,10 @@ async function stashOutcomeOf(page: PageHandle, raw: RawBrowserPage): Promise<{ 
   const tone = await evaluateThrough<string>(page, '(function () { var el = document.querySelector("[data-vc-stash-result]"); return el === null ? "" : String(el.getAttribute("data-vc-stash-result") || "") })()')
   const kind = await evaluateThrough<string>(page, '(function () { var el = document.querySelector("[data-vc-stash-fail-kind]"); return el === null ? "" : String(el.getAttribute("data-vc-stash-fail-kind") || "") })()')
   const records = await raw.page.locator('[data-vc-stash-row-menu]').count()
+  const untracked = await textOf(page, '[data-vc-stash-untracked-left], [data-vc-stash-untracked-taken]')
   await realClick(raw, '[data-vc-tab="changes"]')
   await sleep(1400)
-  return { text: text, tone: tone.ok ? tone.value : '', kind: kind.ok ? kind.value : '', records: records, confirmed: confirmed }
+  return { text: text, tone: tone.ok ? tone.value : '', kind: kind.ok ? kind.value : '', records: records, confirmed: confirmed, untracked: untracked }
 }
 
 /** 读当前工作区页上逐行的路径（按页面画的顺序）。 */

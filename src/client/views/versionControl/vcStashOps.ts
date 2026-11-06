@@ -309,6 +309,9 @@ export const vcStashResultOf = function (reply: any): any {
     exitCode: typeof r.exitCode === 'number' ? r.exitCode : null,
     // 清空 / 丢弃把「清掉哪几条」随回包带回来：结果条要能说清清掉几条（#1905 票面）。
     dropped: Array.isArray(r.dropped) ? r.dropped.length : 0,
+    // 两种收法把「收走几个未跟踪文件、还剩几个」带回来；读不出来是 -1，界面据此不谎报。
+    untrackedBefore: typeof r.untrackedBefore === 'number' ? r.untrackedBefore : -1,
+    untrackedLeft: typeof r.untrackedLeft === 'number' ? r.untrackedLeft : -1,
   }
 }
 

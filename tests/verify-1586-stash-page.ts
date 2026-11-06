@@ -322,6 +322,13 @@ async function main() {
   dropBtn.props.onClick()
   check(calls.length === 2 && calls[1].op === 'drop' && calls[1].selector === 'stash@{0}' && calls[1].confirm !== true, '点 7.9 先交 drop 对象（不直接带确认，确认卡在前一步）')
   // #1905 票面：清空之后结果条要写清掉几条，不能只说一句「完成」。
+  // #1905 票面：两种收法要各说一句未跟踪文件怎么处理了（还剩几个 / 收走几个）。
+  const pushState = Object.assign(leaf.vcStashStateNew(), { result: { ok: true, op: 'push', kind: '', untrackedBefore: 3, untrackedLeft: 1 } })
+  const pushPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([], 'git version 2.49.0'), state: pushState })
+  check(attrsOf(pushPage, 'data-vc-stash-untracked-left').join(',') === '1', '默认收法的结果条写明还有几个未跟踪文件留在工作区（实得 ' + attrsOf(pushPage, 'data-vc-stash-untracked-left').join(',') + '）')
+  const pushUState = Object.assign(leaf.vcStashStateNew(), { result: { ok: true, op: 'push-untracked', kind: '', untrackedBefore: 2, untrackedLeft: 0 } })
+  const pushUPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([], 'git version 2.49.0'), state: pushUState })
+  check(attrsOf(pushUPage, 'data-vc-stash-untracked-taken').join(',') === '2', '连未跟踪一起收的结果条写明其中几个是未跟踪文件（实得 ' + attrsOf(pushUPage, 'data-vc-stash-untracked-taken').join(',') + '）')
   const clearedState = Object.assign(leaf.vcStashStateNew(), { result: { ok: true, op: 'clear', kind: '', dropped: 2 } })
   const clearedPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([], 'git version 2.49.0'), state: clearedState })
   check(attrsOf(clearedPage, 'data-vc-stash-dropped').join(',') === '2', '清空之后结果条写清清掉几条（实得 ' + attrsOf(clearedPage, 'data-vc-stash-dropped').join(',') + '）')

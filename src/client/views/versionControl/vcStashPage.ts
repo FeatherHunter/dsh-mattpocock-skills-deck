@@ -259,6 +259,13 @@ const vcStashResultBlockOf = function (h: any, t: any, state: any): any {
       Number(result.dropped) > 0
         ? h('span', { key: 'dropped', className: 'result-detail', 'data-vc-stash-dropped': String(result.dropped) }, vcStashText(t, 'vc.stash.result.dropped', { n: String(result.dropped) }))
         : null,
+      // 两种收法各说一句「未跟踪文件怎么处理了」：默认收法说还剩几个，连未跟踪一起收的说收走几个。
+      Number(result.untrackedLeft) > 0 && String(result.op) === 'push'
+        ? h('span', { key: 'left', className: 'result-detail', 'data-vc-stash-untracked-left': String(result.untrackedLeft) }, vcStashText(t, 'vc.stash.result.untrackedLeft', { n: String(result.untrackedLeft) }))
+        : null,
+      Number(result.untrackedBefore) > 0 && Number(result.untrackedLeft) === 0 && String(result.op) === 'push-untracked'
+        ? h('span', { key: 'taken', className: 'result-detail', 'data-vc-stash-untracked-taken': String(result.untrackedBefore) }, vcStashText(t, 'vc.stash.result.untrackedTaken', { n: String(result.untrackedBefore) }))
+        : null,
       h('span', { key: 'detail', className: 'result-detail' }, vcStashText(t, 'vc.stash.result.next', null)),
     ])
   }
