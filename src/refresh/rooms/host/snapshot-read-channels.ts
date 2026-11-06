@@ -322,10 +322,25 @@ export function createSnapshotReadChannels(deps: SnapshotReadChannelsDeps): {
       || !Number.isFinite(version) || version < 0) {
       return failureOf('本地快照库开不出来，读不到库文件大小与行数。', 'library', SNAPSHOT_DEGRADE.libraryCorrupt)
     }
+    // 写模型三格（#1932）：本地多写者还是网络盘单写者回退、这个窗口现在能不能写、有没有旧租约挡着。
+    // 它们是诊断读数的一部分，与字节数、行数一起回，界面上「写模型」那一行与它们同源。
+    // 取不到时如实给 unknown，不猜一个能写——猜错会让用户以为写进去了。
+    const storageKind = stats && (stats.storageKind === 'local' || stats.storageKind === 'network')
+      ? stats.storageKind
+      : 'unknown'
+    const mode = stats && (stats.mode === 'writable' || stats.mode === 'readonly')
+      ? stats.mode
+      : 'unknown'
+    // 旧租约挡住本地写（#1932）：这一格要跟着回，否则设置页会把一个「写不进去」的窗口
+    // 显示成正常的本地多写者。取不到时按 false（没有证据说有旧租约，就不声称有）。
+    const legacyWriterBlocked = !!(stats && stats.legacyWriterBlocked === true)
     return {
       version: Math.floor(version),
       bytes: Math.floor(bytes),
       rows: Math.floor(rows),
+      storageKind,
+      mode,
+      legacyWriterBlocked,
       workspaceKey: resolved.workspaceKey,
       backend: resolved.backend,
     }

@@ -22,6 +22,15 @@ export function statSync(path: string): { size: number } {
   return nodeFs.statSync(path)
 }
 
+/**
+ * 读文件系统的类型编号（statfs 的 f_type）。storage-kind.ts 靠它认 NFS / SMB / FUSE 这些网络挂载：
+ * 路径本身看不出挂载方式，只有文件系统类型能回答。
+ */
+export function statfsTypeOf(path: string): number {
+  const stats = nodeFs.statfsSync(path)
+  return Number(stats && stats.type)
+}
+
 export function mkdirSync(path: string, options?: { recursive?: boolean }): void {
   nodeFs.mkdirSync(path, options)
 }

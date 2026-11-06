@@ -135,8 +135,10 @@ function codeOnly(source: string): string {
     'D2 persistence 从契约导入类型，结果类型用 SyncBookkeepingResult')
   check(/interface\s+SyncBookkeeping\b/.test(contract) && /interface\s+SyncBookkeepingResult\b/.test(contract),
     'D3 契约仍是簿记类型的唯一入口')
-  const applyResult = /reason\?:\s*'stale'\s*\|\s*'readonly'\s*\|\s*'write-failed'/.test(contract)
-  check(applyResult, 'D4 契约的结果类型保留 stale / readonly / write-failed 三档（不再漂成只剩 stale）')
+  // #1932 给本地路径加了第四档 legacy-writer（旧租约挡住本地写），所以这里按四档判：
+  // 只有四档都在，才说明「结果类型没有被削成只剩 stale」，也没有被悄悄换成一句自由文本。
+  const applyResult = /reason\?:\s*'stale'\s*\|\s*'readonly'\s*\|\s*'write-failed'\s*\|\s*'legacy-writer'/.test(contract)
+  check(applyResult, 'D4 契约的结果类型保留 stale / readonly / write-failed / legacy-writer 四档（不再漂成只剩 stale）')
   const allSources: string[] = []
   const walk = function (dir: string): void {
     for (const name of readdirSync(dir)) {

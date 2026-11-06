@@ -359,6 +359,42 @@ export const snapshotStoreStatsReadoutOf = function (reply: any) {
   const ok: boolean = bytes !== null && rows !== null
   return { ok: ok, bytes: bytes, rows: rows, bytesText: ok ? snapshotByteTextOf(bytes) : '—', rowsText: ok ? String(rows) : '—' }
 }
+// ── 写模型读数（#1932）：这个窗口为什么能写 / 为什么只读 ──
+//
+// 规格 #1930 §2.2 把写模型分成两条路：本地磁盘多写者（所有窗口都能写，写按 SQLite 写锁排队）、
+// 网络盘 / UNC 单写者回退（抢不到写权就只读）。两句话必须说得开，因为用户要做的动作不一样：
+// 本地多写者什么都不用做；网络回退是「这台机器上的另一个窗口正在写这份库」；
+// 本地只读则是「这个工作区所在的磁盘不能写」，换个盘或改权限才有用。
+//
+// 为什么单列成纯函数：与库版本读数、占用读数同一口径——不挂 React 就能验，页面只负责画。
+// 判据只有一条：回包里 storageKind 与 mode 都认得出来才给说法，认不出来一律 unknown（文案键为空，
+// 页面画「—」）。反例：把「读不到」当成「能写」会让用户以为这一笔已经落库。
+//
+// 文案在这里只给键（env.diagWriteModel.*），句子住 config/copy/panel.yaml：
+// 页面文案改口径不需要改这一层，而这一层改判据也不需要改词表。
+export const snapshotWriteModelReadoutOf = function (reply: any) {
+  const storageKind = (reply && (reply.storageKind === 'local' || reply.storageKind === 'network')) ? reply.storageKind : ''
+  const mode = (reply && (reply.mode === 'writable' || reply.mode === 'readonly')) ? reply.mode : ''
+  if (!storageKind || !mode) {
+    return { ok: false, storageKind: '', mode: '', kind: 'unknown', copyKey: '' }
+  }
+  const legacyBlocked = reply && reply.legacyWriterBlocked === true
+  if (storageKind === 'local') {
+    // 本地盘：能写就是多写者；只读只可能是文件系统真的不可写（#1932 起本地不再有「租约被占」）。
+    // 但有一档要先说：本地库上还有未过期的旧租约（旧版本窗口可能还在跑）时，mode 仍是 writable，
+    // 而每一次写都会被拒（legacy-writer）。把它显示成正常的本地多写者会让人以为写进去了。
+    if (mode === 'writable' && legacyBlocked) {
+      return { ok: true, storageKind: storageKind, mode: mode, kind: 'legacy-writer-blocked', copyKey: 'env.diagWriteModel.legacy' }
+    }
+    return mode === 'writable'
+      ? { ok: true, storageKind: storageKind, mode: mode, kind: 'local-multi-writer', copyKey: 'env.diagWriteModel.local' }
+      : { ok: true, storageKind: storageKind, mode: mode, kind: 'readonly-filesystem', copyKey: 'env.diagWriteModel.readonly' }
+  }
+  // 网络盘：能写是本窗口持有写权，只读是另一个进程拿着写权（单写者回退）。
+  return mode === 'writable'
+    ? { ok: true, storageKind: storageKind, mode: mode, kind: 'network-single-writer', copyKey: 'env.diagWriteModel.network' }
+    : { ok: true, storageKind: storageKind, mode: mode, kind: 'network-single-writer-fallback', copyKey: 'env.diagWriteModel.networkFallback' }
+}
 // 行上那个「更新中」标记的窗口：一次写入成功之后，这一行在合并窗口内还算「正在更新」。
 // 窗口长度就是 host-budget.ts 的 PATCH_MERGE_WINDOW_MS（10 秒），这里不另写一个数字。
 export const truthWriteWindowOpen = function (atMs: any, nowMs: any) {

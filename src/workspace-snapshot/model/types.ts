@@ -12,8 +12,31 @@ export type SnapshotBackend = 'github' | 'gitlab' | 'markdown'
 /** 一组字段的知识状态。没有 issue_group 行才是「从没取过」，用 null 表示。 */
 export type GroupCompleteness = 'complete' | 'truncated' | 'unknown'
 
-/** 写者（可写）或只读者（租约抢不到 / 心跳丢失 / 用户只读打开）。 */
+/**
+ * 这个句柄现在能不能写。
+ *
+ * 口径（#1932 起）：readonly 只表达「真的写不了」的两种环境，不再表达「另一个窗口拿着写权」——
+ * 本地磁盘上所有窗口都能写，写靠 SQLite 写锁排队。
+ *   - writable：能写。本地路径永远是这一档（除非文件系统本身不可写）；
+ *   - readonly：网络盘 / UNC 上另一个进程拿着写者租约（单写者回退），
+ *     或者文件系统不可写、只能以只读连接打开（诊断码 readonly-filesystem）。
+ * 反例：不要再让本地路径因为「meta 里有别人的租约」退回 readonly —— 那是旧版本窗口留下的现场，
+ * 正确的做法是让写回 legacy-writer 并提示重启，而不是把窗口变成只读（#1932 验收 5）。
+ */
 export type SnapshotMode = 'writable' | 'readonly'
+
+/**
+ * 库文件所在存储的类别（#1932，规格 #1930 §2.2）。
+ *
+ * 为什么需要这一格：本地磁盘可以多进程同时写（SQLite 写锁排队），网络盘 / UNC 上多进程写同一份
+ * SQLite 不保证安全，必须保留「单写者 + 抢不到就只读」的回退。两条路的写模型的差别要在设置页诊断
+ * 与日志里说得清，所以它成了库这一层的领域值，而不是界面临时算出来的东西。
+ *
+ * 判定失败时一律按 local 处理（宁可多窗口可写，也不把一个人的本地库锁成只读）；这条取舍写在
+ * src/workspace-snapshot/README.md 的「写模型」一节。门禁可以按 storageKind 选项直接指定，
+ * 生产代码不传、由 detectStorageKind 现算。
+ */
+export type SnapshotStorageKind = 'local' | 'network'
 
 /**
  * 票行组的完整值。
@@ -387,13 +410,25 @@ export interface IssueDetailProjection {
   issue: IssueDetail | null
 }
 
-/** 诊断：开库时的损坏重建、身份不符重建、退回只读等，都要让上层看得见。 */
+/**
+ * 诊断：开库时的损坏重建、身份不符重建、退回只读等，都要让上层看得见。
+ *
+ * 每个码的含义（#1932 起收紧口径）：
+ *   - corrupt-rebuilt / identity-mismatch-rebuilt / schema-reset：库本身不可用，整库重建过；
+ *   - lease-held-readonly：网络盘 / UNC 上另一个进程拿着写者租约，本窗口退回只读。本地路径不再产生它；
+ *   - lease-lost-readonly：网络盘上心跳丢了、写权被别人接手，本窗口降级只读。本地路径不再产生它；
+ *   - readonly-filesystem：文件系统不可写（真的只能读），以只读连接打开。它说的是环境，不是写权；
+ *   - legacy-writer-restart：本地开库时发现 meta 里还有一条未过期的旧租约——说明另一个进程可能还是
+ *     旧版本、或者旧版本窗口还没关。本地写会被拒绝直到它过期，文案要求重启所有窗口（#1932 验收 5）。
+ */
 export type SnapshotDiagnosticCode =
   | 'corrupt-rebuilt'
   | 'identity-mismatch-rebuilt'
   | 'schema-reset'
   | 'lease-held-readonly'
   | 'lease-lost-readonly'
+  | 'readonly-filesystem'
+  | 'legacy-writer-restart'
 
 export interface SnapshotDiagnostic {
   code: SnapshotDiagnosticCode
@@ -415,4 +450,9 @@ export interface SnapshotStorageStats {
   bytes: number
   /** 库里的票行数（issue 表一行 = 一张票）。 */
   rows: number
+  /**
+   * 这份库落在哪种存储上（#1932）：本地磁盘或网络盘。设置页的「写模型」一行与日志靠它说清
+   * 「这个窗口为什么按多写者工作、那个窗口为什么退回单写者」。
+   */
+  storageKind: SnapshotStorageKind
 }

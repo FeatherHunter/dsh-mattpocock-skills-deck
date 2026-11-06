@@ -6,11 +6,13 @@
  * 让它用 recordIssueRows({ atomic:true }) 写 6000 行，等它拿到写锁并持续 30 毫秒后 SIGKILL；
  * 重开库必须仍是上一轮的完整数据，再正常写一次必须全部变成新数据。
  *
- * 为什么等「写锁持续 30 毫秒」：抢租约也是一次 BEGIN IMMEDIATE，但那是毫秒级的；能持续 30 毫秒
- * 不退的写锁只可能是 ingest 的那一个事务（见 src/workspace-snapshot/runtime/ingest.ts 第 85 行起）。
+ * 为什么等「写锁持续 30 毫秒」：能持续 30 毫秒不退的写锁只可能是 ingest 的那一个事务
+ * （见 src/workspace-snapshot/runtime/ingest.ts 的 BEGIN IMMEDIATE 起）。#1932 起本地开库不再
+ * 抢租约，所以这里也不再需要「清掉被杀进程留下的租约」那一步——本地根本不写租约，
+ * 这一段改成断言「杀掉一个正在写的进程之后，meta 的租约行仍然是空的」。
  *
- * 被杀的子进程会留下未过期的租约（默认 15 秒）。门禁直接清掉租约行，等价于等它过期，
- * 只为把这一扇跑快；租约过期本身由 #1862 的门禁守，不在这里重复。
+ * 另加一段网络盘回退（#1932）：storageKind:'network' 时仍是单写者，抢不到租约就只读；
+ * 这一条与本地那段互不干扰，用同一份库文件另开句柄验。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-1869-ingest-crash.ts
  */
@@ -25,6 +27,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { printGateResult } from './lib/gate-result.ts'
 import { recordIssueRows, readSnapshotReplay, closeSnapshotLibraries } from '../src/refresh/rooms/host/snapshot-library.ts'
+import { issueWritesOf } from '../src/refresh/rooms/host/snapshot-library-adapter.ts'
+import { openWorkspaceSnapshot } from '../src/workspace-snapshot/contract/index.ts'
 import type { Issue, RepositoryRef } from '../src/tracker/contract/entities.ts'
 
 const GATE = 'verify-1869-ingest-crash'
@@ -127,11 +131,12 @@ function waitForHeldWriteLock(dbPath: string, heldMs: number, timeoutMs: number)
   return false
 }
 
-/** 清掉被杀子进程留下的租约，等价于等 15 秒过期（只为把门禁跑快）。 */
-function clearStaleLease(dbPath: string): void {
+/** 读 meta 的租约持有者：本地路径不该再有任何写者标识。 */
+function leaseOwnerOf(dbPath: string): string | null {
   const db = new DatabaseSync(dbPath)
   try {
-    db.prepare('UPDATE meta SET lease_owner = NULL, lease_heartbeat_ms = NULL, lease_expires_ms = NULL WHERE id = 1').run()
+    const row = db.prepare('SELECT lease_owner FROM meta WHERE id = 1').get() as any
+    return row && row.lease_owner != null ? String(row.lease_owner) : null
   } finally {
     db.close()
   }
@@ -205,7 +210,8 @@ async function main(): Promise<void> {
     check(closed.timedOut !== true && (closed.signal === 'SIGKILL' || closed.code !== 0), 'A4 子进程在写事务中间被杀掉', closed)
 
     // 重开：未提交的那一批必须整批回滚，仍读得到上一轮三行，版本不前进。
-    clearStaleLease(dbPath)
+    // 不需要清租约：本地路径从头到尾没写过租约（#1932），这一句顺带把它钉住。
+    check(leaseOwnerOf(dbPath) === null, 'A5 被杀掉的写进程也没有留下租约行（本地路径不写租约）', leaseOwnerOf(dbPath))
     const afterKill = await replayOf(dir)
     check(afterKill !== null && afterKill.rows === 3, 'B1 被杀后库里仍是上一轮的三行（没有半新半旧）', afterKill && afterKill.rows)
     check(afterKill !== null && afterKill.mergeVersion === seedVersion, 'B2 被杀后合并版本没有前进（事务没提交）', afterKill && [seedVersion, afterKill.mergeVersion])
@@ -223,6 +229,37 @@ async function main(): Promise<void> {
     check(afterWrite !== null && Number(afterWrite.mergeVersion) === seedVersion + 1, 'C3 正常写入只前进一格', afterWrite && [seedVersion, afterWrite.mergeVersion])
     check(newTitles.length === 3 && newTitles.every((t) => t.indexOf('新') === 0), 'C4 三行全部是这一轮的新标题', newTitles)
     check(newTitles.every((t) => t.indexOf('旧') < 0), 'C5 上一轮的旧标题一行不剩', newTitles)
+
+    // ── D. 网络盘回退（#1932）：仍是单写者，抢不到租约就只读 ──────────────────────
+    // 为什么在同一份库上另开句柄：本地那段证明的是「谁都能写」，这一段证明的是「网络盘没有放开」。
+    // 两条结论必须在同一份真库上分开验，否则「本地放开」会把「网络回退」一起吃掉。
+    closeSnapshotLibraries()
+    const netOpen = (owner: string) => openWorkspaceSnapshot({
+      workspaceRoot: dir,
+      backend: 'github',
+      repoIdentity: REF.refId,
+      dbPath,
+      leaseOwner: owner,
+      now: () => Date.now(),
+      storageKind: 'network',
+    })
+    const netHolder = netOpen('gate-1869-net-holder')
+    check(netHolder.mode === 'writable', 'D1 网络盘第一个句柄抢到写权', netHolder.mode)
+    const netBlockedReader = netOpen('gate-1869-net-second')
+    const netBlocked = netBlockedReader.handle.ingest({
+      startMergeVersion: netBlockedReader.handle.getMergeVersion(),
+      writes: issueWritesOf([issue({ key: '999', title: '网络盘上不该写进去的票' })]),
+    })
+    check(netBlockedReader.mode === 'readonly'
+      && netBlockedReader.diagnostics.some((item) => item.code === 'lease-held-readonly'),
+      'D2 网络盘第二个句柄抢不到租约：退回只读并带 lease-held-readonly 诊断',
+      { mode: netBlockedReader.mode, diagnostics: netBlockedReader.diagnostics })
+    check(netBlocked.committed === false && netBlocked.reason === 'readonly',
+      'D3 网络盘只读句柄拒写，回 readonly（不是 legacy-writer：那里的写权由租约表达）', netBlocked)
+    check(netBlockedReader.handle.readList({ state: 'all' }).issues.length === 3,
+      'D4 网络盘只读句柄仍读得到上一轮的完整三行', netBlockedReader.handle.readList({ state: 'all' }).issues.length)
+    netBlockedReader.handle.close()
+    netHolder.handle.close()
   } finally {
     if (child && child.exitCode === null && child.signalCode === null) { try { child.kill('SIGKILL') } catch { /* 收尾失败不掩盖结论 */ } }
     closeSnapshotLibraries()

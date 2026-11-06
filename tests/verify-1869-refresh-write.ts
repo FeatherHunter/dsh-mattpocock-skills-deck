@@ -190,28 +190,77 @@ async function main(): Promise<void> {
     const replay3 = await replayOf(dir)
     check(replay3 !== null && replay3.mergeVersion === replay1!.mergeVersion, 'C2 没接库口时库不动', replay3 && replay3.mergeVersion)
 
-    // ── D. 另一个窗口拿着写租约：这一侧是只读，刷新仍要成功（画新数据），但不许写库 ─────────────
-    // 这正是 1869-04 的多会话现场：抢不到租约的一边必须还能刷新看数据，不能因为「写不了库」整趟失败。
+    // ── D. 本地窗口遇到「别人的租约」：过期的清掉照常写；没过期的按升级现场拒绝本地写 ─────────
+    // #1932 起本地路径不再抢租约，所以「另一个窗口拿着写权」在本地不再是只读的理由。
+    // 这里守两件事：
+    //   D1–D5 旧版本崩溃留下的过期租约：新代码开库时清掉它，刷新照常落库、版本前进；
+    //   D6–D9 还有一个未过期的租约（旧版本窗口可能还在写）：本地写按规矩被拒（legacy-writer），
+    //          但刷新仍要成功、界面仍要看到新数据，库与版本一个字节不动。
     closeSnapshotLibraries()
-    const raw = new DatabaseSync(dbPathOf(dir))
-    raw.prepare('UPDATE meta SET lease_owner = ?, lease_heartbeat_ms = ?, lease_expires_ms = ? WHERE id = 1')
-      .run('other-window', Date.now(), Date.now() + 60000)
-    raw.close()
-    const readonlyCalls: any[] = []
-    const realLib = {
+    const leaseDbPath = dbPathOf(dir)
+    const setLease = (owner: string, expiresMs: number): void => {
+      const raw = new DatabaseSync(leaseDbPath)
+      raw.prepare('UPDATE meta SET lease_owner = ?, lease_heartbeat_ms = ?, lease_expires_ms = ? WHERE id = 1')
+        .run(owner, Date.now(), expiresMs)
+      raw.close()
+    }
+    const leaseOwnerOf = (): string | null => {
+      const raw = new DatabaseSync(leaseDbPath)
+      try {
+        const row = raw.prepare('SELECT lease_owner FROM meta WHERE id = 1').get() as any
+        return row && row.lease_owner != null ? String(row.lease_owner) : null
+      } finally {
+        raw.close()
+      }
+    }
+    // 旧代码留下的写者标识形如 refresh-<进程号>-<序号>；过期时间已经过去 = 那个窗口早就没了。
+    setLease('refresh-9999-1', Date.now() - 60000)
+    const takeoverCalls: any[] = []
+    const takeoverResults: any[] = []
+    const takeoverLib = {
       recordIssueRows: async (input: any) => {
-        readonlyCalls.push(input)
-        return await recordIssueRows(input)
+        takeoverCalls.push(input)
+        const result = await recordIssueRows(input)
+        takeoverResults.push(result)
+        return result
       },
     }
-    const ro = createSessionRefresh(depsFor(dir, rowsWith('只读新'), realLib) as any)
-    const roReply: any = await ro.handleRefresh({ cwd: dir })
-    check(roReply && roReply.ok === true, 'D1 只读窗口刷新仍成功（能看新数据，不写库）', roReply && roReply.error)
-    check(readonlyCalls.length === 1 && readonlyCalls[0] && readonlyCalls[0].atomic === true,
-      'D2 只读窗口仍会尝试整批写库一次（由库层判只读）', readonlyCalls.length)
+    const takeover = createSessionRefresh(depsFor(dir, rowsWith('本地接手新', '2026-11-03T00:00:00Z'), takeoverLib) as any)
+    const takeoverReply: any = await takeover.handleRefresh({ cwd: dir })
+    check(takeoverReply && takeoverReply.ok === true, 'D1 过期旧租约不再挡住本地窗口：刷新成功', takeoverReply && takeoverReply.error)
+    check(takeoverCalls.length === 1 && takeoverCalls[0] && takeoverCalls[0].atomic === true,
+      'D2 这一趟仍是一次整批写库（atomic:true）', takeoverCalls.length)
+    check(takeoverResults[0] && takeoverResults[0].ok === true && takeoverResults[0].reason === undefined,
+      'D3 库层照常提交（不再是 readonly）', takeoverResults[0])
     const replay4 = await replayOf(dir)
-    check(replay4 !== null && replay4.mergeVersion === replay1!.mergeVersion, 'D3 只读窗口不推进合并版本', replay4 && replay4.mergeVersion)
-    check(titlesIn(replay4).every((t) => t.indexOf('新') === 0), 'D4 只读窗口不改库里的上一轮数据', titlesIn(replay4))
+    check(replay4 !== null && replay4.mergeVersion === replay1!.mergeVersion + 1,
+      'D4 本地窗口写完合并版本前进一格', replay4 && [replay1!.mergeVersion, replay4.mergeVersion])
+    check(titlesIn(replay4).every((t) => t.indexOf('本地接手新') === 0), 'D5 库里换成了这一轮的新标题', titlesIn(replay4))
+    check(leaseOwnerOf() === null, 'D6 过期租约的残留行被清掉（本窗口不需要重启就接手了）', leaseOwnerOf())
+
+    // 未过期的旧租约：新旧混写会把库写坏，所以拒绝本地写；但刷新本身仍是成功的降级。
+    closeSnapshotLibraries()
+    setLease('refresh-9999-2', Date.now() + 600000)
+    const legacyCalls: any[] = []
+    const legacyResults: any[] = []
+    const legacyLib = {
+      recordIssueRows: async (input: any) => {
+        legacyCalls.push(input)
+        const result = await recordIssueRows(input)
+        legacyResults.push(result)
+        return result
+      },
+    }
+    const legacyRefresh = createSessionRefresh(depsFor(dir, rowsWith('旧版本还在', '2026-11-04T00:00:00Z'), legacyLib) as any)
+    const legacyHeldReply: any = await legacyRefresh.handleRefresh({ cwd: dir })
+    check(legacyHeldReply && legacyHeldReply.ok === true, 'D7 旧版本还拿着写权时刷新仍成功（这一趟只是不落库）', legacyHeldReply && legacyHeldReply.error)
+    check(legacyResults[0] && legacyResults[0].ok === false && legacyResults[0].reason === 'legacy-writer',
+      'D8 库层如实回 legacy-writer（不是 readonly，也不是写失败）', legacyResults[0])
+    const replay5 = await replayOf(dir)
+    check(replay5 !== null && replay5.mergeVersion === replay4!.mergeVersion && titlesIn(replay5).every((t) => t.indexOf('本地接手新') === 0),
+      'D9 被挡住的一趟不改库：版本不动、标题仍是上一轮的',
+      replay5 && [replay4!.mergeVersion, replay5.mergeVersion, titlesIn(replay5)])
+    check(leaseOwnerOf() === 'refresh-9999-2', 'D10 未过期的旧租约原样留着（那是另一个进程可能还在用的写权）', leaseOwnerOf())
   } finally {
     closeSnapshotLibraries()
     rmSync(dir, { recursive: true, force: true })

@@ -158,9 +158,16 @@ export function createSessionRefresh(deps: RefreshDeps) {
         })
         if (result && result.ok === true) return
         const reason = String((result && result.reason) || 'unknown')
-        // 只读与开不出库是这一侧已知的降级，不是「写了一半」：照常把新数据交给界面，只是这趟不落库。
-        // 典型现场是 1869-04 的多会话——另一个窗口拿着写租约，这一边必须还能刷新看数据。
-        if (reason === 'readonly' || reason === 'unavailable') return
+        // 只读、开不出库、旧租约挡住本地写，这三种都是这一侧已知的降级，不是「写了一半」：
+        // 照常把新数据交给界面，只是这趟不落库。
+        //   - readonly：网络盘上另一个窗口拿着写权，或文件系统只读；
+        //   - unavailable：库开不出来；
+        //   - legacy-writer（#1932）：本地库里还有一条未过期的旧租约，说明可能还有旧版本窗口在写这个
+        //     工作区。这时拒绝本地写是为了避免新旧混写，用户要做的是「重启所有窗口」（设置页诊断会说），
+        //     而不是让这一次刷新整趟失败——刷新拿到的新数据仍然该显示出来。
+        // 反例：把 legacy-writer 当普通写失败抛错，会让升级现场每按一次刷新都弹一条红色失败提示，
+        // 而提示里没有任何一句说得出「重启窗口」这件事。
+        if (reason === 'readonly' || reason === 'unavailable' || reason === 'legacy-writer') return
         // 真写失败则整趟刷新失败：宁可让用户看到失败，也不能让界面显示一份重启后会消失的数据。
         throw new Error('这轮刷新没写进本地快照库（' + reason + '），为避免重启后回到旧数据，这次刷新按失败处理。')
       }
@@ -171,7 +178,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
        */
       const previousScreenOf = async function (bId: string, ref: RepoRef): Promise<any> {
         // 没有回放是正常的一档（第一次进工作区、库刚被清掉），不是异常；
-        // 库开不出来、租约被占、库损坏这些异常由快照库自己的 workspaceSnapshot.* 日志交代，
+        // 库开不出来、网络盘回退成只读、库损坏这些异常由快照库自己的 workspaceSnapshot.* 日志交代，
         // 首屏助手也把「库不可用」折成「这一趟没有回放」，所以这里不另造一条事件。
         const screen: any = await firstScreenFromLibrary({
           getSnapshotLibrary: getSnapshotLibrary,

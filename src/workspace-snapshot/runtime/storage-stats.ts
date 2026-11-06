@@ -13,7 +13,7 @@
 //   2. 行数是 issue 表的行数（一行 = 一张票，含已关闭与拉取请求）。墓碑只加表、不删行，
 //      所以它只会随票的出现增长，不会因为票被删而掉——这与「库只增不删」是同一条口径。
 import type { DatabaseSync } from 'node:sqlite'
-import type { SnapshotStorageStats } from '../model/types.js'
+import type { SnapshotStorageKind, SnapshotStorageStats } from '../model/types.js'
 import { existsSync, statSync } from './node-builtins.js'
 
 /** 数据真正落在的库文件后缀：主文件与 WAL（-shm 不数，理由见文件头第 1 条）。 */
@@ -37,7 +37,16 @@ export function countIssueRows(db: DatabaseSync): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0
 }
 
-/** 句柄的 readStorageStats 实现：文件大小与票行数一次读齐，只读、不改库。 */
-export function readStorageStats(db: DatabaseSync, dbPath: string): SnapshotStorageStats {
-  return { bytes: databaseDataBytes(dbPath), rows: countIssueRows(db) }
+/**
+ * 句柄的 readStorageStats 实现：文件大小、票行数与存储类别一次读齐，只读、不改库。
+ *
+ * storageKind 由开库时判定一次（路径不会在句柄活着的时候换存储），这里只是把它一起交出去：
+ * 设置页的「写模型」一行与诊断日志靠它说清这个窗口为什么按多写者或单写者工作（#1932）。
+ */
+export function readStorageStats(
+  db: DatabaseSync,
+  dbPath: string,
+  storageKind: SnapshotStorageKind,
+): SnapshotStorageStats {
+  return { bytes: databaseDataBytes(dbPath), rows: countIssueRows(db), storageKind }
 }

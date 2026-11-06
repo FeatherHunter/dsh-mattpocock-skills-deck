@@ -80,7 +80,11 @@ function textOf(e: unknown): string {
  *
  * 版本门 stale 只重试一次：说明期间有别的写者提交了，重读版本再写通常就过；
  * 连续两次 stale 说明并发写太密，这一趟放弃，下一轮列表会再写。只读句柄直接停，
- * 不再徒劳重试（租约丢了要等重启或另一个写者退出）。
+ * 不再徒劳重试：只读只有两种来路——网络盘上另一个进程拿着写权、或文件系统本身不可写，
+ * 两种都不会因为本进程再试一次而变好。
+ *
+ * #1932 起本地磁盘上多了一句要处理的失败：legacy-writer（库里有未过期的旧租约）。
+ * 它也不重试——租约要么过期自然恢复（下一次写会重新判），要么用户重启所有窗口。
  */
 export async function recordIssueRows(input: RecordIssueRowsInput): Promise<RecordIssueRowsResult> {
   const writes: IssueWrite[] = issueWritesOf(input.rows || [], input.backend)
@@ -156,7 +160,11 @@ export interface RecordIssueRowsResult {
   rows: number
   /** 最后一批提交后的合并版本；没写成功时是 null。 */
   mergeVersion: number | null
-  /** 没写成功时的简短原因（readonly / unavailable / 具体异常一句）。 */
+  /**
+   * 没写成功时的简短原因（readonly / unavailable / legacy-writer / 具体异常一句）。
+   * legacy-writer（#1932）= 本地库里还有未过期的旧租约；刷新流程把它当已知降级处理，
+   * 界面照常显示这一轮的新数据，只是这一趟不落库。
+   */
   reason?: string
 }
 

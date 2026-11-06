@@ -145,7 +145,7 @@ export function createIssueList(deps: any): any {
     try {
       const written: any = await deps.onIssueRows(cwd, ref, issues)
       // #1887：库这一侧明说「没写进去」时如实回 false —— 整仓完整枚举的标记要求这一趟的行真的进库
-      // （写失败、租约被别人占着都算没写）；没接写口时上面的早退按 true 处理，老调用方行为不变。
+      // （写失败、句柄只读——网络盘回退或文件系统不可写——都算没写）；没接写口时上面的早退按 true 处理，老调用方行为不变。
       return !(written && written.ok === false)
     } catch (e: any) { return false }
   }

@@ -4,9 +4,11 @@
 // 加「同步簿记读写、变化行提交、差分基线」四个口。句柄缓存这件事与那些新口无关，搬出来之后
 // 门面只留业务读写，句柄这件事仍然只有一份实现。
 //
-// 约定（与搬出来之前逐字一致）：
+// 约定：
 //   1. 按 (工作区, 后端, 仓库身份) 懒开一个库句柄，最多同时留 MAX_HANDLES 个；淘汰时关掉最旧的。
-//   2. 缓存句柄是为了让租约心跳与连接只建一次：每次请求都开/关库会让两个并发请求互相抢租约。
+//   2. 缓存句柄是为了让数据库连接只建一次（每次请求都开/关库会白付一次建连与 WAL 恢复的代价）。
+//      #1932 起本地路径不再有租约心跳，缓存与「谁拿到写权」无关——本地所有窗口都能写；
+//      只有网络盘路径上缓存句柄会顺带保住那份写者租约的心跳。
 //   3. 日志出口由宿主注入；没注入就完全不记（与快照树 runtime/log.ts 的可选注入同一口径）。
 /// <reference path="../../../workspace-snapshot/node-ambient.d.ts" />
 import type {
@@ -77,7 +79,10 @@ export async function handleOf(input: SnapshotLibraryKey): Promise<WorkspaceSnap
       workspaceRoot: input.workspaceRoot,
       backend: input.backend,
       repoIdentity: input.repoIdentity,
-      leaseOwner: 'refresh-' + pid + '-' + leaseSeq,
+      // 写者标识只在网络盘路径上被写进 meta 的租约（本地路径根本不写租约，这一格不参与判断）。
+      // 前缀用 rw-：旧代码的标识形如 refresh-… / snapshot:…，排查网络盘租约冲突时一眼能分出
+      // 「这是读写锁版本写下的」还是「旧版本留下的」。改前缀只影响日志与排查，不影响判断。
+      leaseOwner: 'rw-' + pid + '-' + leaseSeq,
       now: () => Date.now(),
       ...(logSink ? { logEvent: logSink as any } : null),
     })

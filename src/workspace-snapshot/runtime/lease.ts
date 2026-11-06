@@ -6,6 +6,15 @@
 // 标识；心跳每 5 秒把过期时间推到 15 秒后，进程崩了最多 15 秒后别人可以接手。
 //
 // 抢不到不是错误：退回只读，列表照常能看，上层通过 diagnostics 与 handle.mode 感知。
+//
+// #1932 起租约只在网络盘 / UNC 上用：本地磁盘所有进程都能写，靠 SQLite 写锁排队，不需要租约，
+// 也不该由「谁先打开窗口」决定谁有写权。本文件因此多出三样东西，都只服务本地路径的升级现场：
+//   - readLeaseState：读 meta 上的租约三格；
+//   - isLeaseLive：这条租约是不是还没过期（未过期 = 可能还有旧版本窗口在写）；
+//   - clearResidualLease：把过期或残缺的租约行清掉，让本地写自动恢复，不要求用户重启本窗口。
+// lease_owner / lease_heartbeat_ms / lease_expires_ms 三列与两个时长配置**一律保留**：
+// 网络回退还要用它们（#1932 起由 storage-kind 的路径判定决定走哪条路；更细的判定与设置页
+// 诊断归 #1933），删列会让旧库迁移变复杂。
 import type { DatabaseSync } from 'node:sqlite'
 import {
   SNAPSHOT_LEASE_HEARTBEAT_MS as LEASE_HEARTBEAT_MS,
@@ -63,6 +72,55 @@ export function releaseLease(db: DatabaseSync, owner: string): void {
     ).run(owner)
   } catch {
     // 关库路径上的清理失败不改变「租约最多 15 秒后过期」这个事实。
+  }
+}
+
+/** meta 上租约三格的当前值；null 表示没有值（本地路径开库之后应当一直是 null）。 */
+export interface LeaseState {
+  owner: string | null
+  expiresMs: number | null
+}
+
+/**
+ * 读 meta 上的租约三格（#1932 本地路径的旧租约检测用）。
+ *
+ * 只读、不开事务：这一句要能在每一次写之前跑一次，代价必须低到看不出（一条按主键的查询）。
+ * 没有 meta 行时回「没有租约」——那种库本来也写不了，会在别处先报错。
+ */
+export function readLeaseState(db: DatabaseSync): LeaseState {
+  const row = db.prepare('SELECT lease_owner, lease_expires_ms FROM meta WHERE id = 1').get() as
+    | { lease_owner?: string | null, lease_expires_ms?: number | null }
+    | null
+  if (!row) return { owner: null, expiresMs: null }
+  return {
+    owner: row.lease_owner == null ? null : String(row.lease_owner),
+    expiresMs: row.lease_expires_ms == null ? null : Number(row.lease_expires_ms),
+  }
+}
+
+/**
+ * 这条租约是不是「还活着」——未过期且写了过期时间。
+ *
+ * 只写了 owner 却没写过期时间的行（手工改库、老版本写到一半）不算活着：它没法证明有人在写，
+ * 挡住本地写只会让用户无从恢复。判活只认「过期时间在未来」这一条。
+ */
+export function isLeaseLive(state: LeaseState, nowMs: number): boolean {
+  return state.owner !== null && state.expiresMs !== null && state.expiresMs > nowMs
+}
+
+/**
+ * 清掉过期或残缺的租约行（#1932）。本地写恢复靠它：用户不需要重启本窗口，下一次写自己接上。
+ *
+ * 只在「已经判定这条租约不活着」之后调用。反过来不成立——未过期的租约是另一个进程可能还在用的
+ * 写权，删它等于把两个版本同时写的风险放大（#1932 验收 5 要的正是「别让新旧混写」）。
+ */
+export function clearResidualLease(db: DatabaseSync): void {
+  try {
+    db.prepare(
+      'UPDATE meta SET lease_owner = NULL, lease_heartbeat_ms = NULL, lease_expires_ms = NULL WHERE id = 1 AND lease_owner IS NOT NULL',
+    ).run()
+  } catch {
+    // 清不掉不改变结论：这条租约已经不活着，本窗口照常写；残留行下次开库还会再清一次。
   }
 }
 

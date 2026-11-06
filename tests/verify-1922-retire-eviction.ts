@@ -292,8 +292,10 @@ async function run(): Promise<void> {
     const reply: any = await phone.handleSnapshotStoreStats({ cwd: tempRoot })
     const direct: any = await readLibraryStorageStats({ workspaceRoot: tempRoot, backend: 'github', repoIdentity: REPO.refId })
     const replyKeys = Object.keys(reply || {}).sort().join(',')
-    check(reply && replyKeys === 'backend,bytes,rows,version,workspaceKey',
-      'D11 诊断电话回包带版本、字节数、票行数、工作区键与后端五格', replyKeys)
+    // #1932 给这条回包加了写模型两格（storageKind / mode）：设置页「写模型」那一行与上面几格同源，
+    // 免得诊断读数分两次取、拼出一份自相矛盾的结论。
+    check(reply && replyKeys === 'backend,bytes,legacyWriterBlocked,mode,rows,storageKind,version,workspaceKey',
+      'D11 诊断电话回包带版本、字节数、票行数、工作区键、后端与写模型三格（storageKind / mode / legacyWriterBlocked）', replyKeys)
     check(reply && direct && reply.bytes === direct.bytes && reply.rows === direct.rows && reply.version === direct.version,
       'D12 电话回的字节数、票行数与版本就是库里的读数', { reply, direct })
     check(reply && reply.rows === 7 && reply.bytes > 0, 'D13 电话读数与真库对得上（7 张票）', reply)

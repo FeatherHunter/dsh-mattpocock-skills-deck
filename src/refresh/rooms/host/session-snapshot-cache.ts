@@ -207,7 +207,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           // 规格 §9：304 按库版本判（内容散列退场）。版本一致时连组装都不做。
           const notModified = await notModifiedForVersion(first, args, cwd, _selEarly, _layEarly, isForce); if (notModified) return notModified
           // #1893：库里有数据就只读库；库空则走在线重建（取数 → 写库 → 再交付），没有内存副本兜底。
-          // #1869：开库诊断（损坏重建、只读租约）仍随在线重建的回包一起交给界面——库坏了重建完，
+          // #1869：开库诊断（损坏重建、只读环境）仍随在线重建的回包一起交给界面——库坏了重建完，
           // 界面得能看出本机数据被清过。
           if (isForce || !(first && first.replay)) noteMiss()
           // #927：面板取数这一路的每条命令都过闸（分类是「人的动作」那一档：只记账、不降档）；没给 send 时照旧直发。

@@ -5,7 +5,7 @@
  * 「开库 → 写一批 → 关库 → 重开 → 读回」这条真实路径。逐条对应票 #1862 的验收：
  *   A 真库写入后关闭重开，数据一致（包括版本、标签、指派人、三态）；
  *   B 一轮写入失败时整批不生效，库停在上一轮（用真约束错误触发，不 mock 事务）；
- *   C 第二个写者抢不到租约退回只读，上层从 mode / diagnostics / ingest 三处都能感知；
+ *   C 本地磁盘上第二个写者照样能写（#1932 起本地不再抢租约），两笔都提交、版本各前进一格；
  *   D 过期批次被版本门整批丢弃，库里字节不变；
  *   E 损坏库被识别、备份三件套、整库重建并留下诊断与日志；
  *   F 完整来源可覆盖与清空，截断只补空缺，未知不删旧值；
@@ -172,32 +172,50 @@ function main(): void {
       { mode: reopened.mode, version: handle.getMergeVersion(), keys: page.issues.map((item) => item.key) },
     )
 
-    // ---- 第二个写者：抢不到租约，退回只读，但读得到 ----
+    // ---- 第二个写者：本地磁盘上两边都能写（#1932 起本地不再抢租约） ----
+    // 改口径的理由：租约在本地路径上让「谁先打开窗口」决定谁有写权，空闲窗口长期占着写权、
+    // 另一个窗口永远只读——那正是规格 #1930 要废掉的东西。本地写现在靠 SQLite 写锁排队。
+    // 这一段单开一份库文件：上面那些批次按固定起始版本写，多提交一笔会让后面每一版的期望值都平移。
+    const twoWritersPath = path.join(tempRoot, 'db', 'two-writers.sqlite')
+    const firstWriter = openWorkspaceSnapshot({
+      workspaceRoot: workspaceDir,
+      backend: 'markdown',
+      repoIdentity: 'repo-a',
+      dbPath: twoWritersPath,
+      now,
+      leaseOwner: 'gate-first-writer',
+      storageKind: 'local',
+    })
     const second = openWorkspaceSnapshot({
       workspaceRoot: workspaceDir,
       backend: 'markdown',
       repoIdentity: 'repo-a',
-      dbPath,
+      dbPath: twoWritersPath,
       now,
       leaseOwner: 'gate-second-writer',
+      storageKind: 'local',
     })
+    const firstIngest = firstWriter.handle.ingest(batch(0, [
+      write('effort-1', 'FIRST', { row: rowGroup({ title: '第一个写者写的票', state: 'open', updatedAtMs: 1000 }) }),
+    ]))
     const secondIngest = second.handle.ingest(batch(1, [
-      write('effort-1', 'SECOND', { row: rowGroup({ title: '不该写进去', state: 'open', updatedAtMs: 9999 }) }),
+      write('effort-1', 'SECOND', { row: rowGroup({ title: '第二个写者写的票', state: 'open', updatedAtMs: 2000 }) }),
     ]))
     const secondPage = second.handle.readList()
+    check(
+      firstWriter.mode === 'writable' && second.mode === 'writable' && second.handle.mode === 'writable'
+        && second.diagnostics.every((item) => item.code !== 'lease-held-readonly'),
+      'C1 同一份本地库上两个写者都是 writable，开库诊断里没有 lease-held-readonly',
+      { first: firstWriter.mode, second: second.mode, diagnostics: second.diagnostics },
+    )
+    check(
+      firstIngest.committed === true && secondIngest.committed === true && secondIngest.mergeVersion === 2
+        && secondPage.issues.length === 2 && secondPage.issues.some((item) => item.key === 'SECOND'),
+      'C2 两个句柄各写一笔都提交、版本前进到 2，第二个句柄读得到两张票',
+      { first: firstIngest, second: secondIngest, keys: secondPage.issues.map((item) => item.key) },
+    )
     second.handle.close()
-    check(
-      second.mode === 'readonly' && second.handle.mode === 'readonly'
-        && second.diagnostics.some((item) => item.code === 'lease-held-readonly'),
-      'C1 第二个写者抢不到租约：mode 是 readonly，诊断里有 lease-held-readonly',
-      { mode: second.mode, diagnostics: second.diagnostics },
-    )
-    check(
-      secondIngest.committed === false && secondIngest.reason === 'readonly'
-        && secondPage.issues.length === 2,
-      'C2 只读句柄拒写、仍可读，上层能明确知道原因',
-      secondIngest,
-    )
+    firstWriter.handle.close()
 
     // ---- 一轮写入失败：整批回滚，库停在上一轮 ----
     const failedBatch = handle.ingest(batch(1, [

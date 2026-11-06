@@ -4,7 +4,8 @@
  * 守什么（票面「诊断日志能定位开库、抢租约、事务提交或丢弃、回退与重建」一条）：
  *   A. 开库：`workspaceSnapshot.open` 说得出后端、库文件原先在不在、日志模式、合并版本；工作区根与
  *      仓库身份只记 8 位短散列，不落路径与身份原文。
- *   B. 抢租约：抢到时 `workspaceSnapshot.lease` 是 acquired:true 并带写者标识的短散列。
+ *   B. 租约：只有网络盘回退才用租约——抢到时 `workspaceSnapshot.lease` 是 acquired:true 并带写者标识的短散列；
+ *      本地路径（#1932 起不抢租约）一条租约事件都不发。
  *   C. 事务：提交成功是 `ingest` committed:true 带票数、版本与耗时；被版本门丢弃是 committed:false
  *      + reason=stale 并带一句失败说明。
  *   D. 重建：库被写坏后重新开库，`workspaceSnapshot.corrupt` 说清哪一步发现、处置是 rebuilt；跟着那条
@@ -122,9 +123,10 @@ async function main(): Promise<void> {
     check(!!openA && (openA.journalMode === 'wal' || openA.journalMode === 'delete'), 'A7 open 带日志模式', openA && openA.journalMode)
     check(!!openA && typeof openA.mergeVersion === 'number', 'A8 open 带打开时的合并版本', openA && openA.mergeVersion)
 
+    // #1932：本地路径不抢租约，所以这里一条租约事件都没有；开库那一条要如实说 mode:writable。
     const leasedA = sink.take('workspaceSnapshot.lease')
-    check(leasedA.length === 1 && leasedA[0].fields.acquired === true, 'A9 抢到租约发一条 lease（acquired:true）', leasedA.map((r) => r.fields))
-    check(!!leasedA[0] && hashed(leasedA[0].fields.ownerHash), 'A10 写者标识只记 8 位短散列', leasedA[0] && leasedA[0].fields.ownerHash)
+    check(leasedA.length === 0, 'A9 本地开库不发 lease 事件（本地不再抢写者租约）', leasedA.map((r) => r.fields))
+    check(!!openA && openA.mode === 'writable', 'A10 本地开库日志里 mode 是 writable', openA && openA.mode)
 
     const ingestA = sink.take('workspaceSnapshot.ingest')
     check(ingestA.length === 1 && ingestA[0].fields.committed === true, 'A11 提交成功发一条 ingest（committed:true）', ingestA.map((r) => r.fields))
@@ -184,7 +186,9 @@ async function main(): Promise<void> {
     const diagsC = await library.readSnapshotDiagnostics({ workspaceRoot: root, backend: 'github', repoIdentity: ROOT_KEY })
     check(Array.isArray(diagsC) && diagsC.some((d) => d.code === 'corrupt-rebuilt'), 'C7 开库诊断读得到 corrupt-rebuilt（界面据此提示「已整库重建」）', diagsC)
 
-    // ── C2. 抢不到租约：第二个句柄退回只读，日志 reason 是稳定枚举 held ────────────
+    // ── C2. 本地路径：第二个句柄照样能写，一条租约事件都不发（#1932） ─────────────
+    // 改口径的理由：本地不再抢租约，所以「第二个句柄」不再是一个只读角色；
+    // 租约事件（workspaceSnapshot.lease）在本地路径上一条都不该出现 —— 它只在网络盘回退里有意义。
     library.closeSnapshotLibraries()
     sink.reset()
     const holder = await contract.openWorkspaceSnapshot({
@@ -195,11 +199,41 @@ async function main(): Promise<void> {
       workspaceRoot: root, backend: 'github', repoIdentity: ROOT_KEY,
       leaseOwner: 'gate-1869-second', now: () => Date.now(), logEvent: sink.logEvent,
     })
-    const heldRows = sink.take('workspaceSnapshot.lease').filter((r) => r.fields.acquired === false)
-    check(heldRows.length === 1 && heldRows[0].fields.reason === 'held', 'C8 抢不到租约时 lease 的 reason 是 held（不是一句人话）', heldRows.map((r) => r.fields))
-    check(contender.mode === 'readonly' && contender.diagnostics.some((d) => d.code === 'lease-held-readonly'), 'C9 第二个句柄退回只读并带 lease-held-readonly 诊断', { mode: contender.mode, diagnostics: contender.diagnostics })
+    const localLeaseRows = sink.take('workspaceSnapshot.lease')
+    check(localLeaseRows.length === 0,
+      'C8 本地路径不发租约事件（不抢租约、也不续心跳）', localLeaseRows.map((r) => r.fields))
+    // 空批走的是与真批同一道「能不能写」的闸：只读句柄会在这里直接回 readonly。
+    const contenderWrite = contender.handle.ingest({ startMergeVersion: contender.handle.getMergeVersion(), writes: [] })
+    check(contender.mode === 'writable' && contenderWrite.committed === true
+      && contender.diagnostics.every((d) => d.code !== 'lease-held-readonly'),
+      'C9 本地第二个句柄是 writable、写闸放行，没有 lease-held-readonly 诊断',
+      { mode: contender.mode, write: contenderWrite, diagnostics: contender.diagnostics })
     contender.handle.close()
     holder.handle.close()
+
+    // ── C3. 网络盘：抢不到租约才退回只读，日志 reason 是稳定枚举 held ────────────
+    // 网络盘回退（#1932）保留旧口径：多进程写 SMB/NFS 上的 SQLite 不安全，只允许一个写者。
+    library.closeSnapshotLibraries()
+    sink.reset()
+    const netHolder = await contract.openWorkspaceSnapshot({
+      workspaceRoot: root, backend: 'github', repoIdentity: ROOT_KEY,
+      leaseOwner: 'gate-1869-net-holder', now: () => Date.now(), logEvent: sink.logEvent, storageKind: 'network',
+    })
+    const netAcquired = sink.take('workspaceSnapshot.lease')
+    check(netAcquired.length === 1 && netAcquired[0].fields.acquired === true && hashed(netAcquired[0].fields.ownerHash),
+      'C12 网络盘抢到写权时发一条 lease（acquired:true，写者标识只记 8 位短散列）',
+      netAcquired.map((r) => r.fields))
+    const netContender = await contract.openWorkspaceSnapshot({
+      workspaceRoot: root, backend: 'github', repoIdentity: ROOT_KEY,
+      leaseOwner: 'gate-1869-net-second', now: () => Date.now(), logEvent: sink.logEvent, storageKind: 'network',
+    })
+    const heldRows = sink.take('workspaceSnapshot.lease').filter((r) => r.fields.acquired === false)
+    check(heldRows.length === 1 && heldRows[0].fields.reason === 'held', 'C10 网络盘抢不到租约时 lease 的 reason 是 held（不是一句人话）', heldRows.map((r) => r.fields))
+    check(netContender.mode === 'readonly' && netContender.diagnostics.some((d) => d.code === 'lease-held-readonly'),
+      'C11 网络盘第二个句柄退回只读并带 lease-held-readonly 诊断',
+      { mode: netContender.mode, diagnostics: netContender.diagnostics })
+    netContender.handle.close()
+    netHolder.handle.close()
 
     // ── D. 没接日志口时一个事件都不发，读写照旧 ──────────────────────────────────
     // 句柄在打开那一刻就把日志口收下了，所以先关掉所有句柄再断言「没接就不发」。

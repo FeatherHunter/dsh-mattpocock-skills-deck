@@ -35,6 +35,45 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
 自己当根（与 `src/host/workspaceKey.ts:224-267` 的 resolveWorkspaceRoot 同一口径）。
 测试可以传 `dbPath` 注入临时路径。
 
+## 写模型：本地多写者、网络盘回退（#1932，规格 #1930 §2.2）
+
+同一份库文件可能被两个窗口（两个进程）同时打开。能不能两边都写，取决于库放在哪种存储上；
+判定住 `runtime/storage-kind.ts` 的 `detectStorageKind()`，结论在句柄上叫 `storageKind`。
+
+- **本地磁盘（local）**：所有进程都能打开可写句柄，**不抢租约、不启心跳、空闲不占写权**。
+  每一次写仍然是一次 SQLite 短写事务（`BEGIN IMMEDIATE` + `busy_timeout=5000`），
+  多个写者按数据库的写锁排队；写事务的锁只在事务期间持有。关掉一个窗口、或它崩溃了，
+  另一个窗口不需要重启就能继续写（没有租约可等、也没有心跳可丢）。
+- **网络盘 / UNC（network）**：保留旧的单写者回退。多进程写 SMB/NFS 上的同一份 SQLite 不保证安全，
+  所以这里仍然抢租约：抢到可写并每 5 秒续期，抢不到关掉写连接、以只读连接重开（诊断
+  `lease-held-readonly`），心跳丢了降级只读（`lease-lost-readonly`）。`lease_owner` /
+  `lease_heartbeat_ms` / `lease_expires_ms` 三列与两个时长配置**一律保留**，不许删。
+- **路径怎么判**：UNC（`\\server\share` 与 `//server/share` 两种写法都算）直接判 network；
+  Windows 盘符路径查一次系统网络盘集合（`Get-CimInstance Win32_LogicalDisk` 里 DriveType=4 的
+  DeviceID，结果按进程缓存），命中判 network；系统盘（`%SystemDrive%`）不可能是映射的网络驱动器，
+  直接判本地，省掉那一次约 300 毫秒的查询。POSIX 用 `statfs` 的 f_type 认 NFS / SMB / SMB2 /
+  CIFS / FUSE / AFS / 9P。**判不出来（没有 PowerShell、statfs 失败）就按本地多写者处理**：
+  宁可多窗口可写，也不把一个人的本地库锁成只读；这条取舍是有意的，改之前先读门禁 verify-1932。
+- **mode 的语义收紧了**：`readonly` 只表达「真的写不了」——网络盘回退，或文件系统不可写
+  （诊断 `readonly-filesystem`）。它**不再表达「另一个窗口拿着租约」**：本地路径不会因为别的窗口
+  而只读。
+
+### 升级：旧租约还在 meta 里怎么办（#1932 验收 5）
+
+旧版本的代码会在本地路径上写租约。新代码开本地库时读 `meta.lease_owner / lease_expires_ms`：
+
+- 没有租约，或已经过期：把残留的租约行清掉（`UPDATE meta SET lease_owner = NULL …`），正常写。
+  过期是下一次写自动恢复的判据——**不要求用户重启本窗口**。
+- 有未过期的租约：说明可能还有旧版本窗口在写这个库。这时不把句柄改成只读（那会把「升级现场」
+  伪装成一个正常的只读环境），而是让每一次本地写回 `legacy-writer`（ingest / writeSyncBookkeeping /
+  markMissing 都回它，rebuild 直接抛一句人话），并落诊断 `legacy-writer-restart`，文案是
+  「还有窗口在用旧版本写这个工作区，请重启所有窗口」。每次写之前都会重查一次租约是否已过期。
+- **不升 schema 版本**：旧代码看到比它新的 `user_version` 会整库重建（`resetForSchema`），
+  那会毁掉数据。升级保护靠旧租约检测 + 文档要求全窗口重启，不靠版本号挡。
+
+网络盘路径的写者标识用 `rw-<进程号>-<序号>` 前缀（旧代码是 `refresh-…` / `snapshot:…`），
+只为日志与排查能一眼分出「读写锁版本写下的」还是「旧版本留下的」；判断只看租约有没有过期。
+
 ## 存储不设上限、不淘汰（2026-11-05，#1922）
 
 有了 SQLite 做存储之后，按需细节（正文、评论、评审、子票清单）不再设条数或字节上限，
@@ -173,7 +212,11 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
 
 - `tests/verify-1862-snapshot-merge.ts`：纯合并规则与版本门判据，不碰数据库。
 - `tests/verify-1862-snapshot-database.ts`：真实临时目录 + 真 SQLite，覆盖关库重开、
-  失败回滚、第二写者只读、版本门、损坏重建、身份不符重建、列表投影与构建登记。
+  失败回滚、两个本地写者都提交、版本门、损坏重建、身份不符重建、列表投影与构建登记。
+- `tests/verify-1932-multi-window.ts`：本地多窗口可写——两个句柄与两个真子进程同时写同一份库、
+  空闲窗口不占写权、关掉一个另一个照写、旧租约未过期时拒绝本地写并在过期后自动恢复、
+  网络盘仍是单写者回退、设置页「写模型」三格读数（storageKind / mode / legacyWriterBlocked）
+  与 UNC / 盘符 / POSIX 三路路径判定。
 - `tests/verify-1863-snapshot-edges.ts`：父子边与阻塞边的三态写入、引用骨架、删除级联。
 - `tests/verify-1863-snapshot-library-replay.ts` 与 `verify-1863-snapshot-cold-start.ts`：
   列表读结果按组写库、断网冷启动首屏只读库。
