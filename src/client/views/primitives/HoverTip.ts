@@ -45,6 +45,10 @@ export const HoverTip = function (props: any) {
   const eventRef = React.useRef(null)
   const tipRef = React.useRef(null)  // 提示本体的 ref：先按宽度上限渲染，再量渲染外框的真实宽高算落点。
   const [pos, setPos] = React.useState({ left: 0, top: 0, eff: maxWidth })
+  // 本次显示有没有量到提示自己的外框（#1927）。第一次出现时还没有真实尺寸，旧实现按 320×32 的估算尺寸
+  // 直接画出来，挂载后的被动 effect 再量再改，用户看到的就是「先在中间、随后闪跳到按钮旁」。
+  // 现在量到之前一律不可见：估算尺寸只用来占位，可见状态只属于量到之后的那一帧。
+  const [tipMeasured, setTipMeasured] = React.useState(false)
   const hideTimerRef = React.useRef(null)
   const clearTimer = function () {
     if (hideTimerRef.current !== null) { try { clearTimeout(hideTimerRef.current) } catch (e) {} hideTimerRef.current = null }
@@ -80,10 +84,15 @@ export const HoverTip = function (props: any) {
     if (placed && typeof placed.x === 'number' && typeof placed.y === 'number') return { left: placed.x, top: placed.y, eff: placed.effectiveMaxWidth }
     return null
   }
-  React.useEffect(function () {
+  // 量尺寸与算落点必须在浏览器绘制之前做完：布局 effect 在 DOM 改动之后、绘制之前跑，
+  // 它改的状态在同一帧里重新渲染，所以用户看不到按估算尺寸画出的那一笔（#1927）。
+  // 环境里没有 useLayoutEffect 时退回被动 effect，这时上面那个「量到之前不可见」把它兜住，
+  // 只是提示会晚一拍出现，不会先出现在错的位置。
+  const useBeforePaint: any = (React && typeof React.useLayoutEffect === 'function') ? React.useLayoutEffect : React.useEffect
+  useBeforePaint(function () {
     if (!visible || !hasTip) return undefined
     let disposed = false
-    const update = function () { if (disposed) return; const p = computePos(); if (p) setPos(p) }
+    const update = function () { if (disposed) return; const p = computePos(); if (p) setPos(p); setTipMeasured(true) }
     update()
     const onScroll = function () { update() }
     const onResize = function () { update() }
@@ -100,6 +109,8 @@ export const HoverTip = function (props: any) {
     }
   }, [visible, hasTip, maxWidth])
   React.useEffect(function () { return function () { clearTimer() } }, [])
+  // 提示收起后清掉「已量到」：下一次显示可能是另一个触发控件，尺寸与落点必须重新量。
+  React.useEffect(function () { if (!visible) setTipMeasured(false) }, [visible])
   const handleEnter = function (e: any) {
     try {
       const el = (e && (e.currentTarget || e.target)) || null
@@ -150,7 +161,8 @@ export const HoverTip = function (props: any) {
   if (visible && hasTip) {
     const live = computePos() || pos
     const liveEff = (live && typeof live.eff === 'number' && live.eff > 0) ? live.eff : effWidth
-    const style = Object.assign({}, tooltipStyle, { left: live.left, top: live.top, maxWidth: liveEff })
+    // 量到之前挂上去但不可见：visibility 不参与排版，提示照样能量到自己的真实外框（display:none 就量不到）。
+    const style = Object.assign({}, tooltipStyle, { left: live.left, top: live.top, maxWidth: liveEff, visibility: tipMeasured ? 'visible' : 'hidden' })
     const _tipProps: any = { style: style, ref: tipRef }
     if (props.className) _tipProps.className = props.className
     tipPortal = portalTop(h('div', _tipProps, [tipContent]))
