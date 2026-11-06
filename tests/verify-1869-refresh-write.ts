@@ -57,10 +57,16 @@ function issue(input: Partial<Issue> & { key: string; title: string }): Issue {
   return Object.assign(base, input)
 }
 
-function rowsWith(prefix: string): Issue[] {
+/**
+ * 一轮列表结果。updatedAt 可给：**换过标题的那一轮必须带一个更晚的更新时间**。
+ * 为什么：#1931 起读结果的行组按「更新时间严格更新才覆盖」判，标题改了而后端更新时间没往前走，
+ * 等于「两份同一时刻的数据谁后到谁赢」—— 那正是这条规则要禁止的事。真实后端改标题一定会推更新时间。
+ */
+function rowsWith(prefix: string, updatedAt?: string): Issue[] {
+  const extra = updatedAt ? { updatedAt } : {}
   return [
-    issue({ key: '100', type: 'map', title: prefix + '容器' }),
-    issue({ key: '5', title: prefix + '子票', parentKey: '100' }),
+    issue({ key: '100', type: 'map', title: prefix + '容器', ...extra } as any),
+    issue({ key: '5', title: prefix + '子票', parentKey: '100', ...extra } as any),
   ]
 }
 
@@ -149,7 +155,7 @@ async function main(): Promise<void> {
         return await recordIssueRows(input)
       },
     }
-    const good = createSessionRefresh(depsFor(dir, rowsWith('新'), library) as any)
+    const good = createSessionRefresh(depsFor(dir, rowsWith('新', '2026-11-02T00:00:00Z'), library) as any)
     const reply: any = await good.handleRefresh({ cwd: dir })
     check(reply && reply.ok === true, 'A2 刷新成功', reply && reply.error)
     check(calls.length === 1, 'A3 整轮刷新只调用一次 recordIssueRows（不是 200 条一批）', calls.length)

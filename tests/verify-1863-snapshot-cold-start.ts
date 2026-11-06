@@ -209,7 +209,8 @@ async function main(): Promise<void> {
   check(!!snap && !!snap.deck && !!snap.deck.counts && !('countsPending' in snap.deck), 'B16 库回放带库算的六个数字（不冒充后端计数、也不留待校准）', snap && snap.deck)
 
     // ── C. 增量：再取一批只覆盖提到的票，首屏立刻看到新值，没提到的仍在 ─────────────────────────
-    const child5b = Object.assign({}, child5, { title: '子票五（改过）' })
+    // #1931：标题改过的那一行必须带一个更晚的 updatedAt —— 读结果行组只在「严格更新」时才覆盖。
+    const child5b = Object.assign({}, child5, { title: '子票五（改过）', updatedAt: '2026-11-02T00:00:00Z' })
     const child8 = issue({ key: '8', title: '新子票', parentKey: '100' })
     allRows = [map100, child5b, closed50, spec200, child6, lone7, pr99, child8]
     const again = await list.fetchIssues(tempRoot)

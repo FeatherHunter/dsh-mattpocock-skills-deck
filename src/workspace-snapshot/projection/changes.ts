@@ -23,8 +23,10 @@ import type {
   ListIssue,
 } from '../model/types.js'
 import { readMergeVersion } from '../persistence/schema.js'
+import { withReadTransaction } from '../persistence/read-transaction.js'
 import { readFirstParents, type FirstParentInfo } from './edges.js'
 import { LIST_ROW_COLUMNS, projectListRows, type ListRow } from './list.js'
+import { reportReadStep, type ReadStepHook } from './read-step.js'
 
 interface TombstoneRow {
   effort_id: string
@@ -42,6 +44,19 @@ export function readChangeSetProjection(
   db: DatabaseSync,
   query: ChangeSetQuery,
   nowMs: number,
+  onReadStep?: ReadStepHook | null,
+): ChangeSetProjection {
+  // 版本读数、变化行与墓碑必须在同一个读事务里：中间提交的一笔写会让「版本 8 的变化集」
+  // 里混进第 9 版才写下的墓碑（理由见 persistence/read-transaction.ts）。
+  return withReadTransaction(db, () => readChangeSetRows(db, query, nowMs, onReadStep))
+}
+
+/** 变化集投影在事务里的那一段；拆出来只为让事务边界一眼看得见，行为与拆分前逐字相同。 */
+function readChangeSetRows(
+  db: DatabaseSync,
+  query: ChangeSetQuery,
+  nowMs: number,
+  onReadStep: ReadStepHook | null | undefined,
 ): ChangeSetProjection {
   const current = readMergeVersion(db)
   const since = query && typeof query.sinceVersion === 'number' ? query.sinceVersion : NaN
@@ -89,6 +104,7 @@ export function readChangeSetProjection(
      WHERE t.version > ?
      ORDER BY i.effort_id ASC, i.key ASC
      LIMIT ?`).all(since, probeLimit) as TombstoneRow[]
+  reportReadStep(onReadStep, 'changes-after-rows')
 
   if (maxRows > 0 && changedRows.length + tombstoneRows.length > maxRows) {
     return { ...base, changes: [], full: true, reason: 'rows-over-limit' }

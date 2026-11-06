@@ -151,7 +151,10 @@ try {
   check(reopenedVersion === deleted.mergeVersion, 'B4 关库重开之后版本没有回退', { reopenedVersion, want: deleted.mergeVersion })
 
   // C 票重新出现：普通写入清墓碑
-  const reappeared = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes: issueWritesOf([issue('1', '一号（回来了）')], 'github') })
+  // #1931：重新出现的这一笔要带一个更晚的 updatedAt —— 读结果的行组只在「严格更新」时才覆盖，
+  // 同一时刻的重写会被跳过，墓碑也就清不掉（那是「没变」，不是「没回来」）。
+  const reappearedIssue = Object.assign(issue('1', '一号（回来了）'), { updatedAt: '2026-11-02T00:00:00Z' })
+  const reappeared = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes: issueWritesOf([reappearedIssue], 'github') })
   check(reappeared.committed === true, 'C0 重新出现的普通写入提交成功', reappeared)
   check(keysIn(handle.readList({ state: 'all' })).join(',') === '1,2', 'C1 列表里又有它了（按票号顺序）', keysIn(handle.readList({ state: 'all' })))
   check(tombstoneVersionOf(dbPath, '1') === -1, 'C2 墓碑被清掉了（不是永久判决）')

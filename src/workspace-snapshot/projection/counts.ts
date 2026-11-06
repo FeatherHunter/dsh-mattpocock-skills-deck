@@ -25,6 +25,8 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { SnapshotCounts } from '../model/types.js'
 import { readSyncBookkeepingRow } from '../persistence/sync-bookkeeping.js'
+import { withReadTransaction } from '../persistence/read-transaction.js'
+import { reportReadStep, type ReadStepHook } from './read-step.js'
 
 /**
  * 六个数字的那一条 SQL。
@@ -84,16 +86,21 @@ function countOf(value: number | bigint | null | undefined): number {
  * 完整度在同一个函数里读同步簿记：两者必须来自同一时刻的库。分开两次调用、中间夹一次写入，
  * 就会出现「数字是新的、完整度还是旧的」这种自相矛盾的答案。
  */
-export function readCountsProjection(db: DatabaseSync): SnapshotCounts {
-  const row = db.prepare(COUNTS_SQL).get() as CountsRow | null
-  const book = readSyncBookkeepingRow(db)
-  return {
-    total: countOf(row && row.total),
-    open: countOf(row && row.open),
-    closed: countOf(row && row.closed),
-    takeable: countOf(row && row.takeable),
-    blocked: countOf(row && row.blocked),
-    claimed: countOf(row && row.claimed),
-    completeness: book.fullEnumerationMs > 0 ? 'complete' : 'known',
-  }
+export function readCountsProjection(db: DatabaseSync, onReadStep?: ReadStepHook | null): SnapshotCounts {
+  // 六个数字与完整度必须在同一个读事务里：中间夹一次写入就会出现「数字是新的、完整度还是旧的」
+  // 这种自相矛盾的答案（理由见 persistence/read-transaction.ts）。
+  return withReadTransaction(db, () => {
+    const row = db.prepare(COUNTS_SQL).get() as CountsRow | null
+    reportReadStep(onReadStep, 'counts-after-total')
+    const book = readSyncBookkeepingRow(db)
+    return {
+      total: countOf(row && row.total),
+      open: countOf(row && row.open),
+      closed: countOf(row && row.closed),
+      takeable: countOf(row && row.takeable),
+      blocked: countOf(row && row.blocked),
+      claimed: countOf(row && row.claimed),
+      completeness: book.fullEnumerationMs > 0 ? 'complete' : 'known',
+    }
+  })
 }

@@ -220,17 +220,18 @@ function main(): void {
       { version: handle.getMergeVersion(), keys: afterFailure.issues.map((item) => item.key) },
     )
 
-    // ---- 版本门：过期批次整批丢弃 ----
+    // ---- 版本门：#1931 起按组跳过，不再整批丢弃 ----
     const stale = handle.ingest(batch(0, [
       write('effort-1', 'A', { labels: { completeness: 'complete', value: [] } }),
     ]))
     const afterStale = byKey(handle.readList(), 'A')
     check(
-      stale.committed === false && stale.reason === 'stale'
+      stale.committed === true && stale.skippedGroups === 1 && stale.reason === undefined
         && handle.getMergeVersion() === 1 && afterStale.labels.length === 2,
-      'D1 startMergeVersion 小于表达组上次写入版本时整批丢弃，库里一个字节不改',
+      'D1 startMergeVersion 小于表达组上次写入版本时只跳过那一组：committed、版本不动、值不动，skippedGroups 记 1',
       { stale, version: handle.getMergeVersion(), labels: afterStale.labels },
     )
+
 
     // ---- 完整来源：覆盖与清空 ----
     const cleared = handle.ingest(batch(1, [
@@ -247,7 +248,9 @@ function main(): void {
     // ---- truncate 只补空缺 ----
     const filled = handle.ingest(batch(2, [
       write('effort-1', 'A', {
-        row: { completeness: 'truncated', value: { title: '不该覆盖', stateReason: 'completed', commentCount: 9 }, source: 'gate' },
+        // #1931：truncated 的行组也走「行组严格时间」。这里给一个更新的更新时间，才轮到「只补空缺」这条规则；
+        // 不给时间（未知）时，它不会覆盖库里已知的那一行 —— 那是另一条断言（F7）。
+        row: { completeness: 'truncated', value: { title: '不该覆盖', stateReason: 'completed', commentCount: 9, updatedAtMs: 4000 }, source: 'gate' },
       }),
     ]))
     const afterFill = byKey(handle.readList(), 'A')
@@ -257,6 +260,20 @@ function main(): void {
         && afterFill.row.stateReason === 'completed' && afterFill.row.commentCount === 9,
       'F2 truncated 只补原来为 NULL 的列（关闭原因、评论数），已有标题与链接不动',
       afterFill.row,
+    )
+
+    // ---- #1931：行组严格时间 —— 不知道更新时间时不许覆盖库里已知的那一行 ----
+    const versionBeforeUnknownTime = handle.getMergeVersion()
+    handle.ingest(batch(versionBeforeUnknownTime, [
+      write('effort-1', 'A', {
+        row: { completeness: 'truncated', value: { title: '没有时间的标题' }, source: 'gate' },
+      }),
+    ]))
+    const afterUnknownTime = byKey(handle.readList(), 'A')
+    check(
+      afterUnknownTime.row.title === 'A 票' && handle.getMergeVersion() === versionBeforeUnknownTime,
+      'D3 truncated 行组没带更新时间（未知）：不覆盖库里已知的行，也不推进版本',
+      { row: afterUnknownTime.row, version: handle.getMergeVersion() },
     )
 
     // ---- unknown 只盖章 ----
@@ -321,6 +338,28 @@ function main(): void {
       finalPage.issues[0].key === 'A' && finalPage.issues[1].key === 'C',
       'G3 列表顺序按 updated_at_ms 倒序：A 5000 在 C 4000 前',
       finalPage.issues.map((item: any) => item.key),
+    )
+
+    // ---- #1931 混合批：过期的组跳过、没过期的组照写 ----
+    // 先把 A 的标签组写到当前版本，再拿「写之前那一版」当起点写「标签 + 正文」：
+    // 标签组比起点新 → 跳过；正文组还停在更早的版本（F5 删行时被清掉，之后没再写过）→ 照写。
+    const beforeMixed = handle.getMergeVersion()
+    handle.ingest(batch(beforeMixed, [
+      write('effort-1', 'A', { labels: { completeness: 'complete', value: [{ name: 'touch' }] } }),
+    ]))
+    const mixedStale = handle.ingest(batch(beforeMixed, [
+      write('effort-1', 'A', {
+        labels: { completeness: 'complete', value: [{ name: '迟到的标签' }] },
+        body: { completeness: 'complete', value: '迟到的正文' },
+      }),
+    ]))
+    const afterMixedStale = byKey(handle.readList(), 'A')
+    check(
+      mixedStale.committed === true && mixedStale.skippedGroups === 1
+        && afterMixedStale.labels.length === 1 && afterMixedStale.labels[0].name === 'touch'
+        && handle.getMergeVersion() === beforeMixed + 2,
+      'D1b 混合批：过期的标签组被跳过、正文组照写，版本只前进一版（按组判，不是整批）',
+      { mixedStale, labels: afterMixedStale.labels, version: handle.getMergeVersion() },
     )
 
     handle.close()

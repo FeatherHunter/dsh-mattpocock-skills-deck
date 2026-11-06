@@ -58,11 +58,16 @@ function issue(input: Partial<Issue> & { key: string; title: string }): Issue {
   return Object.assign(base, input)
 }
 
-function seedRows(prefix: string): Issue[] {
+/**
+ * 三行一轮。updatedAt 可给：换过标题的那一轮必须带一个更晚的更新时间。
+ * 为什么：#1931 起读结果的行组按「更新时间严格更新才覆盖」判，同一时刻的两份数据不会互相覆盖。
+ */
+function seedRows(prefix: string, updatedAt?: string): Issue[] {
+  const extra: any = updatedAt ? { updatedAt } : {}
   return [
-    issue({ key: '100', type: 'map', title: prefix + '容器' }),
-    issue({ key: '5', title: prefix + '子票五', parentKey: '100' }),
-    issue({ key: '7', title: prefix + '独立票' }),
+    issue(Object.assign({ key: '100', type: 'map', title: prefix + '容器' }, extra)),
+    issue(Object.assign({ key: '5', title: prefix + '子票五', parentKey: '100' }, extra)),
+    issue(Object.assign({ key: '7', title: prefix + '独立票' }, extra)),
   ]
 }
 
@@ -210,7 +215,7 @@ async function main(): Promise<void> {
 
     // 再正常写一次：三行全部变成新数据，版本前进一格。
     closeSnapshotLibraries()
-    const rewrite = await recordIssueRows({ workspaceRoot: dir, backend: 'github', repoIdentity: REF.refId, rows: seedRows('新'), atomic: true })
+    const rewrite = await recordIssueRows({ workspaceRoot: dir, backend: 'github', repoIdentity: REF.refId, rows: seedRows('新', '2026-11-02T00:00:00Z'), atomic: true })
     check(rewrite.ok === true && rewrite.rows === 3, 'C1 回滚后正常写入三行成功', rewrite)
     const afterWrite = await replayOf(dir)
     const newTitles = titlesIn(afterWrite)

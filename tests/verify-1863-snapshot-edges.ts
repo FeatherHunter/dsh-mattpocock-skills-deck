@@ -44,8 +44,12 @@ function check(cond: unknown, message: string, detail?: unknown): void {
   console.log('FAIL ' + message + (detail === undefined ? '' : '（实得 ' + JSON.stringify(detail) + '）'))
 }
 
-function rowValue(key: string, state: string): IssueRowValue {
-  return { type: 'issue', title: '票 ' + key, state, url: 'https://example.test/' + key, updatedAtMs: CLOCK }
+/**
+ * 行组的值。updatedAtMs 默认用夹具的固定时钟；**同一张票「删掉再建」这种第二笔必须给一个更晚的时间**：
+ * #1931 起读结果的行组按「更新时间严格更新才覆盖」判，同一时刻的第二笔不会覆盖库里那一行。
+ */
+function rowValue(key: string, state: string, updatedAtMs: number = CLOCK): IssueRowValue {
+  return { type: 'issue', title: '票 ' + key, state, url: 'https://example.test/' + key, updatedAtMs }
 }
 
 function rowGroup(value: IssueRowValue | null, completeness: GroupCompleteness = 'complete'): IssueGroupsWrite['row'] {
@@ -148,7 +152,7 @@ function main(): void {
     handle.ingest(batch(v5, [write('', '5', { row: rowGroup(null, 'complete') })]))
     check(byKey(readAll(handle), '5') === undefined, 'D1 row 组 complete + null 删掉这张票')
     const v6 = handle.getMergeVersion()
-    handle.ingest(batch(v6, [write('', '5', { row: rowGroup(rowValue('5', 'open')) })]))
+    handle.ingest(batch(v6, [write('', '5', { row: rowGroup(rowValue('5', 'open', CLOCK + 1000)) })]))
     const list6 = byKey(readAll(handle), '5')
     check(JSON.stringify(list6?.parents) === JSON.stringify([]), 'D2 重新建票时看不到上一辈子的父边（级联已清）', list6?.parents)
 

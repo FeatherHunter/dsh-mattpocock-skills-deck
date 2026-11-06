@@ -23,6 +23,12 @@ declare module 'node:sqlite' {
     prepare(sql: string): StatementSync
     exec(sql: string): void
     close(): void
+    /**
+     * #1931：这个连接此刻是不是在一个事务里。读事务入口（persistence/read-transaction.ts）靠它
+     * 判断能不能再 BEGIN —— 嵌套 BEGIN 会抛「cannot start a transaction within a transaction」。
+     * 这是 node:sqlite 的既有只读属性（Node 24 实测可用），这里只是补一条声明。
+     */
+    readonly isTransaction: boolean
   }
 }
 

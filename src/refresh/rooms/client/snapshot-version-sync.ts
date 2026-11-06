@@ -372,11 +372,20 @@ function syncPortsOf(ctx: any): SnapshotVersionPorts {
       const snap = await Promise.resolve(ctx.scope.host.call('wf.snapshot', { cwd: (ctx.st && ctx.st.cwd) || '' }))
       if (!snap || snap.ok !== true || !Array.isArray(snap.maps)) return null
       const st = ctx.st
+      let installed = true
       try {
-        if (typeof ctx.scope.installSnapshot === 'function') ctx.scope.installSnapshot(st, snap)
+        if (typeof ctx.scope.installSnapshot === 'function') installed = ctx.scope.installSnapshot(st, snap) !== false
         else { st.snapshot = snap; st.snapMode = 'real'; st.snapError = null; if (typeof ctx.scope.emit === 'function') ctx.scope.emit(st) }
-      } catch (e) {}
-      return seen === null ? { version: null, unknownVersion: true } : { version: seen }
+      } catch (e) { installed = false }
+      // #1931：装不上（被全量安装守卫挡下：来者比手上那份旧）就不许记成一个成功基线 ——
+      // 记了会让版本簿记停在「我很新」，而界面其实还是旧的。如实回 null，这一拍按失败处理，
+      // 下一拍读数恢复后会重新判（版本一样、没有基线、还是回退，三条路都还能走）。
+      if (!installed) return null
+      // 版本以「真的装上去的那一份」为准：请求之前问到的 seen 是起点（宁可旧一点也不会漏变化），
+      // 而手上这份数据对应的是 snap.version。只有非负整数版本才认；快照没带数字版本时退回 seen。
+      const installedVersion = syncVersionNumber(snap.version)
+      const held = installedVersion === null ? seen : installedVersion
+      return held === null ? { version: null, unknownVersion: true } : { version: held }
     },
     logDegrade: function (reason: string): void {
       // 一行说清「哪一侧、哪条路、为什么退回整份」；同一段退化只记一次（进段那一刻），恢复不再补记。

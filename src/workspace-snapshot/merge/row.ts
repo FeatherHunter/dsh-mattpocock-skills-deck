@@ -44,6 +44,47 @@ export function decideRowMerge(
 }
 
 /**
+ * 把「某份数据的更新时间」归一成非负毫秒整数或 null。
+ *
+ * null 只有一个意思：**这一趟不知道它的更新时间**。未知与已知是两件事，所以这里绝不能用 0 顶替：
+ * 0 会被读成「1970 年更新过」，于是一份不知道该什么时候更新的数据会把库里更新的值挡住，
+ * 或者反过来被当成「比谁都旧」而漏掉一次真正的更新。null / undefined / NaN / 负数 / 字符串都回 null。
+ */
+export function normalizeRowTimeMs(raw: unknown): number | null {
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) return null
+  return Math.trunc(raw)
+}
+
+/** 这条时间规则用在哪一路：读结果的 row 组（严格更新才覆盖）与写回执（持平按到达序写）。 */
+export type RowTimeKind = 'read' | 'receipt'
+
+/**
+ * row 组这一批该不该覆盖库里的行（#1931）。
+ *
+ * 规则（逐条都有反例，改之前先看反例）：
+ *  - 来者严格新于库里已存 → 覆盖。这是唯一的「正常更新」。
+ *  - 持平（两个时刻毫秒相同）→ 读结果不覆盖。反例：分页与整份重取先后回来，两份数据是同一时刻的
+ *    快照，谁后到谁赢会让「刚看到新标题」被一份同时刻的旧回包顶回去。写回执持平要写：
+ *    回执是「我刚把它改成了这样」的结论，同一秒内两次写回执只能按到达顺序落。
+ *  - 来者不知道、库里知道 → 不覆盖（不知道 ≠ 更新）。
+ *  - 来者知道、库里不知道 → 覆盖（已知可以填未知）。
+ *  - 两边都不知道 → 覆盖：没有可比的时间，这条规则不参与判断，退回改动前「照写」的行为。
+ *
+ * 删除表达（row 组 complete + null）不走这条规则：它不写行，只写墓碑，归版本门与回执窗口管。
+ */
+export function shouldApplyRowTime(
+  incomingMs: unknown,
+  existingMs: unknown,
+  kind: RowTimeKind,
+): boolean {
+  const incoming = normalizeRowTimeMs(incomingMs)
+  const existing = normalizeRowTimeMs(existingMs)
+  if (incoming === null) return existing === null
+  if (existing === null) return true
+  return kind === 'receipt' ? incoming >= existing : incoming > existing
+}
+
+/**
  * 只留「确实给了值」的字段。0、false、空串都算有值：空标题与「没有标题」是两件事，
  * 用 truthy 判断会把 0 和 false 悄悄丢掉。existing 参数留给调用方在 SQL 里比较，
  * 纯判断不需要它——这样同一份规则在「新行」与「旧行」上表现一致。

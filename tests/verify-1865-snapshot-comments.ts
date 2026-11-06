@@ -306,7 +306,10 @@ function main(): void {
         comments: page([commentOf('c7', 'alice', '迟到的旧结果'), commentOf('c8', 'bob', '迟到的旧结果二')]),
       })],
     })
-    check(staleComments.committed === false && staleComments.reason === 'stale', 'D1 用旧起读版本写评论被整批丢弃',
+    // #1931：版本门按组跳过。评论组比起点新 → 只跳过这一组，整批仍然提交（committed:true），
+    // 版本不前进（一组都没写进去），并把跳过数记在 skippedGroups 里。
+    check(staleComments.committed === true && staleComments.reason === undefined
+      && staleComments.skippedGroups === 1, 'D1 用旧起读版本写评论：只跳过评论组，整批仍提交、不回 stale',
       staleComments)
     const afterStale = detailOf(handle, '7')
     check(commentsOf(afterStale).length === 1 && commentsOf(afterStale)[0]?.body === '先前取到的一条',
@@ -322,7 +325,8 @@ function main(): void {
       startMergeVersion: versionBeforeReviews,
       writes: [write('8', { review: complete([] as SnapshotReview[]) })],
     })
-    check(staleReviews.committed === false && staleReviews.reason === 'stale', 'D4 用旧起读版本写评审同样被丢弃',
+    check(staleReviews.committed === true && staleReviews.reason === undefined
+      && staleReviews.skippedGroups === 1, 'D4 用旧起读版本写评审：同样只跳过评审组，整批仍提交',
       staleReviews)
     check(reviewsOf(detailOf(handle, '8')).length === 1, 'D5 被丢弃的评审没有清掉旧值',
       reviewsOf(detailOf(handle, '8')))

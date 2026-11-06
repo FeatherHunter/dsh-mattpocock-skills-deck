@@ -75,6 +75,9 @@ function mdDetail(): Issue {
     key: '01',
     title: '第一张子票',
     body: '这是本地 Markdown 票的正文。',
+    // 详情比列表晚取到：更新时间必须更晚，#1931 起读结果的行组只在「严格更新」时才覆盖
+    // （否则 C 组那趟更晚的列表重写会把这边的状态字段挡住）。
+    updatedAt: '2026-11-06T00:00:00Z',
     parentKey: '00',
     status: 'doing',
     statusVisible: 'doing',
@@ -250,14 +253,18 @@ function findIssue(snap: any, key: string): any {
 }
 
 /** 本地 Markdown 的列表读结果：两张容器（地图 00、规格 10）加三张散票，票号全部补零。 */
-function listRows(): Issue[] {
-  return [
+function listRows(updatedAt?: string): Issue[] {
+  const rows = [
     mdIssue({ key: '00', type: 'map', title: '探索地图：本地 Markdown 首屏', labels: [{ name: 'wayfinder:map', color: '5319e7' }] }),
     mdIssue({ key: '01', title: '第一张子票', parentKey: '00', labels: [{ name: 'ready-for-agent', color: 'ededed' }], assignees: [{ login: 'alice', name: '爱丽丝' }], blockedBy: [{ key: '05', title: '独立票', state: 'open' }] }),
     mdIssue({ key: '10', type: 'spec', title: '规格：本地 Markdown 支路' }),
     mdIssue({ key: '11', title: '规格子票', parentKey: '10' }),
     mdIssue({ key: '05', title: '独立票', labels: [{ name: 'bug', color: 'd73a4a' }] }),
   ]
+  // updatedAt 可给：C 组要用「更晚的更新时间 + 更早的取数时刻」把列表组压旧。
+  // #1931 起读结果的行组按「更新时间严格更新才覆盖」判，同一时刻的重写会被跳过，
+  // 取数时刻也就不会推新，「列表组已旧」这个现场就造不出来。
+  return updatedAt ? rows.map((row) => Object.assign({}, row, { updatedAt })) : rows
 }
 
 async function main(): Promise<void> {
@@ -309,7 +316,7 @@ async function main(): Promise<void> {
     const realNow = Date.now
     try {
       Date.now = () => realNow() - 10 * 60 * 1000
-      await snapshotLibrary.recordIssueRows({ workspaceRoot: tempRoot, backend: 'markdown', repoIdentity: tempRoot, rows: listRows() })
+      await snapshotLibrary.recordIssueRows({ workspaceRoot: tempRoot, backend: 'markdown', repoIdentity: tempRoot, rows: listRows('2026-11-05T00:00:00Z') })
     } finally {
       Date.now = realNow
     }

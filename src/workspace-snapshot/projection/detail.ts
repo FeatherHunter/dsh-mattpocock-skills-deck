@@ -24,8 +24,10 @@ import type {
 import { readFetchCursor } from '../persistence/fetch-cursor.js'
 import { COMMENTS_GROUP } from '../persistence/comment-write.js'
 import { readMergeVersion } from '../persistence/schema.js'
+import { withReadTransaction } from '../persistence/read-transaction.js'
 import { readIssueDetailEdges } from './edges.js'
 import { readAssignees, readGroupStates, readLabels } from './members.js'
+import { reportReadStep, type ReadStepHook } from './read-step.js'
 
 /** 详情要读的十组。顺序固定：门禁与排查都按这一份看。 */
 const DETAIL_GROUPS = [
@@ -76,10 +78,24 @@ export function readIssueDetailProjection(
   db: DatabaseSync,
   query: IssueDetailQuery | undefined,
   nowMs: number,
+  onReadStep?: ReadStepHook | null,
 ): IssueDetailProjection {
   const key = String(query?.key ?? '')
   if (!key) throw new Error('readIssueDetail 缺少 key')
   const effortId = query?.effortId === undefined || query?.effortId === null ? '' : String(query.effortId)
+  // 版本、行、正文、边、评论、评审必须在同一个读事务里：中间提交的一笔写会让详情页的
+  // 「版本」与「值」来自两个时刻（理由与事务的长度约束见 persistence/read-transaction.ts）。
+  return withReadTransaction(db, () => readIssueDetailRows(db, effortId, key, nowMs, onReadStep))
+}
+
+/** 详情投影在事务里的那一段；拆出来只为让事务边界一眼看得见，行为与拆分前逐字相同。 */
+function readIssueDetailRows(
+  db: DatabaseSync,
+  effortId: string,
+  key: string,
+  nowMs: number,
+  onReadStep: ReadStepHook | null | undefined,
+): IssueDetailProjection {
   const mergeVersion = readMergeVersion(db)
   const row = db.prepare(
     `SELECT issue_id, effort_id, key, type, title, state, url,
@@ -93,6 +109,7 @@ export function readIssueDetailProjection(
   ).get(effortId, key) as DetailRow | undefined
   if (!row) return { mergeVersion, generatedAtMs: nowMs, issue: null }
 
+  reportReadStep(onReadStep, 'detail-after-row')
   const issueId = Number(row.issue_id)
   const states = readGroupStates(db, [issueId], DETAIL_GROUPS)
   const stateOf = (name: string): GroupState | null => states.get(`${issueId}:${name}`) ?? null

@@ -26,16 +26,19 @@
 // 门禁归属: src/refresh/rooms/client/refresh-timer.ts
 
 import { printGateResult } from './lib/gate-result.ts'
-import { sourceText } from './lib/source-text.ts'
+import { sourceText, spliceableJs } from './lib/source-text.ts'
 import { idOf } from '../src/tracker/kernel/identity-keys.ts'
 import { applySnapshotChangeSet, isNewerSnapshotVersion } from '../src/refresh/rooms/client/snapshot-change-merge.ts'
 // #1885 评审修复：行换算与宿主共用一份（src/shared/snapshot-row-fields.ts）；直接 import 客户端片时显式递进去。
 import { snapshotRowFieldsOf } from '../src/shared/snapshot-row-fields.ts'
+import { compileFn } from './lib/eval-probe.ts'
+import { SEL_WAIT_MS } from '../src/shared/time-config/src/values.js'
 import {
   createPollingVersionSource,
   createSnapshotVersionSync,
   rememberSnapshotVersion,
   runSnapshotVersionTick,
+  snapshotVersionBookOf,
 } from '../src/refresh/rooms/client/snapshot-version-sync.ts'
 
 // 生产闭包里这份换算由构建拼进来；门禁单独求值各片时按仓里惯例挂到 globalThis 上。
@@ -164,6 +167,56 @@ function makeRun(initial: { snapshot: any, version: number | null }): any {
     setFull: function (fn: any): void { fullReply = fn },
     hold: function (promise: Promise<void>): void { gate = promise },
   }
+}
+
+
+/**
+ * 真的 _snapInstallBody：把客户端那一片按构建同一口径转译后、在 with(scope) 里求值取出来。
+ *
+ * 为什么不用替身：这一组要证的正是「装之前比库版本」这条守卫本身（#1931）；换成替身等于把要证的
+ * 结论写进替身。闭包邻居（缓存落表、补标签颜色、开始探测…）在这里全是空的替身，只保留一个真的：
+ * snapshotVersionBookOf —— 守卫问它「手上那份是第几版」。
+ */
+function loadInstallBody(): any {
+  const src = spliceableJs('src/refresh/rooms/client/probe-scope-selection.js')
+    .split('\n')
+    .filter(function (line: string): boolean { return !/^\s*import\s.*time-config\/values\.js/.test(line) })
+    .join('\n')
+  const scope: Record<string, any> = {
+    SEL_WAIT_MS: SEL_WAIT_MS,
+    snapshotVersionBookOf: function (cwd: any): any { return snapshotVersionBookOf(cwd) },
+    host: { call: function (method: string): any { return Promise.resolve({ ok: false, error: 'stub ' + method }) } },
+    wsKeyOf: function (x: any): string { return String(x || '') },
+    isEnabled: function (): boolean { return false },
+    log: function (): void {},
+    dswsLogHash: function (s: any): string { return 'h' + String(s || '').length },
+    dswsLogTrunc: function (s: any): string { return String(s || '').slice(0, 120) },
+    mergeSelection: function (): boolean { return false },
+    workspaceRootByCwd: function (): any { return null },
+    keyOf: function (x: any): string { return String(x || '') },
+    _snapRespStale: function (): boolean { return false },
+    _snapRequestKeyWas: function (): boolean { return true },
+    emit: function (): void {},
+    _flushDeferredChain: function (): void {},
+    setCachedRepository: function (): void {},
+    setCachedSnapshot: function (): void {},
+    getCachedSnapshot: function (): any { return null },
+    applySnapshotSelection: function (): void {},
+    startAutoProbe: function (): void {},
+    setPresentationMap: function (): void {},
+    scheduleFlashClear: function (): void {},
+    flash: function (): void {},
+    tr: function (k: any): string { return String(k) },
+    diffSnapshots: function (): any { return { added: [], changed: [], removed: [], issueFlash: {} } },
+    lcApplySavedColorsOnInstall: function (): void {},
+  }
+  const body = 'with (scope) {\n' + src + '\n; return { install: _snapInstallBody }\n}'
+  return compileFn(['scope'], body)(scope).install
+}
+
+/** 带数字库版本的一份快照（守卫只认非负整数版本；内容散列那种字符串版本一律跳过守卫）。 */
+function snapshotAt(version: number, issues: any[]): any {
+  return { ok: true, version: version, maps: [], issues: issues, thinTickets: [] }
 }
 
 async function main(): Promise<void> {
@@ -378,6 +431,85 @@ async function main(): Promise<void> {
       return !(new RegExp('export (?:function|const) ' + name + '\\b')).test(newModuleSrc)
     })
     check(missingSeams.length === 0, 'H10 内核接的六个名字都真是新那两片的导出（名字对不上 = 这条路永远不走）', missingSeams)
+  }
+
+  // ---------------------------------------------------------------- I 全量安装不回退
+  // 整份取数（full）是「没有基线 / 落后超限 / 库退化 / 版本回退」时的唯一出路。它取回来的那一份
+  // 如果比手上那份还旧（宿主那边刚被重建、或者请求与库之间插了一次重建），装上就是把旧数据当新基线：
+  // 界面倒回旧值，版本簿记还会记成「我很新」，之后的变化集从此接不住。所以装之前要过一道版本守卫。
+  {
+    const installOf = loadInstallBody()
+    const cwd = 'D:\\ws1891-install'
+    rememberSnapshotVersion(cwd, 7)
+    const st: any = {
+      cwd: cwd, snapshot: snapshotOf([row('1', '甲')]), snapMode: 'real', snapError: null,
+      backendModules: { list: [] },
+    }
+    const heldSnapshot = st.snapshot
+    const older = snapshotAt(5, [row('1', '五版的甲')])
+    check(
+      installOf(st, older) === false && st.snapshot === heldSnapshot,
+      'I1 手上版本 7、取回来的整份是版本 5：不装，手上那份一个字节不改',
+      { installed: false, issues: st.snapshot && st.snapshot.issues.map(function (x: any): string { return x.title }) },
+    )
+    const same = snapshotAt(7, [row('1', '七版的甲')])
+    check(
+      installOf(st, same) === true && st.snapshot === same,
+      'I2 同版本照装（幂等：重开一次不该被自己的版本挡住）',
+    )
+    rememberSnapshotVersion(cwd, 7)
+    const newer = snapshotAt(8, [row('1', '八版的甲')])
+    check(
+      installOf(st, newer) === true && st.snapshot === newer && snapshotVersionBookOf(cwd).version === 7,
+      'I3 来者版本更新：照装（装这一动作本身不改版本簿记，簿记由整份取数那一路记）',
+    )
+
+    // 从整份取数那一路走一遍：版本簿记只能以「真的装上去的那一份」为准。
+    const fullCwd = 'D:\\ws1891-install-full'
+    rememberSnapshotVersion(fullCwd, 7)
+    const st2: any = {
+      cwd: fullCwd, snapshot: snapshotOf([row('1', '旧甲')]), snapMode: 'real', snapError: null,
+      snapLoading: false, backendModules: { list: [] },
+    }
+    let versionValue = 8
+    let snapshotValue: any = snapshotAt(5, [row('1', '五版的甲')])
+    const calls2: string[] = []
+    const scope2: any = {
+      host: {
+        call: function (method: string, args: any): any {
+          calls2.push(method)
+          if (method === 'wf.snapshotVersion') return Promise.resolve({ version: versionValue, workspaceKey: fullCwd, backend: 'github' })
+          if (method === 'wf.snapshotChanges') {
+            return Promise.resolve({ ok: true, version: versionValue, full: true, reason: 'age-over-limit', changes: [], missing: [] })
+          }
+          if (method === 'wf.snapshot') return Promise.resolve(snapshotValue)
+          return Promise.resolve({ ok: false, error: 'unexpected ' + method })
+        },
+      },
+      wsKeyOf: function (x: any): string { return String(x || '') },
+      idOf: idOf,
+      emit: function (): void {},
+      setCachedSnapshot: function (): void {},
+      applyChanges: applySnapshotChangeSet,
+      installSnapshot: installOf,
+      log: function (): void {},
+      isEnabled: function (): boolean { return false },
+    }
+    const beforeFull = st2.snapshot
+    const out1 = await runSnapshotVersionTick(st2, 'gate', scope2)
+    check(
+      out1 === 'failed' && st2.snapshot === beforeFull && snapshotVersionBookOf(fullCwd).version === 7,
+      'I4 整份取数回来的是更旧的一份（库 5、手上 7）：这一拍算失败、不装、版本簿记一动也不动',
+      { outcome: out1, version: snapshotVersionBookOf(fullCwd).version, calls: calls2 },
+    )
+    versionValue = 9
+    snapshotValue = snapshotAt(9, [row('1', '九版的甲')])
+    const out2 = await runSnapshotVersionTick(st2, 'gate', scope2)
+    check(
+      out2 === 'full' && st2.snapshot === snapshotValue && snapshotVersionBookOf(fullCwd).version === 9,
+      'I5 整份取数回来的是更新的那一份：装上，版本簿记以装上去的那一份为准（9，而不是请求之前的 8）',
+      { outcome: out2, version: snapshotVersionBookOf(fullCwd).version },
+    )
   }
 }
 

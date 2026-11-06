@@ -98,7 +98,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   //   全部组被挡时不开新版本；第二次回执把窗口起点推后、别的票不受影响；起读在写之前的那一趟被
   //   版本门整批丢弃；窗口长度与 config/ttl.yaml 的 snapshotReceiptPriorityMs 逐毫秒对上；宿主门面
   //   那两条回执路确实按「回执」提交。单跑实测 60 条。
-  'verify-1889-write-receipts': 60,
+  'verify-1889-write-receipts': 62,
   // 2026-11-05 #1890（规格 #1885 S4）：真 SQLite 临时库 + 假后端驱动两条新读口——版本查询回包只有
   // 版本、工作区键、后端三格且与库里的版本一致；变化集含变化的行与墓碑行、条数与库里实际变化一致；
   // 行数或时间越线时回整份（不给截断的变化集）；客户端版本比库里大时回整份；wf.snapshot 回包键集与
@@ -131,7 +131,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 生产接线先问 wf.snapshotVersion、变了才问 wf.snapshotChanges、这一路不取 wf.snapshot，版本相同的
   // 一拍一次数据读取都没有；304 与水合胜负按库版本判、探测回包里的整份快照退场，内核 declare 的
   // 六个名字必须真是新那两片的导出（名字对不上时 typeof 守卫会让整条路静默不走）。单跑实测 55 条。
-  'verify-1891-version-sync': 55,
+  'verify-1891-version-sync': 60,
   // 2026-11-05 #1885 评审修复（标准轴第 1 条 + 规格 D / F）：库行 → 界面行只有一份换算
   // （src/shared/snapshot-row-fields.ts，宿主投影与客户端变化集共用同一份文本）。同一份库行夹具喂
   // issueOfRow 与 changeRowPatch：标签 / 指派 / 父票 / 阻塞边 / 合并信息「写不写、写什么」逐项相等，
@@ -772,7 +772,12 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 第二扇守真 SQLite 文件上的开库/关库重开、整批回滚、第二写者退回只读、过期批次、损坏备份重建与身份不符重建。
   // 两扇都交完成记录，条数按单跑实测登记；改断言时两处一起改。
   'verify-1862-snapshot-merge': 18,
-  'verify-1862-snapshot-database': 28,
+  'verify-1862-snapshot-database': 30,
+  // 2026-11-06 #1931（规格 #1930）：真 SQLite 临时库 + 两条真连接——五条投影（列表/详情/容器/变化集/计数）
+  // 在事务中间被另一个连接提交一笔写时，仍只看见写之前那一份版本与数据；下一次投影才看见新值。
+  // 行组严格时间（读严格更新才覆盖、持平不覆盖、未知不覆盖已知）、回执严格时间（更旧整票不写、持平按到达序）、
+  // 版本门按组跳过（过期组跳过、其余组照写、全部跳过不推版本、世代门仍整批 stale）。单跑实测 36 条。
+  'verify-1931-read-snapshot': 36,
   // 2026-11-04 #1863：GitHub 首屏改读本地快照库。第一扇守真 SQLite 上的按组写入、容器树回放、
   // 已关闭票在整池批次后仍在；第二扇守列表三条取数路径的写库钩子，以及「网络全断时首屏从库出」
   // （在线探测 / 磁盘缓存 / 当前用户 / 开会话 / 执行命令五处都计数为零）。

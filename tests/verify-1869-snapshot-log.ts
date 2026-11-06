@@ -145,12 +145,25 @@ async function main(): Promise<void> {
       logEvent: sink.logEvent,
     })
     const handle = opened.handle
+    // #1931：版本门按组跳过，不再整批丢弃 —— 也不再回 reason:'stale'（那会让调用方重试并把旧数据写一遍）。
+    // stale 从这一票起只留给同步世代门。这一批经适配层表达了几组（行、正文、标签、指派…），
+    // 它们全都在起点之后写过，于是全部被跳过：committed:true、版本不前进、跳过数如实记下。
+    const versionBeforeStale = handle.getMergeVersion()
     const stale = handle.ingest({ startMergeVersion: 0, writes: issueWritesOf([issueOf('2', '不该写进去的标题')]) })
-    check(stale.committed === false && stale.reason === 'stale', 'B1 起读版本落后时整批被丢弃（前置）', stale)
+    check(
+      stale.committed === true && stale.reason === undefined
+        && typeof stale.skippedGroups === 'number' && stale.skippedGroups > 0
+        && handle.getMergeVersion() === versionBeforeStale,
+      'B1 起读版本落后时按组跳过：全部组都跳过、库版本不前进（不再回 stale）',
+      stale,
+    )
     const ingestB = sink.take('workspaceSnapshot.ingest')
-    const discarded = ingestB.filter((r) => r.fields.committed === false && r.fields.reason === 'stale')
-    check(discarded.length === 1, 'B2 被版本门丢弃的那一批发一条 ingest（committed:false + reason:stale）', ingestB.map((r) => r.fields))
-    check(!!discarded[0] && discarded[0].fields.writes === 1 && typeof discarded[0].fields.startMergeVersion === 'number', 'B3 丢弃那条说得出被丢的是哪一批（几张票、起读版本）', discarded[0] && discarded[0].fields)
+    const skipped = ingestB.filter((r) => r.fields.committed === true && r.fields.detail === 'skipped-groups')
+    check(skipped.length === 1,
+      'B2 有组被跳过的那一批发一条 ingest（committed:true + detail:skipped-groups）',
+      ingestB.map((r) => r.fields))
+    check(!!skipped[0] && skipped[0].fields.writes === 1 && typeof skipped[0].fields.startMergeVersion === 'number',
+      'B3 被跳过那条说得出是哪一批（几张票、起读版本）', skipped[0] && skipped[0].fields)
     handle.close()
 
     // ── C. 库被写坏：重建 + 告警 ─────────────────────────────────────────────────

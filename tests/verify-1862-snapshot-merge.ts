@@ -23,8 +23,8 @@ import { printGateResult } from './lib/gate-result.ts'
 import { decideCollectionMerge } from '../src/workspace-snapshot/merge/collection.ts'
 import { decideRowMerge } from '../src/workspace-snapshot/merge/row.ts'
 import {
+  isGroupStale,
   normalizeStartMergeVersion,
-  shouldDiscardBatch,
 } from '../src/workspace-snapshot/merge/version-gate.ts'
 import { openWorkspaceSnapshot } from '../src/workspace-snapshot/contract/index.ts'
 import type { IssueRowValue, SnapshotLabel } from '../src/workspace-snapshot/model/types.ts'
@@ -157,20 +157,20 @@ function main(): void {
     deduped,
   )
 
-  // ---- 三、版本门：只看本批表达的组 ----
+  // ---- 三、版本门（#1931 起按组判）：只看本批表达的这一组 ----
   check(
-    shouldDiscardBatch(3, [4]) && shouldDiscardBatch(3, [3, 99]) && !shouldDiscardBatch(3, [3, 2]),
-    'C1 任一表达组的 written_version 大于起点就整批丢弃；等于或小于不丢',
+    isGroupStale(3, 4) && isGroupStale(3, 99) && !isGroupStale(3, 3) && !isGroupStale(3, 2),
+    'C1 某一组的 written_version 严格大于起点才跳过这一组；等于或小于不跳过',
   )
   check(
-    !shouldDiscardBatch(3, []) && !shouldDiscardBatch(3, [0]),
-    'C2 本批没表达任何组时不丢；库里没有行按 0 传也不会误伤',
+    !isGroupStale(3, null) && !isGroupStale(3, undefined) && !isGroupStale(3, 0) && !isGroupStale(3, Number.NaN),
+    'C2 没有写入记录（null / undefined / 0 / 坏值）不算过期；不会把「从没写过」误判成「比起点新」',
   )
   check(
     normalizeStartMergeVersion(Number.NaN) === 0
       && normalizeStartMergeVersion(-5) === 0
       && normalizeStartMergeVersion(7.9) === 7
-      && shouldDiscardBatch(Number.NaN, [1]) === true,
+      && isGroupStale(Number.NaN, 1) === true,
     'C3 起点非法（NaN / 负数 / 小数）归一成 0 或整数，绝不把 NaN 带进比较绕过版本门',
   )
 

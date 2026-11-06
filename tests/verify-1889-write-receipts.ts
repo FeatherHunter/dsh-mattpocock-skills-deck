@@ -367,12 +367,33 @@ async function main(): Promise<void> {
     row: completeGroup(rowValue('写前标题', 'open')),
     body: completeGroup('写前正文-迟到'),
   })], { kind: 'read', startMergeVersion: versionBeforeV })
-  check(staleRead.committed === false && staleRead.reason === 'stale',
-    'D13 起读在写之前的那一趟读结果被版本门整批丢弃', staleRead)
-  check(detailOf('V').row.title === '写后标题' && detailOf('V').body !== '写前正文-迟到',
-    'D14 被版本门丢弃的那一批一个字段都没写（含回执没表达过的 body）',
+  // #1931：版本门从「整批丢弃」改成「按组跳过」。回执写过的 row 组比这一趟读的起点新 → 跳过它；
+  // 回执没表达过的 body 组仍停在起点那一版 → 照写。这是规格写明的边界：行组时间只用于行组与回执，
+  // 不拿来挡别的组（别的组没有可比的后端时间）。
+  check(staleRead.committed === true && staleRead.skippedGroups === 1 && staleRead.reason === undefined,
+    'D13 起读在写之前的那一趟读结果：只有过期的 row 组被跳过，整批仍然提交（不回 stale）', staleRead)
+  check(detailOf('V').row.title === '写后标题' && detailOf('V').body === '写前正文-迟到',
+    'D14 过期的那一组没被覆盖，同批没被回执表达过的 body 组照写',
     { title: detailOf('V').row.title, body: detailOf('V').body })
   check(Number(vReceipt.mergeVersion) > versionBeforeV, 'D15 写回执本身提交成功并推进了版本', vReceipt.mergeVersion)
+
+  // 回执表达了 body 时，旧读的 body 也归版本门管：两组都跳过、一个字节不改、版本不前进。
+  const bodyReceipt = ingest([writeOf('V', {
+    row: completeGroup(rowValue('正文回执标题', 'closed')),
+    body: completeGroup('回执正文'),
+  })], { kind: 'receipt' })
+  const versionBeforeBodyStale = handle.getMergeVersion()
+  const staleBodyRead = ingest([writeOf('V', {
+    row: completeGroup(rowValue('更旧的标题', 'open')),
+    body: completeGroup('更旧的正文'),
+  })], { kind: 'read', startMergeVersion: versionBeforeV })
+  check(staleBodyRead.committed === true && staleBodyRead.skippedGroups === 2
+    && handle.getMergeVersion() === versionBeforeBodyStale && Number(bodyReceipt.mergeVersion) > 0,
+    'D15b 回执表达过 body 时，旧读的 row 与 body 两组都被按组跳过，库版本不前进',
+    { staleBodyRead, version: handle.getMergeVersion() })
+  check(detailOf('V').row.title === '正文回执标题' && detailOf('V').body === '回执正文',
+    'D15c 两组都还停在回执写下的那一份（旧读一个字段都没写）',
+    { title: detailOf('V').row.title, body: detailOf('V').body })
 
   clock = CLOCK0 + 4000
   ingest([writeOf('CM', {

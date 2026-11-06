@@ -2,6 +2,7 @@
 //
 // 上层（refresh、界面、测试）只应该 import contract/ 里的东西。这里的形状是 #1862 定下的
 // 门面骨架，后续实施票（1863+）直接按这个形状接，不要各自再造一套批次类型。
+import type { ReadStepHook } from '../projection/read-step.js'
 import type {
   ChangeSetProjection,
   ChangeSetQuery,
@@ -250,6 +251,19 @@ export interface IngestSuccess {
    * 上层拿它说「这一条存在第几位」，与库里实际写下的位置一致（被占用时可能往后挪过）。
    */
   commentPositions?: number[]
+  /**
+   * 这一批里有几组被版本门按组跳过了（#1931）。0 或没有这一格 = 一组都没被跳过。
+   *
+   * 为什么不再整批回 stale：一次整份刷新里，某几张票的行组可能刚好被别的写者更新过，
+   * 其余几十张票的组仍然该写。整批丢弃会让调用方重试并把旧数据再写一遍，而按组跳过只丢真正过期的那几组。
+   * 全部组都被跳过时这一批仍然 committed:true、版本不前进 —— 因为什么都没写，没有「变化」可言。
+   */
+  skippedGroups?: number
+  /**
+   * 这一批写回执里，有哪一张票的更新时间与库里持平（#1931）。只表示「按到达序写了」这一件事，
+   * 供排查解释一次看起来没变的更新：后端的更新时间精度有限，同一毫秒里两次写只能按到达顺序判。
+   */
+  sameSecondTie?: boolean
 }
 
 export interface IngestFailure {
@@ -282,6 +296,13 @@ export interface OpenWorkspaceSnapshotOptions {
   /** 写者标识；缺省由进程号 + 随机串生成。同一进程开两个句柄时必须区分。 */
   leaseOwner?: string
   logEvent?: SnapshotLogEvent
+  /**
+   * 读投影事务内的步骤钩子（#1931）。只为门禁存在：门禁在投影读到一半时用另一条连接提交一笔写，
+   * 再断言这一次投影仍只看见写之前那一份。生产代码从不传它；不传时它对行为零影响。
+   * 为什么放在开库选项上而不是投影函数上：门禁走的是与界面同一条入口（句柄），
+   * 这样证到的就是真路径，而不是一个只供测试调用的侧门。
+   */
+  onReadStep?: ReadStepHook
 }
 
 /**

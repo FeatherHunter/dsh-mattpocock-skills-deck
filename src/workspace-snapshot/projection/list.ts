@@ -21,7 +21,9 @@ import type {
   SubIssueCountsValue,
 } from '../model/types.js'
 import { readMergeVersion } from '../persistence/schema.js'
+import { withReadTransaction } from '../persistence/read-transaction.js'
 import { readIssueEdges } from './edges.js'
+import { reportReadStep, type ReadStepHook } from './read-step.js'
 import {
   normalizeCompleteness,
   readAssignees,
@@ -78,6 +80,7 @@ export function readListProjection(
   db: DatabaseSync,
   query: ListQuery | undefined,
   nowMs: number,
+  onReadStep?: ReadStepHook | null,
 ): ListProjection {
   const state = query?.state ?? 'open'
   if (state !== 'open' && state !== 'closed' && state !== 'all') {
@@ -99,12 +102,17 @@ export function readListProjection(
      ${limit === null ? '' : 'LIMIT ?'}`
   const params: Array<string | number> = state === 'all' ? [] : [state]
   if (limit !== null) params.push(limit)
-  const rows = db.prepare(sql).all(...params) as ListRow[]
-  return {
-    mergeVersion: readMergeVersion(db),
-    generatedAtMs: nowMs,
-    issues: projectListRows(db, rows),
-  }
+  // 版本读取与「行 + 标签 + 指派 + 边」的查询必须在同一个读事务里：分开就是两个时刻的库，
+  // 中间提交的一笔写会让这一屏上半截是旧的、下半截是新的（见 persistence/read-transaction.ts）。
+  return withReadTransaction(db, () => {
+    const rows = db.prepare(sql).all(...params) as ListRow[]
+    reportReadStep(onReadStep, 'list-after-rows')
+    return {
+      mergeVersion: readMergeVersion(db),
+      generatedAtMs: nowMs,
+      issues: projectListRows(db, rows),
+    }
+  })
 }
 
 /**
@@ -207,32 +215,37 @@ export function readContainerProjection(
   db: DatabaseSync,
   query: ContainerProjectionQuery | undefined,
   nowMs: number,
+  onReadStep?: ReadStepHook | null,
 ): ContainerProjection {
   const key = String(query?.key ?? '')
   if (!key) throw new Error('readContainerProjection 缺少 key')
   const effortId = query?.effortId === undefined || query?.effortId === null ? '' : String(query.effortId)
-  const mergeVersion = readMergeVersion(db)
-  const containerRow = db.prepare(
-    `SELECT ${LIST_ROW_COLUMNS}
-       FROM issue i
-       JOIN issue_group g ON g.issue_id = i.issue_id AND g.group_name = 'row'
-       LEFT JOIN issue_tombstone t ON t.issue_id = i.issue_id
-      WHERE i.effort_id = ? AND i.key = ? AND t.issue_id IS NULL`,
-  ).get(effortId, key) as ListRow | undefined
-  if (!containerRow) return { mergeVersion, generatedAtMs: nowMs, container: null, issues: [] }
-  const container = projectListRows(db, [containerRow])[0] ?? null
-  // 子票按边表反向查（谁把这张容器当父票）。用 IN 子查询而不是 JOIN：同一张票即使有多条
-  // 指向同一容器的父边，也只出现一次，不会把统计算重。
-  const rows = db.prepare(
-    `SELECT ${LIST_ROW_COLUMNS}
-       FROM issue i
-       JOIN issue_group g ON g.issue_id = i.issue_id AND g.group_name = 'row'
-       LEFT JOIN issue_tombstone t ON t.issue_id = i.issue_id
-      WHERE i.issue_id IN (SELECT e.subject_id FROM issue_edge e WHERE e.kind = 'parent' AND e.object_id = ?)
-        AND t.issue_id IS NULL
-      ORDER BY i.state ASC, i.updated_at_ms DESC, i.key ASC`,
-  ).all(Number(containerRow.issue_id)) as ListRow[]
-  return { mergeVersion, generatedAtMs: nowMs, container, issues: projectListRows(db, rows) }
+  // 容器行、子票行与版本必须在同一个读事务里（理由同 readListProjection）。
+  return withReadTransaction(db, () => {
+    const mergeVersion = readMergeVersion(db)
+    const containerRow = db.prepare(
+      `SELECT ${LIST_ROW_COLUMNS}
+         FROM issue i
+         JOIN issue_group g ON g.issue_id = i.issue_id AND g.group_name = 'row'
+         LEFT JOIN issue_tombstone t ON t.issue_id = i.issue_id
+        WHERE i.effort_id = ? AND i.key = ? AND t.issue_id IS NULL`,
+    ).get(effortId, key) as ListRow | undefined
+    if (!containerRow) return { mergeVersion, generatedAtMs: nowMs, container: null, issues: [] }
+    const container = projectListRows(db, [containerRow])[0] ?? null
+    // 子票按边表反向查（谁把这张容器当父票）。用 IN 子查询而不是 JOIN：同一张票即使有多条
+    // 指向同一容器的父边，也只出现一次，不会把统计算重。
+    const rows = db.prepare(
+      `SELECT ${LIST_ROW_COLUMNS}
+         FROM issue i
+         JOIN issue_group g ON g.issue_id = i.issue_id AND g.group_name = 'row'
+         LEFT JOIN issue_tombstone t ON t.issue_id = i.issue_id
+        WHERE i.issue_id IN (SELECT e.subject_id FROM issue_edge e WHERE e.kind = 'parent' AND e.object_id = ?)
+          AND t.issue_id IS NULL
+        ORDER BY i.state ASC, i.updated_at_ms DESC, i.key ASC`,
+    ).all(Number(containerRow.issue_id)) as ListRow[]
+    reportReadStep(onReadStep, 'container-after-rows')
+    return { mergeVersion, generatedAtMs: nowMs, container, issues: projectListRows(db, rows) }
+  })
 }
 
 function nullableNumber(value: number | null): number | null {

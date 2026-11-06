@@ -78,6 +78,9 @@ const _armSelWaitDeadline = function (st: any): any {
   } catch (eArm) { return null; }
 };
 declare const setCachedRepository: any;
+// #1931：装整份快照之前要问「手上那份是第几版」。实现在 refresh/rooms/client/snapshot-version-sync.ts，
+// 构建拼进同一个闭包之后名字就在；单独求值这一片的门禁没挂它时用 typeof 守卫跳过守卫（见下）。
+declare const snapshotVersionBookOf: any;
 declare const diffSnapshots: any;
 declare const flash: any;
 declare const tr: any;
@@ -216,6 +219,26 @@ export const _installLateSnapshotSelection = function (st: any, snap: any, reqNo
 export const _snapInstallBody = function (st: any, snap: any): boolean {
   try {
     if (!st || !snap || snap.ok !== true || !Array.isArray(snap.maps)) return false;
+    // #1931 全量安装守卫：来者比手上那份旧就不装。
+    //   为什么需要它：整份取数（full）的路上，请求与回包之间可能插进一次库重建或其他写者；回包带着
+    //   重建之前那一版的库版本回来时，装上就是把旧数据当新基线 —— 界面倒回旧值，版本簿记还会记成
+    //   「我很新」，之后的变化集从此接不住。
+    //   只认非负整数版本：内容散列那种字符串版本没法比大小，按「不知道」处理，照旧装（不因为读不懂就挡住）。
+    //   同版本照装：幂等重开不该被自己的版本挡住。
+    const incomingVersion: any = (typeof snap.version === 'number' && Number.isInteger(snap.version) && snap.version >= 0) ? snap.version : null;
+    if (incomingVersion !== null && typeof snapshotVersionBookOf === 'function') {
+      let heldVersion: number | null = null;
+      try {
+        const book: any = snapshotVersionBookOf(st.cwd);
+        if (book && typeof book.version === 'number' && Number.isInteger(book.version) && book.version >= 0) heldVersion = book.version;
+      } catch (eBook) {}
+      if (heldVersion !== null && incomingVersion < heldVersion) {
+        // 沿用既有事件名 snapshot.stale.drop（含义就是「这份快照判过期、没装」）：不新造事件，
+        // 免得日志事件表与门禁两头各改一遍。按需记一行：这种「整份比手上还旧」正是「刷新一下数据倒退」要查的那一问。
+        try { if (isEnabled('debug')) log('debug', 'snapshot.stale.drop', { keyHash: dswsLogHash(wsKeyOf(st.cwd)) }); } catch (eLogRegress) {}
+        return false;
+      }
+    }
     // v1.5 T10 R4：数据层增量 diff（新旧快照对比）—— 供多视图增量与 R5 视觉
     st.lastDiff = diffSnapshots(st.snapshot, snap);
     st.rowFlash = {};

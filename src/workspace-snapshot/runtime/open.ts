@@ -211,18 +211,28 @@ export function openWorkspaceSnapshot(
       )
       const elapsedMs = now() - startedAt
       if (result.committed) {
+        // #1931：这一批「提交了、但没全写」的两种情形都用既有的 detail 键说清楚（不新增日志字段）：
+        //   same-second-tie —— 回执的更新时间与库里持平，按到达序写了，排查时能解释「为什么这条没变」；
+        //   skipped-groups   —— 有组被版本门按组跳过，库里那几组比这一趟读的更新。
+        // 两者同时出现时记 same-second-tie：它更少见，也更能解释一次看起来没变化的提交。
+        const ingestDetail = result.sameSecondTie ? 'same-second-tie' : (result.skippedGroups ? 'skipped-groups' : undefined)
         logSnapshot(logEvent, 'info', 'workspaceSnapshot.ingest', {
           committed: true,
           writes: batch.writes.length,
           startMergeVersion: batch.startMergeVersion,
           mergeVersion: result.mergeVersion,
           elapsedMs,
+          ...(ingestDetail ? { detail: ingestDetail } : null),
         })
         return {
           committed: true,
           mergeVersion: result.mergeVersion as number,
           commentPositions: result.commentPositions,
           ...(result.sync ? { sync: result.sync } : null),
+          // 两格「这一批其实没全写」的坦白（#1931）：上层与排查都要知道到底发生了什么，
+          // 而不是拿一个 committed:true 去猜「是不是全都写进去了」。
+          ...(result.skippedGroups !== undefined ? { skippedGroups: result.skippedGroups } : null),
+          ...(result.sameSecondTie ? { sameSecondTie: true } : null),
         }
       }
       const reason = result.reason ?? 'write-failed'
@@ -274,7 +284,7 @@ export function openWorkspaceSnapshot(
     },
     readCounts(): SnapshotCounts {
       ensureOpen()
-      return readCountsProjection(db)
+      return readCountsProjection(db, options.onReadStep)
     },
     readStorageStats(): SnapshotStorageStats {
       ensureOpen()
@@ -282,19 +292,19 @@ export function openWorkspaceSnapshot(
     },
     readList(query?: ListQuery): ListProjection {
       ensureOpen()
-      return readListProjection(db, query, now())
+      return readListProjection(db, query, now(), options.onReadStep)
     },
     readIssueDetail(query: IssueDetailQuery): IssueDetailProjection {
       ensureOpen()
-      return readIssueDetailProjection(db, query, now())
+      return readIssueDetailProjection(db, query, now(), options.onReadStep)
     },
     readContainerProjection(query: ContainerProjectionQuery): ContainerProjection {
       ensureOpen()
-      return readContainerProjection(db, query, now())
+      return readContainerProjection(db, query, now(), options.onReadStep)
     },
     readChangeSet(query: ChangeSetQuery): ChangeSetProjection {
       ensureOpen()
-      return readChangeSetProjection(db, query, now())
+      return readChangeSetProjection(db, query, now(), options.onReadStep)
     },
     rebuild(): void {
       ensureOpen()

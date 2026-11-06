@@ -302,14 +302,20 @@ function groupsOf(issue: any): any {
   return (issue && issue.snapshotGroups) || {}
 }
 
-function listRows(): Issue[] {
-  return [
+/**
+ * 列表读结果。updatedAt 可给：C 组要用「更晚的更新时间 + 更早的取数时刻」把列表组压旧。
+ * 为什么必须更晚：#1931 起读结果的行组按「更新时间严格更新才覆盖」判，同一时刻的重写会被跳过，
+ * 于是取数时刻（last_queried_ms）也不会被推新，C 组想造的「列表组已旧」就不成立。
+ */
+function listRows(updatedAt?: string): Issue[] {
+  const rows = [
     gitlabIssue({ key: '100', type: 'map', title: '探索地图：GitLab 首屏', labels: [{ name: 'wayfinder:map', color: '5319e7' }] }),
     gitlabIssue({ key: '5', title: '子票五', parentKey: '100', labels: [{ name: 'ready-for-agent', color: 'ededed' }], assignees: [{ login: 'alice' }], blockedBy: [{ key: '50', title: '已关闭的子票', state: 'closed' }] }),
     gitlabIssue({ key: '200', type: 'spec', title: '规格：GitLab 支路' }),
     gitlabIssue({ key: '6', title: '规格子票', parentKey: '200' }),
     gitlabIssue({ key: '7', title: '独立票', labels: [{ name: 'bug', color: 'd73a4a' }], assignees: [{ login: 'bob' }] }),
   ]
+  return updatedAt ? rows.map((row) => Object.assign({}, row, { updatedAt })) : rows
 }
 
 async function main(): Promise<void> {
@@ -362,7 +368,7 @@ async function main(): Promise<void> {
     const shift = 10 * 60 * 1000
     try {
       Date.now = () => oldNow() - shift
-      await snapshotLibrary.recordIssueRows({ workspaceRoot: tempRoot, backend: 'gitlab', repoIdentity: GITLAB_REPO.refId, rows: listRows() })
+      await snapshotLibrary.recordIssueRows({ workspaceRoot: tempRoot, backend: 'gitlab', repoIdentity: GITLAB_REPO.refId, rows: listRows('2026-11-05T00:00:00Z') })
     } finally {
       Date.now = oldNow
     }

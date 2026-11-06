@@ -481,7 +481,11 @@ async function main(): Promise<void> {
     const raw = new DatabaseSync(dbPath)
     try {
       const seen: string[] = []
+      // #1931：投影现在把「六个数字」与「完整度」包在同一个读事务里，所以这层计数替身要把
+      // exec 与 isTransaction 透传出去（BEGIN / COMMIT 不是 SQL 语句，不该计入语句数）。
       const counted = {
+        get isTransaction(): boolean { return raw.isTransaction },
+        exec(sql: string): void { raw.exec(sql) },
         prepare(sql: string): any { seen.push(sql); return raw.prepare(sql) },
       } as any
       const counts = readCountsProjection(counted)

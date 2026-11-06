@@ -305,7 +305,12 @@ async function main(): Promise<void> {
       'B5 库里有数据时首屏一个取数请求都没发', net)
 
     // 改库：下一次首屏必须立刻是新值。若宿主还留着第二份副本，这里会回旧标题。
-    await recordIssueRows({ workspaceRoot: bRoot, backend: 'github', repoIdentity: REPO.refId, rows: [issue('101', '票 101（改过）')] })
+    // #1931：读结果的行组按「更新时间严格更新才覆盖」判。真实后端的标题一改，updatedAt 一定往后走；
+    // 夹具里必须同样往后走，否则它证的是「同一时刻两份数据谁后到谁赢」—— 那正是新增规则要禁止的事。
+    await recordIssueRows({
+      workspaceRoot: bRoot, backend: 'github', repoIdentity: REPO.refId,
+      rows: [issue('101', '票 101（改过）', { updatedAt: '2026-11-02T00:00:00Z' })],
+    })
     const again: any = await phone.handleSnapshot({ cwd: bRoot, backendId: 'github' })
     const snapAgain = snapshotOf(again, adopted)
     const row101 = ((snapAgain && snapAgain.issues) || []).filter((row: any) => String(row.key) === '101')[0]
