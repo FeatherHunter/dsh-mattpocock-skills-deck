@@ -54,9 +54,11 @@ const PAGES = [
   // 四个一级页签也走同一套四档宽两皮肤读数（#1904 / #1905 的工作区页与储藏页就在这里）。
   // #1883：分支与标签页是二级页（齿轮进），第三行写「时间 · 提交主题」，这一页要多读一份行文本。
   { id: 'branch-tags', kind: 'gear', title: '分支与标签', sections: [], branchRow: true },
-  { id: 'changes', kind: 'tab', title: '改动', sections: [] },
-  { id: 'worktrees', kind: 'tab', title: '工作区', sections: [] },
-  { id: 'stash', kind: 'tab', title: '储藏', sections: [] },
+  // #1904 / #1905：这三页是一级页签，按原型不画页头（页头只给二级页），所以判据换成
+  //   「页签处于选中态 + 正文根对得上」，再各点一条本页特有的入口，证明这一页真的挂出来了。
+  { id: 'changes', kind: 'tab', title: '改动', sections: [], need: ['[data-vc-stash-arrow]'] },
+  { id: 'worktrees', kind: 'tab', title: '工作区', sections: [], need: ['[data-wt-create-open]', '[data-wt-action="expand"]'] },
+  { id: 'stash', kind: 'tab', title: '储藏', sections: [], need: ['[data-vc-stash-op="list"]', '[data-vc-stash-clear]', '[data-vc-stash-row-menu]'] },
   { id: 'remote', kind: 'gear', title: '远端与同步', sections: [] },
   { id: 'config', kind: 'gear', title: '配置', sections: [] },
   { id: 'hooks', kind: 'gear', title: '钩子', sections: [] },
@@ -74,6 +76,8 @@ const ENABLED_SKINS = String(process.env.DSH_1857_SKINS || 'dark,light')
 
 const SKILLS_TAB = 'button[data-ink-key="skills"]'
 const VERSION_TAB = 'button[data-ink-key="versionControl"]'
+// 宿主面板上的页签本身也带 data-log；两个选择器都留着，哪个在就用哪个。
+const VERSION_TAB_ALT = 'button.dsws-tab[data-log="panel.tab.versioncontrol"]'
 const RIGHTBAR_HANDLE = '[data-side="rightbar"]'
 const PANEL_ENTRY = 'button[data-sidebar-right-guide-entry="dsh-mattpocock-skills-deck:deck-map"]'
 const GEAR_BTN = '[data-vc-gear-btn]'
@@ -88,7 +92,7 @@ interface RawBrowserPage {
 }
 interface RootState {
   page: string | null; width: string | null; skin: string | null; depth: string | null
-  bodyPage: string | null; headTitle: string | null
+  bodyPage: string | null; headTitle: string | null; selectedTab: string | null
   sections: string[]; folds: string[]; capPrimaries: number; branchSubs: string[]
   docScrollWidth: number; innerWidth: number
   rootRight: number; rootLeft: number; maxRight: number; minLeft: number; rootWidthPx: number
@@ -200,6 +204,7 @@ const READ_STATE_SCRIPT = [
   '    skin: root.getAttribute("data-vc-skin"), depth: root.getAttribute("data-vc-depth"),',
   '    bodyPage: body === null ? null : body.getAttribute("data-vc-page-body"),',
   '    headTitle: head === null ? null : (head.querySelector(".vcs-page-title") === null ? null : String(head.querySelector(".vcs-page-title").textContent || "").trim()),',
+  '    selectedTab: (function () { var el = document.querySelector("[data-vc-tab][aria-selected=true]"); return el === null ? null : el.getAttribute("data-vc-tab") })(),',
   '    sections: Array.prototype.map.call((body === null ? document : body).querySelectorAll(".page-section .section-title"), function (n) { return String(n.textContent || "").trim() }),',
   '    folds: Array.prototype.map.call((body === null ? document : body).querySelectorAll(".fold-title"), function (n) { return String(n.textContent || "").trim() }),',
   '    capPrimaries: (body === null ? document : body).querySelectorAll("[data-cap-primary]").length,',
@@ -356,6 +361,125 @@ async function softClick(raw: RawBrowserPage, selector: string): Promise<boolean
   return forced.ok
 }
 
+/** 新建工作区的目标目录：放在夹具仓库旁边，绝不落进仓库或真实 DSH 主目录。 */
+const WT_NEW_BASE = String(process.env.DSH_1857_WT_BASE || 'D:/temp/matt1857/fixture1904')
+// 每一趟跑都用新的目录与分支名：同名工作树第二次建会直接失败，而动作截图每趟都要真建一棵。
+const WT_RUN_TAG = String(Date.now()).slice(-6)
+
+/** 读一个元素的文字（找不到就是空串）。 */
+async function textOf(page: PageHandle, selector: string): Promise<string> {
+  const probe = await evaluateThrough<string>(page, '(function () { var el = document.querySelector(' + JSON.stringify(selector) + '); return el === null ? "" : String(el.textContent || "").trim() })()')
+  return probe.ok ? probe.value : ''
+}
+
+/** 移动表单：填新目录再保存，等结果条；返回是否出了结果与结果条上的字。 */
+async function saveMove(page: PageHandle, raw: RawBrowserPage, target: string): Promise<{ ok: boolean; problem: string | null; text: string }> {
+  try {
+    await raw.page.fill('[data-wt-move-input]', target)
+    await sleep(200)
+    const saved = await realClick(raw, '[data-wt-move-save]')
+    if (!saved.ok) return { ok: false, problem: '点保存失败：' + String(saved.problem), text: '' }
+    const shown = await waitForSelector(raw, '[data-wt-result]', 25000)
+    return { ok: shown, problem: shown ? null : '保存后 25 秒内没有结果条', text: shown ? await textOf(page, '[data-wt-result-text]') : '' }
+  } catch (error) {
+    return { ok: false, problem: messageOf(error), text: '' }
+  }
+}
+
+/** 稀疏检出：一个都不勾就点保存，看页面是否拒绝；返回结果条上的字与语气。 */
+async function saveSparse(page: PageHandle, raw: RawBrowserPage): Promise<{ ok: boolean; problem: string | null; text: string; tone: string }> {
+  try {
+    const saved = await realClick(raw, '[data-wt-sparse-save]')
+    if (!saved.ok) return { ok: false, problem: '点保存失败：' + String(saved.problem), text: '', tone: '' }
+    const shown = await waitForSelector(raw, '[data-wt-result]', 20000)
+    const tone = await evaluateThrough<string>(page, '(function () { var el = document.querySelector("[data-wt-result]"); return el === null ? "" : String(el.getAttribute("data-wt-result") || "") })()')
+    return { ok: shown, problem: shown ? null : '保存后 20 秒内没有结果条', text: shown ? await textOf(page, '[data-wt-result-text]') : '', tone: tone.ok ? tone.value : '' }
+  } catch (error) {
+    return { ok: false, problem: messageOf(error), text: '', tone: '' }
+  }
+}
+
+/** 读当前工作区页上逐行的路径（按页面画的顺序）。 */
+async function readWorktreeRows(raw: RawBrowserPage): Promise<string[]> {
+  try {
+    return await raw.page.locator('[data-wt-row]').evaluateAll(function (nodes: any[]) {
+      return nodes.map(function (n: any) { return String(n.getAttribute('data-wt-path') || '') })
+    })
+  } catch (error) {
+    return []
+  }
+}
+
+/** 在「新建工作区」表单里填目录与分支再提交，等结果条出现；返回是否真的出了结果。 */
+async function createWorktree(raw: RawBrowserPage, target: string, branch: string): Promise<{ ok: boolean; problem: string | null; rows: string[] }> {
+  try {
+    await raw.page.fill('[data-wt-create-path]', target)
+    await sleep(200)
+    await raw.page.fill('[data-wt-create-branch-input]', branch)
+    await sleep(200)
+    const submitted = await realClick(raw, '[data-wt-create-submit]')
+    if (!submitted.ok) return { ok: false, problem: '点提交失败：' + String(submitted.problem), rows: [] }
+    const shown = await waitForSelector(raw, '[data-wt-result]', 25000)
+    const rows = await raw.page.locator('[data-wt-row]').evaluateAll(function (nodes: any[]) {
+      return nodes.map(function (n: any) { return String(n.getAttribute('data-wt-path') || '') })
+    })
+    return { ok: shown, problem: shown ? null : '提交后 25 秒内没有出现结果条', rows: rows }
+  } catch (error) {
+    return { ok: false, problem: messageOf(error), rows: [] }
+  }
+}
+
+/** 行内表单没打开时留一份现场：表单节点数、展开着的行数、展开区里的文字。 */
+async function probeRowState(page: PageHandle): Promise<Record<string, unknown>> {
+  const probe = await evaluateThrough<Record<string, unknown>>(page, '(function () { var open = document.querySelectorAll("[data-wt-expandable][open]"); var box = open.length > 0 ? open[0].querySelector("[data-wt-detail-box]") : null; return { moveForms: document.querySelectorAll("[data-wt-move-form]").length, sparseForms: document.querySelectorAll("[data-wt-sparse-form]").length, openRows: open.length, detail: box === null ? "" : String(box.innerText || "").slice(0, 300) } })()')
+  return probe.ok ? probe.value : { error: probe.message }
+}
+
+/** 按路径展开某一行（已经展开就不动它）；返回这一行是不是展开着的。 */
+async function expandRow(raw: RawBrowserPage, path: string): Promise<boolean> {
+  const base = '[data-wt-expandable="' + path + '"]'
+  if (!(await waitForSelector(raw, base, 10000))) return false
+  const isOpen = async (): Promise<boolean> => {
+    try {
+      return await raw.page.locator(base).first().evaluate(function (node: any) { return node.hasAttribute('open') === true })
+    } catch (error) {
+      return false
+    }
+  }
+  if (await isOpen()) return true
+  // 点 summary 而不是点箭头：箭头自己带着一个 expand 动作，点它会和 details 的原生切换互相抵消。
+  await realClick(raw, base + ' summary')
+  await sleep(500)
+  return await isOpen()
+}
+
+/** 在清单里第一棵「其它工作区」上展开行、点 move-open / sparse-open，并等表单真的画出来。
+ *  用 locator 定位而不是拼属性选择器：行的 data-wt-expandable 记的是宿主读到的原始路径，
+ *  与界面上的 data-wt-path 未必逐字相同（实测拼出来的选择器一个都匹配不上）。 */
+async function openFirstRowForm(raw: RawBrowserPage, op: string, readySelector: string, budgetMs: number): Promise<boolean> {
+  try {
+    const row = raw.page.locator('[data-wt-expandable]').first()
+    if (await row.count() === 0) return false
+    const opened = await row.evaluate(function (node: any) { return node.hasAttribute('open') === true })
+    if (!opened) {
+      await row.locator('summary').first().click({ timeout: 8000 })
+      await sleep(500)
+    }
+    const button = row.locator('[data-wt-action="' + op + '"]').first()
+    if (await button.count() === 0) return false
+    // 用元素自己的 click() 而不是指针点击：这两个按钮在 <summary> 里，指针点击会连带触发
+    //   details 的开关，看起来像「点了没反应」；元素级 click 只走 React 的 onClick。
+    await button.evaluate(function (node: any) { node.click() })
+    if (await waitForSelector(raw, readySelector, Math.round(budgetMs / 2))) return true
+    // 这两个按钮在 <summary> 里：点它们会顺带把行收起一次，再点一次 summary 展开，表单状态还在。
+    await row.locator('summary').first().click({ timeout: 8000 })
+    await sleep(500)
+    return await waitForSelector(raw, readySelector, Math.round(budgetMs / 2))
+  } catch (error) {
+    return false
+  }
+}
+
 /** 页签页上的三张就地表单（#1904 / #1905）：打开、截图、再关掉，页面回到原样。 */
 async function captureActions(page: PageHandle, raw: RawBrowserPage, spec: any, skin: any, width: number, outDir: string, facts: any): Promise<void> {
   const shots: any[] = []
@@ -365,11 +489,58 @@ async function captureActions(page: PageHandle, raw: RawBrowserPage, spec: any, 
     shots.push({ name, ok: r.ok, bytes: r.bytes, problem: r.problem })
   }
   if (spec.id === 'worktrees') {
-    if (await softClick(raw, '[data-wt-create-open]')) { await shot('create'); await softClick(raw, '[data-wt-create-close]') }
-    if (await softClick(raw, '[data-wt-action="expand"]')) {
-      if (await softClick(raw, '[data-wt-action="move"]')) { await shot('move'); await softClick(raw, '[data-wt-move-close]') }
-      if (await softClick(raw, '[data-wt-action="sparse"]')) { await shot('sparse'); await softClick(raw, '[data-wt-sparse-close]') }
-      await softClick(raw, '[data-wt-action="expand"]')
+    // 这一轮新建出来的目录：后面「移动 / 稀疏检出」都挂在这一行上，所以先声明在外面。
+    const target = WT_NEW_BASE + '/wt-created-' + skin.id + '-' + width + '-' + WT_RUN_TAG
+    let createdOk = false
+    if (await softClick(raw, '[data-wt-create-open]')) {
+      await shot('create')
+      if (await softClick(raw, '[data-wt-create-mode="existing"]')) { await shot('create-existing'); await softClick(raw, '[data-wt-create-mode="new"]') }
+      // 空目录直接提交：错误要留在表单里（不跳到页底结果条），改正后还能接着提交。
+      await realClick(raw, '[data-wt-create-submit]')
+      const errShown = await waitForSelector(raw, '[data-wt-create-error]', 12000)
+      facts['createError:' + spec.id + ':' + skin.id + ':' + width] = { shown: errShown, text: errShown ? await textOf(page, '[data-wt-create-error]') : '' }
+      await shot('create-error')
+      // 真建一棵：目录与分支都填上再提交，结果条与「新建的那一棵排在最前」才有真凭据。
+      const created = await createWorktree(raw, target, 'ticket/1904-' + skin.id + '-' + width + '-' + WT_RUN_TAG)
+      createdOk = created.ok
+      if (created.ok) {
+        await shot('created')
+        // 结果条出来时清单还是动作之前那一份：点一次「重新读取」再拍一张，才看得出新建的那一棵排在最前。
+        await softClick(raw, '[data-vc-refresh]')
+        await sleep(2600)
+        const rowsAfter = await readWorktreeRows(raw)
+        facts['rowsAfterCreate:' + spec.id + ':' + skin.id + ':' + width] = rowsAfter
+        await shot('created-refreshed')
+      }
+      facts['create:' + spec.id + ':' + skin.id + ':' + width] = created
+      await softClick(raw, '[data-wt-create-close]')
+    }
+    // 移动与稀疏检出挂在某一行上，而「新建的那一棵」刚被刷新到清单最前：按它的路径精确展开那一行，
+    //   不要按「第一个展开箭头」碰运气（刷新之后第一个箭头可能落在当前工作区那张卡上）。
+    if (createdOk) {
+      // 移动与稀疏检出的按钮 op 是 move-open / sparse-open（vcWorktreesView 的 vcWtFormOpenButtonNode）。
+      const moveOpened = await openFirstRowForm(raw, 'move-open', '[data-wt-move-input]', 12000)
+      facts['moveOpened:' + spec.id + ':' + skin.id + ':' + width] = moveOpened
+      facts['moveProbe:' + spec.id + ':' + skin.id + ':' + width] = await probeRowState(page)
+      if (moveOpened) {
+        await shot('move')
+        const movedTarget = WT_NEW_BASE + '/wt-moved-' + skin.id + '-' + width + '-' + WT_RUN_TAG
+        const moved = await saveMove(page, raw, movedTarget)
+        facts['moveProbe:' + spec.id + ':' + skin.id + ':' + width] = await probeRowState(page)
+        facts['move:' + spec.id + ':' + skin.id + ':' + width] = moved
+        if (moved.ok) await shot('moved')
+        await softClick(raw, '[data-wt-move-close]')
+      }
+      // 稀疏检出的面板打开时会先发一次预检，预检回来之前只有一行「读取中」——要等保存键出现再动手。
+      const sparseOpened = await openFirstRowForm(raw, 'sparse-open', '[data-wt-sparse-save]', 30000)
+      facts['sparseOpened:' + spec.id + ':' + skin.id + ':' + width] = sparseOpened
+      if (sparseOpened) {
+        await shot('sparse')
+        const refused = await saveSparse(page, raw)
+        facts['sparse:' + spec.id + ':' + skin.id + ':' + width] = refused
+        await shot('sparse-refused')
+        await softClick(raw, '[data-wt-sparse-close]')
+      }
     }
   }
   if (spec.id === 'changes') {
@@ -396,6 +567,14 @@ function sequenceOk(actual: readonly string[], expected: readonly string[]): { o
     else { indices.push(found); cursor = found }
   }
   return { ok: missing.length === 0, missing, indices }
+}
+
+/** 一批选择器里哪些在页面上找不到（空数组表示都在）。用来证明「这一页真的挂出了自己的入口」。 */
+async function missingSelectors(page: PageHandle, selectors: readonly string[]): Promise<string[]> {
+  if (selectors.length === 0) return []
+  const script = '(function (list) { return list.filter(function (sel) { return document.querySelector(sel) === null }) })(' + JSON.stringify(selectors) + ')'
+  const probe = await evaluateThrough<string[]>(page, script)
+  return probe.ok ? probe.value : selectors.slice()
 }
 
 /** 等一个选择器真的出现在 DOM 里（顶部条的额外入口与齿轮卡都是读数落定后才画的）。 */
@@ -541,26 +720,55 @@ export default defineScenario<ScenarioContext>({
 
         // 1b) 场景自备夹具：hooks 种下的「验证工作区」是给 markdown 后端用的空目录，
         //     版本管理页在它里面读不到任何 git 读数（每个分片都报「这个目录不在任何 git 仓库里」）。
-        //     这里就地把它变成一个有初始提交的仓库，页面才有真读数；只改这一趟的实例 home，不改仓里任何东西。
-        const fixtureDir = path.join(String((instance.record as any).dir || ''), 'workspace')
+        //     这里就地把它变成一个有初始提交的仓库；#1904 / #1905 还要真行可点，所以再造一条
+        //     其它工作树、一条储藏记录、一个已暂存文件与一个未暂存文件。只改这一趟的实例目录，不碰仓库。
+        const seededDir = path.join(String((instance.record as any).dir || ''), 'workspace')
+        const fixtureDir = String(process.env.DSH_1857_REPO || seededDir)
         const fixture: Record<string, unknown> = { dir: fixtureDir, steps: [] as string[] }
         try {
-          const git = function (args: string[]): void { execFileSync('git', args, { cwd: fixtureDir, stdio: 'ignore' }) }
-          git(['init', '-q'])
+          const git = function (args: string[]): string { return execFileSync('git', args, { cwd: fixtureDir, encoding: 'utf8' }) }
+          const gitQuiet = function (args: string[]): void { execFileSync('git', args, { cwd: fixtureDir, stdio: 'ignore' }) }
+          gitQuiet(['init', '-q', '-b', 'main'])
+          // 身份写进仓库本地配置：stash 也要造提交，只给 add/commit 挂 -c 的话 stash 会因为
+          //   「Author identity unknown」直接失败（实测这一轮就卡在这一步）。
+          gitQuiet(['config', 'user.email', 'verify@example.com'])
+          gitQuiet(['config', 'user.name', 'verify'])
           ;(fixture.steps as string[]).push('init')
-          git(['-c', 'user.email=verify@example.com', '-c', 'user.name=verify', 'add', '-A'])
+          // 插件的快照缓存目录（.dsh-mattskillsdeck-cache）在宿主运行时会锁着里面的 sqlite-wal，
+          //   git 收改动时删不掉它（实测 stash 到一半 fatal）。它本来就不该进仓库，写进 .gitignore。
+          fs.writeFileSync(path.join(fixtureDir, '.gitignore'), '.dsh-mattskillsdeck-cache/' + '\n', 'utf8')
+          gitQuiet(['add', '-A'])
           ;(fixture.steps as string[]).push('add')
-          git(['-c', 'user.email=verify@example.com', '-c', 'user.name=verify', 'commit', '-qm', '验证夹具：初始提交'])
+          gitQuiet(['commit', '-qm', '验证夹具：初始提交'])
           ;(fixture.steps as string[]).push('commit')
+          const worktreePath = path.join(path.dirname(fixtureDir), 'wt-feature')
+          gitQuiet(['worktree', 'add', worktreePath, '-b', 'feature/vc-page'])
+          ;(fixture.steps as string[]).push('worktree')
+          // 改一个已经提交过的文件：没有已跟踪的改动时 git stash 什么都不收（实测「No local changes to save」），
+          //   储藏页就没有记录行可点。
+          fs.appendFileSync(path.join(fixtureDir, 'docs', 'agents', 'workspace.yaml'), '\n# 储藏前的改动\n', 'utf8')
+          // 用会带回显的那一支：stash 在没有改动时退出码可能是 0 也可能不是（随版本），
+          //   真失败时要把 git 自己那句话留在 facts 里，否则只能看到一句「Command failed」。
+          git(['stash', 'push', '-m', '验证夹具：一条储藏记录'])
+          ;(fixture.steps as string[]).push('stash')
+          fs.writeFileSync(path.join(fixtureDir, 'staged.txt'), 'staged\n', 'utf8')
+          gitQuiet(['add', 'staged.txt'])
+          fs.writeFileSync(path.join(fixtureDir, 'unstaged.txt'), 'unstaged\n', 'utf8')
+          ;(fixture.steps as string[]).push('changes')
+          fixture.worktrees = git(['worktree', 'list']).trim().split('\n').length
+          fixture.stashes = git(['stash', 'list']).trim().split('\n').filter(function (line) { return line.length > 0 }).length
+          fixture.status = git(['status', '--porcelain']).trim()
           fixture.ok = true
         } catch (error) {
           fixture.ok = false
-          fixture.problem = messageOf(error)
+          const stderr = (error as any) !== null && typeof error === 'object' ? (error as any).stderr : undefined
+          const stdout = (error as any) !== null && typeof error === 'object' ? (error as any).stdout : undefined
+          fixture.problem = messageOf(error) + (stderr === undefined ? '' : '；stderr：' + String(stderr).slice(0, 300)) + (stdout === undefined ? '' : '；stdout：' + String(stdout).slice(0, 200))
         }
         facts.fixture = fixture
 
-        // 2) 用 RPC 把本仓库挂成工作区并建一条会话（版本管理页要有真仓库才有读数）。
-        const workspacePath = String(process.env.DSH_1857_REPO || REPO_ROOT).replace(/\\/g, '/')
+        // 2) 用 RPC 把夹具目录挂成工作区并建一条会话（版本管理页要有真仓库才有读数）。
+        const workspacePath = fixtureDir.replace(/\\/g, '/')
         const ws = await page.evaluate<any>(rpcScript('workspace/create', '{ request: { path: ' + JSON.stringify(workspacePath) + ' } }'))
         let workspaceId: string | null = null
         if (ws.ok) {
@@ -587,6 +795,14 @@ export default defineScenario<ScenarioContext>({
         }
         await sleep(3000)
 
+        // 2b) 面板读的是「当前会话」的工作目录：RPC 建完工作区与会话后，还要让宿主切到那条会话，
+        //     否则面板仍在原来的工作区上（实测停在仓库根，读到的是仓库自己的改动）。
+        //     顶栏「新建会话」会落到刚建的那条会话上（#1858 那一轮已证实）。
+        const newSessionClick = await realClick(raw, 'button[aria-label="新建会话"]')
+        if (!newSessionClick.ok) await forceClick(raw, 'button[aria-label="新建会话"]')
+        facts.newSessionClick = newSessionClick
+        await sleep(3500)
+
         // 3) 真鼠标：打开右侧栏 → 点 MattSkills 入口 → 点「版本管理」页签。
         let sideClick = await realClick(raw, 'button[aria-label="打开右侧边栏"]')
         if (!sideClick.ok) sideClick = await forceClick(raw, 'button[aria-label="打开右侧边栏"]')
@@ -597,17 +813,45 @@ export default defineScenario<ScenarioContext>({
         await sleep(1400)
         facts.panelEntry = entryClick
         facts.panelReady = await waitForPanelReady(page, 25000)
-        let tabClick = await realClick(raw, VERSION_TAB)
-        if (!tabClick.ok) tabClick = await forceClick(raw, VERSION_TAB)
-        await sleep(2400)
+        // 页签用宿主面板自己的 data-log 选择器（#1858 那一轮已证实它在真机上稳定命中），
+        //   data-ink-key 那一枚在有的构建里指到别的按钮上，点得动却什么也没切。
+        await waitForSelector(raw, VERSION_TAB_ALT, 15000)
+        let tabClick = await realClick(raw, VERSION_TAB_ALT)
+        if (!tabClick.ok) tabClick = await realClick(raw, VERSION_TAB)
+        if (!tabClick.ok) tabClick = await forceClick(raw, VERSION_TAB_ALT)
+        // 面板首屏要先拉一遍读数才会画出壳根：固定睡 2.4 秒在冷缓存下不够（实测这一次就没等到），
+        //   改成轮询最多 30 秒，中途隔几次补点一下页签，防止第一次点在骨架上。
         let root = await readState(page)
-        if (root === null || root.page === null) {
-          facts.tabClickForced = await forceClick(raw, VERSION_TAB)
-          await sleep(2400)
+        for (let attempt = 0; attempt < 60 && (root === null || root.page === null); attempt += 1) {
+          await sleep(500)
+          if (attempt === 8 || attempt === 20) await realClick(raw, VERSION_TAB_ALT)
           root = await readState(page)
         }
         facts.tabOpen = { tabClick, root: root === null ? null : { page: root.page, width: root.width, skin: root.skin } }
         if (root === null || root.page === null) {
+          // 打不开时留一张现场图与面板里的文字：只报「root=null」看不出是点在别的页签上，
+          //   还是面板停在了「还没有工作区」的空态。
+          try {
+            const raw2 = await page.evaluate<any>(READ_STATE_SCRIPT)
+            facts.readStateProbe = raw2.ok ? { ok: true, value: raw2.value } : { ok: false, message: raw2.error.message }
+            const attrProbe = await page.evaluate<any>('(function () { var r = document.querySelector("[data-vc-shell]"); if (!r) return null; return { page: r.getAttribute("data-vc-page"), width: r.getAttribute("data-vc-width"), skin: r.getAttribute("data-vc-skin"), cls: r.className, html: String(r.outerHTML || "").slice(0, 200) } })()')
+            facts.shellAttrs = attrProbe.ok ? attrProbe.value : String((attrProbe as any).error && (attrProbe as any).error.message)
+          } catch (error) {
+            facts.shellAttrs = messageOf(error)
+          }
+          try {
+            const probe = await page.evaluate<any>('(function () { var body = document.querySelector(".dsws-body"); var tabs = Array.prototype.map.call(document.querySelectorAll("button.dsws-tab"), function (b) { return { log: b.getAttribute("data-log"), text: String(b.innerText || "").slice(0, 20), on: b.getAttribute("aria-selected") } }); var ink = Array.prototype.map.call(document.querySelectorAll("button[data-ink-key]"), function (b) { return b.getAttribute("data-ink-key") }); return { tabs: tabs, ink: ink, text: body === null ? null : String(body.innerText || "").slice(0, 600), shell: document.querySelector("[data-vc-shell]") !== null, liveEmpty: (document.querySelector("#vc-real-root") || {}).getAttribute ? document.querySelector("#vc-real-root").getAttribute("data-vc-live-empty") : null }; })()')
+            facts.panelProbe = probe.ok ? probe.value : String((probe as any).error && (probe as any).error.message)
+          } catch (error) {
+            facts.panelProbe = messageOf(error)
+          }
+          try {
+            const shotPath = path.join(OUT_DIR, 'panel-open-failed.png')
+            await raw.page.screenshot({ path: shotPath })
+            facts.panelShot = shotPath
+          } catch (error) {
+            facts.panelShotProblem = messageOf(error)
+          }
           await save('panel-open.json', facts, '打开面板与页签的读数')
           return observations.concat([observe({ checkId: 'version-tab-open', title: '用真鼠标能打开 MattSkills 面板并进版本管理页', ok: false, status: 'blocked', detail: '侧栏 ' + JSON.stringify(sideClick) + '，入口 ' + JSON.stringify(entryClick) + '，页签 ' + JSON.stringify(tabClick) + '，页面根 ' + JSON.stringify(root), expected: '版本管理页签打开后页面里有 [data-vc-shell]', actual: 'root=' + JSON.stringify(root), hint: '批次 home 的 profile bundles 里必须有 dsh-mattpocock-skills-deck' })])
         }
@@ -619,8 +863,21 @@ export default defineScenario<ScenarioContext>({
         // 4) 逐皮肤 → 逐档宽 → 逐页：切肤重挂 → 校准宽度 → 进页 → 读 DOM → 截图。
         for (const skin of enabledSkins) {
           const skinApplied = await page.evaluate<any>(skinScript(skin.dark))
-          const remounted = await remountVersionControl(raw)
-          const afterSkin = await readState(page)
+          // 面板盯着 body 的主题属性（vcRealSkinWatchOf），宿主换肤后壳根自己会跟上；先等它跟上，
+          //   跟不上才重挂。反过来「先重挂」实测会把壳根的 data-vc-skin 弄丢（#1858 那一轮踩过）。
+          let afterSkin = await readState(page)
+          for (let attempt = 0; attempt < 20 && (afterSkin === null || afterSkin.skin !== skin.id); attempt += 1) {
+            await sleep(400)
+            afterSkin = await readState(page)
+          }
+          let remounted: any = null
+          if (afterSkin === null || afterSkin.skin !== skin.id) {
+            remounted = await remountVersionControl(raw)
+            for (let attempt = 0; attempt < 20 && (afterSkin === null || afterSkin.skin !== skin.id); attempt += 1) {
+              await sleep(400)
+              afterSkin = await readState(page)
+            }
+          }
           facts['skin:' + skin.id] = { applied: skinApplied.ok ? skinApplied.value : String((skinApplied as any).error && (skinApplied as any).error.message), remounted, rootSkin: afterSkin === null ? null : afterSkin.skin }
           if (afterSkin === null || afterSkin.skin !== skin.id) {
             observations.push(observe({ checkId: 'skin-' + skin.id, title: '皮肤切到 ' + skin.id + ' 后版本管理页按这套皮肤挂载', ok: false, status: 'blocked', detail: '页面根 data-vc-skin=' + String(afterSkin === null ? null : afterSkin.skin) + '，重挂 ' + JSON.stringify(remounted), expected: 'data-vc-skin 等于 ' + skin.id, actual: String(afterSkin === null ? null : afterSkin.skin) }))
@@ -637,14 +894,22 @@ export default defineScenario<ScenarioContext>({
               const shotPath = path.join(OUT_DIR, spec.id + '-' + skin.id + '-' + width + '.png')
               let shot: any = { ok: false, bytes: 0, problem: nav.ok ? null : nav.detail }
               if (nav.ok) shot = await capturePanel(page, raw, shotPath)
-              if (nav.ok && ACTIONS && (spec.id === 'worktrees' || spec.id === 'stash' || spec.id === 'changes')) {
+              // 动作截图只跑一遍（460 宽深色）：表单与菜单的形状与宽度档无关，多拍只是重复。
+              if (nav.ok && ACTIONS && width === 460 && (spec.id === 'worktrees' || spec.id === 'stash' || spec.id === 'changes')) {
                 await captureActions(page, raw, spec, skin, width, OUT_DIR, facts)
               }
               const sections = state === null ? [] : state.sections
               const seq = sequenceOk(sections, spec.sections)
               const widthOk = state !== null && state.width === String(width)
               const pageOk = state !== null && state.bodyPage === spec.id
-              const titleOk = state !== null && state.headTitle !== null && state.headTitle.indexOf(spec.title) >= 0
+              // 一级页签按原型不画页头，判据换成「这一枚页签处于选中态」；二级页仍按页头标题判。
+              const titleOk = state === null
+                ? false
+                : (spec.kind === 'tab'
+                  ? state.selectedTab === spec.id
+                  : state.headTitle !== null && state.headTitle.indexOf(spec.title) >= 0)
+              // 每页各点一条本页特有的入口：页签能选中不代表这一页真的挂出了正文。
+              const needMissing = state === null ? [] : await missingSelectors(page, spec.need === undefined ? [] : spec.need)
               const overflow = state === null ? true : (state.docScrollWidth > state.innerWidth + 1 || state.maxRight > state.rootRight + 1)
               const capFree = state !== null && state.capPrimaries === 0
               const foldFree = state === null ? true : state.folds.every(function (f) { return !/能力|capabilit/i.test(f) })
@@ -652,11 +917,13 @@ export default defineScenario<ScenarioContext>({
               // 且主题不是空串（主题来自宿主新追加的 subject 字段）。
               const branchSubs = state === null ? [] : state.branchSubs
               const branchOk = spec.branchRow !== true || (branchSubs.length > 0 && branchSubs.every(function (line) { return line.indexOf(' · ') > 0 && line.split(' · ').slice(1).join(' · ').trim() !== '' }))
-              const ok = nav.ok && widthOk && pageOk && titleOk && seq.ok && !overflow && capFree && foldFree && shot.ok && branchOk
+              const ok = nav.ok && widthOk && pageOk && titleOk && needMissing.length === 0 && seq.ok && !overflow && capFree && foldFree && shot.ok && branchOk
               const detail = [
                 '页 ' + String(state === null ? null : state.bodyPage) + '（期望 ' + spec.id + '）',
                 '宽 ' + String(state === null ? null : state.width) + '（期望 ' + width + '）',
                 '页头 ' + JSON.stringify(state === null ? null : state.headTitle),
+                '选中页签 ' + JSON.stringify(state === null ? null : state.selectedTab),
+                '本页入口缺 ' + JSON.stringify(needMissing),
                 '区块 ' + JSON.stringify(sections),
                 '缺 ' + JSON.stringify(seq.missing),
                 '溢出 ' + String(overflow) + '（文档 ' + String(state === null ? null : state.docScrollWidth) + ' ≤ 视口 ' + String(state === null ? null : state.innerWidth) + '，后代右界 ' + String(state === null ? null : Math.round(state.maxRight)) + ' ≤ 根右界 ' + String(state === null ? null : Math.round(state.rootRight)) + '）',
@@ -671,7 +938,7 @@ export default defineScenario<ScenarioContext>({
                 title: spec.title + ' · ' + width + ' 宽 · ' + (skin.dark ? '深色' : '浅色') + '：区块顺序、宽度、页头与无溢出',
                 ok,
                 detail,
-                expected: '页头含「' + spec.title + '」；正文区块按序包含 ' + JSON.stringify(spec.sections) + '；无横向溢出；页尾没有能力清单',
+                expected: (spec.kind === 'tab' ? '页签「' + spec.title + '」处于选中态' : '页头含「' + spec.title + '」') + '；正文区块按序包含 ' + JSON.stringify(spec.sections) + '；本页入口都在（' + (spec.need === undefined ? '' : spec.need.join('、')) + '）；无横向溢出；页尾没有能力清单',
                 actual: detail,
                 hint: nav.ok ? '看同目录的 ' + checkId + '.json 与截图' : '导航失败：' + nav.detail,
               }))
