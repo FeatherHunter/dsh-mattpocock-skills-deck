@@ -90,15 +90,37 @@ function attrsOf(tree, name) {
   for (let i = 0; i < all.length; i += 1) { const v = all[i] && all[i].props ? all[i].props[name] : undefined; if (v !== undefined && v !== null) out.push(String(v)) }
   return out
 }
+// #1883：一条分支行里全部 .obj-sub 的文字，按 DOM 顺序。第三行是「时间 · 提交主题」，
+//   有分支说明时第二行才是说明——两件事要按行分开读，不能只看整棵树里有没有这几串字。
+function subLinesOf(tree, name) {
+  const out = []
+  const all = walk(tree, [])
+  for (let i = 0; i < all.length; i += 1) {
+    const node = all[i]
+    if (!node || !node.props || String(node.props['data-vc-branch-row'] || '') !== name) continue
+    const inner = walk(node, [])
+    for (let j = 0; j < inner.length; j += 1) {
+      const p = inner[j] && inner[j].props
+      if (!p || String(p.className || '').split(' ').indexOf('obj-sub') < 0) continue
+      const kids = inner[j].children || []
+      let text = ''
+      for (let k = 0; k < kids.length; k += 1) if (typeof kids[k] === 'string') text += kids[k]
+      out.push(text)
+    }
+  }
+  return out
+}
 const tZh = function (key) { return String(key) }
 
 // ---------- 快照与假电话 ----------
 const BOARD = {
   contract: 'version-control.branch-board', version: 1, readAtMs: T0,
   current: { name: 'main', oid: OID },
+  // #1883：subject 是宿主回包追加的提交主题，分支行第三行写成「时间 · 提交主题」。
+  //   feature 这一条故意不给主题：没有主题时只画时间，不画占位。
   branches: [
-    { name: 'main', oid: OID, current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: T0 },
-    { name: 'feature', oid: OID2, current: false, upstream: '', ahead: 0, behind: 0, commitDateMs: 1780000000000 },
+    { name: 'main', oid: OID, current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: T0, subject: '主干上的提交主题' },
+    { name: 'feature', oid: OID2, current: false, upstream: '', ahead: 0, behind: 0, commitDateMs: 1780000000000, subject: '' },
   ],
   tags: [
     { name: 'v1.0.0', oid: OID, objectType: 'commit', annotated: false, atMs: T0, subject: '首个版本' },
@@ -143,9 +165,10 @@ function makeRoute(opts) {
   const state = { featureOid: OID2, featureDesc: '', mainDesc: '主干；发布从这里切' }
   const seen = []
   function refsOut() {
+    // 八段：末段是 #1883 追加的提交主题（命令里那一段 %(contents:subject)）。
     return [
-      ['refs/heads/main', 'main', OID, 'origin/main', '[ahead 2, behind 1]', '*', '2026-10-04T00:14:04+08:00'].join('\u0000'),
-      ['refs/heads/feature', 'feature', state.featureOid, '', '', ' ', '2025-10-04T00:14:04+08:00'].join('\u0000'),
+      ['refs/heads/main', 'main', OID, 'origin/main', '[ahead 2, behind 1]', '*', '2026-10-04T00:14:04+08:00', '主干上的提交主题'].join('\u0000'),
+      ['refs/heads/feature', 'feature', state.featureOid, '', '', ' ', '2025-10-04T00:14:04+08:00', '分支上的提交主题'].join('\u0000'),
     ].join('\n') + '\n'
   }
   function descriptionsOut() {
@@ -394,6 +417,11 @@ async function main() {
   const dTree = V.vcBranchBoardNode(fakeH, tZh, { board: degradedBoard })
   check(attrsOf(dTree, 'data-vc-branch-degraded').join(',') === '1' && attrsOf(dTree, 'data-vc-branch-git-version')[0] === 'git version 2.20.1', 'D33 降级现场画一行说明：带 git 版本与降级动作条数')
   check(V.vcBranchDegradedOf(degradedBoard).length === 1 && V.vcBranchDegradedOf(BOARD).length === 0 && attrsOf(tree, 'data-vc-branch-degraded').length === 0, 'D34 只列降级动作；完整档不画这一行')
+  // #1883：第三行按原型 38 是「时间 · 提交主题」。这扇门禁的闭包里没有 vcText，时间如实不画，
+  //   所以主分支那一行只剩主题；分支说明另起一行（两条 .obj-sub），不跟主题拼成一句。
+  const mainSubs = subLinesOf(tree, 'main')
+  check(mainSubs.length === 2 && mainSubs[0] === '主干上的提交主题' && mainSubs[1] === '主干；发布从这里切', 'D35 分支行第三行是提交主题，分支说明另起一行（实得 ' + JSON.stringify(mainSubs) + '）')
+  check(subLinesOf(tree, 'feature').length === 0, 'D36 没有主题也没有说明时不画第三行，不画占位（实得 ' + JSON.stringify(subLinesOf(tree, 'feature')) + '）')
 
   // E 组：真宿主假路由（预检签票 → 凭票执行）
   const clock = { t: T0 }
@@ -404,6 +432,8 @@ async function main() {
   const board = await vc.handleGitBranches({ cwd: 'D:/假工作区/repo' })
   check(board.ok === true && board.contract === 'version-control.branch-board' && board.version === 1, 'E2 读回包带契约名与版本号')
   check(Array.isArray(board.branches) && board.branches.length === 2 && board.branches[0].name === 'main' && board.branches[0].current === true, 'E3 分支列表读到 main 并标当前分支')
+  // #1883：第八段（提交主题）从 for-each-ref 一路透到板回包；它是追加字段，板回包版本号仍是 1。
+  check(Array.isArray(board.branches) && board.branches[0].subject === '主干上的提交主题' && board.branches[1].subject === '分支上的提交主题' && board.version === 1, 'E3b 板回包每个分支带上提交主题（追加字段，版本号不动）')
   check(Array.isArray(board.tags) && board.tags.length === 2 && board.tags[1].annotated === true, 'E4 标签列表读到两个标签并认出附注标签')
   check(board.merged.join(',') === 'main' && board.notMerged.join(',') === 'feature', 'E5 4.8 已并入 / 没并入两张名单')
   check(!!board.descriptions && board.descriptions.main === '主干；发布从这里切', 'E6 4.13 分支说明一次读回')

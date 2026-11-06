@@ -171,9 +171,13 @@ const vcBranchMenuOf = function (h: any, t: any, name: string) {
   return h('details', { key: 'menu', className: 'vcs-branch2-more', 'data-vc-branch-menu': name }, kids)
 }
 
-// 一条分支行（原型 obj-row 的三行结构）：
+// 一条分支行（原型 obj-row 的三行结构；第三行按原型 38 是「时间 · 提交主题」）：
 //   标题行 = 等宽分支名 + 当前分支标记 + 提交短号；事实行 = 上游关系、领先落后、并入情况；
-//   说明行 = 最近提交时间 · 分支说明（说明来自 git config，读回包里本来就有）。
+//   第三行 = 最近提交时间 · 提交主题。主题是 #1883 在宿主回包里追加的 subject：没有主题时只画
+//   时间、不画占位（也绝不画一个「undefined」）；时间和主题都没有时不画这一行。
+//   分支说明（git config 的 branch.<名>.description）**不跟主题抢同一行**：有值时另起一行。
+//   为什么分开：说明往往是一整句，挤在主题后面会把「最近发生了什么」压成两行字，读者既看不清
+//   时间也看不清主题；原型 38 的第三行只有时间和主题两句。
 // 行尾两件（#1881）：「切换」直给，「⋯」里收着其余五个整理动作——直给四个会把行撑成两行，
 //   而且红色的「删除」与常用的「切换」并排时是同一种视觉重量。
 const vcBranchRowOf = function (h: any, t: any, board: any, o: any, b: any) {
@@ -193,13 +197,15 @@ const vcBranchRowOf = function (h: any, t: any, board: any, o: any, b: any) {
   const merge = vcBranchMergeTextOf(t, board, name)
   if (merge) metaKids.push(h('span', { key: merge.key, className: 'vcs-branch2-fact' }, merge.text))
   const when = vcBranchWhenOf(t, o.nowMs, b.commitDateMs)
-  const desc = String((board.descriptions || {})[name] || '')
+  const subject = String(b.subject || '')
   const subParts: string[] = []
   if (when !== '') subParts.push(when)
-  if (desc !== '') subParts.push(desc)
+  if (subject !== '') subParts.push(subject)
+  const desc = String((board.descriptions || {})[name] || '')
   const main: any[] = [h('span', { key: 'title', className: 'obj-title' }, titleKids)]
   if (metaKids.length > 0) main.push(h('span', { key: 'meta', className: 'obj-meta' }, metaKids))
   if (subParts.length > 0) main.push(h('span', { key: 'sub', className: 'obj-sub' }, subParts.join(' · ')))
+  if (desc !== '') main.push(h('span', { key: 'desc', className: 'obj-sub vcs-branch2-desc' }, desc))
   const side: any[] = [
     h('button', { key: 'switch', type: 'button', className: 'vcs-branch2-act', 'data-vc-branch-action': 'switch', 'data-vc-op': '4.3', 'data-vc-branch-name': name, 'data-vc-branch-form': '0', 'data-press': 'button', 'data-log': 'vc.branch.page.act.switch' }, t('vc.shell.branch2.switch')),
     vcBranchMenuOf(h, t, name),

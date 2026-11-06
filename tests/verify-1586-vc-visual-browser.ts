@@ -255,6 +255,8 @@ function entryOf(closureSrc: string): string {
     // #1881：页头那枚「N 条能力」计数画没画（-1 = 这一页根本没有页头）。
     "    headCount: (function () { const h = root.querySelector('[data-vc-page-head]'); return h === null ? -1 : h.querySelectorAll('.vcs-page-count').length; })(),",
     "    branchOidsShown: (function () { const out = []; root.querySelectorAll('[data-vc-branch-row] .vcs-branch2-oid').forEach(function (el) { if (window.getComputedStyle(el).display !== 'none') out.push(String(el.textContent)); }); return out; })(),",
+    // #1883：每条分支行的说明行（.obj-sub）。第一条是「时间 · 提交主题」，有分支说明时第二条才是说明。
+    "    branchSubs: (function () { const out = []; root.querySelectorAll('[data-vc-branch-row]').forEach(function (row) { const subs = []; row.querySelectorAll('.obj-sub').forEach(function (el) { subs.push(String(el.textContent || '').trim()) }); out.push(subs) }); return out })(),",
     // #1858：正文三段的分区标题（分支 → 标签 → 上游跟踪）与段内事实格，按原型 38 的顺序与内容判。
     "    branchSectionTitles: (function () { const s = root.querySelector('[data-vc-branch2]'); if (!s) return []; const out = []; s.querySelectorAll('.page-section .section-title').forEach(function (el) { out.push(String(el.textContent)) }); return out; })(),",
     "    branchSectionCounts: (function () { const s = root.querySelector('[data-vc-branch2]'); if (!s) return []; const out = []; s.querySelectorAll('.page-section .section-count').forEach(function (el) { out.push(String(el.textContent)) }); return out; })(),",
@@ -447,10 +449,12 @@ function branchBoardOf() {
   return {
     contract: 'version-control.branch-board', version: 1, readAtMs: BRANCH_NOW,
     current: { name: 'main', oid: 'a'.repeat(40) },
+    // #1883：每条分支带上 subject（宿主回包追加的提交主题）。第三行要画成「时间 · 主题」，
+    //   所以这里必须给主题，否则量到的只是「没有主题时只画时间」那一支。
     branches: [
-      { name: 'feature/x', oid: 'b'.repeat(40), current: false, upstream: null, ahead: 0, behind: 0, commitDateMs: BRANCH_NOW - 2 * 3600000 },
-      { name: 'main', oid: 'a'.repeat(40), current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: BRANCH_NOW - 6 * 60000 },
-      { name: 'release/2026-10', oid: 'c'.repeat(40), current: false, upstream: 'origin/release/2026-10', ahead: 0, behind: 4, commitDateMs: BRANCH_NOW - 26 * 3600000 },
+      { name: 'feature/x', oid: 'b'.repeat(40), current: false, upstream: null, ahead: 0, behind: 0, commitDateMs: BRANCH_NOW - 2 * 3600000, subject: '分支页与动作模型接入面板骨架' },
+      { name: 'main', oid: 'a'.repeat(40), current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: BRANCH_NOW - 6 * 60000, subject: '版本管理页套用原型收集，工作区动作全部收进面板' },
+      { name: 'release/2026-10', oid: 'c'.repeat(40), current: false, upstream: 'origin/release/2026-10', ahead: 0, behind: 4, commitDateMs: BRANCH_NOW - 26 * 3600000, subject: '整理十月发布说明与回滚步骤' },
     ],
     tags: [
       { name: 'v1.0.0', oid: 'd'.repeat(40), objectType: 'commit', annotated: false, atMs: BRANCH_NOW, subject: '发布 1.0.0' },
@@ -698,7 +702,9 @@ async function run(browser: any, env: any) {
         const width = WIDTHS[w]
         const tag = '分支与标签页 ' + skin + ' / ' + width + ' 宽'
         await page.setViewportSize({ width: width, height: 1400 })
-        const m = await renderAt(page, { page: 'branch-tags', width: width, skin: skin, branchBoard: branchBoard, nowMs: BRANCH_NOW })
+        // #1883：分支行第三行要算「6 分钟前」这种相对时间，而壳把 nowMs 从 seed.nowMs 往页面体传
+        //   （这一页读的是 seed 那份钟），所以这里给 seed.nowMs；给顶层 nowMs 不会到页面里。
+        const m = await renderAt(page, { page: 'branch-tags', width: width, skin: skin, branchBoard: branchBoard, seed: { nowMs: BRANCH_NOW } })
         check(!!m && m.page === 'branch-tags' && m.width === String(width) && m.skin === skin && m.depth === '2', tag + '：根节点读数是分支与标签页 / 档宽 / 皮肤 / 层级 2')
         check(!!m && !overflowOf(m), tag + '：没有横向溢出（文档 ' + (m && m.docScrollWidth) + ' ≤ viewport ' + (m && m.innerWidth) + '）')
         check(!!m && m.branchPage === true, tag + '：分支与标签面板画出来了')
@@ -722,6 +728,13 @@ async function run(browser: any, env: any) {
         check(firstThree === 'page-section,page-section,page-section' && m && m.branchOrder[m.branchOrder.length - 1] === 'vcs-branch2-forms', tag + '：三段正文之后收着写动作折叠区，页头不再由本页重复画（实得 ' + firstThree + ' / ' + (m && m.branchOrder[m.branchOrder.length - 1]) + '）')
         if (width === 300) check(!!m && m.branchOidsShown.length === 0, tag + '：300 宽把提交短号收起来，避免把行撑破')
         else check(!!m && m.branchOidsShown.length > 0, tag + '：' + width + ' 宽继续显示提交短号')
+        // #1883：第三行是「时间 · 提交主题」（原型 38 的写法），分支说明有值时另起一行——
+        //   main 有说明所以这一行有两条 .obj-sub，feature/x 没有说明只有一条。
+        const subs = m && m.branchSubs ? m.branchSubs : []
+        const mainSubs = subs.length > 0 ? subs[0].join(' | ') : ''
+        const featureSubs = subs.length > 1 ? subs[1].join(' | ') : ''
+        check(mainSubs === '6 分钟前 · 版本管理页套用原型收集，工作区动作全部收进面板 | 主干；发布从这里切' && featureSubs === '2 小时前 · 分支页与动作模型接入面板骨架',
+          tag + '：分支行第三行是「时间 · 提交主题」，分支说明另起一行、不跟主题抢同一行（主分支实得 ' + mainSubs + '；feature/x 实得 ' + featureSubs + '）')
         check(!!m && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.clipped.join(',') || '无') + '）')
         await page.screenshot({ path: path.join(shotDir, 'branch-tags-' + skin + '-' + width + '.png') })
         // 筛选与搜索是这块新做的交互：点一下、输入一次，看行数与计数真的跟着变（只在 460 宽深色做一次）。
@@ -888,7 +901,7 @@ async function run(browser: any, env: any) {
     // 确认卡与结果：818 BR22/BR22b 的静态判据在真浏览器里的对照——都在面板里，且排在页尾折叠区之后。
     await page.setViewportSize({ width: 460, height: 1600 })
     const mb = await renderAt(page, {
-      page: 'branch-tags', width: 460, skin: 'dark', branchBoard: branchBoard, nowMs: BRANCH_NOW,
+      page: 'branch-tags', width: 460, skin: 'dark', branchBoard: branchBoard, seed: { nowMs: BRANCH_NOW },
       branchConfirm: { verb: '切换', target: 'feature/x', kind: 'switch' },
       branchResult: { state: 'fail', error: true, git: 'fatal: 分支 feature/x 未并入', step: 'branch-write', expected: '', actual: '', cause: '', reason: '' },
     })
@@ -918,7 +931,10 @@ async function run(browser: any, env: any) {
   // #1844：诊断页与平台段（含迁移页）两族词条也并进来，三页截图里显示真实中文而不是词条键。
   const vcdg = await import(locUrl('src/client/kernel/locale-vcdiagnostics.js'))
   const vcpf = await import(locUrl('src/client/kernel/locale-vcplatform.js'))
-  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh, vccfg.L_VCCONFIG.zh, vchk.L_VCHOOKS.zh, vcm.L_VCMAINTENANCE.zh, vcs.L_VCSUBMODULES.zh, vcrw.L_VCREWRITE.zh, vcdg.L_VCDIAGNOSTICS.zh, vcpf.L_VCPLATFORM.zh)
+  // #1883：分支行第三行要念「6 分钟前 · 提交主题」，相对时间那几句（vc.ago.*、vc.time.absolute）
+  //   住在 flow 一族；不并进来，量到的第三行是词条键而不是读者真会看到的那句话。
+  const flowLoc = await import(locUrl('src/client/kernel/locale-flow.js'))
+  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh, vccfg.L_VCCONFIG.zh, vchk.L_VCHOOKS.zh, vcm.L_VCMAINTENANCE.zh, vcs.L_VCSUBMODULES.zh, vcrw.L_VCREWRITE.zh, vcdg.L_VCDIAGNOSTICS.zh, vcpf.L_VCPLATFORM.zh, flowLoc.L_FLOW.zh)
   // vcText.js 单独拼进闭包时，相对时间窗口常量在真机闭包里由共享层提供；这里从 time-config 的
   // 生成物取同一份真值，挂到 window 上让闭包里的裸名读得到（与 verify-997 的手法一致）。
   const valuesMod = await import('file://' + path.join(ROOT, sourcePath('src/shared/time-config/values.js')).replace(/\\/g, '/'))

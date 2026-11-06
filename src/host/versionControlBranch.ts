@@ -150,7 +150,9 @@ export function createBranchPhones(deps: any): any {
       current: current ? { name: current.short, oid: current.oid } : null,
       // gone：上游那条远端分支已经被删（for-each-ref 给 [gone]）。不传这一位的话，界面只能把
       //   「上游没了」画成「与上游齐平」——一句假话（#1881）。
-      branches: refs.refs.map(function (r: any) { return { name: r.short, oid: r.oid, current: r.current === true, upstream: r.upstream || '', ahead: r.ahead || 0, behind: r.behind || 0, gone: r.upstreamGone === true, commitDateMs: r.commitDateMs || null } }),
+      // subject：#1883 追加的提交主题，界面把它写在分支行第三行「时间 · 主题」里。它是**追加字段**，
+      //   板回包版本号不动；老回包没有这一位时界面只画时间，不会把 undefined 画成一行字。
+      branches: refs.refs.map(function (r: any) { return { name: r.short, oid: r.oid, current: r.current === true, upstream: r.upstream || '', ahead: r.ahead || 0, behind: r.behind || 0, gone: r.upstreamGone === true, commitDateMs: r.commitDateMs || null, subject: r.subject || '' } }),
       tags: tags.tags,
       descriptions: desc.descriptions,
       merged: merged,

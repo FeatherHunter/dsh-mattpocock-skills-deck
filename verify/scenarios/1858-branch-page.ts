@@ -1126,6 +1126,8 @@ interface BranchPageFacts {
   counts: string[]
   branchRows: string[]
   rowMetas: string[]
+  /** 每行分支的说明行（.obj-sub）文字：第一条是「时间 · 提交主题」，有分支说明时第二条才是说明。 */
+  rowSubs: string[][]
   tagRows: string[]
   tagAnnotated: string[]
   filters: string[]
@@ -1180,6 +1182,7 @@ function inspectScript(): string {
     '    counts: texts("[data-vc-branch2] .page-section .section-count"),',
     '    branchRows: all("[data-vc-branch-row]").map(function (el) { return el.getAttribute("data-vc-branch-row") }),',
     '    rowMetas: all("[data-vc-branch-row]").map(function (el) { var meta = el.querySelector(".obj-meta"); return norm(meta === null ? "" : meta.textContent) }),',
+    '    rowSubs: all("[data-vc-branch-row]").map(function (el) { return Array.prototype.slice.call(el.querySelectorAll(".obj-sub")).map(function (s) { return norm(s.textContent) }) }),',
     '    tagRows: all("[data-vc-tag-row]").map(function (el) { return el.getAttribute("data-vc-tag-row") }),',
     '    tagAnnotated: all("[data-vc-tag-row]").map(function (el) { return el.getAttribute("data-vc-tag-annotated") }),',
     '    filters: all("[data-vc-branch-filter]").map(function (el) { return el.getAttribute("data-vc-branch-filter") }),',
@@ -1230,6 +1233,17 @@ function checkBranchPage(facts: BranchPageFacts, fixture: FixtureFacts, width: n
   push('ahead-shown', facts.rowMetas.some((meta) => meta.indexOf('领先') >= 0), '至少一条分支行画出「领先 N」', facts.rowMetas.join(' | ').slice(0, 200))
   push('behind-shown', facts.rowMetas.some((meta) => meta.indexOf('落后') >= 0), '至少一条分支行画出「落后 N」', facts.rowMetas.join(' | ').slice(0, 200))
   push('no-upstream-shown', facts.rowMetas.some((meta) => meta.indexOf('没有上游') >= 0), '没有上游的那条分支说得出「没有上游」', facts.rowMetas.join(' | ').slice(0, 200))
+  // #1883：分支行的第三行是「时间 · 提交主题」（原型 38 的写法）。夹具里每条分支顶上都有一次提交，
+  //   所以这一行必须既有时间也有主题；只有时间说明主题没读到，只有主题说明时间没读到，两种都要判红。
+  const subsByRow = facts.rowSubs
+  const subjectLinesOk = subsByRow.length === fixture.branchCount
+    && subsByRow.every((lines) => lines.length >= 1 && lines[0].indexOf(' · ') > 0 && lines[0].split(' · ').slice(1).join(' · ').trim() !== '')
+  push('row-subject-line', subjectLinesOk, '每条分支行的第三行都是「时间 · 提交主题」', subsByRow.map((lines) => lines.join(' | ')).join(' / ').slice(0, 240))
+  // 夹具只给 main 配了分支说明；它必须另占一行（.obj-sub 第二条），不跟主题拼在同一行里。
+  const currentIndex = facts.current === null ? -1 : facts.branchRows.indexOf(facts.current)
+  const currentSubs = currentIndex >= 0 ? subsByRow[currentIndex] : []
+  push('row-description-line', currentSubs.length === 2 && currentSubs[1] === '主干；发布从这里切',
+    '分支说明有值时单独一行，不跟时间与主题抢同一行', currentSubs.join(' | '))
   push('tag-rows', facts.tagRows.length === fixture.tagCount, '标签行逐条画出来（' + String(fixture.tagCount) + ' 行）', facts.tagRows.join(','))
   push('tag-annotated', facts.tagAnnotated.indexOf('1') >= 0 && facts.tagAnnotated.indexOf('0') >= 0, '附注标签与轻量标签分得开', facts.tagAnnotated.join(','))
   push('filters', facts.filters.join(',') === 'all,current,unmerged', '三颗筛选胶囊按序在', facts.filters.join(','))

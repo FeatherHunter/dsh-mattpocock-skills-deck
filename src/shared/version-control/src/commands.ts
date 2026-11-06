@@ -111,7 +111,11 @@ export function commandFor(key: CollectionKey, opts: { logCount?: number; logSki
       if (opts.useNulWorktrees === false) return { key, subcommand: 'worktree', args: ['worktree', 'list', '--porcelain'] }
       return { key, subcommand: 'worktree', args: ['worktree', 'list', '--porcelain', '-z'] }
     case 'refs':
-      return { key, subcommand: 'for-each-ref', args: ['for-each-ref', '--format=%(refname)%00%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)%00%(HEAD)%00%(committerdate:iso-strict)', 'refs/heads/'] }
+      // #1883：第八段 %(contents:subject) 是这一条分支顶上那次提交的主题（第一行，不带正文），
+      //   分支页第三行要写「时间 · 提交主题」，主题就在这条已经要跑的命令里，不必另起进程或再问 git。
+      //   新字段一律**追加在末尾**：前七段的下标是既有解析器与真机样本按位置认的，往中间插会把
+      //   upstream 与日期认错位；追加则老下标一个不动。
+      return { key, subcommand: 'for-each-ref', args: ['for-each-ref', '--format=%(refname)%00%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)%00%(HEAD)%00%(committerdate:iso-strict)%00%(contents:subject)', 'refs/heads/'] }
     case 'log': {
       const n = opts.logCount === undefined ? 50 : opts.logCount
       const skip = opts.logSkip === undefined ? 0 : opts.logSkip

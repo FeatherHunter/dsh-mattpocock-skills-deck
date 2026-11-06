@@ -1689,9 +1689,11 @@ async function main() {
     return {
       contract: VIEW.VC_BRANCH_BOARD_CONTRACT, version: VIEW.VC_BRANCH_BOARD_VERSION, readAtMs: NOW,
       current: { name: 'main', oid: 'a'.repeat(40) },
+      // #1883：subject 是宿主追加的提交主题，分支行第三行写「时间 · 提交主题」；feature 没有主题，
+      //   用来验「没有主题时只画时间、不画占位」那一支。
       branches: [
-        { name: 'main', oid: 'a'.repeat(40), current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: NOW },
-        { name: 'feature', oid: 'b'.repeat(40), current: false, upstream: null, ahead: 0, behind: 0, commitDateMs: NOW },
+        { name: 'main', oid: 'a'.repeat(40), current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: NOW, subject: '主干上的提交主题' },
+        { name: 'feature', oid: 'b'.repeat(40), current: false, upstream: null, ahead: 0, behind: 0, commitDateMs: NOW, subject: '' },
       ],
       tags: [
         { name: 'v1.0.0', oid: 'c'.repeat(40), objectType: 'commit', annotated: false, atMs: NOW, subject: '发布' },
@@ -1781,6 +1783,12 @@ async function main() {
   const goneSaid = brGonePanel.indexOf('上游已不存在') >= 0 || brGonePanel.indexOf('vc.shell.branch2.upstreamGone') >= 0
   const flatSaid = brGonePanel.indexOf('与上游齐平') >= 0 || brGonePanel.indexOf('vc.shell.branch2.inSync') >= 0
   check(goneSaid && !flatSaid, 'BR20h 上游被删时画「上游已不存在」，不说「与上游齐平」')
+  // #1883：分支行第三行是「时间 · 提交主题」（原型 38 的写法），分支说明有值时另起一行。
+  //   这里 t 返回词条键名，时间那一段是 vc.ago.justNow 这样的键（闭包里有 vcText，测试没换词表）；
+  //   主题与说明必须是两段文字各占一个 .obj-sub，拼成一行就说明两条信息抢了同一行。
+  const brRowPanel = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: brBoardOf(), nowMs: NOW }))
+  const brMainSeg = String(brRowPanel).slice(String(brRowPanel).indexOf('data-vc-branch-row="main"'), String(brRowPanel).indexOf('data-vc-branch-row="feature"'))
+  check(brMainSeg.indexOf(' · 主干上的提交主题') >= 0 && brMainSeg.indexOf('vcs-branch2-desc">主干<') >= 0, 'BR20i 分支行第三行是「时间 · 提交主题」，分支说明另起一行（实得 ' + brMainSeg.slice(0, 400) + '）')
   // #1881：行尾只剩「切换」+「⋯」——删除 / 重命名 / 切提交 / 设上游 / 写说明收进菜单，
   //   页尾只剩两条没有行内入口的新建动作（4.2 新建并切换分支、4.10 建标签）。
   //   菜单里的动作仍带 data-vc-op（能力号不变），分支名仍由行上的 data-vc-branch-row 给委托层。
