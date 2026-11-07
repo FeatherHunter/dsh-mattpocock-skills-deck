@@ -276,112 +276,117 @@
   },
   {
     "date": "2026-10-16",
-    "total": 150,
-    "daily": 5
+    "total": 149,
+    "daily": 4
   },
   {
     "date": "2026-10-17",
-    "total": 154,
+    "total": 153,
     "daily": 4
   },
   {
     "date": "2026-10-18",
-    "total": 159,
+    "total": 158,
     "daily": 5
   },
   {
     "date": "2026-10-19",
-    "total": 169,
+    "total": 168,
     "daily": 10
   },
   {
     "date": "2026-10-20",
-    "total": 173,
+    "total": 172,
     "daily": 4
   },
   {
     "date": "2026-10-21",
-    "total": 182,
+    "total": 181,
     "daily": 9
   },
   {
     "date": "2026-10-22",
-    "total": 196,
+    "total": 195,
     "daily": 14
   },
   {
     "date": "2026-10-23",
-    "total": 210,
+    "total": 209,
     "daily": 14
   },
   {
     "date": "2026-10-24",
-    "total": 218,
+    "total": 217,
     "daily": 8
   },
   {
     "date": "2026-10-25",
-    "total": 227,
+    "total": 226,
     "daily": 9
   },
   {
     "date": "2026-10-26",
-    "total": 233,
+    "total": 232,
     "daily": 6
   },
   {
     "date": "2026-10-27",
-    "total": 241,
+    "total": 240,
     "daily": 8
   },
   {
     "date": "2026-10-28",
-    "total": 248,
+    "total": 247,
     "daily": 7
   },
   {
     "date": "2026-10-29",
-    "total": 259,
+    "total": 258,
     "daily": 11
   },
   {
     "date": "2026-10-30",
-    "total": 262,
+    "total": 261,
     "daily": 3
   },
   {
     "date": "2026-10-31",
-    "total": 267,
+    "total": 266,
     "daily": 5
   },
   {
     "date": "2026-11-01",
-    "total": 271,
+    "total": 270,
     "daily": 4
   },
   {
     "date": "2026-11-02",
-    "total": 278,
+    "total": 277,
     "daily": 7
   },
   {
     "date": "2026-11-03",
-    "total": 282,
+    "total": 281,
     "daily": 4
   },
   {
     "date": "2026-11-04",
-    "total": 286,
+    "total": 285,
     "daily": 4
   },
   {
     "date": "2026-11-05",
-    "total": 297,
+    "total": 296,
     "daily": 11
   },
   {
     "date": "2026-11-06",
-    "total": 299,
-    "daily": 2
+    "total": 308,
+    "daily": 12
+  },
+  {
+    "date": "2026-11-07",
+    "total": 314,
+    "daily": 6
   }
 ]
