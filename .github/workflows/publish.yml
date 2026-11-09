@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: 检出（打 tag 与从 CHANGELOG 取本节需要完整历史）
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
