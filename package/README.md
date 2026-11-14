@@ -215,6 +215,7 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 | [@tafcear](https://github.com/tafcear) | 🌹🌹 | [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) [#432](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/432) |
 | [@xiSage](https://github.com/xiSage) | 🌹🌹 | [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) |
 | [@angenet](https://github.com/angenet) | 🌹🌹 | [#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295) |
+| [@Ryanzhaov](https://github.com/Ryanzhaov) | 🌹 | [#1948](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1948) |
 | [@metapeka](https://github.com/metapeka) | 🌹 | [#1940](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1940) |
 | [@fogandsun-5467](https://github.com/fogandsun-5467) | 🌹 | [#1939](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1939) |
 | [@ericheroster](https://github.com/ericheroster) | 🌹 | [#1906](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1906) |

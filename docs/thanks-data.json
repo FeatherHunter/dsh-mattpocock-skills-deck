@@ -267,6 +267,18 @@
       "comments": [],
       "lastActive": "2026-10-27T01:53:26Z"
     },
+    "Ryanzhaov": {
+      "issues": [],
+      "prs": [],
+      "discussions": [
+        {
+          "n": 1948,
+          "at": "2026-11-14T04:49:02Z"
+        }
+      ],
+      "comments": [],
+      "lastActive": "2026-11-14T04:49:02Z"
+    },
     "SAXEM1997": {
       "issues": [
         {
@@ -895,7 +907,7 @@
     }
   },
   "cursors": {
-    "discussions": 1781,
+    "discussions": 1948,
     "issues": 1947
   }
 }
