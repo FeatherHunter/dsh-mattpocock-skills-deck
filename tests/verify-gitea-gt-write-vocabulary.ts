@@ -32,6 +32,7 @@
 // 门禁归属: src/tracker/rooms/gitea/labels/list.ts
 // 门禁归属: src/tracker/rooms/gitea/room/prompts.ts
 const nodePath = require('path')
+const fs = require('fs')
 const { pathToFileURL } = require('url')
 
 const ROOT = nodePath.resolve(__dirname, '..')
@@ -53,6 +54,8 @@ const teaRun = await import(url('src/tracker/rooms/gitea/support/tea-run.ts'))
 const gtRun = await import(url('src/tracker/rooms/gitea/support/gt-run.ts'))
 const promptMod = await import(url('src/tracker/rooms/gitea/room/prompts.ts'))
 const { setSelectedExecutor } = promptMod
+// 里程碑空串口径的出处文件（票 #26）：update 对 milestone:null 产生空串，两分支都从这里走。
+const writeMod = await import(url('src/tracker/rooms/gitea/issues/write.ts'))
 
 /** 假执行器：记下每次调用，按 handler 应答。 */
 function makeExec(handler) {
@@ -257,6 +260,57 @@ title('⑦ 回包按执行器各自解析')
   must(Array.isArray(teaRun.parseReadRows(withHint)) && teaRun.parseReadRows(withHint).length === 1, 'gt 标签清单：带提示行剥掉后解析出 1 行')
   setSelectedExecutor('tea')
   must(teaRun.parseReadRows(withHint) === null, 'tea 选中：gt 的带提示行回包不成形状（如实回 null）')
+}
+
+title('⑧ 里程碑空串口径钉死（票 #26，依据票 #23 回填评论 2026-11-15 真机实测）')
+{
+  // 真机结论（票 #23 回填评论）：gt 1.2.0 的 issue edit --milestone '' 退出码 2（用法错），
+  // 清里程碑唯一方式是 --remove-milestone。插件现状（write.ts 空串口径 + tea-run 照值直传）
+  // 行为安全，本组不变式只钉住不漂移，不改任何源码行为。
+  const issueBag = JSON.stringify({ number: 7, title: 't', state: 'open', body: '', url: '', index: 7 })
+
+  // 8.1 gt 分支空串直传：--milestone 后的空串作为独立参数原样保留，不丢弃、不转旗标。
+  setSelectedExecutor('gt')
+  must(
+    JSON.stringify(teaRun.argsIssueEdit('o/r', 7, { milestone: '' })) ===
+      JSON.stringify(['issue', 'edit', '7', '-R', 'o/r', '--milestone', '', '--json']),
+    "gt：milestone 空串原样直传成 --milestone ''（真机口径：直传会退出码 2，但插件如实发、如实硬失败，不代为改写语义）",
+    JSON.stringify(teaRun.argsIssueEdit('o/r', 7, { milestone: '' })),
+  )
+  must(
+    JSON.stringify(teaRun.argsIssueEdit('o/r', 7, { milestone: '' })).indexOf('--remove-milestone') === -1,
+    'gt：空串绝不被转成 --remove-milestone（那是另一张票的拍板题，行为漂移先挡在门禁）',
+  )
+  // gt 选中时 update 对 milestone:null 的编辑参数里 milestone 值恰为空串（假 exec 记参验证）。
+  {
+    const bag = okExec()
+    bag.exec = async function (cmd, args) { bag.calls.push({ cmd, args }); return { code: 0, stdout: issueBag, stderr: '' } }
+    const up = await writeMod.updateIssue({ exec: bag.exec, cwd: '' }, { refId: 'o/r' }, '7', { milestone: null }, null)
+    must(up && up.ok === true, 'gt：update(milestone:null) 写成功（回包可直接归一，不触发回查）', JSON.stringify(up && up.error))
+    must(bag.calls.length === 1, 'gt：update 只发一条 edit 命令（不发额外读）', JSON.stringify(bag.calls.map((c) => c.cmd)))
+    const i = bag.calls[0] && bag.calls[0].args ? bag.calls[0].args.indexOf('--milestone') : -1
+    must(i !== -1 && bag.calls[0].args[i + 1] === '', 'gt：update(milestone:null) 实际发出的 --milestone 后一位恰是空串', JSON.stringify(bag.calls[0] && bag.calls[0].args))
+  }
+
+  // 8.2 空串口径出处：write.ts 对 milestone:null 产生 fields.milestone = ''，tea 分支同样成立。
+  setSelectedExecutor('tea')
+  {
+    const bag = okExec()
+    bag.exec = async function (cmd, args) { bag.calls.push({ cmd, args }); return { code: 0, stdout: issueBag, stderr: '' } }
+    const up = await writeMod.updateIssue({ exec: bag.exec, cwd: '' }, { refId: 'o/r' }, '7', { milestone: null }, null)
+    must(up && up.ok === true, 'tea：update(milestone:null) 写成功', JSON.stringify(up && up.error))
+    const args = bag.calls[0] && bag.calls[0].args
+    const i = args ? args.indexOf('--milestone') : -1
+    must(i !== -1 && args[i + 1] === '', "tea：update(milestone:null) 的编辑参数里 milestone 值恰为空串（清空口径：--milestone ''）", JSON.stringify(args))
+    must(args && args[0] === 'issues' && args[1] === 'edit' && args[2] === '7', 'tea：update 发的是 issues edit <编号>（命令形状不漂）', JSON.stringify(args))
+  }
+  // 口径注释防漂移：write.ts 里「清空给空串」那行注释还在，文字改了就响门禁。
+  const writeSrc = fs.readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/gitea/issues/write.ts'), 'utf8')
+  must(
+    writeSrc.indexOf('给名字，清空给空串') !== -1,
+    'write.ts 注释里的空串口径文字仍在（防口径漂移）',
+  )
+  setSelectedExecutor('tea')
 }
 
   console.log('\n共 ' + total + ' 条不变式' + (broken.length ? '，破 ' + broken.length + ' 条' : '，全绿'))
