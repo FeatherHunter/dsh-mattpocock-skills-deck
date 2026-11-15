@@ -140,6 +140,7 @@ export async function runRead(effective: CtxLike | null | undefined, args: strin
 
 /**
  * 读回包的行数组解析（票 #22）：tea 分支与 parseJsonRows 完全一致；gt 分支先剥掉 list 命令
+ * 尾部提示行后走行适配（adaptGtRow 对 tea 形状的行是恒等，共用同一入口不改变 tea 行为）
  * 追加在尾部的 `more results available` 提示行（gt-run.ts 有实测记录），再把 author/assignees
  * 的登录名字符串适配成归一层认的 `{login}` 形状。形状不对（含剥完仍不是合法 JSON）都回 null，
  * 由调用方按「回包形状不对」挑档位——与 parseJsonRows 同一口径。
@@ -160,6 +161,20 @@ export function parseReadBag(text: string): RawBag | null {
   return adaptGtRow(bag) as RawBag
 }
 
+/**
+ * 读路径失败文案里的命令名（票 #22 评审收编）：按选中执行器给真实命令原文——gt 是
+ * `gt issue list` / `gt issue view`，tea 是 `tea issues ls` / `tea issues`。文案写错执行器
+ * 会让拿报错排障的人得出错误结论（Human-first wording），所以 tea 分支的字面量保持与改动前一致。
+ */
+export function readListCommandLabel(): string {
+  return readExecutor() === 'gt' ? 'gt issue list' : 'tea issues ls'
+}
+
+/** 单票读失败文案里的命令名：同 readListCommandLabel 的口径。 */
+export function readIssueCommandLabel(): string {
+  return readExecutor() === 'gt' ? 'gt issue view' : 'tea issues'
+}
+
 /** 列表页的参数（本房词汇表的唯一出处）：state 收窄由调用方给好（open / closed / all）。 */
 export function argsIssueListPage(refId: string, state: 'open' | 'closed' | 'all', labels: string[], limitRows: number, page: number): string[] {
   // gt 分支（票 #22，拼法按票 #20 真机核对与 2026-11-15 本机 gt 1.2.0 实测）：`gt issue list`
@@ -168,11 +183,11 @@ export function argsIssueListPage(refId: string, state: 'open' | 'closed' | 'all
   // 语义正好是 AND。gt 的 --json 默认字段表已含 url / body / number / comments 等全部字段，
   // 不需要 tea 那一步 --fields 点名。
   if (readExecutor() === 'gt') {
-    const args = ['issue', 'list', '-R', refId, '--state', state, '--json', '--limit', String(limitRows), '--page', String(page)]
+    const args = ['issue', 'list', '-R', refId, '--state', state, '--json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
     for (const label of labels) args.push('--label', label)
     return args
   }
-  const args = ['issues', 'ls', '--repo', refId, '--state', state, '--output', 'json', '--limit', String(limitRows), '--page', String(page)]
+  const args = ['issues', 'ls', '--repo', refId, '--state', state, '--output', 'json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
   // tea ls 的默认字段表里没有 url（真机实测 tea 0.16：默认回 index/title/state/author/milestone/labels/owner/repo），
   // 行地址就一直是空串，面板上「复制链接」「在跟踪器打开」两个按钮全废。显式点名字段表＝默认表 + url，
   // 不多要 body 等大字段（列表行的正文口径不变，正文只在单票 get 里取）。
@@ -193,14 +208,14 @@ export function argsCommentsPage(refId: string, key: string | number, limitRows:
   // gt 分支（票 #22）：gt issue comment list <编号>，-L/--page 与 tea 的 limit/page 语义对应
   // （真机实测 2026-11-15：-L 1..1000、--page 1 起始）；回包里 author 是字符串、id 是数字。
   if (readExecutor() === 'gt') {
-    return ['issue', 'comment', 'list', String(key), '-R', refId, '--json', '--limit', String(limitRows), '--page', String(page)]
+    return ['issue', 'comment', 'list', String(key), '-R', refId, '--json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
   }
-  return ['issues', String(key), 'comments', '--repo', refId, '--output', 'json', '--limit', String(limitRows), '--page', String(page)]
+  return ['issues', String(key), 'comments', '--repo', refId, '--output', 'json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
 }
 
 /** 标签一页的参数。 */
 export function argsLabelsPage(refId: string, limitRows: number, page: number): string[] {
-  return ['labels', 'ls', '--repo', refId, '--output', 'json', '--limit', String(limitRows), '--page', String(page)]
+  return ['labels', 'ls', '--repo', refId, '--output', 'json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
 }
 
 // ── 管理与杂项的参数（票 #14）：同样只在这一处拼 ──────────────────────────
@@ -229,7 +244,7 @@ export function argsLoginList(): string[] {
 
 /** 权限扫仓一页的参数：只要 owner/name/permission 三个字段，按 refId 匹配找当前仓库。 */
 export function argsRepoScanPage(limitRows: number, page: number): string[] {
-  return ['repos', 'ls', '--output', 'json', '--fields', 'owner,name,permission', '--limit', String(limitRows), '--page', String(page)]
+  return ['repos', 'ls', '--output', 'json', '--fields', 'owner,name,permission', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
 }
 
 // ── 写路径的参数（票 #12）：同样只在这一处拼，操作文件只挑词汇 ──────────────────

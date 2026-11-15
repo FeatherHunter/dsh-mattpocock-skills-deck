@@ -18,7 +18,7 @@ import { PAGINATION } from '../../../contract/pagination.js'
 import { fail } from '../../../kernel/preflight.js'
 import { failGitea } from '../errors.js'
 import { normalizeIssue } from '../model/normalize.js'
-import { type CtxLike, argsIssueListPage, errMsg, parseJsonRows, refIdOf, runTea } from '../support/tea-run.js'
+import { type CtxLike, argsIssueListPage, errMsg, parseReadRows, readListCommandLabel, refIdOf, runRead } from '../support/tea-run.js'
 
 /** 地图标签（契约写死）：比对时两边都转小写，Gitea 标签大小写不保证。 */
 const MAP_LABEL = 'wayfinder:map'
@@ -56,12 +56,12 @@ export async function listMaps(
   try {
     for (let page = 1; page <= maxPages; page += 1) {
       // --state all：地图开着关着都算地图；--labels 交远端 AND 筛，省得把整仓拉下来本地挑。
-      const res = await runTea(effective, argsIssueListPage(refId, 'all', [MAP_LABEL], pageSize, page))
+      const res = await runRead(effective, argsIssueListPage(refId, 'all', [MAP_LABEL], pageSize, page))
       if (res.code !== 0) {
-        return failGitea(new Error(res.stderr || res.stdout || 'listMaps: tea issues ls 失败'), '列地图失败：tea issues ls 没有跑成。请稍后重试。', res, effective)
+        return failGitea(new Error(res.stderr || res.stdout || `listMaps: ${readListCommandLabel()} 失败`), `列地图失败：${readListCommandLabel()} 没有跑成。请稍后重试。`, res, effective)
       }
       const text = typeof res.stdout === 'string' ? res.stdout : ''
-      const rows = parseJsonRows(text)
+      const rows = parseReadRows(text)
       // 原文 = 远端回的那一段：看得出远端到底回了什么形状。
       if (!rows) return fail(ERROR_KIND.PARSE as ErrorKind, 'listMaps: tea 回包不是插件预期的数组形状', text)
       for (let i = 0; i < rows.length; i += 1) {

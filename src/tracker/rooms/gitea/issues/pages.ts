@@ -23,7 +23,7 @@ import { fail } from '../../../kernel/preflight.js'
 import { failGitea } from '../errors.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { scanIssueCounts } from './counts.js'
-import { type CtxLike, argsIssueListPage, errMsg, labelsOf, narrowStateOf, parseReadRows, refIdOf, runRead } from '../support/tea-run.js'
+import { type CtxLike, argsIssueListPage, errMsg, labelsOf, narrowStateOf, parseReadRows, readListCommandLabel, refIdOf, runRead } from '../support/tea-run.js'
 
 /** 游标（页码）解析：非正整数或认不出时回 0（当第 1 页），不报错。 */
 function pageOf(cursor: string | null | undefined): number {
@@ -70,7 +70,7 @@ export async function listPage(
   try {
     const res = await runRead(effective, argsIssueListPage(refId, state, labels, limitRows, page))
     if (res.code !== 0) {
-      return failGitea(new Error(res.stderr || res.stdout || 'listPage: tea issues ls 失败'), '翻页读票失败：tea issues ls 没有跑成。请稍后重试。', res, effective)
+      return failGitea(new Error(res.stderr || res.stdout || `listPage: ${readListCommandLabel()} 失败`), `翻页读票失败：${readListCommandLabel()} 没有跑成。请稍后重试。`, res, effective)
     }
     const text = typeof res.stdout === 'string' ? res.stdout : ''
     const rows = parseReadRows(text)

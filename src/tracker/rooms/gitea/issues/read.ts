@@ -34,6 +34,8 @@ import {
   parseReadBag,
   parseReadRows,
   refIdOf,
+  readIssueCommandLabel,
+  readListCommandLabel,
   runRead,
 } from '../support/tea-run.js'
 // 读降级的登记出口在 support/read-log.ts 一处（op / reason 只取登记清单里的值，票 #14）。
@@ -57,10 +59,10 @@ export async function fetchRawIssue(effective: CtxLike | null | undefined, refId
   const res = await runRead(effective, argsIssueGet(refId, key))
   if (res.code !== 0) {
     // 原文带 stderr/stdout/退出码：上层 failGitea 取原文时才拿得到「tea 到底说了什么」。
-    throw new Error(res.stderr || res.stdout || 'tea issues 命令失败（退出码 ' + String(res.code) + '）')
+    throw new Error(res.stderr || res.stdout || `${readIssueCommandLabel()} 命令失败（退出码 ${String(res.code)}）`)
   }
   const raw = parseReadBag(typeof res.stdout === 'string' ? res.stdout : '')
-  if (!raw) throw new Error('tea issues 的回包不是一张票的形状')
+  if (!raw) throw new Error(`${readIssueCommandLabel()} 的回包不是一张票的形状`)
   return raw
 }
 
@@ -114,7 +116,7 @@ export async function listIssues(
     const res = await runRead(effective, argsIssueListPage(refId, state, labels, perPage, 1))
     if (res.code !== 0) {
       // 原文 = 这一次 tea 调用的进程结果（stderr 里是 tea 或远端的原话）。
-      return failGitea(new Error(res.stderr || res.stdout || 'list: tea issues ls 失败'), '列票失败：tea issues ls 没有跑成。请稍后重试。', res, effective)
+      return failGitea(new Error(res.stderr || res.stdout || `list: ${readListCommandLabel()} 失败`), `列票失败：${readListCommandLabel()} 没有跑成。请稍后重试。`, res, effective)
     }
     const text = typeof res.stdout === 'string' ? res.stdout : ''
     let rows: unknown[] | null = parseReadRows(text)

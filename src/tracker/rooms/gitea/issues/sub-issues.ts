@@ -20,7 +20,7 @@ import { PAGINATION } from '../../../contract/pagination.js'
 import { fail } from '../../../kernel/preflight.js'
 import { failGitea } from '../errors.js'
 import { normalizeIssue } from '../model/normalize.js'
-import { type CtxLike, argsIssueListPage, errMsg, parseJsonRows, refIdOf, runTea } from '../support/tea-run.js'
+import { type CtxLike, argsIssueListPage, errMsg, parseReadRows, readListCommandLabel, refIdOf, runRead } from '../support/tea-run.js'
 // 读降级的登记出口在 support/read-log.ts 一处（op / reason 只取登记清单里的值，票 #14）。
 import { emitReadDegraded } from '../support/read-log.js'
 
@@ -57,12 +57,12 @@ export async function listSubIssues(
   try {
     for (let page = 1; !capped; page += 1) {
       // 扫仓显式要 all：子票开着关着都算子票（与地图清单同一口径）。
-      const res = await runTea(effective, argsIssueListPage(refId, 'all', [], perPage, page))
+      const res = await runRead(effective, argsIssueListPage(refId, 'all', [], perPage, page))
       if (res.code !== 0) {
-        return failGitea(new Error(res.stderr || res.stdout || 'listSubIssues: tea issues ls 失败'), '列子票失败：tea issues ls 没有跑成。请稍后重试。', res, effective)
+        return failGitea(new Error(res.stderr || res.stdout || `listSubIssues: ${readListCommandLabel()} 失败`), `列子票失败：${readListCommandLabel()} 没有跑成。请稍后重试。`, res, effective)
       }
       const text = typeof res.stdout === 'string' ? res.stdout : ''
-      const rows = parseJsonRows(text)
+      const rows = parseReadRows(text)
       // 原文 = 远端回的那一段。
       if (!rows) return fail(ERROR_KIND.PARSE as ErrorKind, 'listSubIssues: tea 回包不是插件预期的数组形状', text)
       for (let i = 0; i < rows.length; i += 1) {
