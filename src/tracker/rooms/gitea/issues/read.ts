@@ -31,10 +31,10 @@ import {
   argsIssueListPage,
   errMsg,
   labelsOf,
-  parseJsonBag,
-  parseJsonRows,
+  parseReadBag,
+  parseReadRows,
   refIdOf,
-  runTea,
+  runRead,
 } from '../support/tea-run.js'
 // 读降级的登记出口在 support/read-log.ts 一处（op / reason 只取登记清单里的值，票 #14）。
 import { emitReadDegraded } from '../support/read-log.js'
@@ -54,12 +54,12 @@ function commentsWantOf(opts: GetOpts | null | undefined): number | null {
  * 关系读（graph/read.ts）也从这里取，原始票读取只此一处出处。
  */
 export async function fetchRawIssue(effective: CtxLike | null | undefined, refId: string, key: string | number): Promise<RawBag> {
-  const res = await runTea(effective, argsIssueGet(refId, key))
+  const res = await runRead(effective, argsIssueGet(refId, key))
   if (res.code !== 0) {
     // 原文带 stderr/stdout/退出码：上层 failGitea 取原文时才拿得到「tea 到底说了什么」。
     throw new Error(res.stderr || res.stdout || 'tea issues 命令失败（退出码 ' + String(res.code) + '）')
   }
-  const raw = parseJsonBag(typeof res.stdout === 'string' ? res.stdout : '')
+  const raw = parseReadBag(typeof res.stdout === 'string' ? res.stdout : '')
   if (!raw) throw new Error('tea issues 的回包不是一张票的形状')
   return raw
 }
@@ -75,9 +75,9 @@ async function fetchComments(effective: CtxLike | null | undefined, refId: strin
   const perPage = PAGINATION.gitea.maxPerPage
   let page = 1
   while (out.length < limit) {
-    const res = await runTea(effective, argsCommentsPage(refId, key, perPage, page))
+    const res = await runRead(effective, argsCommentsPage(refId, key, perPage, page))
     if (res.code !== 0) return null
-    const rows = parseJsonRows(typeof res.stdout === 'string' ? res.stdout : '')
+    const rows = parseReadRows(typeof res.stdout === 'string' ? res.stdout : '')
     if (!rows) return null
     for (const row of rows) out.push(row)
     if (rows.length < perPage) break
@@ -111,13 +111,13 @@ export async function listIssues(
   const state = filter && filter.state === 'closed' ? 'closed' : filter && filter.state === 'open' ? 'open' : 'all'
   const labels = labelsOf(filter)
   try {
-    const res = await runTea(effective, argsIssueListPage(refId, state, labels, perPage, 1))
+    const res = await runRead(effective, argsIssueListPage(refId, state, labels, perPage, 1))
     if (res.code !== 0) {
       // 原文 = 这一次 tea 调用的进程结果（stderr 里是 tea 或远端的原话）。
       return failGitea(new Error(res.stderr || res.stdout || 'list: tea issues ls 失败'), '列票失败：tea issues ls 没有跑成。请稍后重试。', res, effective)
     }
     const text = typeof res.stdout === 'string' ? res.stdout : ''
-    let rows: unknown[] | null = parseJsonRows(text)
+    let rows: unknown[] | null = parseReadRows(text)
     // 原文 = 远端回的那一段：人据此看出返回的到底是什么形状，而不是只被告知「不是数组」。
     if (!rows) return fail(ERROR_KIND.PARSE as ErrorKind, 'list: tea 回包不是插件预期的数组形状', text)
     // 先记「这一页是不是取满的」：下面的 keys 过滤会把行数变小，「远端给没给满一页」要在那之前判。

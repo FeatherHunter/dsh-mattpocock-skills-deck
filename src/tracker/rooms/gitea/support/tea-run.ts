@@ -10,6 +10,9 @@
  *
  * tea 命令面（本房词汇，票 #3 的口径，真机上以实测修正；写路径的参数形状按本机 tea 0.16.0
  *   的 --help 逐条核对过，票 #12）：
+ *   · gt/tea 分派（票 #22）：list / 单票 / comments 三条读路径的词汇按 preflight 选中的执行器
+ *     分派——gt 的拼法与回包形状以票 #20 真机核对（及 2026-11-15 gt 1.2.0 本机实测）为准；
+ *     gt 的执行与回包适配住在同目录 gt-run.ts。tea 分支的词汇与改动前一致（Q6 长期共存）。
  *   列表页：tea issues ls --repo <refId> --state open|closed|all [--labels a,b] --output json --limit N --page P
  *   单票：  tea issues <编号> --repo <refId> --output json
  *   评论：  tea issues <编号> comments --repo <refId> --output json --limit N --page P
@@ -32,6 +35,10 @@
 import type { BackendContext, ExecResult, OpContext } from '../../../contract/contexts.js'
 import type { ListFilter } from '../../../contract/inputs.js'
 import type { RepositoryRef } from '../../../contract/entities.js'
+import { runGt, adaptGtRow, stripGtHint } from './gt-run.js'
+// 执行器选择状态住在 room/prompts.ts（#21 preflight 探测完写进来）；词汇表按它分派 gt/tea。
+// prompts 不回读本文件，这条依赖是单向的，没有环。
+import { selectedExecutor, type GiteaExecutorCli } from '../room/prompts.js'
 
 /** 上下文两形都收：调用方有时把执行器放在 ctx、有时放在 opCtx（GitLab 房同一套形状）。 */
 export type CtxLike = Partial<OpContext> & Partial<BackendContext>
@@ -114,8 +121,57 @@ export function narrowStateOf(filter: Partial<ListFilter> | null | undefined): '
   return state === 'open' || state === 'closed' ? state : ''
 }
 
+/**
+ * 当前选中的执行器（票 #22）：preflight（#21）探测完经 setSelectedExecutor 写进 room/prompts.ts，
+ * 词汇表与读路径按这里返回的值分派 gt / tea。什么都没探测过时是 'tea'，与旧行为一致。
+ */
+export function readExecutor(): GiteaExecutorCli {
+  return selectedExecutor()
+}
+
+/**
+ * 读路径统一的执行入口（票 #22）：按选中执行器把同一份参数发给 gt 或 tea。
+ * tea 分支原样走 runTea——把三个读操作文件里的 runTea 调用换成这一入口后，
+ * tea 选中的行为与改动前逐字节一致（#22 验收判据）。
+ */
+export async function runRead(effective: CtxLike | null | undefined, args: string[]): Promise<ExecResult> {
+  return readExecutor() === 'gt' ? runGt(effective, args) : runTea(effective, args)
+}
+
+/**
+ * 读回包的行数组解析（票 #22）：tea 分支与 parseJsonRows 完全一致；gt 分支先剥掉 list 命令
+ * 追加在尾部的 `more results available` 提示行（gt-run.ts 有实测记录），再把 author/assignees
+ * 的登录名字符串适配成归一层认的 `{login}` 形状。形状不对（含剥完仍不是合法 JSON）都回 null，
+ * 由调用方按「回包形状不对」挑档位——与 parseJsonRows 同一口径。
+ */
+export function parseReadRows(text: string): unknown[] | null {
+  const rows = readExecutor() === 'gt' ? parseJsonRows(stripGtHint(text)) : parseJsonRows(text)
+  if (!rows) return null
+  return rows.map(adaptGtRow)
+}
+
+/**
+ * 读回包的单对象解析（票 #22）：tea 分支与 parseJsonBag 完全一致；gt 分支同样先剥提示行
+ * （单票 view 不带提示行，剥了也无害）再做 author/assignees 适配。
+ */
+export function parseReadBag(text: string): RawBag | null {
+  const bag = readExecutor() === 'gt' ? parseJsonBag(stripGtHint(text)) : parseJsonBag(text)
+  if (!bag) return null
+  return adaptGtRow(bag) as RawBag
+}
+
 /** 列表页的参数（本房词汇表的唯一出处）：state 收窄由调用方给好（open / closed / all）。 */
 export function argsIssueListPage(refId: string, state: 'open' | 'closed' | 'all', labels: string[], limitRows: number, page: number): string[] {
+  // gt 分支（票 #22，拼法按票 #20 真机核对与 2026-11-15 本机 gt 1.2.0 实测）：`gt issue list`
+  // 的 -L 范围 1..1000（调用方的每页上限 ≤200，不会越界）、--page 1 起始、默认只回 open
+  // 所以 state 必须显式带（与 tea 同一条防线）；标签过滤用可重复的 --label，一标签一项，
+  // 语义正好是 AND。gt 的 --json 默认字段表已含 url / body / number / comments 等全部字段，
+  // 不需要 tea 那一步 --fields 点名。
+  if (readExecutor() === 'gt') {
+    const args = ['issue', 'list', '-R', refId, '--state', state, '--json', '--limit', String(limitRows), '--page', String(page)]
+    for (const label of labels) args.push('--label', label)
+    return args
+  }
   const args = ['issues', 'ls', '--repo', refId, '--state', state, '--output', 'json', '--limit', String(limitRows), '--page', String(page)]
   // tea ls 的默认字段表里没有 url（真机实测 tea 0.16：默认回 index/title/state/author/milestone/labels/owner/repo），
   // 行地址就一直是空串，面板上「复制链接」「在跟踪器打开」两个按钮全废。显式点名字段表＝默认表 + url，
@@ -127,11 +183,18 @@ export function argsIssueListPage(refId: string, state: 'open' | 'closed' | 'all
 
 /** 单票的参数。 */
 export function argsIssueGet(refId: string, key: string | number): string[] {
+  // gt 分支（票 #22）：gt issue view <编号>，--json 回单键对象（票号叫 number，归一层回退认）。
+  if (readExecutor() === 'gt') return ['issue', 'view', String(key), '-R', refId, '--json']
   return ['issues', String(key), '--repo', refId, '--output', 'json']
 }
 
 /** 评论一页的参数。 */
 export function argsCommentsPage(refId: string, key: string | number, limitRows: number, page: number): string[] {
+  // gt 分支（票 #22）：gt issue comment list <编号>，-L/--page 与 tea 的 limit/page 语义对应
+  // （真机实测 2026-11-15：-L 1..1000、--page 1 起始）；回包里 author 是字符串、id 是数字。
+  if (readExecutor() === 'gt') {
+    return ['issue', 'comment', 'list', String(key), '-R', refId, '--json', '--limit', String(limitRows), '--page', String(page)]
+  }
   return ['issues', String(key), 'comments', '--repo', refId, '--output', 'json', '--limit', String(limitRows), '--page', String(page)]
 }
 

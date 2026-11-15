@@ -20,7 +20,7 @@ import type { Counts, OpResult } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
 import { failGitea } from '../errors.js'
 import { PAGINATION } from '../../../contract/pagination.js'
-import { errMsg, labelsOf, narrowStateOf, parseJsonRows, refIdOf, runTea, argsIssueListPage, type CtxLike } from '../support/tea-run.js'
+import { errMsg, labelsOf, narrowStateOf, parseReadRows, refIdOf, runRead, argsIssueListPage, type CtxLike } from '../support/tea-run.js'
 
 type FilterLike = Partial<ListFilter> | null | undefined
 
@@ -38,10 +38,10 @@ export async function scanIssueCounts(
   let closed = 0
   for (let page = 1; page <= maxPages; page += 1) {
     // 扫描显式要 all：数的是全仓（state 收窄在调用方本地做），少要一态就会数错。
-    const res = await runTea(effective, argsIssueListPage(refId, 'all', labels, perPage, page))
+    const res = await runRead(effective, argsIssueListPage(refId, 'all', labels, perPage, page))
     if (res.code !== 0) return { ok: false, kind: 'transport', err: new Error(res.stderr || res.stdout || 'counts: tea issues ls 失败') }
     const text = typeof res.stdout === 'string' ? res.stdout : ''
-    const rows = parseJsonRows(text)
+    const rows = parseReadRows(text)
     if (!rows) return { ok: false, kind: 'uncountable', text }
     for (const row of rows) {
       // state 只认字面 closed，其余（含缺字段）按打开数——与归一层「两态之外的都归 open」同一方向。
