@@ -108,7 +108,7 @@ must(cmdMap.zh.includes('gt issue comment'), 'zh 命令映射含 gt issue commen
 must(cmdMap.zh.includes('gt issue close') && cmdMap.zh.includes('gt issue reopen'), 'zh 命令映射含 gt issue close / reopen', '')
 must(cmdMap.zh.includes('--json'), 'zh 命令映射说明脚本输出走 --json', '')
 must(cmdMap.zh.includes('gt label create') && cmdMap.zh.includes('gt label edit'), 'zh 命令映射含 gt label create / edit', '')
-must(cmdMap.zh.includes('不') && cmdMap.zh.includes('编造') || cmdMap.zh.includes('do not invent'), 'zh 命令映射保留「不要编造写法」的告诫', cmdMap.zh.slice(-60))
+must((cmdMap.zh.includes('不') && cmdMap.zh.includes('编造')) || cmdMap.zh.includes('do not invent'), 'zh 命令映射保留「不要编造写法」的告诫', cmdMap.zh.slice(-60))
 
 title('五、契约键与值：commandVocabulary.cli 名不变，值随选中注入（验收项 2）')
 must(promptMod.prompts.commandVocabulary.cli === 'gt', '选中 gt 时 commandVocabulary.cli === \'gt\'', String(promptMod.prompts.commandVocabulary.cli))
@@ -129,9 +129,19 @@ for (const key of KEYS) {
 
 title('七、getter 语义：改选中立即生效（注入时求值，不是模块加载时定格）')
 setSelectedExecutor('gt')
-must(promptMod.prompts.cliLogin.zh === promptMod.prompts.cliLogin.zh && promptMod.prompts.cliLogin.zh.includes('gt auth login'), '置 gt 后读 cliLogin.zh 已是 gt 套', '')
+must(promptMod.prompts.cliLogin.zh.includes('gt auth login'), '置 gt 后读 cliLogin.zh 已是 gt 套', '')
 setSelectedExecutor('tea')
 must(promptMod.prompts.cliLogin.zh.includes('tea login add'), '再置 tea 后读 cliLogin.zh 回到 tea 套', '')
+
+title('八、探活双缺组合文案与落回前缀：钉住票 #21 既有实现（preflight.ts，防止文案无声改动）')
+// 以下期望值逐字抄自 src/tracker/rooms/gitea/preflight.ts（票 #21 既有实现，本次只读不改）：
+// 双缺（gt 未装且 tea 也未装）时的组合文案，以及 gt 缺失落回 tea 失败时的前缀。
+const GT_TEA_BOTH_MISSING_MESSAGE =
+  'gt 与 tea 都未安装。请安装 gt（官方安装说明：https://gitea.com/gitea/cli）；仅当 Gitea 服务器版本低于 28 时才需要 tea（https://gitea.com/gitea/tea）。'
+const FALLBACK_PREFIX_LINE = "const prefix = 'gt 不可用（' + gt.reason + '），已落回 tea；'"
+const preflightSrc = require('fs').readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/gitea/preflight.ts'), 'utf8')
+must(preflightSrc.includes(GT_TEA_BOTH_MISSING_MESSAGE), 'preflight.ts 含双缺组合文案原文（装 gt 指引 + tea 适用边界）', GT_TEA_BOTH_MISSING_MESSAGE.slice(0, 60))
+must(preflightSrc.includes(FALLBACK_PREFIX_LINE), 'preflight.ts 含落回前缀「gt 不可用（<原因>），已落回 tea；」', '')
 
 console.log('\n共 ' + total + ' 条不变式，红了 ' + broken.length + ' 条。')
 if (broken.length) {
