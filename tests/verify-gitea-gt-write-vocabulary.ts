@@ -262,37 +262,39 @@ title('⑦ 回包按执行器各自解析')
   must(teaRun.parseReadRows(withHint) === null, 'tea 选中：gt 的带提示行回包不成形状（如实回 null）')
 }
 
-title('⑧ 里程碑空串口径钉死（票 #26，依据票 #23 回填评论 2026-11-15 真机实测）')
+title("⑧ 里程碑清空口径钉死（票 #27，依据 2026-11-16 真机实测：gt --milestone '' 退出码 2，清空唯一方式 --remove-milestone）")
 {
-  // 真机结论（票 #23 回填评论）：gt 1.2.0 的 issue edit --milestone '' 退出码 2（用法错），
-  // 清里程碑唯一方式是 --remove-milestone。插件现状（write.ts 空串口径 + tea-run 照值直传）
-  // 行为安全，本组不变式只钉住不漂移，不改任何源码行为。
+  // 真机结论（2026-11-16 实测，记录在 docs/research/gitea-cli-gt-migration-2026-11-12.md 第 6 条）：
+  // gt 1.2.0 的 issue edit --milestone '' 退出码 2（用法错），清里程碑唯一方式 --remove-milestone，
+  // 回读 milestone 为 null，与 tea 的 --milestone "" 清空语义对齐。插件口径（票 #27）：契约层
+  // 统一「清空给空串」，gt 分支在词汇表把空串转译成 --remove-milestone，tea 分支照值直传不变。
   const issueBag = JSON.stringify({ number: 7, title: 't', state: 'open', body: '', url: '', index: 7 })
 
-  // 8.1 gt 分支空串直传：--milestone 后的空串作为独立参数原样保留，不丢弃、不转旗标。
+  // 8.1 gt 分支空串转清空旗标：milestone:'' 拼出 --remove-milestone，绝不直传 --milestone ''（直传退出码 2）。
   setSelectedExecutor('gt')
   must(
     JSON.stringify(teaRun.argsIssueEdit('o/r', 7, { milestone: '' })) ===
-      JSON.stringify(['issue', 'edit', '7', '-R', 'o/r', '--milestone', '', '--json']),
-    "gt：milestone 空串原样直传成 --milestone ''（真机口径：直传会退出码 2，但插件如实发、如实硬失败，不代为改写语义）",
+      JSON.stringify(['issue', 'edit', '7', '-R', 'o/r', '--remove-milestone', '--json']),
+    "gt：milestone 空串转译成 --remove-milestone（2026-11-16 真机口径：--milestone '' 退出码 2，--remove-milestone 清空对齐 tea 语义）",
     JSON.stringify(teaRun.argsIssueEdit('o/r', 7, { milestone: '' })),
   )
   must(
-    JSON.stringify(teaRun.argsIssueEdit('o/r', 7, { milestone: '' })).indexOf('--remove-milestone') === -1,
-    'gt：空串绝不被转成 --remove-milestone（那是另一张票的拍板题，行为漂移先挡在门禁）',
+    JSON.stringify(teaRun.argsIssueEdit('o/r', 7, { milestone: '' })).indexOf('"--milestone",""') === -1,
+    'gt：清空绝不直传成 --milestone 空串（直传在 gt 1.2.0 是退出码 2 的用法错，行为漂移先挡在门禁）',
   )
-  // gt 选中时 update 对 milestone:null 的编辑参数里 milestone 值恰为空串（假 exec 记参验证）。
+  // gt 选中时 update 对 milestone:null 实际发出 --remove-milestone（假 exec 记参验证）。
   {
     const bag = okExec()
     bag.exec = async function (cmd, args) { bag.calls.push({ cmd, args }); return { code: 0, stdout: issueBag, stderr: '' } }
     const up = await writeMod.updateIssue({ exec: bag.exec, cwd: '' }, { refId: 'o/r' }, '7', { milestone: null }, null)
     must(up && up.ok === true, 'gt：update(milestone:null) 写成功（回包可直接归一，不触发回查）', JSON.stringify(up && up.error))
     must(bag.calls.length === 1, 'gt：update 只发一条 edit 命令（不发额外读）', JSON.stringify(bag.calls.map((c) => c.cmd)))
-    const i = bag.calls[0] && bag.calls[0].args ? bag.calls[0].args.indexOf('--milestone') : -1
-    must(i !== -1 && bag.calls[0].args[i + 1] === '', 'gt：update(milestone:null) 实际发出的 --milestone 后一位恰是空串', JSON.stringify(bag.calls[0] && bag.calls[0].args))
+    const gtArgs = bag.calls[0] && bag.calls[0].args ? bag.calls[0].args : []
+    must(gtArgs.indexOf('--remove-milestone') !== -1, 'gt：update(milestone:null) 实际发出 --remove-milestone', JSON.stringify(gtArgs))
+    must(!(gtArgs.includes('--milestone') && gtArgs[gtArgs.indexOf('--milestone') + 1] === ''), 'gt：update(milestone:null) 绝不直传 --milestone 空串（直传退出码 2）', JSON.stringify(gtArgs))
   }
 
-  // 8.2 空串口径出处：write.ts 对 milestone:null 产生 fields.milestone = ''，tea 分支同样成立。
+  // 8.2 空串口径出处：write.ts 对 milestone:null 产生 fields.milestone = ''（契约层统一口径），tea 分支同样成立。
   setSelectedExecutor('tea')
   {
     const bag = okExec()
@@ -304,11 +306,16 @@ title('⑧ 里程碑空串口径钉死（票 #26，依据票 #23 回填评论 20
     must(i !== -1 && args[i + 1] === '', "tea：update(milestone:null) 的编辑参数里 milestone 值恰为空串（清空口径：--milestone ''）", JSON.stringify(args))
     must(args && args[0] === 'issues' && args[1] === 'edit' && args[2] === '7', 'tea：update 发的是 issues edit <编号>（命令形状不漂）', JSON.stringify(args))
   }
-  // 口径注释防漂移：write.ts 里「清空给空串」那行注释还在，文字改了就响门禁。
+  // 口径注释防漂移：write.ts 里「清空给空串」契约口径与 gt 转译说明两处注释还在，文字改了就响门禁。
   const writeSrc = fs.readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/gitea/issues/write.ts'), 'utf8')
   must(
     writeSrc.indexOf('给名字，清空给空串') !== -1,
-    'write.ts 注释里的空串口径文字仍在（防口径漂移）',
+    'write.ts 注释里的契约层空串口径文字仍在（防口径漂移）',
+  )
+  const teaRunSrc = fs.readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/gitea/support/tea-run.ts'), 'utf8')
+  must(
+    teaRunSrc.indexOf('--remove-milestone') !== -1 && teaRunSrc.indexOf('2026-11-16 真机实测') !== -1,
+    'tea-run.ts 词汇表注释写明 gt 空串转译依据（2026-11-16 真机实测，防口径漂移）',
   )
   setSelectedExecutor('tea')
 }

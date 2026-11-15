@@ -233,7 +233,9 @@ export async function updateIssue(
     if (typeof patch.title === 'string') fields.title = patch.title
     if (typeof patch.body === 'string') fields.description = patch.body
     if ('milestone' in patch) {
-      // tea 的 --milestone 按名字认：给名字，清空给空串；没有名字可传的形状如实拒。
+      // 里程碑按名字认：给名字，清空给空串；没有名字可传的形状如实拒。空串是契约层统一的
+      // 清空口径（tea 直传 --milestone ""；gt 选中时由 tea-run 词汇表把空串转译成
+      // --remove-milestone——2026-11-16 真机实测票 #27：gt 1.2.0 直传空串是退出码 2 的用法错）。
       if (patch.milestone === null) fields.milestone = ''
       else if (patch.milestone && typeof patch.milestone.name === 'string') fields.milestone = patch.milestone.name
     }

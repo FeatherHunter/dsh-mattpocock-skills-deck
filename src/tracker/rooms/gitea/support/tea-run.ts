@@ -25,9 +25,12 @@
  *           替换 tea 路径 parseCreatedIssueKey 抠 #编号 的做法；tea 分支零改动）
  *   关/开： gt issue close|reopen <编号> -R <refId> --json
  *   改票：  gt issue edit <编号> -R <refId> [--title T] [--body D] [--add-label 名 …]
- *           [--remove-label 名 …] [--set-labels a,b] [--set-assignees a,b] --json
+ *           [--remove-label 名 …] [--set-labels a,b] [--set-assignees a,b]
+ *           [--milestone 名|--remove-milestone] --json
  *           （gt 增删与整集替换两种旗标都有——票 #20 真机结论；gt 侧整集替换直接用
- *           --set-labels，不再算差集；tea 分支维持差集增删，语义两边一致）
+ *           --set-labels，不再算差集；tea 分支维持差集增删，语义两边一致；
+ *           清里程碑走 --remove-milestone——2026-11-16 真机实测票 #27：gt 的 --milestone ''
+ *           是退出码 2 的用法错，契约层「清空给空串」由本词汇表在 gt 分支转译成清空旗标）
  *   评注：  gt issue comment <编号> -R <refId> --body <正文> --json
  *   标签：  gt label list -R <refId> --json --limit N --page P（ensureLabels 与改色的对照表共用）
  *   建标签：gt label create <名字> --color <六位十六进制> -R <refId> --json
@@ -379,7 +382,11 @@ export interface IssueEditFields {
    * 忽略（tea 没有 --labels 整集替换，差集增删在调用方 assign.ts 里做）。给空数组表示清空。
    */
   setLabels?: string[]
-  /** 里程碑按名字给；空串表示清空（tea --milestone "" 的口径）。 */
+  /**
+   * 里程碑按名字给；空串表示清空。契约层口径两边统一：tea 分支照值直传 --milestone ""；
+   * gt 分支由词汇表把空串转译成 --remove-milestone（2026-11-16 真机实测票 #27：
+   * gt 1.2.0 直传 --milestone '' 退出码 2，--remove-milestone 清空后回读 milestone 为 null）。
+   */
   milestone?: string
 }
 
@@ -387,7 +394,9 @@ export interface IssueEditFields {
 export function argsIssueEdit(refId: string, key: string | number, fields: IssueEditFields): string[] {
   // gt 分支（票 #23，2026-11-15 本机 --help 核对）：--title/-t、--body/-b；标签增删用可重复的
   // --add-label/--remove-label（一标签一项），整集替换用 --set-labels（逗号连接，空串清空）；
-  // 认领人整集替换 --set-assignees（与 tea 同名同义）。gt 编辑不认里程碑清空旗标，照值直传。
+  // 认领人整集替换 --set-assignees（与 tea 同名同义）。里程碑清空走 --remove-milestone
+  // （票 #27，2026-11-16 真机实测：gt 1.2.0 直传 --milestone '' 退出码 2，--remove-milestone
+  // 清空后回读 milestone 为 null，与 tea 的 --milestone "" 清空语义完全对齐），非空串仍按名字照值直传。
   if (selectedCli() === 'gt') {
     const args = ['issue', 'edit', String(key), '-R', refId]
     if (typeof fields.title === 'string') args.push('--title', fields.title)
@@ -400,7 +409,10 @@ export function argsIssueEdit(refId: string, key: string | number, fields: Issue
     }
     if (Array.isArray(fields.setLabels)) args.push('--set-labels', fields.setLabels.join(','))
     if (typeof fields.setAssignees === 'string') args.push('--set-assignees', fields.setAssignees)
-    if (typeof fields.milestone === 'string') args.push('--milestone', fields.milestone)
+    if (typeof fields.milestone === 'string') {
+      if (fields.milestone === '') args.push('--remove-milestone')
+      else args.push('--milestone', fields.milestone)
+    }
     args.push('--json')
     return args
   }
@@ -431,4 +443,3 @@ export function parseCreatedIssueKey(stdout: string): string | null {
   const m = /#(\d+)/.exec(typeof stdout === 'string' ? stdout : '')
   return m ? m[1] : null
 }
-
