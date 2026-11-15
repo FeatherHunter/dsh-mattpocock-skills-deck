@@ -314,8 +314,8 @@ title("⑧ 里程碑清空口径钉死（票 #27，依据 2026-11-16 真机实�
   )
   const teaRunSrc = fs.readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/gitea/support/tea-run.ts'), 'utf8')
   must(
-    teaRunSrc.indexOf('--remove-milestone') !== -1 && teaRunSrc.indexOf('2026-11-16 真机实测') !== -1,
-    'tea-run.ts 词汇表注释写明 gt 空串转译依据（2026-11-16 真机实测，防口径漂移）',
+    teaRunSrc.indexOf('--remove-milestone') !== -1 && teaRunSrc.indexOf('空串转译') !== -1,
+    'tea-run.ts 词汇表注释写明 gt 空串转译口径（语义词防漂移，不钉措辞日期）',
   )
   setSelectedExecutor('tea')
 }

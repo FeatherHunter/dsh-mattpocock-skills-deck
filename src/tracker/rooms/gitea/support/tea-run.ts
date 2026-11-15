@@ -383,9 +383,8 @@ export interface IssueEditFields {
    */
   setLabels?: string[]
   /**
-   * 里程碑按名字给；空串表示清空。契约层口径两边统一：tea 分支照值直传 --milestone ""；
-   * gt 分支由词汇表把空串转译成 --remove-milestone（2026-11-16 真机实测票 #27：
-   * gt 1.2.0 直传 --milestone '' 退出码 2，--remove-milestone 清空后回读 milestone 为 null）。
+   * 里程碑按名字给；空串表示清空。契约层口径两边统一：tea 分支照值直传 --milestone ""，
+   * gt 分支由词汇表把空串转译成 --remove-milestone（真机依据见本文件头部词汇表，票 #27）。
    */
   milestone?: string
 }
@@ -394,9 +393,8 @@ export interface IssueEditFields {
 export function argsIssueEdit(refId: string, key: string | number, fields: IssueEditFields): string[] {
   // gt 分支（票 #23，2026-11-15 本机 --help 核对）：--title/-t、--body/-b；标签增删用可重复的
   // --add-label/--remove-label（一标签一项），整集替换用 --set-labels（逗号连接，空串清空）；
-  // 认领人整集替换 --set-assignees（与 tea 同名同义）。里程碑清空走 --remove-milestone
-  // （票 #27，2026-11-16 真机实测：gt 1.2.0 直传 --milestone '' 退出码 2，--remove-milestone
-  // 清空后回读 milestone 为 null，与 tea 的 --milestone "" 清空语义完全对齐），非空串仍按名字照值直传。
+  // 认领人整集替换 --set-assignees（与 tea 同名同义）。里程碑清空走 --remove-milestone：
+  // 契约层的空串由 gt 分支转译，真机依据与语义见本文件头部词汇表（票 #27）；非空串仍按名字照值直传。
   if (selectedCli() === 'gt') {
     const args = ['issue', 'edit', String(key), '-R', refId]
     if (typeof fields.title === 'string') args.push('--title', fields.title)
