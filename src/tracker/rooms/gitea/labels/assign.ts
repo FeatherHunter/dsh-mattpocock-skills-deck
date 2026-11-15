@@ -4,8 +4,12 @@
  *
  * 与 GitLab 房（labels/assign.ts）同一条纪律：先读后写、乐观并发、写后把调用方要的形状补回去。
  * 与 GitLab 有一处命令面差异必须记牢：tea 没有「整集替换标签」的参数，只有 --add-labels 与
- * --remove-labels，所以整集替换在这里是**先读现标签、算差集、再按差集发 add/remove** 两步；
- * 认领人反而有 --set-assignees 整集替换，一步到位。空集目标 = 移除全部现标签，语义不变。
+ * --remove-labels，所以 tea 路径的整集替换在这里是**先读现标签、算差集、再按差集发 add/remove**
+ * 两步；认领人反而有 --set-assignees 整集替换，一步到位。空集目标 = 移除全部现标签，语义不变。
+ *
+ * gt 路径（票 #23）：gt issue edit 的 --set-labels 本来就是整集替换（空值清空，票 #20 真机
+ * 结论），所以 gt 选中时整集替换直接发 --set-labels 一步到位，不算差集——两条路径对外的
+ * 语义（调用方要的集合就是远端最终集合）完全一致，只是指令形状不同。
  *
  * expectedUpdatedAt 前置读：对不上回 conflict（透传档位），绝不后写覆盖先写。
  * 颜色不由调用方持久化：读侧颜色来自仓库标签清单，写后 issue.labels 按调用方给的形状覆盖。
@@ -34,7 +38,11 @@ import {
   errMsg,
   parseJsonBag,
   parseJsonRows,
-  runTea,
+  parseReadRows,
+  readExecutor,
+  runRead,
+  runWrite,
+  writeFailureError,
 } from '../support/tea-run.js'
 
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -96,13 +104,14 @@ async function repoLabelNames(effective: CtxLike | null | undefined, refId: stri
   const maxPages = PAGINATION.gitea.labelListMaxPages
   const names: string[] = []
   for (let page = 1; page <= maxPages; page += 1) {
-    const res = await runTea(effective, argsLabelsPage(refId, perPage, page))
+    // 标签清单是读操作：与 listLabels 同一入口（runRead），gt/tea 分派与回包解析都在那一处。
+    const res = await runRead(effective, argsLabelsPage(refId, perPage, page))
     if (res.code !== 0) {
-      throw new Error(res.stderr || res.stdout || 'ensureLabels: tea labels ls 失败')
+      throw new Error(res.stderr || res.stdout || 'ensureLabels: 标签清单读取失败')
     }
     const text = typeof res.stdout === 'string' ? res.stdout : ''
-    const batch = parseJsonRows(text)
-    if (!batch) throw new Error('ensureLabels: tea 回包不是插件预期的数组形状')
+    const batch = parseReadRows(text)
+    if (!batch) throw new Error('ensureLabels: 回包不是插件预期的数组形状')
     for (const raw of batch as unknown[]) {
       const name = raw && typeof raw === 'object' ? (raw as Record<string, unknown>)['name'] : raw
       if (typeof name === 'string' && name.trim()) names.push(name)
@@ -129,9 +138,9 @@ export async function ensureLabelsExist(
   const existing = new Set(await repoLabelNames(effective, refId))
   for (const name of wanted) {
     if (existing.has(name)) continue
-    const res = await runTea(effective, argsLabelCreate(refId, name))
+    const res = await runWrite(effective, argsLabelCreate(refId, name))
     if (res.code !== 0) {
-      throw new Error(res.stderr || res.stdout || 'ensureLabels: tea labels create 失败（' + name + '）')
+      throw new Error(res.stderr || res.stdout || 'ensureLabels: 建标签失败（' + name + '）')
     }
   }
 }
@@ -183,11 +192,17 @@ export async function setLabels(
       return { ok: true, data: issue }
     }
     // 仓库里还没有的标签先建再挂：tea 对不存在的标签静默跳过（真机口径，见 argsLabelCreate）。
+    // gt 的 edit 对不存在的标签直接报错，先建齐一样挡得住。
     await ensureLabelsExist(effective, refId, add)
-    const res = await runTea(effective, argsIssueEdit(refId, k, { addLabels: add, removeLabels: remove }))
+    // gt 选中时整集替换走 --set-labels 一步到位（票 #23，见文件头）；tea 仍按差集增删两步。
+    // 两条路对外的语义一致：远端最终集合 = wanted。
+    const fields = readExecutor() === 'gt'
+      ? { setLabels: wanted }
+      : { addLabels: add, removeLabels: remove }
+    const res = await runWrite(effective, argsIssueEdit(refId, k, fields))
     if (res.code !== 0) {
-      // 原文 = 写标签那一次 tea 调用的进程结果。
-      return failGitea(new Error(res.stderr || res.stdout || 'setLabels: tea issues edit 失败'), '改标签失败：tea issues edit 没有跑成。请稍后重试。', res, effective)
+      // 原文 = 写标签那一次 CLI 调用的进程结果。
+      return failGitea(writeFailureError(res, effective, 'setLabels: 改标签命令失败'), '改标签失败：改标签命令没有跑成。请稍后重试。', res, effective)
     }
     // 写后回读：差集两步有先后，回读拿到的才是远端真实的最终集合——labels 按回读如实交，
     // 不拿调用方要的形状覆盖（真机 2026-11-11 教训：tea 对不存在的标签静默跳过，覆盖会把
@@ -226,10 +241,10 @@ export async function setAssignees(
   try {
     const pre = await preflightExpected(effective, refId, k, opts)
     if (pre && 'ok' in (pre as OpResult<Issue>)) return pre as OpResult<Issue>
-    const res = await runTea(effective, argsIssueEdit(refId, k, { setAssignees: wanted.join(',') }))
+    const res = await runWrite(effective, argsIssueEdit(refId, k, { setAssignees: wanted.join(',') }))
     if (res.code !== 0) {
-      // 原文 = 写认领人那一次 tea 调用的进程结果。
-      return failGitea(new Error(res.stderr || res.stdout || 'setAssignees: tea issues edit 失败'), '改认领人失败：tea issues edit 没有跑成。请稍后重试。', res, effective)
+      // 原文 = 写认领人那一次 CLI 调用的进程结果。
+      return failGitea(writeFailureError(res, effective, 'setAssignees: 改认领人命令失败'), '改认领人失败：改认领人命令没有跑成。请稍后重试。', res, effective)
     }
     // 写后回读：认领人的最终集合以远端为准（名字拼错时 tea 会怎样要靠回读看得见）。
     let raw = parseJsonBag(typeof res.stdout === 'string' ? res.stdout : '')

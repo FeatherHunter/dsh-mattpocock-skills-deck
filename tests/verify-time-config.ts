@@ -407,6 +407,8 @@ const PERMANENT: PermanentRow[] = [
   { file: 'src/tracker/rooms/gitea/index.ts', snippet: 'GITEA_FALLBACK_TIMEOUT_MS = 2000', reason: '识别失败时兜底问一次 git remote 的上限：钉死的外部兜底超时，不是可调旋钮（#16 拍板不入 YAML）' },
   { file: 'src/tracker/rooms/gitea/preflight.ts', snippet: 'TEA_PROBE_TIMEOUT_MS = 3000', reason: 'tea 探针的短档上限（探不到就判不可达）：钉死的外部 CLI 兜底超时，不是可调旋钮（#16 拍板不入 YAML）' },
   { file: 'src/tracker/rooms/gitea/support/tea-run.ts', snippet: 'TEA_READ_TIMEOUT_MS = 10000', reason: 'tea 读命令（可能翻页）的整档上限：钉死的外部 CLI 兜底超时，不是可调旋钮（#16 拍板不入 YAML）' },
+  { file: 'src/tracker/rooms/gitea/preflight.ts', snippet: 'GT_PROBE_TIMEOUT_MS = 3000', reason: 'gt 探针的短档上限（探不到就判不可达）：与 TEA_PROBE_TIMEOUT_MS 同款钉死的外部 CLI 兜底超时，不是可调旋钮（#22 引入，不入 YAML）' },
+  { file: 'src/tracker/rooms/gitea/support/gt-run.ts', snippet: 'GT_READ_TIMEOUT_MS = 10000', reason: 'gt 读命令（可能翻页）的整档上限：与 TEA_READ_TIMEOUT_MS 同款钉死的外部 CLI 兜底超时，不是可调旋钮（#22 引入，不入 YAML）' },
 ]
 
 // ---------------------------------------------------------------------------

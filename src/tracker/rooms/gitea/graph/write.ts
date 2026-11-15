@@ -40,7 +40,7 @@ import { fetchRawIssue, listIssues } from '../issues/read.js'
 import { resolveTarget } from '../support/target.js'
 import { preflightExpected } from '../support/expected-preflight.js'
 import { emitReadDegraded } from '../support/read-log.js'
-import { type CtxLike, type RawBag, argsIssueEdit, errMsg, runTea } from '../support/tea-run.js'
+import { type CtxLike, type RawBag, argsIssueEdit, errMsg, runWrite, writeFailureError } from '../support/tea-run.js'
 
 type RepoLike = Partial<RepositoryRef> | null | undefined
 
@@ -186,10 +186,10 @@ export async function setParent(
       return { ok: true, data: normalizeIssue(raw) }
     }
     // tea 没有父子命令：整篇正文替换（换行原样发，读回的解析靠真实换行认行）。
-    const res = await runTea(effective, argsIssueEdit(refId, k, { description: newBody }))
+    const res = await runWrite(effective, argsIssueEdit(refId, k, { description: newBody }))
     if (res.code !== 0) {
-      // 原文 = 写归属那一次 tea 调用的进程结果。
-      return failGitea(new Error(res.stderr || res.stdout || 'setParent: tea issues edit 失败'), '改归属失败：tea issues edit 没有跑成。请稍后重试。', res, effective)
+      // 原文 = 写归属那一次 CLI 调用的进程结果。
+      return failGitea(writeFailureError(res, effective, 'setParent: 改归属命令失败'), '改归属失败：改归属命令没有跑成。请稍后重试。', res, effective)
     }
     // 写后回读核对：远端最终落在正文里的归属以回读为准（读侧 parseHiddenParent 同一口径）。
     const back = await fetchRawIssue(effective, refId, k)
@@ -269,10 +269,10 @@ export async function setBlockedBy(
       return { ok: true, data: normalizeIssue(raw) }
     }
     // tea 没有阻塞端点：整篇正文替换，可见行与隐藏机器表成对落正文（换行原样发）。
-    const res = await runTea(effective, argsIssueEdit(refId, k, { description: newBody }))
+    const res = await runWrite(effective, argsIssueEdit(refId, k, { description: newBody }))
     if (res.code !== 0) {
-      // 原文 = 写阻塞那一次 tea 调用的进程结果。
-      return failGitea(new Error(res.stderr || res.stdout || 'setBlockedBy: tea issues edit 失败'), '改阻塞关系失败：tea issues edit 没有跑成。请稍后重试。', res, effective)
+      // 原文 = 写阻塞那一次 CLI 调用的进程结果。
+      return failGitea(writeFailureError(res, effective, 'setBlockedBy: 改阻塞命令失败'), '改阻塞关系失败：改阻塞命令没有跑成。请稍后重试。', res, effective)
     }
     // 写后回读核对：缺一个、多一个都算对不上，如实回 conflict——不把「写丢了」包装成成功。
     const back = await fetchRawIssue(effective, refId, k)

@@ -17,7 +17,7 @@ import { PAGINATION } from '../../../contract/pagination.js'
 import { fail } from '../../../kernel/preflight.js'
 import { failGitea } from '../errors.js'
 import { normalizeColor } from '../../../../shared/label-color/src/colors.js'
-import { type CtxLike, argsLabelsPage, errMsg, parseJsonRows, refIdOf, runTea } from '../support/tea-run.js'
+import { type CtxLike, argsLabelsPage, errMsg, parseReadRows, refIdOf, runRead } from '../support/tea-run.js'
 
 /** 一行原始标签转契约三格：名字必须是非空字符串，否则整条失败（不猜名）。 */
 function toLabelColor(raw: unknown): LabelColor | null {
@@ -51,14 +51,15 @@ export async function listLabels(
   const rows: LabelColor[] = []
   try {
     for (let page = 1; page <= maxPages; page += 1) {
-      const res = await runTea(effective, argsLabelsPage(refId, perPage, page))
+      const res = await runRead(effective, argsLabelsPage(refId, perPage, page))
       if (res.code !== 0) {
-        return failGitea(new Error(res.stderr || res.stdout || 'listLabels: tea labels ls 失败'), '列标签失败：tea labels ls 没有跑成。请稍后重试。', res, effective)
+        // 读失败的收法与 issues/read.ts 同一条：stderr 原话优先，判档交给 failGitea。
+        return failGitea(new Error(res.stderr || res.stdout || 'listLabels: 列标签命令失败'), '列标签失败：列标签命令没有跑成。请稍后重试。', res, effective)
       }
       const text = typeof res.stdout === 'string' ? res.stdout : ''
-      const batch = parseJsonRows(text)
+      const batch = parseReadRows(text)
       // 原文 = 远端回的那一段。
-      if (!batch) return fail(ERROR_KIND.PARSE as ErrorKind, 'listLabels: tea 回包不是插件预期的数组形状', text)
+      if (!batch) return fail(ERROR_KIND.PARSE as ErrorKind, 'listLabels: 回包不是插件预期的数组形状', text)
       for (const raw of batch) {
         const label = toLabelColor(raw)
         if (!label) return fail(ERROR_KIND.PARSE as ErrorKind, 'listLabels: 有一行标签缺名字，无法按契约返回完整清单', text)

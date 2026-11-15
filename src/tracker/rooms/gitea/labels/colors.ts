@@ -19,7 +19,7 @@ import { PAGINATION } from '../../../contract/pagination.js'
 import { fail } from '../../../kernel/preflight.js'
 import { failGitea } from '../errors.js'
 import { normalizeColor } from '../../../../shared/label-color/src/colors.js'
-import { type CtxLike, argsLabelUpdate, argsLabelsPage, errMsg, parseJsonRows, refIdOf, runTea } from '../support/tea-run.js'
+import { type CtxLike, argsLabelUpdate, argsLabelsPage, errMsg, parseReadRows, refIdOf, runRead, runWrite, writeFailureError } from '../support/tea-run.js'
 
 /**
  * 改一批标签的颜色（契约 setLabelColors）。
@@ -46,13 +46,14 @@ export async function setLabelColors(
   const idByName = new Map<string, unknown>()
   try {
     for (let page = 1; page <= maxPages; page += 1) {
-      const res = await runTea(effective, argsLabelsPage(refId, perPage, page))
+      const res = await runRead(effective, argsLabelsPage(refId, perPage, page))
       if (res.code !== 0) {
-        return failGitea(new Error(res.stderr || res.stdout || 'setLabelColors: tea labels ls 失败'), '改标签颜色失败：先读仓库标签没读成。请稍后重试。', res, effective)
+        // 读失败的收法与 issues/read.ts 同一条：stderr 原话优先，判档交给 failGitea。
+        return failGitea(new Error(res.stderr || res.stdout || 'setLabelColors: 读标签命令失败'), '改标签颜色失败：先读仓库标签没读成。请稍后重试。', res, effective)
       }
       const text = typeof res.stdout === 'string' ? res.stdout : ''
-      const batch = parseJsonRows(text)
-      if (!batch) return fail(ERROR_KIND.PARSE as ErrorKind, 'setLabelColors: 读标签时 tea 回包不是预期的数组形状', text)
+      const batch = parseReadRows(text)
+      if (!batch) return fail(ERROR_KIND.PARSE as ErrorKind, 'setLabelColors: 读标签时回包不是预期的数组形状', text)
       for (const raw of batch) {
         const bag = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : null
         const name = bag && typeof bag['name'] === 'string' ? bag['name'] : ''
@@ -89,9 +90,9 @@ export async function setLabelColors(
       continue
     }
     try {
-      const res = await runTea(effective, argsLabelUpdate(refId, idByName.get(name) as number | string, color))
+      const res = await runWrite(effective, argsLabelUpdate(refId, idByName.get(name) as number | string, color))
       if (res.code !== 0) {
-        const verdict = failGitea(new Error(res.stderr || res.stdout || 'setLabelColors: tea labels update 失败'), '改标签颜色失败：tea labels update 没有跑成。请稍后重试。', res, effective)
+        const verdict = failGitea(writeFailureError(res, effective, 'setLabelColors: 改色命令失败'), '改标签颜色失败：改色命令没有跑成。请稍后重试。', res, effective)
         failed.push({ name, reason: verdict.error })
         continue
       }

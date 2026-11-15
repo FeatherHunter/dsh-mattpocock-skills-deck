@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-15T01:29:20.008Z",
+  "generatedAt": "2026-11-15T02:01:07.437Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 607,
-  "gateCount": 607,
-  "attributedGates": 550,
+  "chainLength": 608,
+  "gateCount": 608,
+  "attributedGates": 551,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 143,
@@ -10932,6 +10932,34 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
+      "step": "node tests/verify-gitea-gt-write-vocabulary.ts",
+      "file": "tests/verify-gitea-gt-write-vocabulary.ts",
+      "guards": [
+        "src/tracker/rooms/gitea/comments/write.ts",
+        "src/tracker/rooms/gitea/graph/write.ts",
+        "src/tracker/rooms/gitea/issues/write.ts",
+        "src/tracker/rooms/gitea/labels/assign.ts",
+        "src/tracker/rooms/gitea/labels/colors.ts",
+        "src/tracker/rooms/gitea/labels/list.ts",
+        "src/tracker/rooms/gitea/room/prompts.ts",
+        "src/tracker/rooms/gitea/support/gt-run.ts",
+        "src/tracker/rooms/gitea/support/tea-run.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/gitea/comments",
+        "src/tracker/rooms/gitea/graph",
+        "src/tracker/rooms/gitea/issues",
+        "src/tracker/rooms/gitea/labels",
+        "src/tracker/rooms/gitea/room",
+        "src/tracker/rooms/gitea/support"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 9 条）"
+    },
+    {
       "step": "node tests/verify-gitea-issue-url.ts",
       "file": "tests/verify-gitea-issue-url.ts",
       "guards": [
@@ -16117,9 +16145,19 @@
       "node tests/verify-time-config.ts",
       "node tests/verify-tracker-contract.ts"
     ],
+    "src/tracker/rooms/gitea/comments": [
+      "node tests/verify-gitea-gt-write-vocabulary.ts"
+    ],
+    "src/tracker/rooms/gitea/graph": [
+      "node tests/verify-gitea-gt-write-vocabulary.ts"
+    ],
     "src/tracker/rooms/gitea/issues": [
       "node tests/verify-gitea-gt-read-vocabulary.ts",
+      "node tests/verify-gitea-gt-write-vocabulary.ts",
       "node tests/verify-gitea-issue-url.ts"
+    ],
+    "src/tracker/rooms/gitea/labels": [
+      "node tests/verify-gitea-gt-write-vocabulary.ts"
     ],
     "src/tracker/rooms/gitea/model": [
       "node tests/verify-gitea-issue-url.ts",
@@ -16130,11 +16168,13 @@
     ],
     "src/tracker/rooms/gitea/room": [
       "node tests/verify-gitea-executor-preflight.ts",
-      "node tests/verify-gitea-gt-read-vocabulary.ts"
+      "node tests/verify-gitea-gt-read-vocabulary.ts",
+      "node tests/verify-gitea-gt-write-vocabulary.ts"
     ],
     "src/tracker/rooms/gitea/support": [
       "node tests/verify-capability-register.ts",
       "node tests/verify-gitea-gt-read-vocabulary.ts",
+      "node tests/verify-gitea-gt-write-vocabulary.ts",
       "node tests/verify-gitea-issue-url.ts",
       "node tests/verify-gitea-read-log.ts",
       "node tests/verify-time-config.ts"
@@ -16782,7 +16822,7 @@
     "coveredFileCount": 1016,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 86,
+    "dedicatedDirCount": 89,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -17969,7 +18009,10 @@
       "src/tracker/registry",
       "src/tracker/rooms",
       "src/tracker/rooms/gitea",
+      "src/tracker/rooms/gitea/comments",
+      "src/tracker/rooms/gitea/graph",
       "src/tracker/rooms/gitea/issues",
+      "src/tracker/rooms/gitea/labels",
       "src/tracker/rooms/gitea/model",
       "src/tracker/rooms/gitea/repo",
       "src/tracker/rooms/gitea/room",
@@ -18061,18 +18104,6 @@
       {
         "path": "src/shared/time-config",
         "fileCount": 4
-      },
-      {
-        "path": "src/tracker/rooms/gitea/comments",
-        "fileCount": 1
-      },
-      {
-        "path": "src/tracker/rooms/gitea/graph",
-        "fileCount": 2
-      },
-      {
-        "path": "src/tracker/rooms/gitea/labels",
-        "fileCount": 3
       },
       {
         "path": "src/tracker/rooms/github/channels",

@@ -23,7 +23,8 @@ import {
   argsCommentAdd,
   errMsg,
   parseJsonBag,
-  runTea,
+  runWrite,
+  writeFailureError,
 } from '../support/tea-run.js'
 
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -52,10 +53,10 @@ export async function addComment(
     return fail(ERROR_KIND.PARSE as ErrorKind, 'comment: 评论正文必填', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   }
   try {
-    const res = await runTea(effective, argsCommentAdd(refId, k, body))
+    const res = await runWrite(effective, argsCommentAdd(refId, k, body))
     if (res.code !== 0) {
-      // 原文 = 这一次 tea 调用的进程结果（stderr 里是 tea 或远端的原话）。
-      return failGitea(new Error(res.stderr || res.stdout || 'comment: tea comments add 失败'), '写评论失败：tea comments add 没有跑成。请稍后重试。', res, effective)
+      // 原文 = 这一次 CLI 调用的进程结果（stderr 里是执行器或远端的原话）。
+      return failGitea(writeFailureError(res, effective, 'comment: 写评论命令失败'), '写评论失败：写评论命令没有跑成。请稍后重试。', res, effective)
     }
     const raw = parseJsonBag(typeof res.stdout === 'string' ? res.stdout : '')
     const now = new Date().toISOString()

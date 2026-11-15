@@ -13,10 +13,25 @@
  *   · gt/tea 分派（票 #22）：list / 单票 / comments 三条读路径的词汇按 preflight 选中的执行器
  *     分派——gt 的拼法与回包形状以票 #20 真机核对（及 2026-11-15 gt 1.2.0 本机实测）为准；
  *     gt 的执行与回包适配住在同目录 gt-run.ts。tea 分支的词汇与改动前一致（Q6 长期共存）。
+ *   写路径（票 #23）：全部写操作的词汇同样按选中执行器分派——gt 的拼法以 2026-11-15 本机
+ *     gt 1.2.0 --help 与真机核对为准（票 #20 结论 + 本次复核）：
  *   列表页：tea issues ls --repo <refId> --state open|closed|all [--labels a,b] --output json --limit N --page P
  *   单票：  tea issues <编号> --repo <refId> --output json
  *   评论：  tea issues <编号> comments --repo <refId> --output json --limit N --page P
  *   标签：  tea labels ls --repo <refId> --output json --limit N --page P
+ *   gt 写路径（票 #23；全部经 2026-11-15 真机/本机 --help 逐条核对）：
+ *   建票：  gt issue create -R <refId> --title T [--body D] [--label 名 …] [--assignee 登录名 …] --json
+ *           （gt 的 create 认 --json，回包是含 number 的单对象——建票编号从这读，
+ *           替换 tea 路径 parseCreatedIssueKey 抠 #编号 的做法；tea 分支零改动）
+ *   关/开： gt issue close|reopen <编号> -R <refId> --json
+ *   改票：  gt issue edit <编号> -R <refId> [--title T] [--body D] [--add-label 名 …]
+ *           [--remove-label 名 …] [--set-labels a,b] [--set-assignees a,b] --json
+ *           （gt 增删与整集替换两种旗标都有——票 #20 真机结论；gt 侧整集替换直接用
+ *           --set-labels，不再算差集；tea 分支维持差集增删，语义两边一致）
+ *   评注：  gt issue comment <编号> -R <refId> --body <正文> --json
+ *   标签：  gt label list -R <refId> --json --limit N --page P（ensureLabels 与改色的对照表共用）
+ *   建标签：gt label create <名字> --color <六位十六进制> -R <refId> --json
+ *   改色：  gt label edit <数字id> --color <六位十六进制> -R <refId> --json（认 id，不认名字）
  *   建票：  tea issues create --repo <refId> --title T --description D [--labels a,b] [--assignees a,b]
  *           （create 不认 --output，回包是含 #编号 的一行文本，用 parseCreatedIssueKey 抠编号）
  *   关/开： tea issues close|reopen <编号> --repo <refId> --output json
@@ -35,7 +50,7 @@
 import type { BackendContext, ExecResult, OpContext } from '../../../contract/contexts.js'
 import type { ListFilter } from '../../../contract/inputs.js'
 import type { RepositoryRef } from '../../../contract/entities.js'
-import { runGt, adaptGtRow, stripGtHint } from './gt-run.js'
+import { runGt, adaptGtRow, stripGtHint, gtFailureError, createdIssueNumberOf, type GtCtxLike } from './gt-run.js'
 // 执行器选择状态住在 room/prompts.ts（#21 preflight 探测完写进来）；词汇表按它分派 gt/tea。
 // prompts 不回读本文件，这条依赖是单向的，没有环。
 import { selectedExecutor, type GiteaExecutorCli } from '../room/prompts.js'
@@ -139,6 +154,35 @@ export async function runRead(effective: CtxLike | null | undefined, args: strin
 }
 
 /**
+ * 写路径统一的执行入口（票 #23）：与 runRead 同一条分派——按选中执行器把同一份参数发给
+ * gt 或 tea。tea 分支原样走 runTea，写路径各操作文件把 runTea 调用换成这一入口后，
+ * tea 选中的行为与改动前逐字节一致（#23 验收判据「tea 写路径零改动」）。
+ */
+export async function runWrite(effective: CtxLike | null | undefined, args: string[]): Promise<ExecResult> {
+  return readExecutor() === 'gt' ? runGt(effective, args) : runTea(effective, args)
+}
+
+/**
+ * 写路径失败收口的 Error 构造（票 #23）：gt 选中时走 gt-run 的结构化判档（退出码 4/2 直接
+ * 带档位、JSON 错误行解 message），tea 选中时维持改动前「stderr 优先」的原话收法——
+ * 两边各自如实，调用方拿这一个函数替掉手拼 new Error 那一行即可。
+ * 上下文里带 platform.env 时把读环境变量的口传下去（gt 判档今天用不上，留作口子）。
+ */
+export function writeFailureError(res: ExecResult, effective: CtxLike | null | undefined, fallbackText: string): Error {
+  if (readExecutor() === 'gt') {
+    const env = effective && effective.platform && effective.platform.env ? effective.platform.env : null
+    const envGet = env && typeof env.get === 'function' ? env.get.bind(env) : null
+    return gtFailureError(res, envGet)
+  }
+  return new Error(res.stderr || res.stdout || fallbackText)
+}
+
+/** 从建票回包里取新票编号（票 #23）：gt 走 --json 回读的 number 格；tea 仍是抠 #编号 文本。 */
+export function createdKeyFrom(stdoutText: string): string | null {
+  return readExecutor() === 'gt' ? createdIssueNumberOf(stdoutText) : parseCreatedIssueKey(stdoutText)
+}
+
+/**
  * 读回包的行数组解析（票 #22）：tea 分支与 parseJsonRows 完全一致；gt 分支先剥掉 list 命令
  * 尾部提示行后走行适配（adaptGtRow 对 tea 形状的行是恒等，共用同一入口不改变 tea 行为）
  * 追加在尾部的 `more results available` 提示行（gt-run.ts 有实测记录），再把 author/assignees
@@ -215,6 +259,11 @@ export function argsCommentsPage(refId: string, key: string | number, limitRows:
 
 /** 标签一页的参数。 */
 export function argsLabelsPage(refId: string, limitRows: number, page: number): string[] {
+  // gt 分支（票 #23，2026-11-15 本机 gt 1.2.0 实测）：gt label list，-L 范围 1..1000、--page 1 起始，
+  // 回包数组行含 name/color/id/description（写路径的 ensureLabels 与改色对照表共用这一口）。
+  if (readExecutor() === 'gt') {
+    return ['label', 'list', '-R', refId, '--json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
+  }
   return ['labels', 'ls', '--repo', refId, '--output', 'json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
 }
 
@@ -230,10 +279,14 @@ export function argsLabelsPage(refId: string, limitRows: number, page: number): 
  * 不先建就会「报成功、实际没写上」。颜色给一个中性缺省；要改颜色走 setLabelColors 那条路。
  */
 export function argsLabelCreate(refId: string, name: string): string[] {
+  // gt 分支（票 #23，2026-11-15 本机 --help 核对）：名字是位置参数，颜色 --color/-c。
+  if (readExecutor() === 'gt') return ['label', 'create', name, '--color', '00aabb', '-R', refId, '--json']
   return ['labels', 'create', '--name', name, '--color', '00aabb', '--repo', refId, '--output', 'json']
 }
 
 export function argsLabelUpdate(refId: string, id: number | string, color: string): string[] {
+  // gt 分支（票 #23，2026-11-15 本机 --help 核对）：gt label edit <id> --color 色（认 id 不认名字）。
+  if (readExecutor() === 'gt') return ['label', 'edit', String(id), '--color', color, '-R', refId, '--json']
   return ['labels', 'update', '--id', String(id), '--color', color, '--repo', refId, '--output', 'json']
 }
 
@@ -251,6 +304,16 @@ export function argsRepoScanPage(limitRows: number, page: number): string[] {
 
 /** 建票的参数。labels 与 assignees 是已归一的名字列表（空数组就不带这一项）。 */
 export function argsIssueCreate(refId: string, title: string, description: string, labels: string[], assignees: string[]): string[] {
+  // gt 分支（票 #23，2026-11-15 本机 gt 1.2.0 --help 核对）：--title/-t、--body/-b、可重复的
+  // --label/-l 与 --assignee/-a；带 --json 回单个对象（含 number），建票编号从回包读。
+  if (readExecutor() === 'gt') {
+    const args = ['issue', 'create', '-R', refId, '--title', title]
+    if (description) args.push('--body', description)
+    for (const label of labels) args.push('--label', label)
+    for (const login of assignees) args.push('--assignee', login)
+    args.push('--json')
+    return args
+  }
   const args = ['issues', 'create', '--repo', refId, '--title', title]
   if (description) args.push('--description', description)
   if (labels.length) args.push('--labels', labels.join(','))
@@ -260,11 +323,15 @@ export function argsIssueCreate(refId: string, title: string, description: strin
 
 /** 关票的参数（tea 的 close 认 --output json，回包就是关完之后的票面）。 */
 export function argsIssueClose(refId: string, key: string | number): string[] {
+  // gt 分支（票 #23，真机核对）：gt issue close <编号> -R <ref> --json → {"number":…,"state":"closed"}。
+  if (readExecutor() === 'gt') return ['issue', 'close', String(key), '-R', refId, '--json']
   return ['issues', 'close', String(key), '--repo', refId, '--output', 'json']
 }
 
 /** 重开的参数（tea 0.16.0 的命令面里 reopen 是独立子命令，不是 edit 的一个开关）。 */
 export function argsIssueReopen(refId: string, key: string | number): string[] {
+  // gt 分支（票 #23，真机核对）：独立子命令，与 close 同形。
+  if (readExecutor() === 'gt') return ['issue', 'reopen', String(key), '-R', refId, '--json']
   return ['issues', 'reopen', String(key), '--repo', refId, '--output', 'json']
 }
 
@@ -276,12 +343,37 @@ export interface IssueEditFields {
   removeLabels?: string[]
   /** 整集替换认领人（tea 的 --set-assignees）；空串表示清空。 */
   setAssignees?: string
+  /**
+   * 整集替换标签（票 #23）：只有 gt 分支认这一格——gt issue edit 有 --set-labels 整集替换
+   * （空值清空，票 #20 真机结论），gt 侧 setLabels 直接用它、不再算差集。tea 分支见到这一格
+   * 忽略（tea 没有 --labels 整集替换，差集增删在调用方 assign.ts 里做）。给空数组表示清空。
+   */
+  setLabels?: string[]
   /** 里程碑按名字给；空串表示清空（tea --milestone "" 的口径）。 */
   milestone?: string
 }
 
 /** 改票的参数：按编辑项拼一条 tea issues edit。 */
 export function argsIssueEdit(refId: string, key: string | number, fields: IssueEditFields): string[] {
+  // gt 分支（票 #23，2026-11-15 本机 --help 核对）：--title/-t、--body/-b；标签增删用可重复的
+  // --add-label/--remove-label（一标签一项），整集替换用 --set-labels（逗号连接，空串清空）；
+  // 认领人整集替换 --set-assignees（与 tea 同名同义）。gt 编辑不认里程碑清空旗标，照值直传。
+  if (readExecutor() === 'gt') {
+    const args = ['issue', 'edit', String(key), '-R', refId]
+    if (typeof fields.title === 'string') args.push('--title', fields.title)
+    if (typeof fields.description === 'string') args.push('--body', fields.description)
+    if (fields.addLabels && fields.addLabels.length) {
+      for (const label of fields.addLabels) args.push('--add-label', label)
+    }
+    if (fields.removeLabels && fields.removeLabels.length) {
+      for (const label of fields.removeLabels) args.push('--remove-label', label)
+    }
+    if (Array.isArray(fields.setLabels)) args.push('--set-labels', fields.setLabels.join(','))
+    if (typeof fields.setAssignees === 'string') args.push('--set-assignees', fields.setAssignees)
+    if (typeof fields.milestone === 'string') args.push('--milestone', fields.milestone)
+    args.push('--json')
+    return args
+  }
   const args = ['issues', 'edit', String(key), '--repo', refId]
   if (typeof fields.title === 'string') args.push('--title', fields.title)
   if (typeof fields.description === 'string') args.push('--description', fields.description)
@@ -295,6 +387,8 @@ export function argsIssueEdit(refId: string, key: string | number, fields: Issue
 
 /** 写一条评论的参数（tea 的评论写入挂在 comments 命名空间下，不是 issues <编号> comments）。 */
 export function argsCommentAdd(refId: string, key: string | number, body: string): string[] {
+  // gt 分支（票 #23，真机核对）：gt issue comment <编号> --body 正文 --json → {"body":…,"id":…}。
+  if (readExecutor() === 'gt') return ['issue', 'comment', String(key), '-R', refId, '--body', body, '--json']
   return ['comments', 'add', String(key), '--repo', refId, '--description', body, '--output', 'json']
 }
 

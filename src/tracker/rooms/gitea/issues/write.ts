@@ -38,10 +38,11 @@ import {
   argsIssueCreate,
   argsIssueEdit,
   argsIssueReopen,
+  createdKeyFrom,
   errMsg,
-  parseCreatedIssueKey,
   parseJsonBag,
-  runTea,
+  runWrite,
+  writeFailureError,
 } from '../support/tea-run.js'
 
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -103,13 +104,15 @@ export async function createIssue(
     // 仓库里还没有的标签先建再挂：tea 的建票 --labels 对不存在的标签静默跳过
     // （真机 2026-11-11 实测口径，与 setLabels 同一条 ensure 路）。
     await ensureLabelsExist(effective, refId, labelNames)
-    const res = await runTea(effective, argsIssueCreate(refId, input.title.trim(), description, labelNames, assigneeLogins))
+    const res = await runWrite(effective, argsIssueCreate(refId, input.title.trim(), description, labelNames, assigneeLogins))
     if (res.code !== 0) {
-      // 原文 = 这一次 tea 调用的进程结果（stderr 里是 tea 或远端的原话）。命令可能已经写出去，
+      // 原文 = 这一次 CLI 调用的进程结果（stderr 里是执行器或远端的原话）。命令可能已经写出去，
       // 这里绝不重发第二次建票——重复建票正是幂等键要挡的事，如实失败交给上层。
-      return failGitea(new Error(res.stderr || res.stdout || 'create: tea issues create 失败'), '建票失败：tea issues create 没有跑成。请稍后重试。', res, effective)
+      return failGitea(writeFailureError(res, effective, 'create: 建票命令失败'), '建票失败：建票命令没有跑成。请稍后重试。', res, effective)
     }
-    const newKey = parseCreatedIssueKey(typeof res.stdout === 'string' ? res.stdout : '')
+    // 建票编号从回包读（票 #23）：gt 走 --json 回包的 number 格；tea 仍是抠 #编号 文本。
+    // 两条路都取不到时如实失败，绝不猜编号、绝不重发。
+    const newKey = createdKeyFrom(typeof res.stdout === 'string' ? res.stdout : '')
     if (!newKey) {
       // 回包里抠不出编号：票可能已经建成，绝不猜编号，也绝不重发。原文给建票回包本身。
       return fail(
@@ -150,10 +153,10 @@ export async function closeIssue(
   if (!t.ok) return t.result
   const { effective, refId, key: k } = t
   try {
-    const res = await runTea(effective, argsIssueClose(refId, k))
+    const res = await runWrite(effective, argsIssueClose(refId, k))
     if (res.code !== 0) {
-      // 原文 = 这一次 tea 调用的进程结果。
-      return failGitea(new Error(res.stderr || res.stdout || 'close: tea issues close 失败'), '关票失败：tea issues close 没有跑成。请稍后重试。', res, effective)
+      // 原文 = 这一次 CLI 调用的进程结果。
+      return failGitea(writeFailureError(res, effective, 'close: 关票命令失败'), '关票失败：关票命令没有跑成。请稍后重试。', res, effective)
     }
     // 写已成功：回包难读不判失败，兜一张最小票面（状态按关后的来）。
     const raw = bagOf(res.stdout) || ({ index: Number(k) || k, state: 'closed' } as RawBag)
@@ -182,9 +185,9 @@ export async function reopenIssue(
   if (!t.ok) return t.result
   const { effective, refId, key: k } = t
   try {
-    const res = await runTea(effective, argsIssueReopen(refId, k))
+    const res = await runWrite(effective, argsIssueReopen(refId, k))
     if (res.code !== 0) {
-      return failGitea(new Error(res.stderr || res.stdout || 'reopen: tea issues reopen 失败'), '重开失败：tea issues reopen 没有跑成。请稍后重试。', res, effective)
+      return failGitea(writeFailureError(res, effective, 'reopen: 重开命令失败'), '重开失败：重开命令没有跑成。请稍后重试。', res, effective)
     }
     const raw = bagOf(res.stdout) || ({ index: Number(k) || k, state: 'open' } as RawBag)
     return { ok: true, data: normalizeIssue(raw) }
@@ -233,9 +236,9 @@ export async function updateIssue(
       // 空补丁不发写命令（空操作白花一次配额）：回读当前票面。
       return getIssue(ctx, repo, k, {}, effective)
     }
-    const res = await runTea(effective, argsIssueEdit(refId, k, fields))
+    const res = await runWrite(effective, argsIssueEdit(refId, k, fields))
     if (res.code !== 0) {
-      return failGitea(new Error(res.stderr || res.stdout || 'update: tea issues edit 失败'), '改票失败：tea issues edit 没有跑成。请稍后重试。', res, effective)
+      return failGitea(writeFailureError(res, effective, 'update: 改票命令失败'), '改票失败：改票命令没有跑成。请稍后重试。', res, effective)
     }
     // 写已成功：回包难读时回查一次票面兜底（改票的回读是契约口径，deck_issue_patch 的写回链路靠它）。
     let raw = bagOf(res.stdout)
