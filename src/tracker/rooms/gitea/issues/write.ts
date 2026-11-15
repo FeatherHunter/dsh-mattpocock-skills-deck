@@ -39,18 +39,20 @@ import {
   argsIssueEdit,
   argsIssueReopen,
   createdKeyFrom,
+  writeFailureTexts,
   errMsg,
-  parseJsonBag,
+  parseReadBag,
   runWrite,
   writeFailureError,
 } from '../support/tea-run.js'
 
 type RepoLike = Partial<RepositoryRef> | null | undefined
 
-/** 把 tea 的 --output json 回包收成一张原始票面；不是票的形状回 null。 */
+/** 把写命令的 --output json 回包收成一张原始票面；不是票的形状回 null。走 parseReadBag 是
+ * 因为 gt 的回包 author/assignees 是登录名字符串（票 #20），要先过 gt 适配层才归一得出——
+ * 对 tea 形状的回包它是恒等，行为与改动前一致。 */
 function bagOf(stdout: unknown): RawBag | null {
-  const raw = parseJsonBag(typeof stdout === 'string' ? stdout : '')
-  return raw
+  return parseReadBag(typeof stdout === 'string' ? stdout : '')
 }
 
 /**
@@ -108,7 +110,8 @@ export async function createIssue(
     if (res.code !== 0) {
       // 原文 = 这一次 CLI 调用的进程结果（stderr 里是执行器或远端的原话）。命令可能已经写出去，
       // 这里绝不重发第二次建票——重复建票正是幂等键要挡的事，如实失败交给上层。
-      return failGitea(writeFailureError(res, effective, 'create: 建票命令失败'), '建票失败：建票命令没有跑成。请稍后重试。', res, effective)
+      const t = writeFailureTexts('create')
+      return failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
     }
     // 建票编号从回包读（票 #23）：gt 走 --json 回包的 number 格；tea 仍是抠 #编号 文本。
     // 两条路都取不到时如实失败，绝不猜编号、绝不重发。
@@ -156,7 +159,8 @@ export async function closeIssue(
     const res = await runWrite(effective, argsIssueClose(refId, k))
     if (res.code !== 0) {
       // 原文 = 这一次 CLI 调用的进程结果。
-      return failGitea(writeFailureError(res, effective, 'close: 关票命令失败'), '关票失败：关票命令没有跑成。请稍后重试。', res, effective)
+      const t = writeFailureTexts('close')
+      return failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
     }
     // 写已成功：回包难读不判失败，兜一张最小票面（状态按关后的来）。
     const raw = bagOf(res.stdout) || ({ index: Number(k) || k, state: 'closed' } as RawBag)
@@ -187,7 +191,8 @@ export async function reopenIssue(
   try {
     const res = await runWrite(effective, argsIssueReopen(refId, k))
     if (res.code !== 0) {
-      return failGitea(writeFailureError(res, effective, 'reopen: 重开命令失败'), '重开失败：重开命令没有跑成。请稍后重试。', res, effective)
+      const t = writeFailureTexts('reopen')
+      return failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
     }
     const raw = bagOf(res.stdout) || ({ index: Number(k) || k, state: 'open' } as RawBag)
     return { ok: true, data: normalizeIssue(raw) }
@@ -238,7 +243,8 @@ export async function updateIssue(
     }
     const res = await runWrite(effective, argsIssueEdit(refId, k, fields))
     if (res.code !== 0) {
-      return failGitea(writeFailureError(res, effective, 'update: 改票命令失败'), '改票失败：改票命令没有跑成。请稍后重试。', res, effective)
+      const t = writeFailureTexts('update')
+      return failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
     }
     // 写已成功：回包难读时回查一次票面兜底（改票的回读是契约口径，deck_issue_patch 的写回链路靠它）。
     let raw = bagOf(res.stdout)

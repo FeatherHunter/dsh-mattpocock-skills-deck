@@ -223,6 +223,30 @@ title('⑥ 选中 tea：写词汇输出与改动前逐字节一致')
   // tea 的建票编号仍是抠 #编号 文本：改动前后同一条路。
   must(teaRun.createdKeyFrom('Created issue #42 on o/r') === '42', 'tea 选中：建票编号仍抠 #编号 文本')
   must(gtRun.createdIssueNumberOf('Created issue #42 on o/r') === null, 'gt 的回读不吃 tea 的文本回包（两条路不串）')
+  // 失败文案也按执行器给命令原文（票 #23 评审收编）：tea 侧与票 #12 改动前逐字一致。
+  must(
+    teaRun.writeFailureTexts('create').fallback === 'create: tea issues create 失败' &&
+      teaRun.writeFailureTexts('create').human === '建票失败：tea issues create 没有跑成。请稍后重试。',
+    'tea 选中：create 失败文案与改动前逐字节一致',
+  )
+  must(
+    teaRun.writeFailureTexts('setAssignees').fallback === 'setAssignees: tea issues edit 失败' &&
+      teaRun.writeFailureTexts('setBlockedBy').human === '改阻塞关系失败：tea issues edit 没有跑成。请稍后重试。',
+    'tea 选中：edit 系失败文案与改动前逐字节一致',
+    JSON.stringify([teaRun.writeFailureTexts('setAssignees'), teaRun.writeFailureTexts('setBlockedBy')]),
+  )
+}
+
+title('⑥b 选中 gt：失败文案带 gt 的真实命令原文')
+{
+  setSelectedExecutor('gt')
+  must(
+    teaRun.writeFailureTexts('create').fallback === 'create: gt issue create 失败' &&
+      teaRun.writeFailureTexts('comment').human === '写评论失败：gt issue comment 没有跑成。请稍后重试。',
+    'gt 选中：失败文案写的是 gt 的命令',
+    JSON.stringify([teaRun.writeFailureTexts('create'), teaRun.writeFailureTexts('comment')]),
+  )
+  setSelectedExecutor('tea')
 }
 
 title('⑦ 回包按执行器各自解析')

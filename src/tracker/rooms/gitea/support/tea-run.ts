@@ -32,6 +32,7 @@
  *   标签：  gt label list -R <refId> --json --limit N --page P（ensureLabels 与改色的对照表共用）
  *   建标签：gt label create <名字> --color <六位十六进制> -R <refId> --json
  *   改色：  gt label edit <数字id> --color <六位十六进制> -R <refId> --json（认 id，不认名字）
+ *   tea 写路径（票 #12 口径不变；gt 接入后这些拼法逐字未动）：
  *   建票：  tea issues create --repo <refId> --title T --description D [--labels a,b] [--assignees a,b]
  *           （create 不认 --output，回包是含 #编号 的一行文本，用 parseCreatedIssueKey 抠编号）
  *   关/开： tea issues close|reopen <编号> --repo <refId> --output json
@@ -138,9 +139,10 @@ export function narrowStateOf(filter: Partial<ListFilter> | null | undefined): '
 
 /**
  * 当前选中的执行器（票 #22）：preflight（#21）探测完经 setSelectedExecutor 写进 room/prompts.ts，
- * 词汇表与读路径按这里返回的值分派 gt / tea。什么都没探测过时是 'tea'，与旧行为一致。
+ * 词汇表、读路径与写路径（票 #23 起读写共用）都按这里返回的值分派 gt / tea。
+ * 什么都没探测过时是 'tea'，与旧行为一致。
  */
-export function readExecutor(): GiteaExecutorCli {
+export function selectedCli(): GiteaExecutorCli {
   return selectedExecutor()
 }
 
@@ -149,8 +151,16 @@ export function readExecutor(): GiteaExecutorCli {
  * tea 分支原样走 runTea——把三个读操作文件里的 runTea 调用换成这一入口后，
  * tea 选中的行为与改动前逐字节一致（#22 验收判据）。
  */
+/**
+ * gt / tea 的同一份分派（票 #23 评审收编）：读写共用这一条表达式，分派逻辑只写一处——
+ * 以后执行器选择变化（比如加第三家）只改这里。
+ */
+function dispatchCli(effective: CtxLike | null | undefined, args: string[]): Promise<ExecResult> {
+  return selectedCli() === 'gt' ? runGt(effective, args) : runTea(effective, args)
+}
+
 export async function runRead(effective: CtxLike | null | undefined, args: string[]): Promise<ExecResult> {
-  return readExecutor() === 'gt' ? runGt(effective, args) : runTea(effective, args)
+  return dispatchCli(effective, args)
 }
 
 /**
@@ -159,27 +169,47 @@ export async function runRead(effective: CtxLike | null | undefined, args: strin
  * tea 选中的行为与改动前逐字节一致（#23 验收判据「tea 写路径零改动」）。
  */
 export async function runWrite(effective: CtxLike | null | undefined, args: string[]): Promise<ExecResult> {
-  return readExecutor() === 'gt' ? runGt(effective, args) : runTea(effective, args)
+  return dispatchCli(effective, args)
 }
 
 /**
  * 写路径失败收口的 Error 构造（票 #23）：gt 选中时走 gt-run 的结构化判档（退出码 4/2 直接
  * 带档位、JSON 错误行解 message），tea 选中时维持改动前「stderr 优先」的原话收法——
  * 两边各自如实，调用方拿这一个函数替掉手拼 new Error 那一行即可。
- * 上下文里带 platform.env 时把读环境变量的口传下去（gt 判档今天用不上，留作口子）。
  */
 export function writeFailureError(res: ExecResult, effective: CtxLike | null | undefined, fallbackText: string): Error {
-  if (readExecutor() === 'gt') {
-    const env = effective && effective.platform && effective.platform.env ? effective.platform.env : null
-    const envGet = env && typeof env.get === 'function' ? env.get.bind(env) : null
-    return gtFailureError(res, envGet)
-  }
+  if (selectedCli() === 'gt') return gtFailureError(res)
   return new Error(res.stderr || res.stdout || fallbackText)
+}
+
+/**
+ * 写路径失败文案（票 #23 评审收编）：按选中执行器给命令原文——同一处写操作在 tea 与 gt 下
+ * 命令不同，报错里写错执行器会误导排障的人（Human-first wording；读路径的
+ * readListCommandLabel 同一条先例）。tea 分支的字面量与票 #12 改动前逐字一致。
+ * fallback 进 Error 原文（stderr/stdout 都空时才可见），human 是 failGitea 给人看的结论行。
+ */
+const WRITE_FAILURE_TEXTS: Record<string, { teaCmd: string; gtCmd: string; human: string }> = {
+  create: { teaCmd: 'tea issues create', gtCmd: 'gt issue create', human: '建票失败' },
+  close: { teaCmd: 'tea issues close', gtCmd: 'gt issue close', human: '关票失败' },
+  reopen: { teaCmd: 'tea issues reopen', gtCmd: 'gt issue reopen', human: '重开失败' },
+  update: { teaCmd: 'tea issues edit', gtCmd: 'gt issue edit', human: '改票失败' },
+  comment: { teaCmd: 'tea comments add', gtCmd: 'gt issue comment', human: '写评论失败' },
+  setParent: { teaCmd: 'tea issues edit', gtCmd: 'gt issue edit', human: '改归属失败' },
+  setBlockedBy: { teaCmd: 'tea issues edit', gtCmd: 'gt issue edit', human: '改阻塞关系失败' },
+  setLabels: { teaCmd: 'tea issues edit', gtCmd: 'gt issue edit', human: '改标签失败' },
+  setAssignees: { teaCmd: 'tea issues edit', gtCmd: 'gt issue edit', human: '改认领人失败' },
+  setLabelColors: { teaCmd: 'tea labels update', gtCmd: 'gt label edit', human: '改标签颜色失败' },
+}
+
+export function writeFailureTexts(op: keyof typeof WRITE_FAILURE_TEXTS): { fallback: string; human: string } {
+  const row = WRITE_FAILURE_TEXTS[op]
+  const cmd = selectedCli() === 'gt' ? row.gtCmd : row.teaCmd
+  return { fallback: op + ': ' + cmd + ' 失败', human: row.human + '：' + cmd + ' 没有跑成。请稍后重试。' }
 }
 
 /** 从建票回包里取新票编号（票 #23）：gt 走 --json 回读的 number 格；tea 仍是抠 #编号 文本。 */
 export function createdKeyFrom(stdoutText: string): string | null {
-  return readExecutor() === 'gt' ? createdIssueNumberOf(stdoutText) : parseCreatedIssueKey(stdoutText)
+  return selectedCli() === 'gt' ? createdIssueNumberOf(stdoutText) : parseCreatedIssueKey(stdoutText)
 }
 
 /**
@@ -190,7 +220,7 @@ export function createdKeyFrom(stdoutText: string): string | null {
  * 由调用方按「回包形状不对」挑档位——与 parseJsonRows 同一口径。
  */
 export function parseReadRows(text: string): unknown[] | null {
-  const rows = readExecutor() === 'gt' ? parseJsonRows(stripGtHint(text)) : parseJsonRows(text)
+  const rows = selectedCli() === 'gt' ? parseJsonRows(stripGtHint(text)) : parseJsonRows(text)
   if (!rows) return null
   return rows.map(adaptGtRow)
 }
@@ -200,7 +230,7 @@ export function parseReadRows(text: string): unknown[] | null {
  * （单票 view 不带提示行，剥了也无害）再做 author/assignees 适配。
  */
 export function parseReadBag(text: string): RawBag | null {
-  const bag = readExecutor() === 'gt' ? parseJsonBag(stripGtHint(text)) : parseJsonBag(text)
+  const bag = selectedCli() === 'gt' ? parseJsonBag(stripGtHint(text)) : parseJsonBag(text)
   if (!bag) return null
   return adaptGtRow(bag) as RawBag
 }
@@ -211,12 +241,12 @@ export function parseReadBag(text: string): RawBag | null {
  * 会让拿报错排障的人得出错误结论（Human-first wording），所以 tea 分支的字面量保持与改动前一致。
  */
 export function readListCommandLabel(): string {
-  return readExecutor() === 'gt' ? 'gt issue list' : 'tea issues ls'
+  return selectedCli() === 'gt' ? 'gt issue list' : 'tea issues ls'
 }
 
 /** 单票读失败文案里的命令名：同 readListCommandLabel 的口径。 */
 export function readIssueCommandLabel(): string {
-  return readExecutor() === 'gt' ? 'gt issue view' : 'tea issues'
+  return selectedCli() === 'gt' ? 'gt issue view' : 'tea issues'
 }
 
 /** 列表页的参数（本房词汇表的唯一出处）：state 收窄由调用方给好（open / closed / all）。 */
@@ -226,7 +256,7 @@ export function argsIssueListPage(refId: string, state: 'open' | 'closed' | 'all
   // 所以 state 必须显式带（与 tea 同一条防线）；标签过滤用可重复的 --label，一标签一项，
   // 语义正好是 AND。gt 的 --json 默认字段表已含 url / body / number / comments 等全部字段，
   // 不需要 tea 那一步 --fields 点名。
-  if (readExecutor() === 'gt') {
+  if (selectedCli() === 'gt') {
     const args = ['issue', 'list', '-R', refId, '--state', state, '--json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
     for (const label of labels) args.push('--label', label)
     return args
@@ -243,7 +273,7 @@ export function argsIssueListPage(refId: string, state: 'open' | 'closed' | 'all
 /** 单票的参数。 */
 export function argsIssueGet(refId: string, key: string | number): string[] {
   // gt 分支（票 #22）：gt issue view <编号>，--json 回单键对象（票号叫 number，归一层回退认）。
-  if (readExecutor() === 'gt') return ['issue', 'view', String(key), '-R', refId, '--json']
+  if (selectedCli() === 'gt') return ['issue', 'view', String(key), '-R', refId, '--json']
   return ['issues', String(key), '--repo', refId, '--output', 'json']
 }
 
@@ -251,7 +281,7 @@ export function argsIssueGet(refId: string, key: string | number): string[] {
 export function argsCommentsPage(refId: string, key: string | number, limitRows: number, page: number): string[] {
   // gt 分支（票 #22）：gt issue comment list <编号>，-L/--page 与 tea 的 limit/page 语义对应
   // （真机实测 2026-11-15：-L 1..1000、--page 1 起始）；回包里 author 是字符串、id 是数字。
-  if (readExecutor() === 'gt') {
+  if (selectedCli() === 'gt') {
     return ['issue', 'comment', 'list', String(key), '-R', refId, '--json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
   }
   return ['issues', String(key), 'comments', '--repo', refId, '--output', 'json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
@@ -261,7 +291,7 @@ export function argsCommentsPage(refId: string, key: string | number, limitRows:
 export function argsLabelsPage(refId: string, limitRows: number, page: number): string[] {
   // gt 分支（票 #23，2026-11-15 本机 gt 1.2.0 实测）：gt label list，-L 范围 1..1000、--page 1 起始，
   // 回包数组行含 name/color/id/description（写路径的 ensureLabels 与改色对照表共用这一口）。
-  if (readExecutor() === 'gt') {
+  if (selectedCli() === 'gt') {
     return ['label', 'list', '-R', refId, '--json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
   }
   return ['labels', 'ls', '--repo', refId, '--output', 'json', '--limit', String(limitRows), '--page', String(page)] // --limit 与票 20 记录的 -L 是同义别名（真机 --help 核实）
@@ -280,13 +310,13 @@ export function argsLabelsPage(refId: string, limitRows: number, page: number): 
  */
 export function argsLabelCreate(refId: string, name: string): string[] {
   // gt 分支（票 #23，2026-11-15 本机 --help 核对）：名字是位置参数，颜色 --color/-c。
-  if (readExecutor() === 'gt') return ['label', 'create', name, '--color', '00aabb', '-R', refId, '--json']
+  if (selectedCli() === 'gt') return ['label', 'create', name, '--color', '00aabb', '-R', refId, '--json']
   return ['labels', 'create', '--name', name, '--color', '00aabb', '--repo', refId, '--output', 'json']
 }
 
 export function argsLabelUpdate(refId: string, id: number | string, color: string): string[] {
   // gt 分支（票 #23，2026-11-15 本机 --help 核对）：gt label edit <id> --color 色（认 id 不认名字）。
-  if (readExecutor() === 'gt') return ['label', 'edit', String(id), '--color', color, '-R', refId, '--json']
+  if (selectedCli() === 'gt') return ['label', 'edit', String(id), '--color', color, '-R', refId, '--json']
   return ['labels', 'update', '--id', String(id), '--color', color, '--repo', refId, '--output', 'json']
 }
 
@@ -306,7 +336,7 @@ export function argsRepoScanPage(limitRows: number, page: number): string[] {
 export function argsIssueCreate(refId: string, title: string, description: string, labels: string[], assignees: string[]): string[] {
   // gt 分支（票 #23，2026-11-15 本机 gt 1.2.0 --help 核对）：--title/-t、--body/-b、可重复的
   // --label/-l 与 --assignee/-a；带 --json 回单个对象（含 number），建票编号从回包读。
-  if (readExecutor() === 'gt') {
+  if (selectedCli() === 'gt') {
     const args = ['issue', 'create', '-R', refId, '--title', title]
     if (description) args.push('--body', description)
     for (const label of labels) args.push('--label', label)
@@ -324,14 +354,14 @@ export function argsIssueCreate(refId: string, title: string, description: strin
 /** 关票的参数（tea 的 close 认 --output json，回包就是关完之后的票面）。 */
 export function argsIssueClose(refId: string, key: string | number): string[] {
   // gt 分支（票 #23，真机核对）：gt issue close <编号> -R <ref> --json → {"number":…,"state":"closed"}。
-  if (readExecutor() === 'gt') return ['issue', 'close', String(key), '-R', refId, '--json']
+  if (selectedCli() === 'gt') return ['issue', 'close', String(key), '-R', refId, '--json']
   return ['issues', 'close', String(key), '--repo', refId, '--output', 'json']
 }
 
 /** 重开的参数（tea 0.16.0 的命令面里 reopen 是独立子命令，不是 edit 的一个开关）。 */
 export function argsIssueReopen(refId: string, key: string | number): string[] {
   // gt 分支（票 #23，真机核对）：独立子命令，与 close 同形。
-  if (readExecutor() === 'gt') return ['issue', 'reopen', String(key), '-R', refId, '--json']
+  if (selectedCli() === 'gt') return ['issue', 'reopen', String(key), '-R', refId, '--json']
   return ['issues', 'reopen', String(key), '--repo', refId, '--output', 'json']
 }
 
@@ -358,7 +388,7 @@ export function argsIssueEdit(refId: string, key: string | number, fields: Issue
   // gt 分支（票 #23，2026-11-15 本机 --help 核对）：--title/-t、--body/-b；标签增删用可重复的
   // --add-label/--remove-label（一标签一项），整集替换用 --set-labels（逗号连接，空串清空）；
   // 认领人整集替换 --set-assignees（与 tea 同名同义）。gt 编辑不认里程碑清空旗标，照值直传。
-  if (readExecutor() === 'gt') {
+  if (selectedCli() === 'gt') {
     const args = ['issue', 'edit', String(key), '-R', refId]
     if (typeof fields.title === 'string') args.push('--title', fields.title)
     if (typeof fields.description === 'string') args.push('--body', fields.description)
@@ -388,7 +418,7 @@ export function argsIssueEdit(refId: string, key: string | number, fields: Issue
 /** 写一条评论的参数（tea 的评论写入挂在 comments 命名空间下，不是 issues <编号> comments）。 */
 export function argsCommentAdd(refId: string, key: string | number, body: string): string[] {
   // gt 分支（票 #23，真机核对）：gt issue comment <编号> --body 正文 --json → {"body":…,"id":…}。
-  if (readExecutor() === 'gt') return ['issue', 'comment', String(key), '-R', refId, '--body', body, '--json']
+  if (selectedCli() === 'gt') return ['issue', 'comment', String(key), '-R', refId, '--body', body, '--json']
   return ['comments', 'add', String(key), '--repo', refId, '--description', body, '--output', 'json']
 }
 

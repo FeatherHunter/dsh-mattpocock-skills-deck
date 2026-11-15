@@ -88,7 +88,7 @@ export function parseGtJsonError(stderrText: string): { message: string; status?
  *     没有就退回 stderr/stdout 原文，交给本家判档表按文字判，认不出落网络兜底。
  * 调用方把这个 Error 交给 failGitea 即可，原文（进程结果）照旧单独传。
  */
-export function gtFailureError(res: ExecResult, envGet: ((name: string) => string | undefined) | null | undefined): Error {
+export function gtFailureError(res: ExecResult): Error {
   const code = typeof res.code === 'number' ? res.code : -1
   if (code === 4) {
     const e = new Error(res.stderr || res.stdout || 'gt: 认证缺失或被拒（退出码 4）')
@@ -109,8 +109,6 @@ export function gtFailureError(res: ExecResult, envGet: ((name: string) => strin
   const e = new Error(text || 'gt: 命令失败（退出码 ' + String(code) + '，无输出）')
   // status 是远端 HTTP 状态码（如 404）：带上让本家判档表的事实层看得见。
   if (json && json.status !== undefined) (e as unknown as Record<string, unknown>)['status'] = json.status
-  // envGet 留着入参位：万一以后要按环境变量判「该不该期待 JSON 行」，口子开在这。
-  void envGet
   return e
 }
 

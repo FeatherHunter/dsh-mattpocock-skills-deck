@@ -40,7 +40,7 @@ import { fetchRawIssue, listIssues } from '../issues/read.js'
 import { resolveTarget } from '../support/target.js'
 import { preflightExpected } from '../support/expected-preflight.js'
 import { emitReadDegraded } from '../support/read-log.js'
-import { type CtxLike, type RawBag, argsIssueEdit, errMsg, runWrite, writeFailureError } from '../support/tea-run.js'
+import { type CtxLike, type RawBag, argsIssueEdit, errMsg, runWrite, writeFailureError, writeFailureTexts } from '../support/tea-run.js'
 
 type RepoLike = Partial<RepositoryRef> | null | undefined
 
@@ -189,7 +189,8 @@ export async function setParent(
     const res = await runWrite(effective, argsIssueEdit(refId, k, { description: newBody }))
     if (res.code !== 0) {
       // 原文 = 写归属那一次 CLI 调用的进程结果。
-      return failGitea(writeFailureError(res, effective, 'setParent: 改归属命令失败'), '改归属失败：改归属命令没有跑成。请稍后重试。', res, effective)
+      const t = writeFailureTexts('setParent')
+      return failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
     }
     // 写后回读核对：远端最终落在正文里的归属以回读为准（读侧 parseHiddenParent 同一口径）。
     const back = await fetchRawIssue(effective, refId, k)
@@ -272,7 +273,8 @@ export async function setBlockedBy(
     const res = await runWrite(effective, argsIssueEdit(refId, k, { description: newBody }))
     if (res.code !== 0) {
       // 原文 = 写阻塞那一次 CLI 调用的进程结果。
-      return failGitea(writeFailureError(res, effective, 'setBlockedBy: 改阻塞命令失败'), '改阻塞关系失败：改阻塞命令没有跑成。请稍后重试。', res, effective)
+      const t = writeFailureTexts('setBlockedBy')
+      return failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
     }
     // 写后回读核对：缺一个、多一个都算对不上，如实回 conflict——不把「写丢了」包装成成功。
     const back = await fetchRawIssue(effective, refId, k)

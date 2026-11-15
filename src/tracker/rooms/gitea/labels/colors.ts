@@ -19,7 +19,7 @@ import { PAGINATION } from '../../../contract/pagination.js'
 import { fail } from '../../../kernel/preflight.js'
 import { failGitea } from '../errors.js'
 import { normalizeColor } from '../../../../shared/label-color/src/colors.js'
-import { type CtxLike, argsLabelUpdate, argsLabelsPage, errMsg, parseReadRows, refIdOf, runRead, runWrite, writeFailureError } from '../support/tea-run.js'
+import { type CtxLike, argsLabelUpdate, argsLabelsPage, errMsg, parseReadRows, refIdOf, runRead, runWrite, writeFailureError, writeFailureTexts } from '../support/tea-run.js'
 
 /**
  * 改一批标签的颜色（契约 setLabelColors）。
@@ -92,7 +92,8 @@ export async function setLabelColors(
     try {
       const res = await runWrite(effective, argsLabelUpdate(refId, idByName.get(name) as number | string, color))
       if (res.code !== 0) {
-        const verdict = failGitea(writeFailureError(res, effective, 'setLabelColors: 改色命令失败'), '改标签颜色失败：改色命令没有跑成。请稍后重试。', res, effective)
+        const t = writeFailureTexts('setLabelColors')
+        const verdict = failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
         failed.push({ name, reason: verdict.error })
         continue
       }

@@ -36,10 +36,11 @@ import {
   argsLabelCreate,
   argsLabelsPage,
   errMsg,
-  parseJsonBag,
+  parseReadBag,
+  writeFailureTexts,
   parseJsonRows,
   parseReadRows,
-  readExecutor,
+  selectedCli,
   runRead,
   runWrite,
   writeFailureError,
@@ -196,13 +197,14 @@ export async function setLabels(
     await ensureLabelsExist(effective, refId, add)
     // gt 选中时整集替换走 --set-labels 一步到位（票 #23，见文件头）；tea 仍按差集增删两步。
     // 两条路对外的语义一致：远端最终集合 = wanted。
-    const fields = readExecutor() === 'gt'
+    const fields = selectedCli() === 'gt'
       ? { setLabels: wanted }
       : { addLabels: add, removeLabels: remove }
     const res = await runWrite(effective, argsIssueEdit(refId, k, fields))
     if (res.code !== 0) {
       // 原文 = 写标签那一次 CLI 调用的进程结果。
-      return failGitea(writeFailureError(res, effective, 'setLabels: 改标签命令失败'), '改标签失败：改标签命令没有跑成。请稍后重试。', res, effective)
+      const t = writeFailureTexts('setLabels')
+      return failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
     }
     // 写后回读：差集两步有先后，回读拿到的才是远端真实的最终集合——labels 按回读如实交，
     // 不拿调用方要的形状覆盖（真机 2026-11-11 教训：tea 对不存在的标签静默跳过，覆盖会把
@@ -244,10 +246,13 @@ export async function setAssignees(
     const res = await runWrite(effective, argsIssueEdit(refId, k, { setAssignees: wanted.join(',') }))
     if (res.code !== 0) {
       // 原文 = 写认领人那一次 CLI 调用的进程结果。
-      return failGitea(writeFailureError(res, effective, 'setAssignees: 改认领人命令失败'), '改认领人失败：改认领人命令没有跑成。请稍后重试。', res, effective)
+      const t = writeFailureTexts('setAssignees')
+      return failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
     }
     // 写后回读：认领人的最终集合以远端为准（名字拼错时 tea 会怎样要靠回读看得见）。
-    let raw = parseJsonBag(typeof res.stdout === 'string' ? res.stdout : '')
+    // 写后回读走 parseReadBag：gt 回包的 assignees 是登录名字符串（票 #20），先过 gt 适配层
+    // 才归一得出；对 tea 形状的回包它是恒等。否则 setAssignees 明明成功、返回的认领人却是空的。
+    let raw = parseReadBag(typeof res.stdout === 'string' ? res.stdout : '')
     if (!raw) raw = await fetchRawIssue(effective, refId, k)
     return { ok: true, data: normalizeIssue(raw) }
   } catch (err: unknown) {

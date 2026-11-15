@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-15T02:01:07.437Z",
+  "generatedAt": "2026-11-15T02:31:32.467Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 608,
   "gateCount": 608,
@@ -13510,6 +13510,7 @@
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/gitea/index.ts",
         "src/tracker/rooms/gitea/preflight.ts",
+        "src/tracker/rooms/gitea/support/gt-run.ts",
         "src/tracker/rooms/gitea/support/tea-run.ts",
         "src/tracker/rooms/github/read/issues.ts",
         "src/tracker/rooms/github/routing/idempotency.ts",
@@ -13578,7 +13579,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 188 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 189 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",

@@ -22,7 +22,8 @@ import {
   type RawBag,
   argsCommentAdd,
   errMsg,
-  parseJsonBag,
+  parseReadBag,
+  writeFailureTexts,
   runWrite,
   writeFailureError,
 } from '../support/tea-run.js'
@@ -56,9 +57,10 @@ export async function addComment(
     const res = await runWrite(effective, argsCommentAdd(refId, k, body))
     if (res.code !== 0) {
       // 原文 = 这一次 CLI 调用的进程结果（stderr 里是执行器或远端的原话）。
-      return failGitea(writeFailureError(res, effective, 'comment: 写评论命令失败'), '写评论失败：写评论命令没有跑成。请稍后重试。', res, effective)
+      const t = writeFailureTexts('comment')
+      return failGitea(writeFailureError(res, effective, t.fallback), t.human, res, effective)
     }
-    const raw = parseJsonBag(typeof res.stdout === 'string' ? res.stdout : '')
+    const raw = parseReadBag(typeof res.stdout === 'string' ? res.stdout : '')
     const now = new Date().toISOString()
     const bag = (raw || {}) as RawBag
     const authorBag = (bag['author'] && typeof bag['author'] === 'object' ? bag['author'] : {}) as RawBag

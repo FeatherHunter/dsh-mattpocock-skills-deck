@@ -68,7 +68,7 @@ const ctx = () => makeExec(function () { return Promise.resolve({ code: 0, stdou
 title('① 选中 gt：三条读命令的参数逐字对上实测拼法')
 {
   setSelectedExecutor('gt')
-  must(teaRun.readExecutor() === 'gt', 'readExecutor 读到 gt')
+  must(teaRun.selectedCli() === 'gt', 'selectedCli 读到 gt')
   must(
     JSON.stringify(teaRun.argsIssueListPage('o/r', 'all', ['bug', 'p1'], 100, 2)) ===
       JSON.stringify(['issue', 'list', '-R', 'o/r', '--state', 'all', '--json', '--limit', '100', '--page', '2', '--label', 'bug', '--label', 'p1']),
@@ -139,7 +139,7 @@ title('④ 评论回包的 author 字符串同样适配（id 保持数字）')
 title('⑤ 选中 tea：词汇表输出与改动前逐字节一致，执行仍走 exec(tea)')
 {
   setSelectedExecutor('tea')
-  must(teaRun.readExecutor() === 'tea', 'readExecutor 读到 tea')
+  must(teaRun.selectedCli() === 'tea', 'selectedCli 读到 tea')
   must(promptMod.prompts.commandVocabulary.cli === 'tea', '词表 cli getter 同步为 tea')
   must(
     JSON.stringify(teaRun.argsIssueListPage('o/r', 'all', ['bug'], 100, 2)) ===
