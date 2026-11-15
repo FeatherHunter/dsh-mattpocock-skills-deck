@@ -148,6 +148,16 @@ $ gt issue comment list <number>   # 别名含 ls 通则
 
 `gt issue list --help` 实测：`-L, --limit int`，范围 1..1000（写死校验，`-L 1001` 报 `Error: invalid argument "1001" for "-L, --limit" flag: must be 1..1000`），默认 30；`--page int` 默认 1（1 起始）。语义与 tea 的 `--limit`/`--page` 对应。实测 `-L 2 --page 1` → 返回票号 6,5 且附带提示 `more results available; use --page 2`，`--page 2` → 4,3，翻页按列表序推进。过滤参数有 `--state {open|closed|all}`（默认 open）、`--label`、`--assignee`、`--author`、`--search` 等；每页条数超仓库存量时正常返回剩余全部。
 
+### 6. 里程碑的挂载与清空语义（2026-11-16 补测，票 #26 非目标项）
+
+实测（测试仓库 zhaolj/dsh-mattpocockskill-test，临时测试票 #10 与临时里程碑，测完已删除）：
+
+- 挂载：`gt issue edit 10 --milestone '里程碑名' --json` → 退出码 0，`gt issue view --json milestone` 回 `{"milestone":{"id":2,"title":"…"}}`（按名字认，回包是 id+title 对象）。
+- 空串直传：`--milestone ''` → 退出码 2（用法错），`GITEA_CLI_ERROR_FORMAT=json` 时 stderr 单行 `{"error":{"code":2,"kind":"usage","message":"--milestone requires a title or ID; use --remove-milestone to clear it"}}`，票面不受影响。与票 #23 回填评论的 2026-11-15 实测一致。
+- 清空：`--remove-milestone` → 退出码 0，回读 `milestone` 为 `null`——这是 gt 分支清里程碑唯一可用旗标，行为与 tea 的 `--milestone ""` 清空语义对齐。
+
+**对插件的影响：现状（票 #26 已钉死）是 gt 分支对空串照值直传，选中 gt 时「清里程碑」这一操作会如实硬失败、无法完成；要支持清空需改走 `--remove-milestone`，取舍见对应拍板票。**
+
 ## 来源
 
 - [gt 1.0.0, and goodbye to tea — Gitea Blog, 2026-11-02](https://blog.gitea.com/release-of-gitea-cli-1.0.0/)
