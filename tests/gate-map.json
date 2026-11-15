@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-15T02:31:32.467Z",
+  "generatedAt": "2026-11-15T02:50:09.913Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 608,
-  "gateCount": 608,
-  "attributedGates": 551,
+  "chainLength": 609,
+  "gateCount": 609,
+  "attributedGates": 552,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 143,
@@ -10910,6 +10910,21 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
+      "step": "node tests/verify-gitea-gt-prompts.ts",
+      "file": "tests/verify-gitea-gt-prompts.ts",
+      "guards": [
+        "src/tracker/rooms/gitea/room/prompts.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/gitea/room"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-gitea-gt-read-vocabulary.ts",
       "file": "tests/verify-gitea-gt-read-vocabulary.ts",
       "guards": [
@@ -16169,6 +16184,7 @@
     ],
     "src/tracker/rooms/gitea/room": [
       "node tests/verify-gitea-executor-preflight.ts",
+      "node tests/verify-gitea-gt-prompts.ts",
       "node tests/verify-gitea-gt-read-vocabulary.ts",
       "node tests/verify-gitea-gt-write-vocabulary.ts"
     ],
