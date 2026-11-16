@@ -689,6 +689,18 @@
       "comments": [],
       "lastActive": "2026-11-08T00:35:55Z"
     },
+    "mxn404": {
+      "issues": [],
+      "prs": [],
+      "discussions": [
+        {
+          "n": 1953,
+          "at": "2026-11-16T04:02:11Z"
+        }
+      ],
+      "comments": [],
+      "lastActive": "2026-11-16T04:02:11Z"
+    },
     "nolifeking0916": {
       "issues": [
         {
@@ -823,6 +835,30 @@
       "lastActive": "2026-09-03T12:57:04Z",
       "prs": []
     },
+    "wassup-u": {
+      "issues": [
+        {
+          "n": 1954,
+          "at": "2026-11-16T06:01:25Z"
+        },
+        {
+          "n": 1955,
+          "at": "2026-11-16T06:01:34Z"
+        },
+        {
+          "n": 1956,
+          "at": "2026-11-16T06:01:37Z"
+        },
+        {
+          "n": 1957,
+          "at": "2026-11-16T06:01:39Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-16T06:01:39Z"
+    },
     "xiSage": {
       "comments": [],
       "discussions": [
@@ -880,6 +916,18 @@
       "lastActive": "2026-10-02T02:46:06Z",
       "prs": []
     },
+    "zhaolj": {
+      "issues": [],
+      "prs": [
+        {
+          "n": 1952,
+          "at": "2026-11-16T03:14:46Z"
+        }
+      ],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-16T03:14:46Z"
+    },
     "zhengcookie": {
       "comments": [],
       "discussions": [
@@ -927,7 +975,7 @@
     }
   },
   "cursors": {
-    "discussions": 1948,
-    "issues": 1951
+    "discussions": 1953,
+    "issues": 1957
   }
 }
