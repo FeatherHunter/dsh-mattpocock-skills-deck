@@ -86,6 +86,26 @@
       ],
       "lastActive": "2026-10-19T05:35:24Z"
     },
+    "0FN50": {
+      "issues": [
+        {
+          "n": 1949,
+          "at": "2026-11-14T12:41:54Z"
+        },
+        {
+          "n": 1950,
+          "at": "2026-11-14T12:41:55Z"
+        },
+        {
+          "n": 1951,
+          "at": "2026-11-14T12:41:58Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-14T12:41:58Z"
+    },
     "15326325141": {
       "issues": [
         {
@@ -266,6 +286,18 @@
       "discussions": [],
       "comments": [],
       "lastActive": "2026-10-27T01:53:26Z"
+    },
+    "Ryanzhaov": {
+      "issues": [],
+      "prs": [],
+      "discussions": [
+        {
+          "n": 1948,
+          "at": "2026-11-14T04:49:02Z"
+        }
+      ],
+      "comments": [],
+      "lastActive": "2026-11-14T04:49:02Z"
     },
     "SAXEM1997": {
       "issues": [
@@ -895,7 +927,7 @@
     }
   },
   "cursors": {
-    "discussions": 1781,
-    "issues": 1942
+    "discussions": 1948,
+    "issues": 1951
   }
 }
