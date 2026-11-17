@@ -961,6 +961,18 @@
       "lastActive": "2026-11-09T07:40:36Z",
       "prs": []
     },
+    "zuojinxin": {
+      "issues": [
+        {
+          "n": 1958,
+          "at": "2026-11-17T04:05:42Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-17T04:05:42Z"
+    },
     "zyf0625-990": {
       "issues": [
         {
@@ -976,6 +988,6 @@
   },
   "cursors": {
     "discussions": 1953,
-    "issues": 1957
+    "issues": 1958
   }
 }
