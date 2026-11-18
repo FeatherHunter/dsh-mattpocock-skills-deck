@@ -817,6 +817,18 @@
       "lastActive": "2026-09-07T08:02:53Z",
       "prs": []
     },
+    "sukoya": {
+      "issues": [
+        {
+          "n": 1959,
+          "at": "2026-11-18T05:23:07Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-18T05:23:07Z"
+    },
     "tafcear": {
       "comments": [
         {
@@ -988,6 +1000,6 @@
   },
   "cursors": {
     "discussions": 1953,
-    "issues": 1958
+    "issues": 1959
   }
 }
