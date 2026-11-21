@@ -103,10 +103,15 @@ export     const NoRepoCard = function (props: any) {
         }catch(e){}
         return null
       })()
-      const isChainRepoFail = chainSnapForNoRepo && chainSnapForNoRepo.steps && chainSnapForNoRepo.steps.some(function(s: any){ return String(s.id)==='gh:remote' && s.status==='fail' })
+      // #1906：pending 也要走链渲染。目录还没 git init 时 gh:remote 被判 pending（读不到仓库身份），
+      //   旧写法只认 fail，于是这里不进 ChainRenderer、下面旧红卡也要求 fail，两边都没建仓入口，
+      //   「创建并发布」在全新目录 100% 静默失效。pending 行现在已由 chain-step-rows 带上 onFail.actions，
+      //   ChainRenderer 对 pending 用 warn 语气渲染步骤与动作（不是旧红卡的确定语气红卡），
+      //   所以放行 pending 不会把「还没测出来」显示成确定故障，反而给出正确入口。
+      const isChainRepoNotDone = chainSnapForNoRepo && chainSnapForNoRepo.steps && chainSnapForNoRepo.steps.some(function(s: any){ return String(s.id)==='gh:remote' && (s.status==='fail' || s.status==='pending') })
       // 若链快照表明当前链头是建仓相关（且非 markdown），优先由 ChainRenderer 承接（新链 renderer 为真源）；旧红卡仅作兼容兜底
       const repoCreateChainNoRepo = !!(metaNoRepo && metaNoRepo.capabilities && metaNoRepo.capabilities.repoCreateChain)
-      if (isChainRepoFail && repoCreateChainNoRepo && chainSnapForNoRepo && chainSnapForNoRepo.currentIndex!=null) {
+      if (isChainRepoNotDone && repoCreateChainNoRepo && chainSnapForNoRepo && chainSnapForNoRepo.currentIndex!=null) {
         // 尝试构造 dispatcher 供链渲染（同 ChecksTab 复用逻辑）
         try{
           const disp = (typeof createActionDispatcher==='function') ? createActionDispatcher({
