@@ -7,8 +7,9 @@
 //
 // 约定不能改：
 //   1. 判定串只有三种输入（'pass' / 'fail' / null）与判定对象（status 三态）两种形态，两路都收。
-//   2. pending（诚实未知）的行只保留检查项名称（fallback/title/i18nKey），不带 onFail 的修复文案与动作；
-//      fail / current 才展示修复指引。反例：把 pending 也当失败行渲染，界面会在「还没测出来」时显示误导性的修复指引。
+//   2. pending（诚实未知）的行在展示上只保留检查项名称（fallback/title/i18nKey），不渲染 onFail 的修复文案；
+//      但修复动作（actions）必须照带，与共享层 chain-evaluate.ts 的 pending 分支对齐——否则「还没 git init」
+//      这类被判 pending 的行拿不到后端声明的建仓向导，按钮静默失效（issue #1906）。
 //   3. 拼接视图（fullSnapshot）的计数与单段快照同口径，但它不判「第几个失败」，所以没有 failedIndex。
 //   4. 类型只写可剥离的 TypeScript：Node 剥离模式只删类型、不做语法转换。
 import type { CheckItem } from '../../../shared/tracker/chain-types.js'
@@ -80,7 +81,14 @@ export function stepEvalParallel(items: CheckItem[], resolved: EvalMap): ChainSn
       const status = isPass ? 'done' : (isFail ? (((it.onFail && Array.isArray(it.onFail.actions) && it.onFail.actions.length)) ? 'current' : 'fail') : 'pending')
       const _pendingShow = (function () { const bb: ShowView = (it.onFail && it.onFail.show) || {}; const oo: ShowView = {}; if (bb.fallback != null) oo.fallback = bb.fallback; if (bb.title != null) oo.title = bb.title; if (bb.i18nKey != null) oo.i18nKey = bb.i18nKey; return oo })()
       const show = isPass ? ((it.onPass && it.onPass.show) || null) : (isFail ? ((it.onFail && it.onFail.show) || null) : _pendingShow)
-      const actions = isFail && it.onFail && Array.isArray(it.onFail.actions) ? it.onFail.actions : []
+      // pending（诚实未知）也要带上后端声明的修复动作，与共享层 chain-evaluate.ts 的 pending 分支对齐。
+      //   「还没 git init 的新目录」被判 pending（repoIdentity 读不到），若这里只给 fail 挂动作，
+      //   两步建仓向导就进不了快照，状态栏与红卡都拿不到它，「创建并发布」100% 静默失效（issue #1906）。
+      //   pending 是「还没确认」不是「确定没事」，把已有修复入口摆出来不会误导；wf.initPublish
+      //   自己会做 git 预检，点错也不会误建。
+      const actions = !isPass
+        ? ((it.onFail && Array.isArray(it.onFail.actions) && it.onFail.actions.length) ? it.onFail.actions : ((it.onPass && it.onPass.actions) || []))
+        : []
       return { id: it.id, check: it.check, status: status, show: show, actions: actions, isApplicable: true, blockedBy: null, isCurrent: false, isBlocking: status !== 'done' }
     })
     const firstNotDone = steps.findIndex(function (s: StepView) { return s.status !== 'done' })
