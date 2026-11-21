@@ -188,7 +188,7 @@ export const prompts = (function () {
       'not-logged-in': { zh: '未登录 GitHub，请先执行 gh auth login', en: 'Not logged into GitHub — run gh auth login' },
       'already-exists': { zh: '同名仓库已存在（平台可查看）', en: 'Repository already exists (view it on the platform)' },
       'network': { zh: '网络异常，请重试', en: 'Network error — please retry' },
-      'permission': { zh: '权限不足，请检查登录账号', en: 'Permission denied — check your login account' },
+      'permission': { zh: '创建仓库被拒绝：请检查仓库名是否重复，以及账号对该归属有无建仓权限', en: 'Repository creation rejected: check the name is free and your account may create repos there' },
       'half-created': { zh: '仓库已创建，但本地推送未完成', en: 'Repository created, but the local push failed' },
       // #993：属主不一致（git 原文里的 dubious ownership）单独成一档，不再落进兜底被说成「权限不足」。
       //   文案要短：它会走过 400/120/160 三道截断，长句会被截掉；照做的命令由界面另给
