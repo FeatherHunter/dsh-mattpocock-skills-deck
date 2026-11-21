@@ -203,6 +203,7 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 | [@ACGNnsj](https://github.com/ACGNnsj) | 🌹🌹🌹 | [#1498](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1498) [#1809](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1809) [#1771](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1771) |
 | [@anupamme](https://github.com/anupamme) | 🌹🌹🌹 | [#727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727) [#728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) [#1156](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1156) |
 | [@9agj](https://github.com/9agj) | 🌹🌹🌹 | [#992](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/992) [#993](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/993) [#994](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/994) |
+| [@tlaunog001](https://github.com/tlaunog001) | 🌹🌹 | [#1971](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1971) [#1972](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1972) |
 | [@f2406293319-star](https://github.com/f2406293319-star) | 🌹🌹 | [#1859](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1859) [#1880](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1880) |
 | [@CypressStar](https://github.com/CypressStar) | 🌹🌹 | [#1671](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1671) [#1808](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1808) |
 | [@q4452542007](https://github.com/q4452542007) | 🌹🌹 | [#1555](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1555) [#1578](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1578) |
@@ -216,6 +217,7 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 | [@tafcear](https://github.com/tafcear) | 🌹🌹 | [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) [#432](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/432) |
 | [@xiSage](https://github.com/xiSage) | 🌹🌹 | [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) |
 | [@angenet](https://github.com/angenet) | 🌹🌹 | [#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295) |
+| [@ajhillman](https://github.com/ajhillman) | 🌹 | [#1970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1970) |
 | [@sukoya](https://github.com/sukoya) | 🌹 | [#1959](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1959) |
 | [@zuojinxin](https://github.com/zuojinxin) | 🌹 | [#1958](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1958) |
 | [@mxn404](https://github.com/mxn404) | 🌹 | [#1953](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1953) |

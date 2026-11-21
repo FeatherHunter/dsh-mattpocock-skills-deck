@@ -404,6 +404,18 @@
       "lastActive": "2026-10-13T19:10:08Z",
       "prs": []
     },
+    "ajhillman": {
+      "issues": [
+        {
+          "n": 1970,
+          "at": "2026-11-20T21:27:37Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-20T21:27:37Z"
+    },
     "angenet": {
       "comments": [],
       "discussions": [],
@@ -895,6 +907,22 @@
       "lastActive": "2026-09-03T12:57:04Z",
       "prs": []
     },
+    "tlaunog001": {
+      "issues": [],
+      "prs": [
+        {
+          "n": 1971,
+          "at": "2026-11-21T08:30:14Z"
+        },
+        {
+          "n": 1972,
+          "at": "2026-11-21T08:39:47Z"
+        }
+      ],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-21T08:39:47Z"
+    },
     "wassup-u": {
       "issues": [
         {
@@ -1048,6 +1076,6 @@
   },
   "cursors": {
     "discussions": 1953,
-    "issues": 1969
+    "issues": 1972
   }
 }
