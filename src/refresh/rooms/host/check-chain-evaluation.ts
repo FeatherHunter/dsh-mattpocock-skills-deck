@@ -5,8 +5,8 @@ import { refreshSourceOf } from '../../contract/trigger-classification.js'
 import { workspaceKeyOf } from '../../contract/workspace-keys.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 import { getChainRide } from './chain-coalescing.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
 import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } from '../../../shared/time-config/src/values.js'   // #1215 时间参数住中央 YAML（predicateTimeoutMs / ghLoginPrefetchMs / predicateLogSampleMs），本文件只读不写
-import { createRepoIdentityEvidence, ghAuthVerdict, glabAuthVerdict, glabRepoAccessVerdict, probeChainEnv, repoAccessVerdict } from './chain-env-map.js'
-import type { OpenSessionReply, RepoIdentityEvidence } from './chain-env-map.js'
+import { createGiteaRemoteEvidence, createRepoIdentityEvidence, ghAuthVerdict, glabAuthVerdict, glabRepoAccessVerdict, probeChainEnv, repoAccessVerdict, type GiteaRemoteEvidence, type OpenSessionReply, type RepoIdentityEvidence } from './chain-env-map.js'
+import { registerGiteaChainPredicates } from './gitea-chain-predicates.js'   // #gitea 三条谓词的注册体（拆分说明见调用处）
 // #1483：「判定 → 步骤行 / 快照」三件套搬到 chain-step-rows.ts，正常求值与缓存命中重算共用同一套口径；行为逐字保留。
 // 九个形状（判定表、步骤行、单段与拼接快照）也从那里取：两处各写一份时，形状一改就会漂移（审阅指出过）。
 import { assembleFullSnapshot, enrichSnap, stepEvalParallel } from './chain-step-rows.js'
@@ -89,6 +89,11 @@ type DetectChainDeps = {
   getRepoKey(cwd: string): Promise<{ owner: string; name: string } | null>
   /** #1566：仓库身份证据（可选；旧接线没给这一格时退回 getRepoKey 的单值结论，行为不变）。 */
   getRepoIdentity?(cwd: string): Promise<RepoIdentityEvidence | null>
+  /**
+   * #gitea：远端地址列表（git remote -v 的 fetch 行，git 不可用退回 .git/config；回 null=两条路都不可用）。
+   * 「已关联 Gitea 仓库」那一项的判据靠它；可选，缺省时那一行诚实 pending，不猜。
+   */
+  getRemoteUrls?(cwd: string): Promise<string[] | null>
   timer: { timeout(ms: number): Promise<unknown> }
   // #1227：第四格 force 要透传进 #968 的短时缓存，否则人点「重新检查」后链上技能行最多 30 秒仍显示旧绿。
   probeSkill(skillName: string, lang: string, cwd: string, opts?: { force?: boolean }): Promise<unknown>
@@ -125,7 +130,7 @@ type DetectChainDeps = {
  * 反例：若把插件挂载时的自动链求值也当成 `user-recheck` 身份送进退避器，每次重渲染都会击穿退避窗口并发起外部 `gh` 子进程调用，瞬间耗尽配额。
  */
 export function createDetectChain(deps: DetectChainDeps) {
-  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, getRepoIdentity, timer, probeSkill, mdPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, sandboxPolicyFor, openSession } = deps
+  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, getRepoIdentity, getRemoteUrls, timer, probeSkill, mdPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, sandboxPolicyFor, openSession } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   const chainInflight = getChainRide({ now: (deps && deps.now) || undefined }) // #696搭车表用进程单例（写信号由出站路记进来）；测试注钟时建隔离新账
@@ -171,6 +176,9 @@ export function createDetectChain(deps: DetectChainDeps) {
   // #1566：仓库身份证据的读法与两条谓词共用的话术在 chain-env-map.ts 的 createRepoIdentityEvidence
   // （那边写清了为什么两条谓词共用一份结论、null 与 none 的区别）；这里只把它接上本文件的两条读法。
   const repoIdentity = createRepoIdentityEvidence({ getRepoKey: getRepoKey, getRepoIdentity: getRepoIdentity })
+  // #gitea：「已关联 Gitea 仓库」那一项的证据读法；接线没给 getRemoteUrls 时（旧接线/部分测试），
+  //   给一个恒回 null 的兜底，谓词据此如实 pending「读不到本地仓库信息」，不猜。
+  const giteaRemote = createGiteaRemoteEvidence({ getRemoteUrls: (typeof getRemoteUrls === 'function') ? getRemoteUrls : async function () { return null } })
 
   // #1483：把「按当前会话解析沙箱许可」收成一处。正常求值与缓存命中后的重算都用这一处解析：
   //   缺省会话号（空串）与「接线没给 sandboxPolicyFor」都不算错，照旧返回空政策，让谓词按平台默认量。
@@ -465,6 +473,9 @@ export function createDetectChain(deps: DetectChainDeps) {
             return glabRepoAccessVerdict(await envProbe.preflightOnce(), zh)
           } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
         }) } catch (e) {}
+        // 2026-11-11：Gitea（含 Forgejo）后端的三条谓词（目录项 tea:remote / tea:authed / tea:repoAccess 要的键）拆在
+        //   gitea-chain-predicates.ts——注册体自成一坨，本文件受行数颗粒度门禁挤不下；缺键的后果是面板回「predicate not registered」。
+        registerGiteaChainPredicates(registry, envProbe, giteaRemote, cwd)
         const kind = (args && args.kind) || 'all'
         const chainAndSnap = await genMod.resolveGenericChain(registry, ctx, kind)
         // #284 修订（对抗式审查 2026-08-28）：链上检查项【逐项独立求值】——
@@ -484,7 +495,7 @@ export function createDetectChain(deps: DetectChainDeps) {
             // 格子逐字对齐，直接递进去，不转类型也不改值（运行期原样递进去）。
             // 目录只认这三个后端的表（check-catalog-dirs.ts 的 JSDoc 就是这么写的），别的 id 在表里没有格子；
             // 这里只是把「已经认出来是某个后端」收成表认的那几个，转的是类型、值原样递进去。
-            let items = (catDirs.catalogFor ? catDirs.catalogFor(backendId as 'github' | 'markdown' | 'gitlab') : []).filter(function(c){ return c.scope==='backend' }).map(function(ci){ return catViews.catalogItemToCheckItem ? catViews.catalogItemToCheckItem(ci) : null }).filter(Boolean) as CheckItem[]
+            let items = (catDirs.catalogFor ? catDirs.catalogFor(backendId as 'github' | 'markdown' | 'gitlab' | 'gitea') : []).filter(function(c){ return c.scope==='backend' }).map(function(ci){ return catViews.catalogItemToCheckItem ? catViews.catalogItemToCheckItem(ci) : null }).filter(Boolean) as CheckItem[]
             // 修复契约（2026-08-28）：后端声明 fixes（hint + 修复动作）→ 按语言解析附到检查项 onFail——
             //   检查失败即有修复入口（注入指引/重查），UI 零派生只渲染分发；后端未声明 fixes 则保持默认（重查）。
             if (items.length) {

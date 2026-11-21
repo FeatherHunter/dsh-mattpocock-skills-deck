@@ -8,7 +8,7 @@
  *   src/tracker/rooms/gitlab/errors.ts    本家前置扩展表 + classifyGlabError
  *   src/tracker/rooms/markdown/**         本后端有无可比的扩展表（今天没有，门禁会说明）
  *   docs/adr/20261014-error-classification-single-source.md  第 2 节第 3 条：层序的真源
- *   tests/fixtures/error-samples.js       真实原文夹具（本门禁的证据表）
+ *   tests/fixtures/error-samples.ts       真实原文夹具（本门禁的证据表）
  *
  * 六段断言（A–F）：
  *   A 规则表自证：每条规则拿**它自带的样本**跑 matchRule，命中的必须正好是它自己
@@ -17,7 +17,7 @@
  *     兜底项只能是最后一条，且只有一条。文档与代码对不上时**不改任何一边**，原样报出来。
  *   C 扩展项不许复制通用项：各后端前置扩展表逐条与 COMMON_RULES 比，同档位 + 同匹配写法
  *     （pattern 源一字不差，或两个纯事实判断在整张探针矩阵上结论完全一致）就判失败。
- *   D 真实原文夹具：tests/fixtures/error-samples.js 逐条断言档位，并核对每条都标了来源、
+ *   D 真实原文夹具：tests/fixtures/error-samples.ts 逐条断言档位，并核对每条都标了来源、
  *     规则样本类来源能在盘上逐字找到出处（不许编造"真实"原文）。
  *   E 自证：拿「坏词表 / 倒序 / 删兜底 / 改错期望档位 / 空样本」五种反例试这道门禁会不会红 ——
  *     不会红的门禁等于没写。E1、E2 复现的正是本门禁第一次跑时抓出来的两条真实缺陷。
@@ -226,7 +226,8 @@ function discoverExtensionTables(dirRel) {
 async function main() {
   const rulesMod = await imp('src/tracker/kernel/error-rules.ts')
   const { COMMON_RULES, RULE_LAYERS, matchRule, judgeFactsDetailed, rateLimitClassOf } = rulesMod
-  const samples = require('./fixtures/error-samples.js')
+  // 夹具已转 TypeScript，这里跟着改用同进程 import 装载 .ts（原 require .js 在钩子下会找不到模块）。
+  const samples = await imp('./tests/fixtures/error-samples.ts')
 
   // ── A 规则表自证 ──────────────────────────────────────────────────────────
   console.log('\nA 规则表自证（每条规则拿自带的样本跑判档，命中的必须是它自己）')

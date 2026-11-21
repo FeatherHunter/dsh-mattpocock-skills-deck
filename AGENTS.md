@@ -86,6 +86,8 @@ node --import ./scripts/ts-hook.mts tests/你的测试.ts
 
 **Node 下限怎么来的**：钩子用的是同步的 `module.registerHooks()`，它同时管 ESM 的 `import` 与 CommonJS 的 `require`；异步的 `module.register()` 管不到 `require`，替代不了它。同步的 `registerHooks()` 从 Node 22.15 才有，这是这条线的起点——但 22.15 不等于能跑：钩子开着的时候测试加载的是 `.ts` 源码，而 Node 默认开启 TypeScript 类型剥离要到 22.18，再往上还有依赖自己的硬线（`jsdom` 声明 `^22.22.2 || ^24.15.0 || >=26.0.0`，8 个用例在用它）。所以根 `package.json` 的 `engines.node` 写的是 `"^22.22.2 || ^24.15.0 || >=26.0.0"`：22 线要 22.22.2 及以上，24 线要 24.15 及以上，26 及以上任意（23、25 是短命版本线，不单独支持）。这个范围是从最严的那个依赖抄来的，依赖一升要跟着复核；写窄了人会卡在「根项目通过、依赖拒绝」的信息里。本地跑验证链的版本要求比这里更严：必须用 Node 24.15 及以上版本，在 Node 22 上跑链会撞上 #1523 记录的装载故障，结论没有参考价值，详见上面跑门禁一节与 #1542 的决定。
 
+**钩子拦 require 有两层（票 #6）**：入口是 `.ts` 时，Node 无论文件本身是 CJS 还是 ESM 写法都先经 ESM 加载器装载；其中 CJS 格式的 `.ts` 由加载器内部的 `loadCJSModule` 转译执行，它造的那个 `require` 直接调 `Module._resolveFilename`，**不经过 `registerHooks` 挂的 resolve 链**（纯 `.js` 入口走普通 CJS 装载，是过的）。所以钩子除了 `registerHooks` 那层，还把同一条同名解析规则接到了 `Module._resolveFilename` 上（Node 的内部挂点，非公开 API；当前没有公开 API 能拦这条路径）。两层共用同一条判定与同样的约定：无同名 `.ts` 时原样交给 Node，`node_modules` 不碰。`tests/verify-ts-hook-esm-require.ts` 钉住这一装载路径。
+
 **装包守卫分两处，缺一个就漏一半人**：用 npm 的人靠 `.npmrc` 的 `engine-strict=true`；用 pnpm 的人靠 `pnpm-workspace.yaml` 的 `engineStrict: true`——实测 pnpm 不认 `.npmrc` 里的 `engine-strict`（只打一条警告就继续装，退出码 0），只有 `pnpm-workspace.yaml` 那一处是硬拦截（退出码 1）。两处都会连整棵依赖树一起查。钩子自己还做一次能力检测：Node 太旧时抛出能指路的一句话，而不是难懂的 `TypeError`。
 
 **已知代价（不算故障）**：挂着钩子加载 `.ts` 时，Node 会打一条 `MODULE_TYPELESS_PACKAGE_JSON` 警告，提示可以给 `package.json` 加 `"type": "module"`。这条警告今天加载 `.js` 产物时同样会出现（原因相同：最近的 `package.json` 没有 `type` 字段），所以钩子没有引入新一类噪音。

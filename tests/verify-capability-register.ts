@@ -5,6 +5,7 @@
  * 门禁归属: src/tracker/rooms/github/support/capability-register.ts
  * 门禁归属: src/tracker/rooms/markdown/capability-register.ts
  * 门禁归属: src/tracker/rooms/gitlab/support/capability-register.ts
+ * 门禁归属: src/tracker/rooms/gitea/support/capability-register.ts
  * 门禁归属: docs/tracker
  *
  * 这个门禁回答的问题：「一条能力在一个后端上的归宿，三处记的是不是同一件事。」三处指：
@@ -32,6 +33,7 @@ import { OPERATIONS, LOCATORS } from '../src/tracker/contract/operations-catalog
 import { GITHUB_CAPABILITY_REGISTER } from '../src/tracker/rooms/github/support/capability-register.js'
 import { MARKDOWN_CAPABILITY_REGISTER } from '../src/tracker/rooms/markdown/capability-register.js'
 import { GITLAB_CAPABILITY_REGISTER } from '../src/tracker/rooms/gitlab/support/capability-register.js'
+import { GITEA_CAPABILITY_REGISTER } from '../src/tracker/rooms/gitea/support/capability-register.js'
 import type { CapabilityTier } from '../src/tracker/contract/capability-answer.js'
 
 /** 一份登记数据在门禁眼里的样子（只读，够比对用）。
@@ -58,6 +60,7 @@ const BACKENDS: { readonly id: string; readonly register: RegisterView; readonly
   { id: 'github', register: GITHUB_CAPABILITY_REGISTER, md: 'docs/tracker/capability-github.md', room: 'src/tracker/rooms/github/room/backend.ts' },
   { id: 'markdown', register: MARKDOWN_CAPABILITY_REGISTER, md: 'docs/tracker/capability-markdown.md', room: 'src/tracker/rooms/markdown/index.ts' },
   { id: 'gitlab', register: GITLAB_CAPABILITY_REGISTER, md: 'docs/tracker/capability-gitlab.md', room: 'src/tracker/rooms/gitlab/index.ts' },
+  { id: 'gitea', register: GITEA_CAPABILITY_REGISTER, md: 'docs/tracker/capability-gitea.md', room: 'src/tracker/rooms/gitea/index.ts' },
 ]
 
 let failed = false

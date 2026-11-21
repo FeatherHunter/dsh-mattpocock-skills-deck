@@ -133,6 +133,16 @@ export interface PreflightResult {
    * 中途失败不挂 provenance（失败结果只回答通不通，不冒充已读到的形状）。
    */
   readonly provenance?: ReadProvenance
+  /**
+   * 这一趟选中的执行器（票 #21，Gitea 房专用）：preflight 现场探测 gt，
+   * gt 可用记 'gt'，否则落回 tea 记 'tea'。其他后端不写这一格，读到缺席不算异常。
+   */
+  readonly executor?: 'gt' | 'tea'
+  /**
+   * 为什么落回 tea（Gitea 房专用）：gt 未安装 / gt 探测失败 / 服务器低于 Gitea 28，
+   * 失败原因原样写在这里，让人和日志都能看出「为什么没走 gt」；选了 gt 时不写。
+   */
+  readonly fallbackReason?: string
 }
 
 /**

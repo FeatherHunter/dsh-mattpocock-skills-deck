@@ -61,6 +61,15 @@ console.log('== ① 探测正确性（注册表两级联 matches>fallback + pend
   ok(p8.explicitBackendId==='markdown' && p8.confidence==='high', 'parse #277 markdown title wins over github body')
   const p9 = parseIssueTracker('# Issue tracker: GitLab\n also mentions markdown and github')
   ok(p9.explicitBackendId==='gitlab' && p9.confidence==='high', 'parse #277 gitlab title wins over markdown/github body')
+  // #2 Gitea/Forgejo 全链注册：标题两词同判 gitea 高置信，正文关键词走低置信证据。
+  const p10 = parseIssueTracker('# Issue tracker: Gitea\n')
+  ok(p10.explicitBackendId==='gitea' && p10.confidence==='high' && p10.reason==='title-gitea', 'parse gitea title high')
+  const p11 = parseIssueTracker('# Issue tracker: Forgejo\n')
+  ok(p11.explicitBackendId==='gitea' && p11.confidence==='high', 'parse forgejo title -> gitea')
+  const p12 = parseIssueTracker('# Issue tracker: Gitea\n also mentions markdown and github')
+  ok(p12.explicitBackendId==='gitea' && p12.confidence==='high', 'parse gitea title wins over markdown/github body')
+  const p13 = parseIssueTracker('票记在 gitea 上，用 tea 命令读写。')
+  ok(p13.explicitBackendId==='gitea' && p13.confidence==='low' && p13.reason==='keyword-gitea', 'parse gitea body keyword low')
 }
 // explicitDetector via mock platform
 {

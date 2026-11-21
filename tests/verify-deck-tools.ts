@@ -749,6 +749,16 @@ async function main() {
     check(injectedCalls.length === 1 && injectedCalls[0] === 50, '注入的等待口被用了一次，毫秒数是依赖里配的 50（实得 ' + JSON.stringify(injectedCalls) + '）')
   }
 
+  // ── ⑮ 票 #5：锚文件声明未收录后端 + prose 工作流 → 回执要说清差别与两条下一步，不能与「什么都没有」混一句话 ──
+  {
+    const sessionMod5 = await imp('src/deck/tools/tracker-session.ts')
+    const proseDeps = Object.assign({}, deps, { decideBackend: async () => ({ backendId: null, source: 'fallback', origin: 'none', canWrite: false, reason: 'prose-tracker-unsupported', state: 'prose-tracker-unsupported', gap: { id: 'declaration-prose-unsupported', looked: [], missing: '', fix: '', text: '', detail: 'Jira' }, conflict: null, coverage: { scope: 'decisive', checked: [], skipped: [] }, steps: [] }) })
+    const opened5 = await sessionMod5.openDeckSession({ deps: proseDeps, exec: exec, session: { cwd: ws.rootPosix, workspaceKey: 'ws-prose', sessionId: 's-715' }, estimate: { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' }, tool: 'deck_context', kind: 'op' })
+    check(opened5 && opened5.ok === false && opened5.reason === 'no-backend', 'prose 判别仍回原因码 no-backend（协议兼容，调用方认这个字面量）', JSON.stringify(opened5 && opened5.reason))
+    const t5 = String(opened5 && opened5.text)
+    check(t5.indexOf('Jira') >= 0 && (t5.indexOf('prose') >= 0 || t5.indexOf('收录') >= 0), '回执带声明的后端名与两条下一步（prose 手工路径 / 请求收录）', t5)
+  }
+
   ws.cleanup()
   try { fs.rmSync(workPathHome, { recursive: true, force: true }) } catch (e) {}
   try { dispose.dispose() } catch (e) {}

@@ -64,6 +64,10 @@ async function main() {
   assert.deepStrictEqual(idOf(guide.guideStepsFor('markdown')), ['selection:backendSelected', 'tracker:initialized', 'skill:wayfinder'], 'markdown 只拿到通用那三步（不插仓库段）')
   // #1190 起 gitlab 不再与 markdown 同形：自家三步进清单（装/登录/仓库），通用三步照旧。
   assert.deepStrictEqual(idOf(guide.guideStepsFor('gitlab')), ['selection:backendSelected', 'glab:installed', 'glab:authed', 'glab:repoAccess', 'tracker:initialized', 'skill:wayfinder'], 'gitlab 拿到自家三步 + 通用三步（gh 三步不混入）')
+  // gitea 也是内置后端（src/tracker/registry/builtins.ts），清单必须收录它：
+  // 漏收时 guideStepsFor('gitea') 为空，横幅判定落回 GitHub 清单兜底，
+  // 其挡初始化步 gh:remote 在 gitea 链快照里永不出现，于是「环境状态没取到」横幅常驻不散。
+  assert.deepStrictEqual(idOf(guide.guideStepsFor('gitea')), ['selection:backendSelected', 'tracker:initialized', 'skill:wayfinder'], 'gitea 拿到通用那三步（与 markdown 同形，不插仓库段）')
   assert.deepStrictEqual(guide.guideStepsFor(null), [], '后端没定时返回空数组')
   assert.deepStrictEqual(guide.guideStepsFor(''), [], '后端为空串时返回空数组')
   assert.deepStrictEqual(guide.guideStepsFor('其它'), [], '未知后端返回空数组')

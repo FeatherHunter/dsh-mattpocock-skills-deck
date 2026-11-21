@@ -63,78 +63,17 @@ import type { RepositoryRef } from '../contract/entities.js';
 import type { Selection } from '../contract/results.js';
 import type { DeclarationLayerDeps, FileLayerDeps, WorkspaceFileParsed } from './readEvidenceLayers.js';
 import { readDeclarationLayer, readFileLayer } from './readEvidenceLayers.js';
+// 这几样小工具（优先级常量、证据构造函数、覆盖度）拆去了 evidenceHelpers.ts（票 #6 收口）：
+// 这里照常引用并对外再导出，别的文件仍按老路径导入，不必跟着改。
+import { EVIDENCE_PRIORITY, verdictEvidence, abstainEvidence, unavailableEvidence, skippedEvidence, coverageOf, formatCoverage } from './evidenceHelpers.js';
+export { EVIDENCE_PRIORITY, verdictEvidence, abstainEvidence, unavailableEvidence, skippedEvidence, coverageOf, formatCoverage };
+// 证据形状的六个类型也搬去了 evidenceHelpers.ts（票 #6 收口，方向只能单向）：
+// 这里按类型导入并对外再导出，别的文件仍按老路径导入，不必跟着改。
+export type { EvidenceTier, EvidenceScope, EvidenceOutcomeWord, EvidenceKind, SelectionSource, TierEvidence, DecisionCoverage } from './evidenceHelpers.js';
+import type { EvidenceTier, EvidenceScope, EvidenceOutcomeWord, EvidenceKind, SelectionSource, TierEvidence, DecisionCoverage } from './evidenceHelpers.js';
 // 这几个类型原来就长在这个文件里、对外导出；读法搬走后从新文件原样再导出一遍，
 // 别的文件仍可按老路径导入，不必跟着改。
 export type { DeclarationIdHint, DeclarationLayerDeps, FileLayerDeps, WorkspaceFileParsed } from './readEvidenceLayers.js';
-
-/* ══════════════════════════════════════════════════════════════════════════════
- * 一、证据的形状：层与全序（政策即数据）
- * ════════════════════════════════════════════════════════════════════════════ */
-
-/**
- * 证据层。取值就是步骤行里的 `step` 取值（稳定，写进日志，改含义要发新事件）：
- * workspace-file（工作区文件里人选的那一层）/ declaration（声明文件那一层）/ autodetect（各房认领）。
- */
-export type EvidenceTier = 'workspace-file' | 'declaration' | 'autodetect'
-
-/**
- * 三层证据的优先级，**唯一的声明处**：人选 > 声明文件 > 各房认领。
- * 它是一条全序，判断因此可以「取第一条结论」而不必两两比较，也无所谓谁先谁后地问。
- */
-export const EVIDENCE_PRIORITY: readonly EvidenceTier[] = ['workspace-file', 'declaration', 'autodetect']
-
-/**
- * 证据范围：收多深由问的人想干什么决定。
- *  - decisive：要一个结论。高优先级层给出结论就停。
- *  - exhaustive：要一份诊断。三层全收，跨层矛盾才看得见。
- */
-export type EvidenceScope = 'decisive' | 'exhaustive'
-
-/**
- * 一层证据这一步的结论用词（稳定，写进步骤行）：
- * hit（给出可用后端）/ miss（看过了，这一层没有可用的记录）/ unreadable（记录在但读不出、格式不对）
- * / unknown-backend（写了后端名，但那个后端没装上）/ pending（认领超时未决）/ error（这一步出错了）
- * / skipped（有意没看这一层）。
- */
-export type EvidenceOutcomeWord = 'hit' | 'miss' | 'unreadable' | 'unknown-backend' | 'pending' | 'error' | 'skipped'
-
-/**
- * 这一层这一步的意义分四类，与用词的关系写在下面的构造函数里：
- * verdict（给出了可用结论）/ abstain（看过了，没有结论）/ unavailable（没看成或问不成）/ skipped（有意没看）。
- * 判定层只认 kind，日志层只认 outcome，两者不许对不上——所以只经构造函数产出。
- */
-export type EvidenceKind = 'verdict' | 'abstain' | 'unavailable' | 'skipped'
-
-/**
- * 一层证据的收集结果：这一步看了什么、结论是什么、为什么。
- * 可选格只在特定层有意义：fileSource 只有工作区文件层有（user / migrated / detected / auto，
- * 用来分辨人选与搬来的记录）；multiHit / pending / ref / source 只有各房认领层有。
- * declarationConfidence 只有声明文件层有（#1572）：高置信来自标题行；正文关键词的低置信在读取层
- * 就记成 abstain（方案 A），不会走到 pickVerdict 产出结论，这里只作证据元数据保留。
- */
-export interface TierEvidence {
-  tier: EvidenceTier
-  kind: EvidenceKind
-  outcome: EvidenceOutcomeWord
-  reason: string
-  backendId: string
-  fileSource?: unknown
-  source?: SelectionSource
-  multiHit?: string[]
-  pending?: true
-  ref?: RepositoryRef | null
-  declarationConfidence?: 'high' | 'low'
-}
-
-/**
- * 覆盖度：这次真看了哪几层、哪几层是有意没看、为什么。
- * 它存在的理由只有一条：让「没有发现矛盾」与「没有去看」分得开（与三态同一条原则）。
- */
-export interface DecisionCoverage {
-  scope: EvidenceScope
-  checked: EvidenceTier[]
-  skipped: { tier: EvidenceTier; why: string }[]
-}
 
 /** 一份证据报告：收集层的产出，判定层的唯一输入。 */
 export interface EvidenceReport {
@@ -182,17 +121,11 @@ export type DecisionSelection = Omit<Selection, 'ref'> & {
 };
 
 /**
- * 「这个结论怎么来的」的四种取值，直接取自契约（不另立一份，免得两处各说各话）。
- * 内部一概用这一份：谁要是写了个契约里没有的来源名，类型检查当场红。
- */
-export type SelectionSource = Selection['source'];
-
-/**
  * 判定内部的三态（#1048·#1047 决策 4）：有结论 / 判不出来（缺什么）/ 明确没有后端。
  * 后两者长得像、意思相反：undetermined 是“没查清”，no-backend 是“查清了，确实没有”。
  * 对外交出去的五个字段不含这一格，它是给排查与将来界面的。
  */
-export type DecisionState = 'decided' | 'undetermined' | 'no-backend'
+export type DecisionState = 'decided' | 'undetermined' | 'no-backend' | 'prose-tracker-unsupported'
 
 /**
  * 一条证据步骤：这一层看了什么、这一步的结论是什么、花了多久、为什么还要往下走。
@@ -318,11 +251,13 @@ export interface DecidePureInput {
 }
 
 /**
- * 多个后端同时认领时的明文裁剪顺序（#1048·#1047 决策 3）：GitHub > Markdown > GitLab。
- * 名单里没有的房间排在这三个之后（保持它们自己的相对次序）。这条顺序由
- * tests/verify-detection-evidence.ts 钉住，改这里必须同时改那条门禁。
+ * 多个后端同时认领时的明文裁剪顺序（#1048·#1047 决策 3；#2 追加 Gitea）：GitHub > Markdown > GitLab > Gitea。
+ * 名单里没有的房间排在这四家之后（保持它们自己的相对次序）。这条顺序必须与
+ * src/tracker/registry/builtins.ts 的 BUILTIN_ROOM_IDS 逐位一致，且由 tests/verify-detection-evidence.ts
+ * 的 D 节钉住，改这里必须同时改那两处。
+ * 注意：这套顺序只管「多个后端同时认领时按谁裁剪留下谁」，与 issue-tracker-declaration.ts 解析器里的标题互斥顺序（标题声明多个后端名时谁拿 high）是两套各管各的顺序，不要混为一谈。
  */
-export const MULTI_CLAIM_ORDER: readonly string[] = ['github', 'markdown', 'gitlab'];
+export const MULTI_CLAIM_ORDER: readonly string[] = ['github', 'markdown', 'gitlab', 'gitea'];
 
 /* ══════════════════════════════════════════════════════════════════════════════
  * 三、小工具
@@ -380,30 +315,6 @@ function isKnown(registry: DecisionRegistry | null | undefined, id: string): boo
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
- * 四、证据的构造函数（kind 与 outcome 只在这里配对，别处不许手写）
- * ════════════════════════════════════════════════════════════════════════════ */
-
-/** 这一层给出了可用结论：kind=verdict，日志用词 hit。 */
-export function verdictEvidence(tier: EvidenceTier, backendId: string, reason: string, extra: Partial<TierEvidence> = {}): TierEvidence {
-  return Object.assign({ tier: tier, kind: 'verdict' as EvidenceKind, outcome: 'hit' as EvidenceOutcomeWord, reason: String(reason), backendId: String(backendId || '') }, extra);
-}
-
-/** 看过了，这一层没有可用的记录：kind=abstain，日志用词 miss。 */
-export function abstainEvidence(tier: EvidenceTier, reason: string): TierEvidence {
-  return { tier: tier, kind: 'abstain', outcome: 'miss', reason: String(reason), backendId: '' };
-}
-
-/** 没看成 / 问不成 / 认了个没装的后端：这一层拿不到结论。 */
-export function unavailableEvidence(tier: EvidenceTier, outcome: EvidenceOutcomeWord, reason: string, backendId = ''): TierEvidence {
-  return { tier: tier, kind: 'unavailable', outcome: outcome, reason: String(reason), backendId: String(backendId || '') };
-}
-
-/** 有意没看这一层：why 是原因（写进覆盖度），reason 是步骤行里的原因用词。 */
-export function skippedEvidence(tier: EvidenceTier, reason: string): TierEvidence {
-  return { tier: tier, kind: 'skipped', outcome: 'skipped', reason: String(reason), backendId: '' };
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
  * 五、判断（纯核：不碰文件系统、不问注册表，只吃一份证据报告）
  * ════════════════════════════════════════════════════════════════════════════ */
 
@@ -456,6 +367,15 @@ const DECISION_GAPS: Record<string, { looked: string[]; missing: string; fix: st
     missing: '声明文件写明的后端「{detail}」没有装上',
     fix: '装上那个后端，或者把声明文件里的标题改成已装的后端',
     text: '声明文件里写明的后端「{detail}」没有装上：装上它，或者改这一行标题，就能定下来。',
+  },
+  // 票 #5：声明文件标题写了一个插件未收录的后端名、正文又看得出一份 prose 工作流约定。
+  // 这一档与「declaration-unknown-backend」的差别在下一步：这里不催人换后端，而是告诉他
+  // 可以照锚文件自己的 prose 约定手工操作，或者到插件仓库请求把那个后端收录进来。
+  'declaration-prose-unsupported': {
+    looked: ['声明文件 docs/agents/issue-tracker.md', '各房自己的认领（matches）'],
+    missing: '声明文件写明的后端「{detail}」这个插件没有收录',
+    fix: '照锚文件里的 prose 约定手工管理工单，或者到插件仓库请求收录「{detail}」',
+    text: '声明文件写明的后端「{detail}」这个插件没有收录，无法直接接管工单。你可以照 docs/agents/issue-tracker.md 里的 prose 约定手工操作工单，或者到插件仓库请求收录这个后端。',
   },
   'autodetect-error': {
     looked: ['各房自己的认领（matches）'],
@@ -597,32 +517,6 @@ function conflictOf(claims: readonly { source: string; backendId: string }[], us
   return { kind: conflictKindOf(tiers), ids, used: String(used || '') };
 }
 
-/** 覆盖度：哪些层真看了、哪些层有意没看、为什么。 */
-export function coverageOf(evidence: readonly TierEvidence[], scope: EvidenceScope): DecisionCoverage {
-  const checked: EvidenceTier[] = [];
-  const skipped: { tier: EvidenceTier; why: string }[] = [];
-  const rows = evidence || [];
-  for (const tier of EVIDENCE_PRIORITY) {
-    const row = rows.find((e) => e.tier === tier);
-    if (!row) continue;
-    if (row.kind === 'skipped') skipped.push({ tier: tier, why: row.reason });
-    else checked.push(tier);
-  }
-  return { scope: scope, checked: checked, skipped: skipped };
-}
-
-/**
- * 覆盖度的日志用文本（一个字段、逗号分号分隔，方便 grep）：
- * `checked=workspace-file,declaration;skipped=autodetect:skipped-stronger-evidence`。
- * 没有跳过的层就省略后半段。
- */
-export function formatCoverage(c: DecisionCoverage | null | undefined): string {
-  if (!c) return '';
-  const head = 'checked=' + c.checked.join(',');
-  if (!c.skipped.length) return head;
-  return head + ';skipped=' + c.skipped.map((s) => s.tier + ':' + s.why).join(',');
-}
-
 /**
  * 失败档位：按证据顺序取第一条最具体的。
  * 顺序即「离结论最近的那一处问题先说」：工作区文件（人选那一层）→ 声明文件 → 各房认领。
@@ -637,6 +531,8 @@ export function gapOfEvidence(evidence: readonly TierEvidence[], pendingOnly = f
   if (file && file.reason === 'file-read-failed') return decisionGapOf('file-read-failed');
   if (file && (file.outcome === 'unreadable' || file.outcome === 'error')) return decisionGapOf('file-unreadable');
   if (file && file.reason === 'file-layer-unavailable') return decisionGapOf('layer-unavailable');
+  // 票 #5：prose 工作流的档位要在通用「未知后端」之前判——同一 outcome，两种下一步，不能混一档。
+  if (decl && decl.outcome === 'unknown-backend' && decl.reason === 'declaration-prose-unsupported') return decisionGapOf('declaration-prose-unsupported', decl.backendId);
   if (decl && decl.outcome === 'unknown-backend') return decisionGapOf('declaration-unknown-backend', decl.backendId);
   if (decl && decl.reason === 'declaration-read-failed') return decisionGapOf('declaration-read-failed');
   if (decl && (decl.outcome === 'error' || decl.outcome === 'unreadable')) return decisionGapOf('declaration-unreadable');
@@ -683,7 +579,16 @@ export function synthesize(report: EvidenceReport): DecisionSynthesis {
   const nothingThere = cleanMiss(get('workspace-file'), ['file-missing', 'file-no-backend'])
     && cleanMiss(get('declaration'), ['declaration-missing', 'declaration-no-backend'])
     && cleanMiss(claim, ['matches-no-claim']);
-  const state: DecisionState = pendingOnly ? 'undetermined' : (nothingThere ? 'no-backend' : 'undetermined');
+  // 票 #5：声明层认出了「标题声明未收录后端 + prose 工作流」，其余两层都干净地说没有——
+  // 这时给独立的第四态，不再落进裸的 no-backend：两者对人的下一步完全不同（prose 自定义
+  // 路径或请求收录 vs 什么都不用做）。「查清了确实没有」的判据仍然要求各房真问过（cleanMiss）。
+  const proseUnsupported = (() => {
+    const declRow = get('declaration');
+    return !!declRow && declRow.kind === 'unavailable' && declRow.reason === 'declaration-prose-unsupported'
+      && cleanMiss(get('workspace-file'), ['file-missing', 'file-no-backend'])
+      && cleanMiss(claim, ['matches-no-claim']);
+  })();
+  const state: DecisionState = pendingOnly ? 'undetermined' : proseUnsupported ? 'prose-tracker-unsupported' : (nothingThere ? 'no-backend' : 'undetermined');
   const gap = gapOfEvidence(evidence, pendingOnly);
   // 对外五个字段里的 reason 保持 #1003 期的取值不变（调用方认这个字面量）；
   // 「这次到底问没问过各房」由 state 与 gap 如实表达，不挤进 reason。
@@ -694,7 +599,7 @@ export function synthesize(report: EvidenceReport): DecisionSynthesis {
     verdict: null,
     selection: selection,
     canWrite: false,
-    reason: pendingOnly ? 'pending' : 'no-backend',
+    reason: pendingOnly ? 'pending' : proseUnsupported ? 'prose-tracker-unsupported' : 'no-backend',
     state: state,
     gap: gap,
     conflict: conflict,
@@ -823,6 +728,11 @@ async function collectEvidence(cwd: string, deps: DecideBackendDeps, scope: Evid
   if (declRead.outcome === 'hit') {
     if (isKnown(registry, declRead.id)) declEvidence = verdictEvidence('declaration', declRead.id, declRead.reason, { declarationConfidence: declRead.confidence || 'high' });
     else declEvidence = unavailableEvidence('declaration', 'unknown-backend', 'declaration-backend-unknown', declRead.id);
+  } else if (declRead.outcome === 'unknown-backend') {
+    // 票 #5：声明读法认出了「标题声明未收录后端 + prose 工作流」。记成 unavailable 而不是 abstain，
+    // 名字留在 backendId 里供档位文案用；与「声明了已收录但没装上」共用 unknown-backend 这个 outcome，
+    // 区分靠 reason（declaration-prose-unsupported / declaration-backend-unknown）。
+    declEvidence = unavailableEvidence('declaration', 'unknown-backend', declRead.reason, declRead.id);
   } else if (declRead.outcome === 'error') {
     declEvidence = unavailableEvidence('declaration', 'error', declRead.reason);
   } else {

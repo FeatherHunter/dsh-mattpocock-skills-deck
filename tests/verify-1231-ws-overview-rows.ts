@@ -157,6 +157,16 @@ async function main(): Promise<void> {
     check(out.rows[0].bound === false && out.rows[0].unboundHint === null, '查清了确实没有的行保持普通未绑定，不加线索');
   }
   {
+    // 票 #5：prose-tracker-unsupported 是独立的第四态，行上要带自己的 prose 线索，
+    // 不能与「查清了确实没有」混成同一个普通未绑定（两者的下一步完全不同）。
+    const out = computeWsOverviewRows(
+      ['D:/a/prose'],
+      { 'D:/a/prose': { backendId: null, source: 'fallback', state: 'prose-tracker-unsupported' } },
+      depsOf({}),
+    );
+    check(out.rows[0].bound === false && out.rows[0].unboundHint === 'prose', '锚文件声明未收录后端 + prose 工作流的行带 prose 线索（票 #5）');
+  }
+  {
     const out = computeWsOverviewRows(
       ['D:/a/pend'],
       { 'D:/a/pend': { backendId: null, source: 'fallback', pending: true } },

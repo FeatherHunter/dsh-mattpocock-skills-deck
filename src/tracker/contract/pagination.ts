@@ -1,5 +1,5 @@
 /**
- * src/tracker/contract/pagination.ts —— 三个后端房间（GitHub、GitLab、本地 Markdown）共用的分页与额度数字表。
+ * src/tracker/contract/pagination.ts —— 四个后端房间（GitHub、GitLab、Gitea、本地 Markdown）共用的分页与额度数字表。
  *
  * 为什么要有这一份：
  *   这三个数字族原先在各房各写一份，同一个含义散在十几个文件里 —— 列出给界面的分页契约（缺省 50、上限 200）
@@ -20,7 +20,7 @@
  *
  * 谁在读它：GitHub 房（page / maps / sub-issues / pulls / issues / label-colors-ops / idempotency / queries /
  * graph / parent-repair）、GitLab 房（pages / maps / labels-ops / sub-issues / idempotency / graph-blocking）、
- * 本地 Markdown 房（page）。各房原来的导出名与导出位置保持不变，只是值改成从这里取，外部调用方与现有测试
+ * Gitea 房（issues / labels / maps / sub-issues / graph / pages，票 #11）、本地 Markdown 房（page）。各房原来的导出名与导出位置保持不变，只是值改成从这里取，外部调用方与现有测试
  * 不需要改。
  *
  * 改这里的数字必须同时改 tests/verify-pagination-limits.ts 里的期望值清单：那份门禁逐项比对本表，
@@ -80,6 +80,27 @@ export const PAGINATION = {
     anchorLookupScanLimit: 100,
     // 地图薄查最多翻几页：与 GitHub 房同一个契约上限（两房行为一致才不让人猜）。
     mapListMaxPages: 10,
+  },
+  gitea: {
+    // 分页契约：与另外两房同一套（缺省 50、上限 200）。
+    limitDefault: 50,
+    limitMax: 200,
+    // tea 命令 --limit 的一页上限：本房的命令词汇表按 100 钉（fixture 与假 tea 同一口径，真机核对后若有出入只改这里）。
+    maxPerPage: 100,
+    // 子票读：翻页扫仓时一页取 100 张，最多装 1000 张（契约 operations.ts 的硬上限，与 GitHub / GitLab 房同一个数）。
+    subIssuesPageSize: 100,
+    subIssuesMax: 1000,
+    // 列标签：每页 100 条、最多翻 100 页（与 GitLab 房同一档：100 页 × 100 条比真实仓库的标签数高三个数量级）。
+    labelListPerPage: 100,
+    labelListMaxPages: 100,
+    // tea 没有统计端点，counts/listPage 的 total 靠翻页扫出来数：最多扫 100 页（10000 张），扫不满就如实失败，不猜数。
+    countScanMaxPages: 100,
+    // 地图薄查最多翻几页：与 GitHub / GitLab 房同一个契约上限。
+    mapListMaxPages: 10,
+    // 权限扫仓（getRepoPermissions，票 #14）：tea repos ls 翻页找当前仓库，一页 50 条、最多 100 页；
+    // 只是在清单里找一行，找不到如实失败，不需要取全清单。
+    repoScanPerPage: 50,
+    repoScanMaxPages: 100,
   },
   markdown: {
     // 本地 Markdown 房只有分页契约这一组数字：缺省 50、上限 200，与另外两房同一口径。

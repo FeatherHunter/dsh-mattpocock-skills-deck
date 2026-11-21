@@ -190,6 +190,7 @@ zh:
   cfg.wsMergedCount: （共 {n} 个目录）
   cfg.wsHintWait: 还没就绪：正在准备，稍后点刷新重试
   cfg.wsHintCheck: 没能查清绑定状态：先看该工作区根下的 docs/agents/workspace.yaml 在不在、能不能读，还不行再点刷新
+  cfg.wsHintProse: 插件没有收录锚文件声明的后端：可照 docs/agents/issue-tracker.md 里的 prose 约定手工操作工单，或到插件仓库请求收录
   panel.wsMarkTip: |-
     面板数据来自工作区 {root}
     当前目录是它的子目录：{rel}
@@ -568,6 +569,7 @@ en:
   cfg.wsMergedCount: ({n} folders)
   cfg.wsHintWait: "Not ready yet: still preparing; refresh and retry in a moment"
   cfg.wsHintCheck: "Could not determine the binding: check whether docs/agents/workspace.yaml under that workspace root exists and is readable, otherwise refresh and retry"
+  cfg.wsHintProse: "The backend declared in the anchor file is not supported by this plugin yet: follow the prose workflow in docs/agents/issue-tracker.md by hand, or request support in the plugin repository"
   panel.wsMarkTip: |-
     Panel data comes from workspace {root}
     The current folder is a subfolder of it: {rel}

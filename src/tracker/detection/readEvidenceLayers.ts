@@ -20,7 +20,7 @@ import * as workspaceFileNS from '../../deck/shell/workspace-anchor.js'
 // 解析器直接引内核里的实现（detection/parseIssueTracker.ts 只是同层的转出口）：
 // 自己再引转出口会在检测层里多出一条同层互引的边，而追踪器层的同层规则只许减不许增；
 // 内核本来就对房间与宿主开放，引它不算越层，解析口径也仍然只有内核那一份（#1555 / #1048）。
-import { parseIssueTracker } from '../kernel/issue-tracker-declaration.js'
+import { parseIssueTracker, parseDeclaredBackendTitle, checkProseWorkflow } from '../kernel/issue-tracker-declaration.js'
 import type { SandboxFs } from '../contract/contexts.js'
 
 const parseWorkspaceFile = workspaceFileNS.parseWorkspaceFile
@@ -187,6 +187,14 @@ export async function readDeclarationLayer(cwd: string, deps: DeclarationLayerDe
         // 不给判定层当结论；高置信标题照旧是 hit。
         const low = parsed.confidence === 'low';
         return { id: parsed.explicitBackendId, outcome: low ? 'abstain' : 'hit', confidence: low ? 'low' : 'high', reason: declarationReason(low ? 'low' : 'high', parsed.reason) };
+      }
+      // 票 #5：解析器认不得标题声明的后端名（no-keyword），但标题确实声明了一个名字、
+      // 正文又能认出 prose 工作流结构 —— 这种情况交回 unknown-backend 与独立原因，
+      // 让判定层判成 prose-tracker-unsupported，而不是与「什么都没声明」混成同一种 miss。
+      // 少了任一条（没有名字、或正文没有工作流结构）都照旧回 miss，行为不变。
+      const declared = parseDeclaredBackendTitle(raw);
+      if (declared && checkProseWorkflow(raw)) {
+        return { id: declared.name, outcome: 'unknown-backend', reason: 'declaration-prose-unsupported' };
       }
       return { id: '', outcome: 'miss', reason: 'declaration-no-backend' };
     }

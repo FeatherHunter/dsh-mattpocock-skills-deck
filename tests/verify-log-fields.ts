@@ -70,7 +70,12 @@ const ALLOWED = {
   //   为什么补这三格：探测每一拍都失败时，日志里只有 reason 说不清远端到底回了哪一档；换页大小那件事更要一对数字
   //   才看得出「从 100 退到了 50」。票号、命令原文、上游报错原文依然一个字都不记。发射口在
   //   src/tracker/rooms/github/support/read-log.ts 的 emitReadDegraded。
-  'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter'],
+  // 2026-11-11（双轴评审收编）再增补两格 `backend` 与 `elapsedMs`：gitea 房的发射口
+  //   （src/tracker/rooms/gitea/support/read-log.ts）从落地起就是 { backend, op, reason, elapsedMs }
+  //   这四个键——backend 标明这一行是哪座房落的（短枚举 'gitea'），elapsedMs 与另三房的 latencyMs
+  //   同义不同名（同名是一次行为变化，不在收编范围内）。取值纪律（op/reason 只许登记值）另由
+  //   tests/verify-gitea-read-log.ts 一扇专门把守，这里只收字段键。
+  'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter', 'backend', 'elapsedMs'],
   // 2026-10-14（#1052 补做）常驻 #109 `preflight.gate`：探测那三项门禁每过一项各落一行，第三项过了也落一行。
   //   为什么过了也记：三项门禁落三行长得一样的 gh.exec，没有这一行就读不出「探测走到底了」还是「第一关就没过」。
   //   四个键：gate 第几项（1 起 gh / 2 登录态 / 3 认得出仓库且连得上接口）、reason 为什么（过了一律写 ok）、
@@ -652,7 +657,8 @@ const ROOM_SHAPES = {
   // 2026-10-29（#1627）再增补一格 `rateClass`（分类结果写在失败行、其余行写空串；含义见上面 ALLOWED 里 gh.exec 那一段注释）。
   'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource', 'rateClass'],
   // 2026-10-14（#1052 补做）房内两条新结论线的形状（字段含义见上面 ALLOWED 里同名的两段注释）。
-  'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter'],
+  // 2026-11-11（双轴评审收编）：gitea 房两格 backend / elapsedMs，含义见上面 ALLOWED 里同名注释段。
+  'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter', 'backend', 'elapsedMs'],
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
   'gh.timeout': ['argv0', 'opId', 'timeoutMs', 'layer', 'via', 'cmd', 'waitedMs', 'phase'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],

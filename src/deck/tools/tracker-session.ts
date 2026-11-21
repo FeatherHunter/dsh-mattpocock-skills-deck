@@ -154,6 +154,12 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   const source = str(selection && selection.source);
   if (!selection || selection.backendId == null) {
     const pending = !!(selection && selection.pending);
+    // 票 #5：锚文件声明了插件未收录的后端、且正文看得出 prose 工作流约定时，判别是独立的
+    // prose-tracker-unsupported，不是「什么都没有」。回执要说清这两者的差别与两条下一步：
+    // 照锚文件的 prose 约定手工操作，或者到插件仓库请求收录。原因码保持 no-backend（协议兼容，
+    // 调用方认这个字面量），独立判别靠这段文案表达。
+    const declaredBackendName = (outlet && str(outlet.state) === 'prose-tracker-unsupported' && outlet.gap && typeof outlet.gap === 'object' && str((outlet.gap as UnknownRecord).detail)) || '';
+    if (declaredBackendName) return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: '锚文件声明的后端「' + declaredBackendName + '」这个插件没有收录，无法直接接管工单。你可以照 docs/agents/issue-tracker.md 里的 prose 约定手工操作工单，或者到插件仓库请求收录这个后端。' };
     return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: pending ? '后端还没定下来（自动识别有超时未决），先在面板上选一次后端。' : '这个工作区还没有后端（既没有手动选过，也没有识别到锚文件）。先在面板上选一个后端。' };
   }
   if (source !== 'explicit' && ((Array.isArray(selection.multiHit) && (selection.multiHit as unknown[]).length > 1) || selection.pending)) {

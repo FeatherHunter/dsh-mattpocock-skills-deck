@@ -65,6 +65,19 @@ const EXPECTED = {
     anchorLookupScanLimit: 100,
     mapListMaxPages: 10,
   },
+  gitea: {
+    limitDefault: 50,
+    limitMax: 200,
+    maxPerPage: 100,
+    subIssuesPageSize: 100,
+    subIssuesMax: 1000,
+    labelListPerPage: 100,
+    labelListMaxPages: 100,
+    countScanMaxPages: 100,
+    mapListMaxPages: 10,
+    repoScanPerPage: 50,
+    repoScanMaxPages: 100,
+  },
   markdown: {
     limitDefault: 50,
     limitMax: 200,
@@ -241,9 +254,9 @@ check(importHits.length === 0, '用了 PAGINATION 的房内文件都从共享表
 check(fs.existsSync(path.join(ROOT, SHARED)), `共享表文件存在：${SHARED}`, { path: SHARED, key: 'exists', note: '共享表文件不存在' })
 const groups = typeof actualTable === 'object' && actualTable !== null ? Object.keys(actualTable as Record<string, unknown>).sort() : []
 check(
-  groups.join(',') === 'github,gitlab,markdown',
-  '共享表按三个后端分组：github、gitlab、markdown',
-  groups.join(',') === 'github,gitlab,markdown' ? undefined : { path: SHARED, key: 'groups', note: `共享表的分组是 ${groups.join(',') || '(空)'}，期望 github,gitlab,markdown` },
+  groups.join(',') === 'gitea,github,gitlab,markdown',
+  '共享表按四个后端分组：gitea、github、gitlab、markdown',
+  groups.join(',') === 'gitea,github,gitlab,markdown' ? undefined : { path: SHARED, key: 'groups', note: `共享表的分组是 ${groups.join(',') || '(空)'}，期望 github,gitlab,markdown` },
 )
 
 console.log('')
