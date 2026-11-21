@@ -37,10 +37,20 @@ export function makeCreateErrorClassifier(deps: CreateErrorClassifierDeps): Crea
     const low = String(errText || '').toLowerCase()
     // 属主不一致必须先判：它的原文里既有路径又有命令，不能让后面的规则先认走。
     if (isOwnership(errText)) return KIND_GIT_OWNERSHIP
+    // 「同名仓库已存在」必须留在权限判定之前：GitHub 对这事也回 HTTP 403，
+    //   一旦下面那条按状态码判权限，用户就会被引导去核对登录账号，而不是去处理重名。
     if (/already exists|name already exists|already exists on github|repository.*already exists/i.test(low)) return 'already-exists'
+    // 限流同样必须先于权限判定：GitHub 的限流（含 secondary rate limit）也回 HTTP 403，
+    //   原文里既没有「already exists」也没有网络词，旧版会被按状态码吞成「权限不足」。
+    //   这里归到 network 档，界面文案是「网络异常，请重试」——正确的下一步本就是稍后重试，
+    //   而不是去改权限或重新登录；不新增档位是为了不牵动面板文案与判档单源门禁。
+    if (/rate ?limit|too many requests|abuse detection|请求过频/i.test(low)) return 'network'
     if (kind === 'network' || /network|econn|timed out|timeout|enotfound|getaddrinfo|connect etimedout|unable to access|failed to connect|could not resolve host/i.test(low)) return 'network'
     if (/not logged in|auth failed|bad credentials|authentication required|gh auth login/i.test(low)) return 'not-logged-in'
-    if (/permission|forbidden|403|401|insufficient|not authorized|resource not accessible|must be.*admin/i.test(low)) return 'permission'
+    // 不再匹配裸 403/401：它们是 HTTP 状态码，重名、限流、组织策略拦截都可能回 403，
+    //   光凭状态码就判「权限不足」会把排查方向整体带偏。只认真正的权限措辞；
+    //   只剩状态码、认不出来的原文落到底部 unknown，把原文交回给用户自己判断。
+    if (/permission|forbidden|insufficient|not authorized|resource not accessible|must be.*admin/i.test(low)) return 'permission'
     if (kind === 'auth') return 'not-logged-in'
     // 兜底：#993 之前这里是 'permission'。认不出来就说认不出来（unknown），并且界面必须把
     //   git 的原始报错给用户看到 —— 把「不知道」翻译成「没权限」会把人的排查方向整体带偏。
