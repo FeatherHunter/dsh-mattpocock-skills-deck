@@ -908,7 +908,16 @@
       "prs": []
     },
     "tlaunog001": {
-      "issues": [],
+      "issues": [
+        {
+          "n": 1973,
+          "at": "2026-11-21T15:11:54Z"
+        },
+        {
+          "n": 1974,
+          "at": "2026-11-21T16:43:48Z"
+        }
+      ],
       "prs": [
         {
           "n": 1971,
@@ -921,7 +930,7 @@
       ],
       "discussions": [],
       "comments": [],
-      "lastActive": "2026-11-21T08:39:47Z"
+      "lastActive": "2026-11-21T16:43:48Z"
     },
     "wassup-u": {
       "issues": [
@@ -1076,6 +1085,6 @@
   },
   "cursors": {
     "discussions": 1953,
-    "issues": 1972
+    "issues": 1974
   }
 }
