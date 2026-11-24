@@ -368,6 +368,18 @@
         }
       ]
     },
+    "Stinganran": {
+      "issues": [
+        {
+          "n": 1976,
+          "at": "2026-11-24T05:27:40Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-24T05:27:40Z"
+    },
     "SupingZhou": {
       "issues": [
         {
@@ -688,6 +700,18 @@
       ],
       "comments": [],
       "lastActive": "2026-10-22T12:33:10Z"
+    },
+    "meimei-123": {
+      "issues": [
+        {
+          "n": 1977,
+          "at": "2026-11-24T08:34:45Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-24T08:34:45Z"
     },
     "metapeka": {
       "issues": [
@@ -1089,6 +1113,6 @@
   },
   "cursors": {
     "discussions": 1953,
-    "issues": 1975
+    "issues": 1977
   }
 }
