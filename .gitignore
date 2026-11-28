@@ -9,6 +9,9 @@ _research/
 .dsh-waystation-cache/
 .dsh-mattskillsdeck-cache/
 .tmp/
+.npm-cache/
+.pnpm-home/
+.pnpm-store/
 .dsh-tmp/
 # 写 issue 正文时用的草稿落点（内容随票走，票上才是权威，本地不留档）
 .compile/

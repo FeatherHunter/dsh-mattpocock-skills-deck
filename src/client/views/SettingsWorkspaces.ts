@@ -66,7 +66,7 @@ export interface WsOverviewRow {
    * wait 是等就绪（还没判完或工作区没就绪，点刷新重试）；check 是查文件（判定没查清，去看工作区选择文件）；
    * null 是查清了确实没有（普通未绑定，保持原样）。分类只看统一结论自带的诊断格，不新判定。
    */
-  unboundHint: 'wait' | 'check' | null;
+  unboundHint: 'wait' | 'check' | 'prose' | null;
   /** 代表行的显示名（按最短唯一后缀算好，渲染层直接用）。 */
   display?: string;
 }
@@ -140,13 +140,16 @@ export const wsDisplayOf = function (path: string, keep: number): string {
  * wait：pending 为真（还没判完）或原因是工作区没就绪——都是“等”的情形，点刷新重试。
  * check：三态是没查清（undetermined）——文件可能缺席或读不出来，去查文件。
  * null：其余一律普通未绑定（查清了确实没有、结论缺席、将来结论带了不认识的新格），不加线索。
+ * prose：票 #5 的第四态（prose-tracker-unsupported）——锚文件声明了未收录的后端、正文有 prose
+ *   工作流约定，悬停要说清这与「什么都没有」的差别（可照 prose 约定手工操作或请求收录）。
  * 判定依据的格全是统一口自带的，这里只分类不重新判定；已绑定行不走这里（调用方保证）。
  */
-export const wsUnboundHintOf = function (sel: WsSelection | null): 'wait' | 'check' | null {
+export const wsUnboundHintOf = function (sel: WsSelection | null): 'wait' | 'check' | 'prose' | null {
   if (!sel) return null
   if (sel.pending === true) return 'wait'
   if (typeof sel.reason === 'string' && sel.reason === 'workspace-not-ready') return 'wait'
   if (typeof sel.state === 'string' && sel.state === 'undetermined') return 'check'
+  if (typeof sel.state === 'string' && sel.state === 'prose-tracker-unsupported') return 'prose'
   return null
 }
 
@@ -361,7 +364,7 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                 const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'
                 // #1238：未绑定行带失败线索时，来源标签的悬停换成线索文案（等就绪还是查文件分得清）；
                 //   标签本身的字样不动，正常未绑定行与已绑定行的悬停也都不动。
-                const srcTitle=row.unboundHint==='wait'?tr('cfg.wsHintWait'):row.unboundHint==='check'?tr('cfg.wsHintCheck'):source==='explicit'?tr('cfg.wsSrcExplicitTip'):source==='matches'?tr('cfg.wsSrcAutoTip'):tr('cfg.wsSrcUnsetTip')
+                const srcTitle=row.unboundHint==='wait'?tr('cfg.wsHintWait'):row.unboundHint==='check'?tr('cfg.wsHintCheck'):row.unboundHint==='prose'?tr('cfg.wsHintProse'):source==='explicit'?tr('cfg.wsSrcExplicitTip'):source==='matches'?tr('cfg.wsSrcAutoTip'):tr('cfg.wsSrcUnsetTip')
                 // 2026-11-03：工作区身份依据、归属标注、两个「一键纠正」按钮与历史遗留成员提示都已删除。
                 //   工作区根只认 docs/agents/workspace.yaml（从所选目录往上找），判定结果不需要在这里再解释一次；
                 //   原来那套依据（.git / 插件记录）与纠正动作（标为独立、并入上级）是 #1806 的临时机制，随身份记录一起删掉。

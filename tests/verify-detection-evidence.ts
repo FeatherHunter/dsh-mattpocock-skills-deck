@@ -12,7 +12,7 @@
  *    这正是本次讨论发现的缺陷：从前「没看成 / 没问成」与「问过没人认领」会写成同一句话。
  *  C 一次读取、一份结论：声明文件只读一次，且与探测器、工具壳共用 parseIssueTracker
  *    （出口原来自带那套只看标题、优先级还相反，已删）。
- *  D 多命中按明文顺序裁剪：MULTI_CLAIM_ORDER（GitHub > Markdown > GitLab）与装配顺序一致。
+ *  D 多命中按明文顺序裁剪：MULTI_CLAIM_ORDER（GitHub > Markdown > GitLab > Gitea）与装配顺序一致。
  *  E 证据矛盾带出来：「我选的」（工作区文件）与「项目里写的」（声明文件）不一致时，结论仍按顺序取，
  *    但矛盾进结果与日志，不静默吞掉。
  *  F 日志分层：平时一条结论（常驻事件 detection.detect，含来源、三态、档位、覆盖度、耗时、矛盾）；
@@ -43,6 +43,7 @@ import {
   verdictEvidence,
 } from '../src/tracker/detection/backendDecision.ts'
 import { parseIssueTracker } from '../src/tracker/detection/parseIssueTracker.ts'
+import { parseDeclaredBackendTitle, checkProseWorkflow } from '../src/tracker/kernel/issue-tracker-declaration.ts'
 import type { DecideRegistry } from '../src/tracker/detection/backendDecision.ts'
 import type { SandboxFs } from '../src/tracker/contract/contexts.ts'
 
@@ -277,6 +278,22 @@ async function main(): Promise<void> {
 
     // 声明文件里写了好几行标题：结论必须与 parseIssueTracker 一模一样（出口不再自带第二套优先级）。
     const multi = '# Issue tracker: GitLab\n# Issue tracker: GitHub\n# Issue tracker: Markdown\n'
+
+    // Gitea/Forgejo 标题（#2）：两个词同判 gitea 高置信，互斥顺序排在 gitlab 之后、markdown 之前。
+    const parsedGitea = parseIssueTracker('# Issue tracker: Gitea\n')
+    ok(parsedGitea.explicitBackendId === 'gitea' && parsedGitea.confidence === 'high' && parsedGitea.reason === 'title-gitea',
+      'Gitea 标题判 gitea 高置信（reason 是 title-gitea）', JSON.stringify(parsedGitea))
+    const parsedForgejo = parseIssueTracker('# Issue tracker: Forgejo\n')
+    ok(parsedForgejo.explicitBackendId === 'gitea' && parsedForgejo.confidence === 'high',
+      'Forgejo 标题同判 gitea（两个词指同一家软件）', JSON.stringify(parsedForgejo))
+    ok(parseIssueTracker('# Issue tracker: GitLab\n# Issue tracker: Gitea\n').explicitBackendId === 'gitlab',
+      'Gitea 与 GitLab 标题同现取 GitLab（互斥顺序 gitlab 在前）')
+    ok(parseIssueTracker('# Issue tracker: Gitea\n# Issue tracker: Markdown\n').explicitBackendId === 'gitea',
+      'Gitea 与 Markdown 标题同现取 Gitea（互斥顺序 gitea 在 markdown 之前）')
+    const teaBody = '票记在 gitea 上，用 tea 命令读写。\n'
+    const parsedTeaBody = parseIssueTracker(teaBody)
+    ok(parsedTeaBody.explicitBackendId === 'gitea' && parsedTeaBody.confidence === 'low' && parsedTeaBody.reason === 'keyword-gitea',
+      '正文提到 gitea/tea 只给低置信证据（explicitBackendId 是 gitea、reason 是 keyword-gitea）', JSON.stringify(parsedTeaBody))
     const f2 = fakeFs({ [DECL]: multi })
     const r2 = await decideBackend(CWD, { fs: f2.fs, registry: fakeRegistry(['github', 'gitlab', 'markdown']), skipAutodetect: true })
     const parsed = parseIssueTracker(multi)
@@ -323,10 +340,12 @@ async function main(): Promise<void> {
       JSON.stringify({ outlet: r4b.backendId, state: r4b.state, gap: r4b.gap ? r4b.gap.id : null }))
   }
 
-  title('D 多命中按明文顺序裁剪（GitHub > Markdown > GitLab）')
+  title('D 多命中按明文顺序裁剪（GitHub > Markdown > GitLab > Gitea）')
   {
-    ok(JSON.stringify(MULTI_CLAIM_ORDER) === JSON.stringify(['github', 'markdown', 'gitlab']),
-      '明文顺序常量就是 GitHub > Markdown > GitLab', JSON.stringify(MULTI_CLAIM_ORDER))
+    ok(JSON.stringify(MULTI_CLAIM_ORDER) === JSON.stringify(['github', 'markdown', 'gitlab', 'gitea']),
+      '明文顺序常量就是 GitHub > Markdown > GitLab > Gitea', JSON.stringify(MULTI_CLAIM_ORDER))
+    ok(JSON.stringify(orderClaims(['gitea', 'markdown'])) === JSON.stringify(['markdown', 'gitea']),
+      'gitea 参与排序时仍在 markdown 之后（#2 追加的第四家）')
     ok(JSON.stringify(orderClaims(['gitlab', 'markdown', 'github'])) === JSON.stringify(['github', 'markdown', 'gitlab']),
       '倒着给的名单按明文顺序排好')
     ok(JSON.stringify(orderClaims(['gitlab', 'scratch', 'github'])) === JSON.stringify(['github', 'gitlab', 'scratch']),
@@ -347,8 +366,8 @@ async function main(): Promise<void> {
     // 不是看 import 文本出现的位置——两件事今天碰巧同序，改起来却可以不一致（#1048 复核指出上一版只看了位置）。
     const assembly = readAssembly()
     const order = registerOrderOf(assembly)
-    ok(JSON.stringify(order) === JSON.stringify(['github', 'markdown', 'gitlab']),
-      '装配处三个后端是按 github → markdown → gitlab 注册的（读真的注册调用）', JSON.stringify(order))
+    ok(JSON.stringify(order) === JSON.stringify(['github', 'markdown', 'gitlab', 'gitea']),
+      '装配处四个后端是按 github → markdown → gitlab → gitea 注册的（读真的注册调用）', JSON.stringify(order))
     ok(JSON.stringify(order) === JSON.stringify(MULTI_CLAIM_ORDER),
       '装配顺序与明文裁剪顺序逐位一致：改一处就得同时改另一处',
       JSON.stringify({ 装配: order, 明文: MULTI_CLAIM_ORDER }))
@@ -541,6 +560,55 @@ async function main(): Promise<void> {
       '覆盖度也如实写「这次有意没看哪一层、为什么」', JSON.stringify(sDecisive.coverage))
   }
 
+  // ── I 票 #5：prose-tracker-unsupported 判别（未知后端标题 + 有效 prose 工作流 → 独立状态，不再裸 no-backend）──
+  title('I 票 #5 prose 工作流判别：声明未收录后端 + 正文有结构 → 独立状态；少一条都照旧 no-backend')
+  {
+    // 纯函数：标题声明的后端名抽得出来（全角冒号也认），没有标题回 null。
+    const jiraTitle = parseDeclaredBackendTitle('# Issue tracker: Jira\n\n本仓库用 Jira 管 issue。')
+    ok(jiraTitle !== null && jiraTitle.name === 'Jira', '标题声明的后端名抽得出来（票 #5）', JSON.stringify(jiraTitle))
+    const fullColon = parseDeclaredBackendTitle('## Issue tracker：Jira')
+    ok(fullColon !== null && fullColon.name === 'Jira', '全角冒号的标题也认（中文环境常这么写）', JSON.stringify(fullColon))
+    ok(parseDeclaredBackendTitle('没有任何标题的一篇散文') === null, '没有标题行就回 null，不编一个名字')
+    // 纯函数：三条 prose 工作流规则各验一条正例，再加一条反例。
+    ok(checkProseWorkflow('## Blocked by\n\n- 无') === 'blocked-by-section', '依赖段标题算工作流结构（R1）', String(checkProseWorkflow('## Blocked by')))
+    ok(checkProseWorkflow('## 目的\n\n做一件事') === 'ticket-structure-section', 'deck 票骨架段标题算工作流结构（R2）', String(checkProseWorkflow('## 目的')))
+    ok(checkProseWorkflow('创建 issue 前先写清目的') === 'operation-line', '同行的 issue + 操作动词算工作流约定（R3）', String(checkProseWorkflow('创建 issue 前先写清目的')))
+    ok(checkProseWorkflow('今天天气不错，聊两句闲话。') === null, '闲聊正文认不出工作流结构（反例）', String(checkProseWorkflow('今天天气不错，聊两句闲话。')))
+
+    // 端到端正例：标题声明 Jira（插件未收录）+ 正文带依赖段 → 独立第四态，档位文案带名字。
+    const proseDecl = '# Issue tracker: Jira\n\n本仓库用 Jira 管 issue，创建 issue 前先写清目的。\n\n## Blocked by\n\n- 无'
+    const a = await decideBackend(CWD, { fs: fakeFs({ [DECL]: proseDecl }).fs, registry: fakeRegistry(['github'], async () => null) })
+    ok(a.backendId === null && a.state === 'prose-tracker-unsupported' && a.reason === 'prose-tracker-unsupported',
+      '未知后端标题 + prose 工作流 → 独立第四态，不再落裸 no-backend',
+      JSON.stringify({ backendId: a.backendId, state: a.state, reason: a.reason }))
+    ok(a.gap !== null && a.gap.id === 'declaration-prose-unsupported' && a.gap.detail === 'Jira' && a.gap.text.indexOf('Jira') >= 0,
+      '档位是 prose 专用档，线索带声明的后端名', JSON.stringify(a.gap))
+    ok(a.gap !== null && (a.gap.text.indexOf('prose') >= 0 || a.gap.text.indexOf('收录') >= 0),
+      '档位文案给出两条下一步（prose 手工路径 / 请求收录）', String(a.gap && a.gap.text))
+
+    // 反例一：标题声明了未收录后端，但正文没有工作流结构 → 行为不变，仍是 no-backend。
+    const b = await decideBackend(CWD, { fs: fakeFs({ [DECL]: '# Issue tracker: Jira\n\n随手记两句，没有结构。' }).fs, registry: fakeRegistry(['github'], async () => null) })
+    ok(b.backendId === null && b.state === 'no-backend' && b.reason === 'no-backend' && b.gap !== null && b.gap.id === 'no-claim',
+      '反例一：有未知标题、无工作流结构 → 照旧 no-backend（票 #5 不放大范围）',
+      JSON.stringify({ state: b.state, reason: b.reason, gap: b.gap && b.gap.id }))
+
+    // 反例二：正文有工作流结构，但标题没声明任何后端 → 行为不变，仍是 no-backend。
+    const c = await decideBackend(CWD, { fs: fakeFs({ [DECL]: '只是顺手写的 prose：## Blocked by\n\n- 无' }).fs, registry: fakeRegistry(['github'], async () => null) })
+    ok(c.backendId === null && c.state === 'no-backend' && c.gap !== null && c.gap.id === 'no-claim',
+      '反例二：有结构、无标题声明 → 照旧 no-backend（两条判据缺一不可）',
+      JSON.stringify({ state: c.state, gap: c.gap && c.gap.id }))
+
+    // 已收录后端照旧：标题声明 Gitea 走既有 decided 路，不受新分支影响。
+    const d = await decideBackend(CWD, { fs: fakeFs({ [DECL]: '# Issue tracker: Gitea\n' }).fs, registry: fakeRegistry(['gitea', 'github'], async () => null) })
+    ok(d.backendId === 'gitea' && d.state === 'decided' && d.source === 'explicit',
+      '已收录后端的标题声明照旧 decided，不受新分支影响',
+      JSON.stringify({ backendId: d.backendId, state: d.state, source: d.source }))
+
+    // 档位表：prose 专用档取得出、带名字、文案说清两条下一步。
+    const gp = decisionGapOf('declaration-prose-unsupported', 'Jira')
+    ok(gp !== null && gp.id === 'declaration-prose-unsupported' && gp.text.indexOf('Jira') >= 0 && (gp.text.indexOf('prose') >= 0 || gp.text.indexOf('收录') >= 0),
+      'decisionGapOf 认 prose 专用档（替换 {detail}，文案带两条下一步）', JSON.stringify(gp))
+  }
   console.log('\n共 ' + (passed + failed) + ' 项，' + (failed ? ('破 ' + failed + ' 项') : '全部通过'))
   process.exitCode = failed ? 1 : 0
 }

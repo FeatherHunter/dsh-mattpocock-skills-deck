@@ -403,6 +403,12 @@ const PERMANENT: PermanentRow[] = [
   { file: 'src/refresh/kernel/index-window-rules.ts', snippet: 'sinceMs: 0', reason: '还没有水位时从头全量（0 = 没有上次扫到哪儿），不是可调时长' },
   // —— 单位不是毫秒（调它等于改语义，不是调时间） ——
   { file: 'src/refresh/kernel/failure-backoff.ts', snippet: 'MIN_BACKOFF_STEPS = 2', reason: '退避步数下限（几档）：只有一档就没有「退」这件事，门禁按它核对序列；改它等于改校验语义' },
+  // —— 稳态外部兜底超时（#16 拍板钉死：不走 YAML 可调通道，数字不许漂移，表与源码声明同步增减） ——
+  { file: 'src/tracker/rooms/gitea/index.ts', snippet: 'GITEA_FALLBACK_TIMEOUT_MS = 2000', reason: '识别失败时兜底问一次 git remote 的上限：钉死的外部兜底超时，不是可调旋钮（#16 拍板不入 YAML）' },
+  { file: 'src/tracker/rooms/gitea/preflight.ts', snippet: 'TEA_PROBE_TIMEOUT_MS = 3000', reason: 'tea 探针的短档上限（探不到就判不可达）：钉死的外部 CLI 兜底超时，不是可调旋钮（#16 拍板不入 YAML）' },
+  { file: 'src/tracker/rooms/gitea/support/tea-run.ts', snippet: 'TEA_READ_TIMEOUT_MS = 10000', reason: 'tea 读命令（可能翻页）的整档上限：钉死的外部 CLI 兜底超时，不是可调旋钮（#16 拍板不入 YAML）' },
+  { file: 'src/tracker/rooms/gitea/preflight.ts', snippet: 'GT_PROBE_TIMEOUT_MS = 3000', reason: 'gt 探针的短档上限（探不到就判不可达）：与 TEA_PROBE_TIMEOUT_MS 同款钉死的外部 CLI 兜底超时，不是可调旋钮（#22 引入，不入 YAML）' },
+  { file: 'src/tracker/rooms/gitea/support/gt-run.ts', snippet: 'GT_READ_TIMEOUT_MS = 10000', reason: 'gt 读命令（可能翻页）的整档上限：与 TEA_READ_TIMEOUT_MS 同款钉死的外部 CLI 兜底超时，不是可调旋钮（#22 引入，不入 YAML）' },
 ]
 
 // ---------------------------------------------------------------------------

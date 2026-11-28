@@ -29,7 +29,7 @@
 import { existsSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { registerHooks } from 'node:module'
+import { createRequire, registerHooks } from 'node:module'
 
 // 能力检测：旧 Node 上 registerHooks 根本不存在，直接调用会抛一句难懂的 TypeError。
 // 这里换成能指路的一句话。这是错误信息，不是门禁——守卫靠「能力在不在」，不靠比版本号。
@@ -87,3 +87,33 @@ registerHooks({
     return nextResolve(specifier, context)
   },
 })
+
+// 第二层（票 #6，2026-11-10）：拦「ESM 加载器装载的 .ts 里对 .js 兄弟模块的 require」。
+//
+// 为什么 registerHooks 拦不到这一路（Node 24.15 实测）：入口是 .ts 时，无论文件本身是 CJS 还是
+// ESM 写法，Node 都先经 ESM 加载器装载；CJS 格式的 .ts 由加载器内部的 loadCJSModule 转译执行，
+// 它给模块造的那个 require 直接调 Module._resolveFilename，不经过 registerHooks 挂的 resolve 链
+// （纯 .js 入口走的是普通 CJS 装载，resolve 链是过的——所以故障只咬 .ts 门禁里的 require）。
+// 这一层把同一条 tsSiblingURL 改写规则接到 Module._resolveFilename 上：返回改写后的 .ts 绝对路径，
+// CJS 装载器随即按类型剥离规则加载它（require 一个 ESM 写法的 .ts 也走得通，Node 22.12 起支持）。
+// 两层共用同一条判定，所以既有约定原样保留：无同名 .ts 时原样交给 Node，node_modules 不碰。
+// _resolveFilename 是 Node 的内部挂点（非公开 API）：当前没有公开 API 能拦这条路径，这里加 typeof
+// 守卫，旧 Node 没有它时安静跳过（那些版本连 registerHooks 都没有，走不到这里）。
+const cjsRequire = createRequire(import.meta.url)
+const CJSModule = cjsRequire('node:module') as { _resolveFilename?: Function }
+if (typeof CJSModule._resolveFilename === 'function') {
+  const originalResolveFilename = CJSModule._resolveFilename
+  CJSModule._resolveFilename = function patchedResolveFilename(
+    this: unknown,
+    request: string,
+    parent: { filename?: string } | undefined | null,
+    isMain?: boolean,
+    options?: unknown,
+  ): string {
+    if (parent && parent.filename) {
+      const url: string | null = tsSiblingURL(request, pathToFileURL(parent.filename).href)
+      if (url) return fileURLToPath(url)
+    }
+    return originalResolveFilename.call(this, request, parent, isMain, options)
+  }
+}

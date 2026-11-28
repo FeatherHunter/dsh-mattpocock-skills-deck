@@ -64,7 +64,7 @@
 1. **隔离构建**：在隔离临时目录执行 `node scripts/build.mts`，产物不落当前工作区。
 2. **产物新鲜度与双产物一致性**：根产物 `client.js`/`host.js` 与包内产物 `package/lib/client.js`/`package/lib/index.js` 逐字节一致，且与构建缓存（`node_modules/.cache/dsh-build.json`）里记的上次成功构建产物摘要一致——判据看内容，不看修改时间；缓存不可用时退回按修改时间判断，并会打印 `INFO` 说明原因。
 3. **冒烟测试**：`npm run test:smoke` 必过（client / host / dispatch / render / naming）。
-4. **打包预览**：`npm pack --dry-run` 文件清单仅含白名单，不含密钥、多余文档与私密文件。
+4. **打包预览**：必须在 `package/` 子目录执行 `npm pack --dry-run`，不要在仓库根跑（`cd package && npm pack --dry-run`）。原因：根 `package.json` 没有 `files` 字段，npm 会退回用 `.gitignore` 做排除（报 `gitignore-fallback` 警告），而 `.pnpm-home/`、`.pnpm-store/`、`.npm-cache/` 等本地未跟踪目录不在 `.gitignore` 里，整包会被卷进 tarball（2026-11-10 实测产出近 GB 级包，甚至因包体过大直接 `ERR_OUT_OF_RANGE: data is too long` 失败）；发布白名单锁定在 `package/package.json` 的 `files` 字段，从 `package/` 打包产物才是白名单内的 781 个文件（约 2.3MB）。判据：文件清单仅含白名单，不含密钥、多余文档与私密文件。
 5. **官方源包名占用预检**：显式指向官方源并跳过本地缓存，例如  
    `npm view dsh-mattpocock-skills-deck --registry https://registry.npmjs.org --prefer-online`  
    不被镜像延迟误判。

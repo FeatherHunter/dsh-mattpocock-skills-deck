@@ -58,10 +58,13 @@ function sessionFail(reason: string, detail?: any): any {
 
 /**
  * 仓库地址按后端自己的口径拼：GitHub 与 GitLab 的网页主机名不同，不许把一种地址冒充成另一种。
- * 自建实例的域名宿主这里不知道；那种情况下会话回包里那份地址更准，调用方会优先用它。
+ * gitea 也一样（#15）：退路只能按房里的官方站惯例回 gitea.com，绝不拼 github.com——真机事故里
+ * 自托管 Gitea 仓库因此拿到不存在的页面。自托管实例的真实地址不在这里拼：会话回包（describe
+ * 产物）才是权威，withReadSession 同 refId 时优先取它，这份手拼只是会话不可用时的退路。
  */
 function repoUrlOf(backendId: string, refId: string): string {
-  return (backendId === 'gitlab' ? 'https://gitlab.com/' : 'https://github.com/') + refId
+  const base = backendId === 'gitlab' ? 'https://gitlab.com/' : backendId === 'gitea' ? 'https://gitea.com/' : 'https://github.com/'
+  return base + refId
 }
 
 /** 由宿主给的 owner/name 拼会话要的仓库坐标；refId 是各后端认的 'owner/name'。 */

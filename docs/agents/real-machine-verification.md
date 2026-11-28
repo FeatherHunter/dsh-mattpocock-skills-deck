@@ -203,6 +203,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/report-index.m
 - **清单票什么时候存在**：开发早期就要有，占位标题也行，否则来源票关闭时无处登记。本规则落地之前的版本，按 CHANGELOG 一次性把场景回填到该版本的清单票。
 - **检查本身坏了怎么办**：发布前检查失败就中止发布，先修环境（例如 gh 没登录）；没有「跳过检查」的开关。检查是发布路径的一部分，坏了和发布不了是一回事。
 - **规则从什么时候生效**：从这份文档落地开始的新动作；之前的版本一次性回填，不追认历史过程。
+- **怎么把本地构建的 tarball 装进 desktop profile**（#9，2026-11-10 实测）：不能用 `dsh plugin --profile desktop add`——`dsh` 启动器对名为 `desktop` 的 profile 硬编码拒绝（`rejectElectronProfile`，报 "managed exclusively by the Electron application"，与 App 是否在运行无关）。正确做法是直接在 `~/.dsh/profiles/desktop/` 目录用 pnpm 操作（与 Electron 自己的安装机制同层：package.json + pnpm-lock.yaml；插件 id 在 cordis.patch.yml 已注册的不用动）。且必须用 pnpm 11.22 装：profile 的 node_modules 链接的是 pnpm v11 的 store（`~/Library/pnpm/store/v11`），shell PATH 上默认的 pnpm v10 对 v11 store 直接拒（`ERR_PNPM_UNEXPECTED_STORE`）。命令：`cd ~/.dsh/profiles/desktop && npx -y pnpm@11.22.0 add <tarball路径>`。file: 依赖安装时 pnpm 会按去重策略删掉若干冗余包（实测 `+5 -19`），装完如其他插件异常，用同目录的 package.json / pnpm-lock.yaml 备份回滚后重装。
 
 ## 相关文件
 

@@ -45,7 +45,7 @@
    三个后端「哪几条我实现、哪几条我明确不支持」的逐条登记，是**审计用的文字**
    （写在各自实现里与票面上），不是运行时读的表。
 
-## 能力的上限：26 条，全部写在这一层（2026-10-14 定的规矩，规格 1439 起加读预算）
+## 能力的上限：27 条，全部写在这一层（2026-10-14 定的规矩，规格 1439 起加读预算；其后 operations-catalog 新增操作，口径随之更新为 27）
 
 这份契约管的是**能力上限**：一个后端最多能被要求做哪些事，名字都在这里。后端面对每一条只有两种回法——
 **我实现**，或者**我不支持**。**后端不许有自己独有的对外方法**：凡是实例上叫得到名字的东西，
@@ -55,7 +55,7 @@
 也就永远不会因为漏掉某个后端而在某一天炸掉。谁要加一个能力，先把名字加进 `operations-catalog.ts`
 与 `Tracker`，再让后端去实现；实现不了就如实回 `unsupported`，不许换个名字偷偷提供。
 
-26 条分两段，因为「没有答案」的含义不一样：
+27 条分两段，因为「没有答案」的含义不一样：
 
 | 段 | 条数 | 名字 | 注册表怎么兜底 |
 | --- | --- | --- | --- |
@@ -125,11 +125,11 @@ node node_modules/typescript/bin/tsc -p tsconfig.contract.json
 
 其余文件：
 
-- `operations.ts` —— 能力层：`Tracker` 接口（26 条能力 = 23 条操作 + 3 条定位口），
+- `operations.ts` —— 能力层：`Tracker` 接口（27 条能力 = 24 条操作 + 3 条定位口），
   以及后端能拿出来的那一份 `RoomOperations`（`Partial<Tracker>`：少实现几条是合规的常态，
   缺的操作由注册表补「我不支持」的桩）。三个后端工厂都标了这个返回类型，签名核对交给编译器。
 - `operations-catalog.ts` —— **名录单源**：`OPERATIONS`（23 条操作名）、`LOCATORS`（3 条定位口名）
-  两个 `as const` 数组，合起来是 `CAPABILITIES`（26 条）；`operations.ts` 的 `OpName` 由它生成
+  两个 `as const` 数组，合起来是 `CAPABILITIES`（27 条）；`operations.ts` 的 `OpName` 由它生成
   （`typeof OPERATIONS[number]`），`index.ts` 的 `OPERATIONS` 从它转出
   （同一份数组、同一个引用，注册表读的那一份）。加一条能力只改这里一处。
 - `backend-module.ts` —— 模块对象形状：`id` / `label` / `create` / `matches` / `budget` 五件套（预算口径规格 1439 起必填），

@@ -74,7 +74,8 @@ type ChainStepRef = { id: string; status: string }
 /**
  * 首开引导链的步骤清单（顺序即维护者 2026-09-19 定的那一条）。
  * 每一步的字段见 #662「定版一」：id / checks / backends / ready / banner / missing / blocksSetup。
- * 通用步骤三个后端都写；GitHub 专属的只写 ['github']（GitLab 与本地 Markdown 本轮不插仓库那一段）。
+ * 通用步骤四个后端都写（github / markdown / gitlab / gitea；gitea 漏收会让横幅判定落回 GitHub 清单兜底，
+ * 「环境状态没取到」横幅常驻不散）；GitHub 专属的只写 ['github']（GitLab、gitea 与本地 Markdown 不插仓库那一段）。
  */
 export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
   {
@@ -82,7 +83,7 @@ export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
     // 「尚未初始化／技能缺失」黄条再跳回蓝条，所以这一步读本地门控状态，不读链快照。
     id: 'selection:backendSelected',
     checks: ['selection:backendSelected'],
-    backends: ['github', 'markdown', 'gitlab'],
+    backends: ['github', 'markdown', 'gitlab', 'gitea'],
     ready: STEP_READY.GATE,
     banner: BANNER.gate,
     missing: MISSING.pickBackend,
@@ -158,7 +159,7 @@ export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
     //   docs/agents/workspace.yaml，往上找，见 docs/adr/20261103-workspace-root-upward-search.md）。
     id: 'tracker:initialized',
     checks: ['tracker:initialized'],
-    backends: ['github', 'markdown', 'gitlab'],
+    backends: ['github', 'markdown', 'gitlab', 'gitea'],
     ready: STEP_READY.CHAIN,
     banner: BANNER.setup,
     missing: MISSING.setupRun,
@@ -168,7 +169,7 @@ export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
     // 第 9 步：技能套件的三个技能，一条横幅管三项（取三项里最差的那一项，与今天渲染一致）。
     id: 'skill:wayfinder',
     checks: ['skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt'],
-    backends: ['github', 'markdown', 'gitlab'],
+    backends: ['github', 'markdown', 'gitlab', 'gitea'],
     ready: STEP_READY.CHAIN,
     banner: BANNER.skills,
     missing: MISSING.installSkills,

@@ -423,6 +423,16 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       return null
     }
 
+    // #gitea（2026-11-11）：「已关联 Gitea 仓库」的取数口。与 getRepoIdentity 同一套远端读法
+    //   （git remote -v 的 fetch 行优先，git 不可用退回 .git/config），只是不做 GitHub 身份归一——
+    //   地址列表原样交出去，gitea/forgejo 判据与 owner/name 解析在求值侧（chain-env-map.ts）。
+    //   回 null 表示两条读远端的路都不可用：求值侧按 pending「读不到本地仓库信息」处理，不冒充「没有远端」。
+    async function getRemoteUrls(cwd?: string) {
+      const key = await canonicalKey(cwd || DEFAULT_CWD)
+      const root = await getRepoRoot(key)
+      return remoteUrlsOf(root || key, await resolveGit())
+    }
+
     // #1566：检查面板「已关联 GitHub 仓库」的取数口。先按既有三级拿仓库钥匙（命中就是唯一身份），
     // 拿不到再扫全部远端，回答「有多个不同身份（不猜）」或「一个都没有」—— 两条谓词共用这一份结论。
     // 无身份时不缓存（远端配置随时会被改，人下一次重新检查要能看到刚改的结果），所以这一步可能扫第二遍；
@@ -437,5 +447,5 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       return urls === null ? null : identityFromUrls(urls)
     }
   // #723（T19）：TIMEOUT_MS 一并交出去，供还读它的老调用方兜底；分档由出站两路按命令认，不再两处各写一份。
-  return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, forgetWorkspaceRootCache, getRepoRoot, getCacheDir, getRepoKey, getRepoIdentity, TIMEOUT_MS }
+  return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, forgetWorkspaceRootCache, getRepoRoot, getCacheDir, getRepoKey, getRepoIdentity, getRemoteUrls, TIMEOUT_MS }
 }

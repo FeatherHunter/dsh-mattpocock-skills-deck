@@ -110,7 +110,7 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 
 <div align="center">
 
-根据办公环境不同提供多样后端：GitHub、本地 Markdown、GitLab。
+根据办公环境不同提供多样后端：GitHub、本地 Markdown、GitLab、Gitea / Forgejo（tea CLI）。
 
 <table width="100%">
   <tr>

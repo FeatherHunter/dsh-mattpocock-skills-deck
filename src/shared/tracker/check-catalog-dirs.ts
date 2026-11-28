@@ -69,7 +69,7 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
     id: 'skill:wayfinder',
     label: '技能 wayfinder 已安装',
     scope: 'generic',
-    backends: ['github','markdown','gitlab'],
+    backends: ['github','markdown','gitlab','gitea'],
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'wayfinder' },
     origin: 'host/index.js:SKILL_PROBE_NAMES (inventory 类别 8)',
   },
@@ -77,7 +77,7 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
     id: 'skill:setup-matt-pocock-skills',
     label: '技能 setup-matt-pocock-skills 已安装',
     scope: 'generic',
-    backends: ['github','markdown','gitlab'],
+    backends: ['github','markdown','gitlab','gitea'],
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'setup-matt-pocock-skills' },
     origin: 'host/index.js:SKILL_PROBE_NAMES',
   },
@@ -85,7 +85,7 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
     id: 'skill:ask-matt',
     label: '技能 ask-matt 已安装',
     scope: 'generic',
-    backends: ['github','markdown','gitlab'],
+    backends: ['github','markdown','gitlab','gitea'],
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'ask-matt' },
     origin: 'host/index.js:SKILL_PROBE_NAMES',
   },
@@ -93,7 +93,7 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
     id: 'env:home',
     label: '用户主目录可解析',
     scope: 'generic',
-    backends: ['github','markdown','gitlab'],
+    backends: ['github','markdown','gitlab','gitea'],
     // /homeDir（2026-08-28 修复）：主目录判定只问平台层（#171：win32 不读 HOME，走 os.homedir→USERPROFILE；linux/mac 走 os.homedir）。
     //   原 ENV(HOME) 在 Windows 必然误报「HOME not set」（Windows 从不设置该环境变量）。
     //   为什么是通用检查：技能判装的单一根 ~/.agents/skills（#276/#281）由此解析，三后端共用同一用户级根，
@@ -113,7 +113,7 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
     id: 'tracker:initialized',
     label: '工作区已初始化（有说明文件）',
     scope: 'generic',
-    backends: ['github','markdown','gitlab'],
+    backends: ['github','markdown','gitlab','gitea'],
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.FILE_EXISTS, path: 'docs/agents/issue-tracker.md' },
     origin: 'host/checkTracker (inventory 类别 8)',
   },
@@ -192,6 +192,47 @@ export const GITLAB_CATALOG: readonly CatalogItem[] = Object.freeze([
   },
 ])
 
+/** Gitea（含 Forgejo）后端检查目录（仅 gitea 适用）。
+ * 2026-11-11 起与 GitHub 同构的 4 项（顺序也同 GitHub：仓库关联 → 命令行 → 登录 → 可达），
+ *   判定与话术在 src/refresh/rooms/host/chain-env-map.ts（teaAuthVerdict / teaRepoAccessVerdict），
+ *   注册键在 check-chain-evaluation.ts（preflight:teaAuth / backend:gitea:repoRemote / backend:gitea:repoAccess）。
+ */
+export const GITEA_CATALOG: readonly CatalogItem[] = Object.freeze([
+  {
+    // 文案照 GitHub 句式（2026-11-11 维护者定版）：任务语言说「已关联」，技术名只括注一次。
+    id: 'tea:remote',
+    label: '已关联 Gitea 仓库',
+    scope: 'backend',
+    backends: ['gitea'],
+    check: { kind: 'backend', id: 'repoRemote', backendId: 'gitea' },
+    origin: '2026-11-11 gitea 检查链补齐（判据与 rooms/gitea/index.ts:matches 的 /gitea|forgejo/i 同源）',
+  },
+  {
+    id: 'tea:installed',
+    label: 'Gitea 助手（tea cli）已安装',
+    scope: 'backend',
+    backends: ['gitea'],
+    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.COMMAND_EXISTS, command: 'tea' },
+    origin: 'rooms/gitea/preflight.ts 第 1 关（2026-11-11 迁入检查目录）',
+  },
+  {
+    id: 'tea:authed',
+    label: '已登录 Gitea',
+    scope: 'backend',
+    backends: ['gitea'],
+    check: { kind: 'preflight', id: 'teaAuth' },
+    origin: 'rooms/gitea/preflight.ts 第 2 关（2026-11-11 迁入检查目录）',
+  },
+  {
+    id: 'tea:repoAccess',
+    label: '仓库在 Gitea 上可访问',
+    scope: 'backend',
+    backends: ['gitea'],
+    check: { kind: 'backend', id: 'repoAccess', backendId: 'gitea' },
+    origin: 'rooms/gitea/preflight.ts 第 3 关（2026-11-11 迁入检查目录）',
+  },
+])
+
 /** Markdown 后端检查目录（仅 markdown 适用）。
  *
  * #1513 起固定三项、顺序固定（workspace → scratchWritable → containersReadable）：
@@ -236,7 +277,7 @@ export const MARKDOWN_CATALOG: readonly CatalogItem[] = Object.freeze([
 
 // 冻结目录项本身（不只是数组）：GitHub 房的模块检查表现在直接引用这些对象、不再各持一份副本；
 // 元素如果可变，谁都能通过模块表改掉目录里的字，唯一真源就被绕过了。
-for (const list of [GENERIC_CATALOG, GITHUB_CATALOG, GITLAB_CATALOG, MARKDOWN_CATALOG]) {
+for (const list of [GENERIC_CATALOG, GITHUB_CATALOG, GITLAB_CATALOG, GITEA_CATALOG, MARKDOWN_CATALOG]) {
   for (const item of list) Object.freeze(item)
 }
 
@@ -245,6 +286,7 @@ export const ALL_CATALOGS = Object.freeze({
   generic: GENERIC_CATALOG,
   github: GITHUB_CATALOG,
   gitlab: GITLAB_CATALOG,
+  gitea: GITEA_CATALOG,
   markdown: MARKDOWN_CATALOG,
 })
 
@@ -258,7 +300,7 @@ export const ALL_CATALOGS = Object.freeze({
  */
 export function scopeOf(checkId: string): 'generic' | 'backend' | null {
   if (GENERIC_CATALOG.some(c => c.id === checkId)) return 'generic'
-  if (GITHUB_CATALOG.some(c => c.id === checkId) || GITLAB_CATALOG.some(c => c.id === checkId) || MARKDOWN_CATALOG.some(c => c.id === checkId)) return 'backend'
+  if (GITHUB_CATALOG.some(c => c.id === checkId) || GITLAB_CATALOG.some(c => c.id === checkId) || GITEA_CATALOG.some(c => c.id === checkId) || MARKDOWN_CATALOG.some(c => c.id === checkId)) return 'backend'
   return null
 }
 
@@ -267,13 +309,14 @@ export function scopeOf(checkId: string): 'generic' | 'backend' | null {
  *
  * 约定：未知后端只给通用目录，不抛错也不补后端目录；反例是抛错，后端尚未选定时调用方会直接中断整条链。
  *
- * @param {'github'|'markdown'|'gitlab'|null} backendId
+ * @param {'github'|'markdown'|'gitlab'|'gitea'|null} backendId
  * @returns {CatalogItem[]}
  */
-export function catalogFor(backendId: 'github' | 'markdown' | 'gitlab' | null | undefined): CatalogItem[] {
+export function catalogFor(backendId: 'github' | 'markdown' | 'gitlab' | 'gitea' | null | undefined): CatalogItem[] {
   const base = [...GENERIC_CATALOG]
   if (backendId === 'github') base.push(...GITHUB_CATALOG)
   else if (backendId === 'gitlab') base.push(...GITLAB_CATALOG)
+  else if (backendId === 'gitea') base.push(...GITEA_CATALOG)
   else if (backendId === 'markdown') base.push(...MARKDOWN_CATALOG)
   return base
 }
@@ -284,10 +327,10 @@ export function catalogFor(backendId: 'github' | 'markdown' | 'gitlab' | null | 
  * 约定：先按 catalogFor 取「通用 + 该后端」，再只留 scope==='backend'；未知后端得到空数组，不抛错。
  * 反例是各调用方各写一遍 `scope === 'backend'` 过滤——今天写法一样，明天就可能有一处漏改。
  *
- * @param {'github'|'markdown'|'gitlab'|null|undefined} backendId
+ * @param {'github'|'markdown'|'gitlab'|'gitea'|null|undefined} backendId
  * @returns {CatalogItem[]}
  */
-export function backendItemsOf(backendId: 'github' | 'markdown' | 'gitlab' | null | undefined): CatalogItem[] {
+export function backendItemsOf(backendId: 'github' | 'markdown' | 'gitlab' | 'gitea' | null | undefined): CatalogItem[] {
   return catalogFor(backendId).filter((item) => item.scope === 'backend')
 }
 
@@ -306,6 +349,10 @@ export const MIGRATION_MAP = Object.freeze({
   'glab:installed': 'GITLAB_CATALOG[0]',
   'glab:authed': 'GITLAB_CATALOG[1]',
   'glab:repoAccess': 'GITLAB_CATALOG[2]',
+  'tea:remote': 'GITEA_CATALOG[0]',
+  'tea:installed': 'GITEA_CATALOG[1]',
+  'tea:authed': 'GITEA_CATALOG[2]',
+  'tea:repoAccess': 'GITEA_CATALOG[3]',
   'md:workspace': 'MARKDOWN_CATALOG[0]',
   'md:scratchWritable': 'MARKDOWN_CATALOG[1]',
   'md:containersReadable': 'MARKDOWN_CATALOG[2]',

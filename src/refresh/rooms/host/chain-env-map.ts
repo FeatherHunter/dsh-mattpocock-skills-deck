@@ -50,7 +50,8 @@ export type OpenSessionReply = OpenedChainSession | { ok: false; reason?: string
  * 环境那一关的结论：pass 三关全过；none 会话没接上（接线缺省或开不出来）；
  * 其余三种是停在哪一关——本机环境那一关（含缺可执行）/ 登录态问不出来 / 仓库不可达。
  */
-type ChainEnvProbeReply = {
+// 2026-11-11 导出给 gitea-chain-predicates.ts 用：三条 gitea 谓词的 envProbe 形状要引用它。
+export type ChainEnvProbeReply = {
   stage: 'pass' | 'none' | 'gh' | 'auth' | 'repo'
   kind?: string
   message?: string
@@ -258,6 +259,50 @@ export function glabAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredi
   return { status: 'pending', detail: zh ? '读会话还没接上，暂时无法确认登录状态' : 'read session not available; login state unknown' }
 }
 
+// ── Gitea（含 Forgejo）的两行（2026-11-11）：与 GitLab 两行同构，只换后端与话术 ───────────────────
+/**
+ * 「仓库在 Gitea 上可访问」这一项的判定（第三关）。
+ *
+ * 与 GitLab 那行同一套口径：只有「确定仓库不存在或无权限」（kind=not-found）才判 fail；
+ * 未登录、网络异常、读会话没接上，一律 pending（诚实未知）。
+ * Gitea 房在本地认不出仓库地址（refId 空）时会跳过第三关直接回成功——room/gitea/preflight.ts 的既定口径——
+ * 所以这里与 glabRepoAccessVerdict 一样，pass 且无 refId 时如实回 pending，不冒充可达。
+ */
+export function teaRepoAccessVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredicateVerdict {
+  if (pr.stage === 'pass') {
+    if (pr.refId) return { status: 'pass', detail: zh ? 'Gitea 接口访问正常' : 'Gitea api reachable' }
+    return { status: 'pending', detail: zh ? '暂时无法确认仓库可访问（本地认不出 Gitea 仓库地址）' : 'repo ref unknown locally; Gitea repo reachability unknown' }
+  }
+  if (pr.stage === 'gh') return { status: 'pending', detail: envPendingDetail(pr, zh, 'tea', 'repo') }
+  if (pr.stage === 'repo') {
+    if (pr.kind === 'not-found') return { status: 'fail', detail: zh ? 'Gitea 上访问不到该仓库（可能还没创建，或你没有权限）' : 'API 404: repo not found (may not exist or no access)' }
+    return { status: 'pending', detail: zh ? '暂时无法确认仓库可访问（网络或登录态未知）' : 'Gitea repo reachability unknown (network or auth unknown)' }
+  }
+  if (pr.stage === 'auth') return { status: 'pending', detail: zh ? '暂时无法确认仓库可访问（网络或登录态未知）' : 'Gitea repo reachability unknown (network or auth unknown)' }
+  return { status: 'pending', detail: zh ? '读会话还没接上，暂时无法确认仓库可访问' : 'read session not available; repo reachability unknown' }
+}
+
+/**
+ * 「已登录 Gitea」这一项的判定（前两关）。
+ *
+ * 与 GitHub / GitLab 两行同一套口径：只有明确「未登录」（kind=auth）才判 fail，
+ * 网络抖动与问不出去的情形一律 pending。档位由 Gitea 房间的 preflight 按原文判出来
+ * （rooms/gitea/errors.ts 的 classifyGiteaError：no token 归 auth、404 repository does not exist 归
+ * not-found、dial tcp 归 network），这里只按档位分派，不再拿原文词表猜第二遍。
+ */
+export function teaAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredicateVerdict {
+  if (pr.stage === 'pass') return { status: 'pass', detail: zh ? '已登录' : 'Logged in' }
+  if (pr.stage === 'gh') return { status: 'pending', detail: envPendingDetail(pr, zh, 'tea', 'login') }
+  if (pr.stage === 'repo') return { status: 'pass', detail: zh ? '已登录（仓库可达性由下一项判断）' : 'logged in (repo reachability is checked by the next item)' }
+  if (pr.stage === 'auth') {
+    const kind = pr.kind || 'exit'
+    if (kind === 'network') return { status: 'pending', detail: zh ? '网络异常，暂时无法确认 tea 登录状态' : 'tea login probe transport failure; login state unknown' }
+    if (kind === 'auth') return { status: 'fail', detail: zh ? 'Gitea 登录状态已失效（重新执行 tea login add）' : 'tea credential invalid or not logged in: re-authenticate (tea login add)' }
+    return { status: 'pending', detail: zh ? '暂时无法确认登录状态（' + kind + '）' : 'tea login probe failed (' + kind + '); login state unknown' }
+  }
+  return { status: 'pending', detail: zh ? '读会话还没接上，暂时无法确认登录状态' : 'read session not available; login state unknown' }
+}
+
 // ── 一次求值只问一次环境的那只探针（#1444）────────────────────────────────────────
 /** 探针可选设置：这次求值问哪个后端的环境（缺省 github，老调用方的行为不变）。 */
 type ChainEnvProbeOptions = { backendId?: string }
@@ -420,4 +465,63 @@ export function createRepoIdentityEvidence(deps: { getRepoKey(cwd: string): Prom
     return zh ? '读不到本地仓库信息（没有 git，也读不到 .git/config），暂时确认不了' : 'cannot read local repository info (no git, and .git/config unreadable); cannot confirm yet'
   }
   return { forEval: forEval, failDetail: failDetail, unknownDetail: unknownDetail }
+}
+
+// ── #gitea 「已关联 Gitea 仓库」的证据读法 ────────────────────────────────────────
+/**
+ * 从一个 git 远端地址里解析 owner/name（「已关联 Gitea 仓库」的 detail 用）。
+ *
+ * 判据与 Gitea 房定位口的 repoKeyFromRemoteUrl（src/tracker/rooms/gitea/index.ts）同源：
+ * 认 https(s)://host/owner/name(.git)、git@host:owner/name(.git)（scp 写法）、
+ * ssh://git@host/owner/name(.git) 三类，取路径最后两段、尾巴的 .git 去掉。
+ * 为什么在这里再写一份而不是 import 房间：本文件头约定只许依赖 src/shared（宿主层不进房间模块），
+ * 所以判据同源靠注释钉住，改一处必须两处一起改。
+ */
+function giteaRepoKeyFromRemoteUrl(url: string): { owner: string; name: string } | null {
+  const trimmed = url.trim()
+  const withoutSuffix = trimmed.replace(/\.git$/i, '')
+  const normalized = withoutSuffix.replace(/^[^/:]+:/, (m) => (m.includes('@') && !m.includes('/') ? m.replace(':', '/') : m))
+  const segments = normalized.split('/').filter(Boolean)
+  if (segments.length < 2) return null
+  const name = segments[segments.length - 1]
+  const owner = segments[segments.length - 2]
+  if (!owner || !name || owner.includes('@') || owner.includes(':')) return null
+  return { owner, name }
+}
+
+/**
+ * 「已关联 Gitea 仓库」这一项的证据：远端地址列表里有指向 Gitea/Forgejo 的那一条才算关联。
+ *
+ * 依赖的 getRemoteUrls 由接线给（git remote -v 的 fetch 行，git 不可用退回 .git/config；
+ * 回 null 表示两条路都不可用）。三态与 null 的分工：
+ *   · null → 调用方按 pending「读不到本地仓库信息」处理（不冒充「没有远端」）；
+ *   · 列表里没有 gitea/forgejo 地址 → fail「本地没有指向 Gitea/Forgejo 的远端」（确实没关联）；
+ *   · 有 → pass，detail 是解析出来的 owner/name（解析不出来就用地址本身，仍算关联）。
+ * 判据 /gitea|forgejo/i 与 Gitea 房的 matches 同源（rooms/gitea/index.ts）。
+ */
+export type GiteaRemoteEvidence = { kind: 'identity'; owner: string; name: string } | { kind: 'unparsable'; url: string } | { kind: 'none' }
+
+export function createGiteaRemoteEvidence(deps: { getRemoteUrls(cwd: string): Promise<string[] | null> }) {
+  const { getRemoteUrls } = deps
+  async function read(at: string): Promise<GiteaRemoteEvidence | null> {
+    const urls = await getRemoteUrls(at)
+    if (urls === null) return null
+    for (const url of urls) {
+      if (!/gitea|forgejo/i.test(url)) continue
+      const k = giteaRepoKeyFromRemoteUrl(url)
+      if (k) return { kind: 'identity', owner: k.owner, name: k.name }
+      return { kind: 'unparsable', url: url }
+    }
+    return { kind: 'none' }
+  }
+  /** 两条谓词的失败话术：与 GitHub 那份 failDetail 同一口径，说清查过哪两处。 */
+  function failDetail(ev: GiteaRemoteEvidence, zh: boolean) {
+    if (ev.kind === 'unparsable') return zh ? '本地远端地址认不出 owner/repo（' + ev.url + '），无法确定用哪一个' : 'cannot parse owner/repo from the remote URL (' + ev.url + ')'
+    return zh ? '本地没有指向 Gitea/Forgejo 的远端（git remote 与 .git/config 都查过）' : 'no Gitea/Forgejo remote in this workspace (checked git remote and .git/config)'
+  }
+  /** 连远端列表都读不到时的待定话术：不冒充「没有」，也不冒充出站失败。 */
+  function unknownDetail(zh: boolean) {
+    return zh ? '读不到本地仓库信息（没有 git，也读不到 .git/config），暂时确认不了' : 'cannot read local repository info (no git, and .git/config unreadable); cannot confirm yet'
+  }
+  return { read: read, failDetail: failDetail, unknownDetail: unknownDetail }
 }
